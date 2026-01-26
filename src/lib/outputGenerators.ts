@@ -270,13 +270,136 @@ function getBranchingSummary(config: POI['step_config']): string {
   return parts.length > 0 ? parts.join(' ') : '-';
 }
 
+// ============= Canonical value sets =============
+const CANONICAL_VALIDATION_MODES = new Set(['auto_gps', 'qr_code', 'manual', 'photo', 'code', 'free']);
+const CANONICAL_STEP_TYPES = new Set(['story', 'information', 'mcq', 'enigme', 'code', 'hangman', 'memory', 'gps', 'photo', 'terrain', 'defi']);
+const CANONICAL_SCORING_KEYS = new Set(['points', 'hint_penalty', 'fail_penalty', 'time_limit_sec', 'time_bonus']);
+
+// ============= Legacy French -> Canonical mappings =============
+const VALIDATION_MODE_MAP: Record<string, string> = {
+  'gps automatique': 'auto_gps',
+  'gps auto': 'auto_gps',
+  'auto_gps': 'auto_gps',
+  'code qr': 'qr_code',
+  'qr code': 'qr_code',
+  'qr_code': 'qr_code',
+  'manuel': 'manual',
+  'manual': 'manual',
+  'photo': 'photo',
+  'code': 'code',
+  'gratuit': 'free',
+  'libre': 'free',
+  'free': 'free',
+};
+
+const STEP_TYPE_MAP: Record<string, string> = {
+  'histoire': 'story',
+  'récit': 'story',
+  'story': 'story',
+  'information': 'information',
+  'qcm': 'mcq',
+  'mcq': 'mcq',
+  'énigme': 'enigme',
+  'enigme': 'enigme',
+  'code secret': 'code',
+  'code': 'code',
+  'pendu': 'hangman',
+  'hangman': 'hangman',
+  'mémoire': 'memory',
+  'memory': 'memory',
+  'gps': 'gps',
+  'photo': 'photo',
+  'terrain': 'terrain',
+  'défi': 'defi',
+  'defi': 'defi',
+  'narration': 'story',
+};
+
+const SCORING_KEY_MAP: Record<string, string> = {
+  'points': 'points',
+  'hint_penalty': 'hint_penalty',
+  'pénalité_indice': 'hint_penalty',
+  'penalite_indice': 'hint_penalty',
+  'fail_penalty': 'fail_penalty',
+  'pénalité_échec': 'fail_penalty',
+  'penalite_echec': 'fail_penalty',
+  'time_limit_sec': 'time_limit_sec',
+  'limite_temps_sec': 'time_limit_sec',
+  'time_bonus': 'time_bonus',
+  'bonus_temps': 'time_bonus',
+};
+
+function canonicalizeValidationMode(val: unknown): string {
+  if (!val) return 'manual';
+  const normalized = String(val).toLowerCase().trim();
+  const mapped = VALIDATION_MODE_MAP[normalized];
+  if (mapped && CANONICAL_VALIDATION_MODES.has(mapped)) return mapped;
+  if (CANONICAL_VALIDATION_MODES.has(normalized)) return normalized;
+  throw new Error(`Invalid validationMode: "${val}". Must be one of: ${[...CANONICAL_VALIDATION_MODES].join('|')}`);
+}
+
+function canonicalizeStepType(val: unknown): string {
+  if (!val) return 'enigme';
+  const normalized = String(val).toLowerCase().trim();
+  const mapped = STEP_TYPE_MAP[normalized];
+  if (mapped && CANONICAL_STEP_TYPES.has(mapped)) return mapped;
+  if (CANONICAL_STEP_TYPES.has(normalized)) return normalized;
+  throw new Error(`Invalid stepType: "${val}". Must be one of: ${[...CANONICAL_STEP_TYPES].join('|')}`);
+}
+
+function canonicalizeScoringKeys(scoring: unknown): Record<string, unknown> {
+  if (!scoring || typeof scoring !== 'object') return {};
+  const result: Record<string, unknown> = {};
+  const invalidKeys: string[] = [];
+  
+  for (const [key, value] of Object.entries(scoring as Record<string, unknown>)) {
+    const normalized = key.toLowerCase().trim();
+    const mapped = SCORING_KEY_MAP[normalized];
+    if (mapped && CANONICAL_SCORING_KEYS.has(mapped)) {
+      result[mapped] = value;
+    } else if (CANONICAL_SCORING_KEYS.has(normalized)) {
+      result[normalized] = value;
+    } else {
+      invalidKeys.push(key);
+    }
+  }
+  
+  if (invalidKeys.length > 0) {
+    throw new Error(`Invalid scoring keys: ${invalidKeys.join(', ')}. Must be one of: ${[...CANONICAL_SCORING_KEYS].join('|')}`);
+  }
+  
+  return result;
+}
+
 /**
  * Build the canonical quest export object (used for JSON export)
+ * Enforces canonical values at export time and fails fast on invalid data.
  */
 export function buildQuestExport(data: OutputData) {
   const { project, pois, wifiZones, forbiddenZones } = data;
   const questConfig = project.quest_config || {};
   const teamConfig = getTeamConfig(project.quest_config);
+
+  // Canonicalize quest-level scoring
+  const canonicalQuestScoring = canonicalizeScoringKeys(questConfig.scoring);
+
+  // Build steps with canonical values
+  const steps = pois.map((poi, i) => {
+    const config = poi.step_config || {};
+    return {
+      order: i + 1,
+      name: poi.name,
+      zone: poi.zone,
+      stepType: canonicalizeStepType(config.stepType),
+      validationMode: canonicalizeValidationMode(config.validationMode),
+      photoValidation: config.photoValidation,
+      gps: config.gps,
+      scoring: canonicalizeScoringKeys(config.scoring),
+      hints: config.hints,
+      branching: config.branching,
+      contentI18n: config.contentI18n,
+    };
+  });
 
   return {
     quest: {
@@ -292,16 +415,11 @@ export function buildQuestExport(data: OutputData) {
         maxPlayersPerTeam: teamConfig.maxPlayersPerTeam,
         timeLimitMinutes: teamConfig.timeLimitMinutes,
       } : { enabled: false },
-      scoring: questConfig.scoring || {},
+      scoring: canonicalQuestScoring,
       hintRules: questConfig.hintRules || {},
       branching: questConfig.branchingPresets || {},
     },
-    steps: pois.map((poi, i) => ({
-      order: i + 1,
-      name: poi.name,
-      zone: poi.zone,
-      ...poi.step_config,
-    })),
+    steps,
     venue: {
       hotelName: project.hotel_name,
       city: project.city,
@@ -318,11 +436,42 @@ export function buildQuestExport(data: OutputData) {
   };
 }
 
+// French labels that must NEVER appear in export
+const FORBIDDEN_FRENCH_LABELS = [
+  'GPS automatique',
+  'code QR',
+  'gratuit',
+  'QCM',
+  'énigme',
+  'mémoire',
+  'défi',
+  'pénalité',
+  'limite de temps en secondes',
+];
+
 /**
- * Generate the QUEST_EXPORT_JSON as a formatted string
+ * Generate the QUEST_EXPORT_JSON as a formatted string.
+ * Includes hard assertions to ensure no non-ASCII or French labels leak through.
  */
 export function generateQuestExportJSON(data: OutputData): string {
-  return JSON.stringify(buildQuestExport(data), null, 2);
+  const exportData = buildQuestExport(data);
+  const jsonString = JSON.stringify(exportData, null, 2);
+  
+  // Hard assertion: no non-ASCII characters
+  if (/[^\x00-\x7F]/.test(jsonString)) {
+    const nonAscii = jsonString.match(/[^\x00-\x7F]+/g) || [];
+    throw new Error(`Non-ASCII found in QUEST_EXPORT_JSON: ${nonAscii.slice(0, 5).join(', ')}`);
+  }
+  
+  // Hard assertion: no French labels
+  const foundLabels = FORBIDDEN_FRENCH_LABELS.filter(label => 
+    jsonString.toLowerCase().includes(label.toLowerCase())
+  );
+  if (foundLabels.length > 0) {
+    throw new Error(`French labels found in QUEST_EXPORT_JSON: ${foundLabels.join(', ')}`);
+  }
+  
+  return jsonString;
 }
 
 export function generatePrompt(data: OutputData): string {
