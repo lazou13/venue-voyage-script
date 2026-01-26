@@ -1,272 +1,313 @@
 
-# Plan: Finaliser le module Storytelling et Avatars (Option 2)
+
+# Plan: Reliability Hardening for Route Recorder
 
 ## Resume
 
-Ce plan renforce la robustesse du module storytelling avec:
-- UX amelioree (onglets, recherche, confirmation)
-- Empty state avec seeding de placeholders
-- Validation affinee (blocker vs warnings)
-- Export securise avec fallback
+Add explicit error handling for geolocation failures, expose a status state machine, and ensure crash-safe behavior on page reload.
 
 ---
 
-## 1. UX Hardening (StorytellingSection.tsx)
+## 1. useRouteRecorder.ts - Error Handling & Status State
 
-### 1.1 Structure en onglets
+### 1.1 Add Status Type
 
-Ajouter deux onglets pour separer les avatars:
-- **Bibliotheque**: avatars globaux (project_id = null)
-- **Ce projet**: avatars specifiques au projet courant
-
-Utiliser le composant `Tabs` existant de `@/components/ui/tabs`.
-
-### 1.2 Badge Narrateur + Selection amelioree
-
-- Ajouter un badge "Narrateur" visible sur l'avatar selectionne
-- Bouton "Definir comme narrateur" apparait au hover sur les autres avatars
-- Confirmation dialog avant changement de narrateur (previent clics accidentels)
-
-### 1.3 Recherche et filtres
-
-- Input de recherche par nom
-- Chips de filtrage rapide: style, persona, age
-- Filtrage cote client (pas de requete DB)
-
-### 1.4 Upload toujours visible
-
-Deplacer le bouton "+ Ajouter un avatar" hors du bloc conditionnel `storytelling.enabled` pour qu'il soit toujours accessible.
-
----
-
-## 2. Empty State et Seeding
-
-### 2.1 Detection empty state
-
-Si `avatars.length === 0`, afficher un ecran vide avec CTA:
-```
-Aucun avatar disponible.
-[Importer le pack de 10 avatars placeholders]
-```
-
-### 2.2 Fonction de seeding client-side
-
-Creer une fonction `seedPlaceholderAvatars` dans `useAvatars.ts`:
-- Insere 10 avatars avec des noms varies (Luna, Max, Sofia, etc.)
-- Utilise des images placeholder (ex: `https://ui-avatars.com/api/?name=Luna&size=200`)
-- Styles/personas/ages varies pour la diversite
-- Tous globaux (project_id = null)
-
----
-
-## 3. Validation Logic (useProject.ts)
-
-### 3.1 Blocker storytelling
-
-Conserver le blocker existant (deja correct):
 ```typescript
-if (storytelling?.enabled === true && !storytelling.narrator?.avatar_id) {
-  errors.push('Avatar narrateur requis');
+export type RecordingStatus = 'idle' | 'recording' | 'error';
+```
+
+### 1.2 Expand RecordingState
+
+Add fields to track status and error message:
+
+```typescript
+interface RecordingState {
+  status: RecordingStatus;      // NEW
+  errorMessage: string | null;  // NEW
+  startTime: number | null;
+  coords: RouteCoord[];
+  currentTraceId: string | null;
+  mode: RecordingMode;
 }
 ```
 
-### 3.2 Warning avatar count
-
-Ajouter un warning (non bloquant):
+Initial state:
 ```typescript
-// Ne necessite pas avatarsQuery dans useProject
-// Ce warning sera ajoute via parametre externe
-warnings.push('Moins de 10 avatars disponibles (recommande: 10+)');
-```
-
-Note: Puisque `useProject` ne fetch pas les avatars, ce warning sera gere dans `OutputsStep.tsx` qui a acces aux avatars.
-
-### 3.3 Default storytelling.enabled = false
-
-Deja le cas par defaut (pas de changement necessaire).
-
----
-
-## 4. Export Robustness (outputGenerators.ts)
-
-### 4.1 Omission si disabled
-
-Si `storytelling.enabled === false`, le bloc narrator est deja `null`. Renforcer en omettant completement:
-
-```typescript
-// Si disabled, ne pas inclure storytelling du tout dans l'export
-if (!storytelling?.enabled) {
-  // Omettre ou mettre { enabled: false }
-}
-```
-
-### 4.2 Fallback si avatar supprime
-
-Si `storytelling.enabled === true` mais l'avatar n'est pas trouve:
-```typescript
-if (storytelling?.enabled && storytelling.narrator?.avatar_id) {
-  const avatar = avatars.find(a => a.id === storytelling.narrator?.avatar_id);
-  if (avatar) {
-    // ... normal export
-  } else {
-    // Fallback avec warning explicite
-    storytellingData.narrator = null;
-    storytellingData._warning = 'narrator_avatar_deleted';
-  }
-}
-```
-
-### 4.3 Structure export narrator
-
-Structure finale garantie:
-```json
 {
-  "storytelling": {
-    "enabled": true,
-    "narrator": {
-      "avatar_id": "uuid",
-      "avatar_image_url": "https://...",
-      "avatar_tags": {
-        "name": "Luna",
-        "style": "cartoon",
-        "persona": "guide_host",
-        "age": "adult",
-        "outfit": "modern"
-      }
-    }
-  }
+  status: 'idle',
+  errorMessage: null,
+  startTime: null,
+  coords: [],
+  currentTraceId: null,
+  mode,
 }
 ```
 
----
+### 1.3 Geolocation Error Handling in startRecording
 
-## 5. OutputsStep Wiring
+Before calling `watchPosition`, check geolocation availability:
 
-### 5.1 Garantir avatars non undefined
-
-Deja fait avec `avatars ?? []` dans le hook, mais renforcer:
 ```typescript
-const data = { 
-  project, 
-  pois, 
-  wifiZones, 
-  forbiddenZones, 
-  avatars: avatars || [] 
+const startRecording = useCallback(async () => {
+  // Check geolocation support
+  if (!('geolocation' in navigator)) {
+    setState(prev => ({
+      ...prev,
+      status: 'error',
+      errorMessage: 'Geolocalisation non disponible sur cet appareil',
+    }));
+    return;
+  }
+
+  try {
+    const trace = await createTrace.mutateAsync();
+    lastKeptPointRef.current = null;
+
+    setState({
+      status: 'recording',
+      errorMessage: null,
+      startTime: Date.now(),
+      coords: [],
+      currentTraceId: trace.id,
+      mode: modeRef.current,
+    });
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      // success callback (existing filtering logic)
+      ...
+      ,
+      // error callback - ENHANCED
+      (error) => {
+        console.error('Geolocation error:', error);
+        
+        // Clear watch on error
+        if (watchIdRef.current !== null) {
+          navigator.geolocation.clearWatch(watchIdRef.current);
+          watchIdRef.current = null;
+        }
+        
+        let message: string;
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            message = 'Permission GPS refusee. Autorisez l\'acces dans les parametres.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            message = 'Position GPS indisponible. Verifiez que le GPS est active.';
+            break;
+          case error.TIMEOUT:
+            message = 'Delai GPS depasse. Reessayez dans un endroit ouvert.';
+            break;
+          default:
+            message = error.message || 'Erreur GPS inconnue';
+        }
+        
+        setState(prev => ({
+          ...prev,
+          status: 'error',
+          errorMessage: message,
+        }));
+      },
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 10000 }
+    );
+
+    toast({ title: 'Enregistrement demarre' });
+  } catch (err) {
+    setState(prev => ({
+      ...prev,
+      status: 'error',
+      errorMessage: 'Impossible de creer la trace. Verifiez la connexion.',
+    }));
+  }
+}, [createTrace, toast]);
+```
+
+### 1.4 Add retry() Function
+
+```typescript
+const retry = useCallback(() => {
+  setState(prev => ({
+    ...prev,
+    status: 'idle',
+    errorMessage: null,
+  }));
+}, []);
+```
+
+### 1.5 Update stopRecording
+
+Reset to idle status:
+
+```typescript
+setState({
+  status: 'idle',
+  errorMessage: null,
+  startTime: null,
+  coords: [],
+  currentTraceId: null,
+  mode: modeRef.current,
+});
+```
+
+### 1.6 Expose New Fields in Return
+
+```typescript
+return {
+  // State
+  status: state.status,           // NEW
+  errorMessage: state.errorMessage, // NEW
+  isRecording: state.status === 'recording', // DERIVED
+  ...
+  // Actions
+  retry,  // NEW
+  ...
 };
 ```
 
-### 5.2 Warning avatar count dans OutputsStep
+---
 
-Ajouter dans OutputsStep si `avatars.length < 10`:
+## 2. RouteReconStep.tsx - Error Banner & Retry
+
+### 2.1 Destructure New Fields
+
 ```typescript
-if (avatars.length < 10 && !validation.warnings.includes('...')) {
-  validation.warnings.push('Moins de 10 avatars disponibles (recommande: 10+)');
-}
+const {
+  status,
+  errorMessage,
+  isRecording,
+  retry,
+  ...
+} = useRouteRecorder(projectId, recordingMode);
+```
+
+### 2.2 Error Banner Component
+
+Add below mode selector, above recording controls:
+
+```tsx
+{status === 'error' && errorMessage && (
+  <div className="flex items-center gap-3 p-3 rounded-md bg-destructive/10 border border-destructive/30">
+    <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+    <div className="flex-1">
+      <p className="text-sm font-medium text-destructive">Erreur GPS</p>
+      <p className="text-xs text-destructive/80">{errorMessage}</p>
+    </div>
+    <Button 
+      variant="outline" 
+      size="sm"
+      onClick={retry}
+      className="shrink-0"
+    >
+      Reessayer
+    </Button>
+  </div>
+)}
+```
+
+### 2.3 Disable REC Button When Error
+
+```tsx
+<Button 
+  onClick={startRecording} 
+  variant="default"
+  className="gap-2"
+  disabled={status === 'error'}
+>
+  <Circle className="w-4 h-4 fill-current" />
+  REC
+</Button>
 ```
 
 ---
 
-## 6. Fichiers a modifier
+## 3. Crash-Safe Behavior
 
-| Fichier | Changement |
-|---------|------------|
-| `src/components/intake/shared/StorytellingSection.tsx` | Onglets, search, filtres, confirm dialog, empty state, seed CTA |
-| `src/hooks/useAvatars.ts` | Ajouter `seedPlaceholderAvatars` mutation |
-| `src/lib/outputGenerators.ts` | Fallback si avatar supprime, omission propre si disabled |
-| `src/components/intake/OutputsStep.tsx` | Warning avatar count < 10 |
-| `src/hooks/useProject.ts` | Aucun changement (blocker deja correct) |
+### 3.1 No localStorage Persistence
+
+The current implementation already uses React state which resets on reload. No change needed - state is ephemeral by design.
+
+### 3.2 Ensure watchIdRef Cleared on Mount
+
+Add explicit reset on mount to guarantee clean state:
+
+```typescript
+// In useRouteRecorder, near top of hook
+useEffect(() => {
+  // Force idle state on mount - ensures no stale recording state
+  // watchIdRef is already null on fresh mount
+  // State is already idle from useState initializer
+  return () => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+  };
+}, []);
+```
+
+This cleanup already exists at line 355-361. No additional mount-time reset needed since useState initializes to idle.
+
+---
+
+## 4. Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/hooks/useRouteRecorder.ts` | Add RecordingStatus type, expand state, error handling, retry function |
+| `src/components/intake/RouteReconStep.tsx` | Error banner, disable REC on error, retry button |
 
 ---
 
 ## Section Technique
 
-### Architecture des filtres
+### State Machine
 
 ```text
-[Search Input] + [Style chips] + [Persona chips] + [Age chips]
-         |
-         v
-   useMemo filter sur avatars[]
-         |
-         v
-   Affichage grid filtree
+     [idle]
+       |
+       v (startRecording)
+  [recording]
+       |
+       +---> (stopRecording) --> [idle]
+       |
+       +---> (geolocation error) --> [error]
+                                        |
+                                        v (retry)
+                                      [idle]
 ```
 
-### Seeding data
+### Error Code Mapping
 
-```typescript
-const PLACEHOLDER_AVATARS = [
-  { name: 'Luna', style: 'cartoon', persona: 'guide_host', age: 'adult', outfit: 'modern' },
-  { name: 'Max', style: 'realistic', persona: 'detective', age: 'adult', outfit: 'adventure' },
-  { name: 'Sofia', style: 'anime', persona: 'explorer', age: 'teen', outfit: 'modern' },
-  { name: 'Karim', style: 'semi_realistic', persona: 'historian', age: 'senior', outfit: 'traditional' },
-  { name: 'Yuki', style: 'minimal', persona: 'ai_assistant', age: 'adult', outfit: 'modern' },
-  { name: 'Theo', style: 'cartoon', persona: 'mascot', age: 'child', outfit: 'adventure' },
-  { name: 'Nadia', style: 'realistic', persona: 'local_character', age: 'adult', outfit: 'traditional' },
-  { name: 'Jade', style: 'anime', persona: 'villain_light', age: 'teen', outfit: 'luxury' },
-  { name: 'Omar', style: 'cartoon', persona: 'guide_host', age: 'adult', outfit: 'adventure' },
-  { name: 'Emma', style: 'semi_realistic', persona: 'explorer', age: 'adult', outfit: 'modern' },
-];
-```
-
-### Confirm Dialog Flow
-
-```text
-[Click avatar different]
-        |
-        v
-   narrator deja selectionne?
-        |
-     Non --> selection directe
-        |
-     Oui --> AlertDialog "Changer de narrateur?"
-                |
-             Cancel --> rien
-                |
-             Confirm --> updateStorytelling(new avatar_id)
-```
+| GeolocationPositionError.code | Message |
+|------------------------------|---------|
+| 1 (PERMISSION_DENIED) | Permission GPS refusee. Autorisez l'acces dans les parametres. |
+| 2 (POSITION_UNAVAILABLE) | Position GPS indisponible. Verifiez que le GPS est active. |
+| 3 (TIMEOUT) | Delai GPS depasse. Reessayez dans un endroit ouvert. |
 
 ---
 
 ## QA Checklist
 
-1. **Nouveau projet, storytelling off**
-   - Aller sur Exports
-   - Verifier: pas d'erreur "Avatar narrateur requis"
-   - Exports fonctionnent
+1. **Permission denied simulation**
+   - Open browser DevTools > Sensors > Location > Permission denied
+   - Click REC
+   - Expected: Error banner appears with "Permission GPS refusee..."
+   - REC button becomes disabled
 
-2. **Activer storytelling sans narrateur**
-   - Toggle storytelling ON
-   - Ne pas selectionner d'avatar
-   - Aller sur Exports
-   - Verifier: erreur "Avatar narrateur requis"
+2. **Retry after error**
+   - From error state, click "Reessayer"
+   - Change DevTools > Sensors > Location to a valid location
+   - Click REC
+   - Expected: Recording starts normally
 
-3. **Upload avatar + selection**
-   - Cliquer "+ Ajouter un avatar"
-   - Uploader image, remplir champs
-   - Sauvegarder
-   - Cliquer sur l'avatar pour le selectionner
-   - Aller sur Exports
-   - Verifier: pas d'erreur, JSON contient `avatar_image_url`
+3. **Reload during recording**
+   - Start recording
+   - Reload page
+   - Expected: UI shows idle state, REC button enabled
+   - Previously saved traces still visible in list
 
-4. **Supprimer avatar narrateur**
-   - Supprimer l'avatar selectionne
-   - Verifier: selection cleared
-   - Aller sur Exports
-   - Verifier: erreur "Avatar narrateur requis"
+4. **Normal flow unaffected**
+   - Start recording
+   - Wait for points to accumulate
+   - Stop recording
+   - Expected: Trace saved and appears in list
 
-5. **Empty state + seeding**
-   - Si 0 avatars: verifier CTA visible
-   - Cliquer "Importer pack"
-   - Verifier: 10 avatars apparaissent
-
-6. **Onglets Bibliotheque/Projet**
-   - Upload avatar global -> apparait dans "Bibliotheque"
-   - Upload avatar projet -> apparait dans "Ce projet"
-
-7. **Confirmation changement narrateur**
-   - Selectionner avatar A
-   - Cliquer sur avatar B
-   - Verifier: dialog de confirmation apparait
-   - Annuler -> A reste selectionne
-   - Confirmer -> B selectionne
