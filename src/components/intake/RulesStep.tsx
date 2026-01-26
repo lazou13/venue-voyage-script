@@ -67,8 +67,8 @@ export function RulesStep({ projectId }: RulesStepProps) {
             <Input
               type="number"
               min={0}
-              value={scoring.hintPenalty || ''}
-              onChange={(e) => updateScoring({ hintPenalty: parseInt(e.target.value) || undefined })}
+              value={scoring.hint_penalty || ''}
+              onChange={(e) => updateScoring({ hint_penalty: parseInt(e.target.value) || undefined })}
               placeholder="2"
             />
           </div>
@@ -78,8 +78,8 @@ export function RulesStep({ projectId }: RulesStepProps) {
             <Input
               type="number"
               min={0}
-              value={scoring.failPenalty || ''}
-              onChange={(e) => updateScoring({ failPenalty: parseInt(e.target.value) || undefined })}
+              value={scoring.fail_penalty || ''}
+              onChange={(e) => updateScoring({ fail_penalty: parseInt(e.target.value) || undefined })}
               placeholder="5"
             />
           </div>
@@ -89,8 +89,8 @@ export function RulesStep({ projectId }: RulesStepProps) {
             <Input
               type="number"
               min={0}
-              value={scoring.timeLimitSec || ''}
-              onChange={(e) => updateScoring({ timeLimitSec: parseInt(e.target.value) || undefined })}
+              value={scoring.time_limit_sec || ''}
+              onChange={(e) => updateScoring({ time_limit_sec: parseInt(e.target.value) || undefined })}
               placeholder="300"
             />
           </div>
@@ -100,8 +100,8 @@ export function RulesStep({ projectId }: RulesStepProps) {
             <Input
               type="number"
               min={0}
-              value={scoring.timeBonus || ''}
-              onChange={(e) => updateScoring({ timeBonus: parseInt(e.target.value) || undefined })}
+              value={scoring.time_bonus || ''}
+              onChange={(e) => updateScoring({ time_bonus: parseInt(e.target.value) || undefined })}
               placeholder="5"
             />
           </div>
