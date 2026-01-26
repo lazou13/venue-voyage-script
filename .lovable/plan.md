@@ -1,76 +1,48 @@
 
 
-# Création du Premier Administrateur
+# Correction du Compte Admin
 
-## Problème
+## Diagnostic
 
-Le système est configuré en mode "admin-only" sans inscription publique. Mais aucun utilisateur n'existe encore dans `auth.users`, donc impossible de se connecter.
-
----
+L'analyse révèle un problème :
+- Un rôle admin existe dans `user_roles` (user_id: `7abfcf3a-59dd-4790-9914-a177d88ef8a5`)
+- Mais l'utilisateur correspondant dans `auth.users` n'a pas été créé correctement ou a un mot de passe différent
+- Les logs auth montrent "Invalid login credentials" à chaque tentative
 
 ## Solution
 
-Créer le premier utilisateur admin via une **Edge Function sécurisée** qui utilise le Service Role pour :
-1. Créer l'utilisateur dans `auth.users`
-2. Lui assigner le rôle `admin` dans `user_roles`
+### Étape 1 : Nettoyer l'entrée orpheline
 
----
+Migration SQL pour supprimer le rôle admin orphelin :
 
-## Implémentation
+```sql
+DELETE FROM public.user_roles 
+WHERE user_id = '7abfcf3a-59dd-4790-9914-a177d88ef8a5';
+```
 
-### 1. Edge Function : `create-first-admin`
+### Étape 2 : Recréer le premier admin
 
-Créer `supabase/functions/create-first-admin/index.ts` :
+Appeler l'edge function `create-first-admin` avec les credentials souhaités :
 
-- **Sécurité** : Vérifier qu'aucun admin n'existe (bootstrap only)
-- **Action** : Créer l'utilisateur avec l'email et mot de passe fournis
-- **Auto-assign** : Insérer automatiquement le rôle `admin`
-
-```typescript
-// Pseudo-code
-if (existingAdmins.count > 0) {
-  return error("Un admin existe déjà");
+```json
+{
+  "email": "contact@questrides.com",
+  "password": "VotreNouveauMotDePasse"
 }
-const { user } = await supabaseAdmin.auth.admin.createUser({
-  email, password, email_confirm: true
-});
-await supabaseAdmin.from('user_roles').insert({ user_id: user.id, role: 'admin' });
 ```
 
-### 2. Appel unique
+## Alternative : Reset du mot de passe
 
-Après déploiement, appeler la fonction une seule fois avec :
-```bash
-curl -X POST https://[project].supabase.co/functions/v1/create-first-admin \
-  -H "Content-Type: application/json" \
-  -d '{"email":"contact@questrides.com","password":"votre_mot_de_passe"}'
-```
-
-Ou via l'interface : je peux ajouter un bouton temporaire "Créer le premier admin" visible uniquement si `user_roles` est vide.
-
----
-
-## Alternative Simple (sans Edge Function)
-
-Si vous préférez éviter la complexité, je peux :
-
-1. **Ajouter temporairement** un formulaire d'inscription sur `/auth`
-2. Vous créez votre compte
-3. Je lance la requête SQL pour vous assigner le rôle admin
-4. **Supprimer** le formulaire d'inscription
-
----
+Si l'utilisateur existe mais avec un mauvais mot de passe, je peux modifier l'edge function pour permettre un reset de mot de passe via le Service Role.
 
 ## Fichiers impactés
 
-| Fichier | Action |
-|---------|--------|
-| `supabase/functions/create-first-admin/index.ts` | Créer |
-| OU `src/pages/Auth.tsx` | Modifier temporairement |
+| Action | Détail |
+|--------|--------|
+| Migration SQL | Supprimer l'entrée orpheline |
+| Appel Edge Function | Recréer l'admin proprement |
 
----
+## Résultat attendu
 
-## Recommandation
-
-L'**Edge Function** est plus propre et sécurisée (se désactive automatiquement après le premier admin). Mais l'**ajout temporaire du signup** est plus rapide à implémenter.
+Après ces étapes, vous pourrez vous connecter avec les nouveaux credentials sur `/auth`.
 
