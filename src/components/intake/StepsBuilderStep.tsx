@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Settings2, Copy, Wand2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Settings2, Copy } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
 import { usePOIs, DEFAULT_STEP_CONFIG, DEFAULT_SCORING } from '@/hooks/usePOIs';
 import { useToast } from '@/hooks/use-toast';
@@ -10,6 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EnumSelect } from './shared/EnumSelect';
 import { I18nInput } from './shared/I18nInput';
+import { PresetSelector } from './PresetSelector';
+import { SelectiveApplyPanel } from './SelectiveApplyPanel';
 import { stepConfigHasMissingDefaults } from '@/lib/normalizeStepConfig';
 import type { 
   POI, 
@@ -17,7 +19,8 @@ import type {
   ValidationMode, 
   PhotoValidationType,
   StepConfig,
-  SupportedLanguage 
+  SupportedLanguage,
+  QuestConfig
 } from '@/types/intake';
 import { 
   STEP_TYPE_LABELS, 
@@ -29,9 +32,12 @@ interface StepsBuilderStepProps {
   projectId: string;
 }
 
+// Store current step defaults (can be updated by presets)
+let currentStepDefaults: Partial<StepConfig> = { ...DEFAULT_STEP_CONFIG };
+
 export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
-  const { pois, project } = useProject(projectId);
-  const { updatePOI, duplicatePOI, applyDefaultsToAll } = usePOIs(projectId);
+  const { pois, project, updateProject } = useProject(projectId);
+  const { updatePOI, duplicatePOI, applySelectiveDefaults } = usePOIs(projectId);
   const { toast } = useToast();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -52,24 +58,60 @@ export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
     });
   };
 
-  const handleApplyDefaults = () => {
-    const stepsNeedingDefaults = pois.filter(p => stepConfigHasMissingDefaults(p.step_config));
-    if (stepsNeedingDefaults.length === 0) {
-      toast({ title: 'Rien à appliquer', description: 'Toutes les étapes ont déjà des valeurs définies' });
-      return;
+  const handleApplyPreset = (
+    questConfig: Partial<QuestConfig>,
+    stepDefaults: Partial<StepConfig>,
+    applyToExisting: boolean
+  ) => {
+    // Update quest config
+    updateProject.mutate(
+      { quest_config: { ...project?.quest_config, ...questConfig } },
+      {
+        onSuccess: () => {
+          toast({ title: 'Preset appliqué', description: 'Configuration globale mise à jour' });
+        },
+      }
+    );
+
+    // Store the step defaults for new steps
+    currentStepDefaults = { ...DEFAULT_STEP_CONFIG, ...stepDefaults };
+
+    // Apply to existing steps if requested
+    if (applyToExisting && pois.length > 0) {
+      applySelectiveDefaults.mutate(
+        {
+          defaults: stepDefaults,
+          fields: { stepType: true, validationMode: true, scoring: true, hints: true },
+        },
+        {
+          onSuccess: (count) => {
+            if (count && count > 0) {
+              toast({ 
+                title: 'Étapes mises à jour', 
+                description: `${count} étape(s) avec valeurs manquantes mises à jour` 
+              });
+            }
+          },
+        }
+      );
     }
-    
-    applyDefaultsToAll.mutate(
+  };
+
+  const handleSelectiveApply = (fields: {
+    stepType?: boolean;
+    validationMode?: boolean;
+    scoring?: boolean;
+    hints?: boolean;
+  }) => {
+    applySelectiveDefaults.mutate(
+      { defaults: currentStepDefaults, fields },
       {
-        stepType: DEFAULT_STEP_CONFIG.stepType,
-        validationMode: DEFAULT_STEP_CONFIG.validationMode,
-        scoring: DEFAULT_SCORING,
-      },
-      {
-        onSuccess: () => toast({ 
-          title: 'Défauts appliqués', 
-          description: `${stepsNeedingDefaults.length} étape(s) mises à jour` 
-        }),
+        onSuccess: (count) => {
+          toast({ 
+            title: 'Défauts appliqués', 
+            description: `${count || 0} étape(s) mises à jour` 
+          });
+        },
         onError: (err) => toast({ title: 'Erreur', description: String(err), variant: 'destructive' }),
       }
     );
@@ -79,40 +121,64 @@ export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
 
   if (pois.length === 0) {
     return (
-      <Card>
-        <CardContent className="py-12 text-center text-muted-foreground">
-          <Settings2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p>Aucune étape définie</p>
-          <p className="text-sm mt-1">Ajoutez des étapes dans l'onglet Fieldwork</p>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <Card className="border-dashed">
+          <CardContent className="py-6">
+            <p className="text-sm font-medium mb-2">Presets rapides</p>
+            <p className="text-xs text-muted-foreground mb-3">
+              Choisissez un preset pour configurer la quête automatiquement
+            </p>
+            <PresetSelector
+              onApplyPreset={handleApplyPreset}
+              hasExistingSteps={false}
+            />
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="py-12 text-center text-muted-foreground">
+            <Settings2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>Aucune étape définie</p>
+            <p className="text-sm mt-1">Ajoutez des étapes dans l'onglet Fieldwork</p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <h3 className="font-semibold">Configuration des Étapes</h3>
           <p className="text-sm text-muted-foreground">
             Définissez le type, la validation et le contenu de chaque étape
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {stepsWithMissingDefaults > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleApplyDefaults}
-              disabled={applyDefaultsToAll.isPending}
-            >
-              <Wand2 className="w-4 h-4 mr-1" />
-              Appliquer défauts ({stepsWithMissingDefaults})
-            </Button>
-          )}
-          <Badge variant="outline">{pois.length} étapes</Badge>
-        </div>
+        <Badge variant="outline">{pois.length} étapes</Badge>
       </div>
+
+      {/* Preset and Apply Actions */}
+      <Card className="border-dashed">
+        <CardContent className="py-4 space-y-3">
+          <div>
+            <p className="text-sm font-medium mb-2">Presets rapides</p>
+            <PresetSelector
+              onApplyPreset={handleApplyPreset}
+              hasExistingSteps={pois.length > 0}
+            />
+          </div>
+
+          <div className="border-t pt-3">
+            <SelectiveApplyPanel
+              onApply={handleSelectiveApply}
+              disabled={applySelectiveDefaults.isPending}
+              stepsNeedingDefaults={stepsWithMissingDefaults}
+              defaults={currentStepDefaults}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {pois.map((poi, index) => (
         <StepConfigCard
