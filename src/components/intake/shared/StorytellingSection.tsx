@@ -1,5 +1,6 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useCallback } from 'react';
 import { User, Plus, X, Check, Upload, Search, Package } from 'lucide-react';
+import avatarPlaceholder from '@/assets/avatar-placeholder.webp';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -293,12 +294,19 @@ export function StorytellingSection({ projectId }: StorytellingSectionProps) {
             Définir narrateur
           </Button>
         )}
-        {/* Avatar image */}
+        {/* Avatar image with fallback */}
         <div className="aspect-square rounded-md overflow-hidden bg-muted mb-2">
           <img
             src={avatar.image_url}
             alt={avatar.name}
+            loading="lazy"
             className="w-full h-full object-cover"
+            onError={(e) => {
+              // Prevent infinite loop - only swap if not already the placeholder
+              if (e.currentTarget.src !== avatarPlaceholder) {
+                e.currentTarget.src = avatarPlaceholder;
+              }
+            }}
           />
         </div>
         {/* Name */}
