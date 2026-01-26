@@ -3,10 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 import type { POI, StepConfig, ScoringConfig } from '@/types/intake';
 import type { Json } from '@/integrations/supabase/types';
 
-// Default step configuration for new steps - canonical snake_case keys
+// Default step configuration for new steps - multi-select arrays
 export const DEFAULT_STEP_CONFIG: StepConfig = {
-  stepType: 'enigme',
-  validationMode: 'manual',
+  possible_step_types: ['enigme'],
+  possible_validation_modes: ['manual'],
+  final_step_type: null,
+  final_validation_mode: null,
   scoring: {
     points: 10,
     hint_penalty: 2,

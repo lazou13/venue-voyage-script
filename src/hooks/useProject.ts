@@ -158,28 +158,33 @@ export function useProject(projectId: string | undefined) {
       const config = poi.step_config || {};
       const stepNum = index + 1;
       
-      // GPS validation required for auto_gps
-      if (config.validationMode === 'auto_gps') {
-        if (!config.gps?.lat) {
-          errors.push(`Étape ${stepNum}: latitude GPS requise (auto_gps)`);
+      // Must have at least one possible step type
+      if (!config.possible_step_types || config.possible_step_types.length === 0) {
+        // Fallback to legacy stepType
+        if (!config.stepType) {
+          errors.push(`Étape ${stepNum}: type d'étape requis`);
         }
-        if (!config.gps?.lng) {
-          errors.push(`Étape ${stepNum}: longitude GPS requise (auto_gps)`);
-        }
-        if (!config.gps?.radius) {
-          errors.push(`Étape ${stepNum}: rayon GPS requis (auto_gps)`);
+      }
+      
+      // Must have at least one possible validation mode
+      if (!config.possible_validation_modes || config.possible_validation_modes.length === 0) {
+        // Fallback to legacy validationMode
+        if (!config.validationMode) {
+          errors.push(`Étape ${stepNum}: mode de validation requis`);
         }
       }
       
       // QR code validation required
-      if (config.validationMode === 'qr_code') {
+      const hasQrMode = config.possible_validation_modes?.includes('qr_code') || config.validationMode === 'qr_code';
+      if (hasQrMode) {
         if (!config.photoValidation?.qrExpectedValue) {
           errors.push(`Étape ${stepNum}: valeur QR attendue requise (qr_code)`);
         }
       }
       
       // Photo validation requirements
-      if (config.validationMode === 'photo' || config.photoValidation?.type) {
+      const hasPhotoMode = config.possible_validation_modes?.includes('photo') || config.validationMode === 'photo';
+      if (hasPhotoMode && config.photoValidation?.type) {
         const photoType = config.photoValidation?.type;
         if (photoType === 'reference' && !config.photoValidation?.referenceUrl) {
           errors.push(`Étape ${stepNum}: URL référence photo requise`);

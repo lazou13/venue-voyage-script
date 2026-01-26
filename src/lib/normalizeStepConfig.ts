@@ -3,39 +3,38 @@ import type { StepConfig, StepType, ValidationMode, ScoringConfig } from '@/type
 /**
  * CANONICAL VALUES (strict ASCII, engine-like, no spaces, no accents):
  * 
- * validation_mode: auto_gps | qr_code | manual | photo | code | free
- * step_type: story | information | mcq | enigme | code | hangman | memory | gps | photo | terrain | defi
+ * validation_mode: qr_code | photo | code | manual | free (GPS REMOVED)
+ * step_type: story | information | mcq | enigme | code | hangman | memory | photo | terrain | defi (GPS REMOVED)
  * scoring keys: points | hint_penalty | fail_penalty | time_limit_sec | time_bonus
  */
 
 /**
  * Legacy value mappings for validation_mode normalization
- * Accepts French labels, accented text, spaces, various formats -> outputs canonical ASCII
+ * GPS values are mapped to 'manual' with a warning flag
  */
-const LEGACY_VALIDATION_MODE_MAP: Record<string, ValidationMode> = {
+const LEGACY_VALIDATION_MODE_MAP: Record<string, ValidationMode | '_gps_migrated'> = {
+  // GPS values - will be migrated to manual with warning
+  'gps automatique': '_gps_migrated',
+  'gps auto': '_gps_migrated',
+  'auto_gps': '_gps_migrated',
+  'autogps': '_gps_migrated',
+  'auto-gps': '_gps_migrated',
+  'auto gps': '_gps_migrated',
+  'gps_auto': '_gps_migrated',
+  'gps': '_gps_migrated',
   // French labels (exact user inputs)
-  'gps automatique': 'auto_gps',
   'code qr': 'qr_code',
   'gratuit': 'free',
   'libre': 'free',
   'manuel': 'manual',
   'manuelle': 'manual',
-  // Accented variants
-  'gps automatiqué': 'auto_gps',
   // Legacy snake/camel/dash variants
   'code_qr': 'qr_code',
   'qr': 'qr_code',
   'qrcode': 'qr_code',
   'qr-code': 'qr_code',
   'qr code': 'qr_code',
-  'gps': 'auto_gps',
-  'gps_auto': 'auto_gps',
-  'autogps': 'auto_gps',
-  'auto-gps': 'auto_gps',
-  'auto gps': 'auto_gps',
-  'gps auto': 'auto_gps',
   // Passthrough canonical values
-  'auto_gps': 'auto_gps',
   'qr_code': 'qr_code',
   'manual': 'manual',
   'photo': 'photo',
@@ -45,9 +44,11 @@ const LEGACY_VALIDATION_MODE_MAP: Record<string, ValidationMode> = {
 
 /**
  * Legacy value mappings for step_type normalization
- * Accepts French labels, accented text -> outputs canonical ASCII
+ * GPS step type is mapped to 'terrain' with a warning flag
  */
-const LEGACY_STEP_TYPE_MAP: Record<string, StepType> = {
+const LEGACY_STEP_TYPE_MAP: Record<string, StepType | '_gps_migrated'> = {
+  // GPS values - will be migrated to terrain with warning
+  'gps': '_gps_migrated',
   // French labels (exact user inputs)
   'histoire': 'story',
   'qcm': 'mcq',
@@ -75,7 +76,7 @@ const LEGACY_STEP_TYPE_MAP: Record<string, StepType> = {
   'secret code': 'code',
   'challenge': 'defi',
   'field': 'terrain',
-  // Passthrough canonical values (all 11 step types)
+  // Passthrough canonical values (10 step types, no gps)
   'story': 'story',
   'information': 'information',
   'mcq': 'mcq',
@@ -83,7 +84,6 @@ const LEGACY_STEP_TYPE_MAP: Record<string, StepType> = {
   'code': 'code',
   'hangman': 'hangman',
   'memory': 'memory',
-  'gps': 'gps',
   'photo': 'photo',
   'terrain': 'terrain',
   'defi': 'defi',
@@ -91,10 +91,9 @@ const LEGACY_STEP_TYPE_MAP: Record<string, StepType> = {
 
 /**
  * Legacy scoring key mappings -> canonical snake_case ASCII keys
- * Accepts French, accented, camelCase, spaces -> outputs canonical ASCII
  */
 const LEGACY_SCORING_KEY_MAP: Record<string, keyof ScoringConfig> = {
-  // French labels (exact user inputs)
+  // French labels
   'indice_pénalité': 'hint_penalty',
   'indice_penalite': 'hint_penalty',
   'indice pénalité': 'hint_penalty',
@@ -135,33 +134,61 @@ const LEGACY_SCORING_KEY_MAP: Record<string, keyof ScoringConfig> = {
 };
 
 /**
- * Normalize a step_config object to use canonical ASCII enum values and keys
- * Input: any legacy/French/accented values
- * Output: strict ASCII canonical values only
+ * Normalize a step_config object to use canonical ASCII enum values and keys.
+ * Migrates legacy single values to multi-select arrays.
+ * GPS values are migrated to manual/terrain with a warning flag.
  */
 export function normalizeStepConfig(config: StepConfig | null | undefined): StepConfig {
   if (!config) return {};
   
   const normalized: StepConfig = { ...config };
+  let gpsMigrated = false;
   
-  // Normalize validationMode value to canonical ASCII
-  if (normalized.validationMode) {
+  // Normalize and migrate legacy validationMode to possible_validation_modes
+  if (normalized.validationMode && !normalized.possible_validation_modes) {
     const lower = String(normalized.validationMode).toLowerCase().trim();
     const mapped = LEGACY_VALIDATION_MODE_MAP[lower];
-    if (mapped) {
-      normalized.validationMode = mapped;
+    
+    if (mapped === '_gps_migrated') {
+      normalized.possible_validation_modes = ['manual'];
+      gpsMigrated = true;
+    } else if (mapped) {
+      normalized.possible_validation_modes = [mapped];
+    } else {
+      // Keep as-is if valid
+      const validModes: ValidationMode[] = ['qr_code', 'photo', 'code', 'manual', 'free'];
+      if (validModes.includes(normalized.validationMode)) {
+        normalized.possible_validation_modes = [normalized.validationMode];
+      } else {
+        normalized.possible_validation_modes = ['manual'];
+      }
     }
-    // If not in map, keep as-is (might already be canonical)
   }
   
-  // Normalize stepType value to canonical ASCII
-  if (normalized.stepType) {
+  // Normalize and migrate legacy stepType to possible_step_types
+  if (normalized.stepType && !normalized.possible_step_types) {
     const lower = String(normalized.stepType).toLowerCase().trim();
     const mapped = LEGACY_STEP_TYPE_MAP[lower];
-    if (mapped) {
-      normalized.stepType = mapped;
+    
+    if (mapped === '_gps_migrated') {
+      normalized.possible_step_types = ['terrain'];
+      gpsMigrated = true;
+    } else if (mapped) {
+      normalized.possible_step_types = [mapped];
+    } else {
+      // Keep as-is if valid
+      const validTypes: StepType[] = ['story', 'information', 'mcq', 'enigme', 'code', 'hangman', 'memory', 'photo', 'terrain', 'defi'];
+      if (validTypes.includes(normalized.stepType)) {
+        normalized.possible_step_types = [normalized.stepType];
+      } else {
+        normalized.possible_step_types = ['enigme'];
+      }
     }
-    // If not in map, keep as-is (might already be canonical)
+  }
+  
+  // Set GPS migration warning flag
+  if (gpsMigrated) {
+    normalized._gps_migrated_warning = true;
   }
   
   // Normalize scoring keys to canonical snake_case ASCII
@@ -195,5 +222,10 @@ export function normalizeStepConfig(config: StepConfig | null | undefined): Step
  */
 export function stepConfigHasMissingDefaults(config: StepConfig | null | undefined): boolean {
   if (!config) return true;
-  return !config.stepType || !config.validationMode || !config.scoring;
+  const hasPossibleTypes = config.possible_step_types && config.possible_step_types.length > 0;
+  const hasPossibleModes = config.possible_validation_modes && config.possible_validation_modes.length > 0;
+  // Fallback to legacy single values
+  const hasLegacyType = config.stepType;
+  const hasLegacyMode = config.validationMode;
+  return (!hasPossibleTypes && !hasLegacyType) || (!hasPossibleModes && !hasLegacyMode) || !config.scoring;
 }
