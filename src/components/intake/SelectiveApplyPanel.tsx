@@ -99,7 +99,7 @@ export function SelectiveApplyPanel({
                 onCheckedChange={() => toggleField('scoring')}
               />
               <Label htmlFor="field-scoring" className="text-sm">
-                Scoring
+                Points
                 <span className="text-xs text-muted-foreground ml-1">
                   ({defaults.scoring?.points || 10} pts)
                 </span>

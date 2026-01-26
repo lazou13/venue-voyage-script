@@ -139,7 +139,7 @@ export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
           <CardContent className="py-12 text-center text-muted-foreground">
             <Settings2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
             <p>Aucune étape définie</p>
-            <p className="text-sm mt-1">Ajoutez des étapes dans l'onglet Fieldwork</p>
+            <p className="text-sm mt-1">Ajoutez des étapes dans l'onglet Terrain</p>
           </CardContent>
         </Card>
       </div>

@@ -13,12 +13,12 @@ import { OutputsStep } from '@/components/intake/OutputsStep';
 import { ValidationPanel } from '@/components/intake/ValidationPanel';
 
 const STEPS = [
-  { id: 'venue', label: 'Venue', component: VenueStep },
-  { id: 'fieldwork', label: 'Fieldwork', component: FieldworkStep },
-  { id: 'quest', label: 'Quest', component: QuestConfigStep },
-  { id: 'steps', label: 'Steps', component: StepsBuilderStep },
-  { id: 'rules', label: 'Rules', component: RulesStep },
-  { id: 'outputs', label: 'Outputs', component: OutputsStep },
+  { id: 'venue', label: 'Lieu', component: VenueStep },
+  { id: 'fieldwork', label: 'Terrain', component: FieldworkStep },
+  { id: 'quest', label: 'Quête', component: QuestConfigStep },
+  { id: 'steps', label: 'Étapes', component: StepsBuilderStep },
+  { id: 'rules', label: 'Règles', component: RulesStep },
+  { id: 'outputs', label: 'Exports', component: OutputsStep },
 ];
 
 export default function IntakeForm() {
@@ -69,7 +69,7 @@ export default function IntakeForm() {
               variant={validation.isValid ? 'default' : 'outline'}
             >
               <Check className="w-4 h-4 mr-2" />
-              Outputs
+              Exports
             </Button>
           </div>
         </div>
