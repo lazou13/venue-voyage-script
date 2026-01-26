@@ -4,7 +4,7 @@ import {
   Circle, Square, Plus, Download, Trash2, Clock, Ruler, MapPinned
 } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
-import { useRouteRecorder, exportTraceAsGeoJSON, RouteTrace, RecordingMode } from '@/hooks/useRouteRecorder';
+import { useRouteRecorder, exportTraceAsGeoJSON, RouteTrace, RecordingMode, RecordingStatus } from '@/hooks/useRouteRecorder';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
@@ -70,6 +70,8 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
 
   // Route recorder hook
   const {
+    status,
+    errorMessage,
     isRecording,
     currentTraceId,
     coords,
@@ -82,6 +84,7 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
     stopRecording,
     addMarker,
     deleteTrace,
+    retry,
   } = useRouteRecorder(projectId, recordingMode);
 
   // UI state
@@ -228,6 +231,25 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
               )}
             </div>
 
+            {/* Error banner */}
+            {status === 'error' && errorMessage && (
+              <div className="flex items-center gap-3 p-3 rounded-md bg-destructive/10 border border-destructive/30">
+                <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-destructive">Erreur GPS</p>
+                  <p className="text-xs text-destructive/80">{errorMessage}</p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={retry}
+                  className="shrink-0"
+                >
+                  Réessayer
+                </Button>
+              </div>
+            )}
+
             {/* Recording controls */}
             <div className="flex items-center gap-3">
               {!isRecording ? (
@@ -235,6 +257,7 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                   onClick={startRecording} 
                   variant="default"
                   className="gap-2"
+                  disabled={status === 'error'}
                 >
                   <Circle className="w-4 h-4 fill-current" />
                   REC
