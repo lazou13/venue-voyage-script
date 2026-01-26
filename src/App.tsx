@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import IntakeForm from "./pages/IntakeForm";
+import AdminConfig from "./pages/AdminConfig";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -18,6 +19,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/intake/:projectId" element={<IntakeForm />} />
+          <Route path="/admin/config" element={<AdminConfig />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

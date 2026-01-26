@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_configs: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          payload: Json
+          status: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          payload: Json
+          status: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          payload?: Json
+          status?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: []
+      }
       avatars: {
         Row: {
           age: string
