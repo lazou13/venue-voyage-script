@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Project, POI, WifiZone, ForbiddenZone, ValidationResult, QuestConfig, I18nText, StepConfig } from '@/types/intake';
 import type { Json } from '@/integrations/supabase/types';
 import { normalizeStepConfig } from '@/lib/normalizeStepConfig';
+import { isDuplicatedFromRecon } from '@/lib/mapMarkerToPOI';
 
 export function useProject(projectId: string | undefined) {
   const queryClient = useQueryClient();
@@ -204,6 +205,22 @@ export function useProject(projectId: string | undefined) {
     pois.forEach((poi, index) => {
       const config = poi.step_config || {};
       const stepNum = index + 1;
+      const isFromRecon = isDuplicatedFromRecon(config);
+      
+      // Duplicated POIs from route recon: only warnings, no blocking errors for missing config
+      if (isFromRecon) {
+        // Check if still unconfigured - warn only
+        if (!config.possible_step_types?.length && !config.stepType) {
+          warnings.push(`Étape ${stepNum}: type d'étape à configurer (importé)`);
+        }
+        if (!config.possible_validation_modes?.length && !config.validationMode) {
+          warnings.push(`Étape ${stepNum}: mode de validation à configurer (importé)`);
+        }
+        if (!config.contentI18n?.fr) {
+          warnings.push(`Étape ${stepNum}: contenu FR manquant (importé)`);
+        }
+        return; // Skip blocking validations for duplicated POIs
+      }
       
       // Must have at least one possible step type
       if (!config.possible_step_types || config.possible_step_types.length === 0) {

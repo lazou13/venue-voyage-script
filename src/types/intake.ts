@@ -162,6 +162,8 @@ export interface StepConfig {
   reference_image_caption?: string | null;
   // Migration warning flag
   _gps_migrated_warning?: boolean;
+  // Duplication flag (POIs from route recon get validation warnings, not errors)
+  _duplicated_from_recon?: boolean;
 }
 
 // ============= Main interfaces =============

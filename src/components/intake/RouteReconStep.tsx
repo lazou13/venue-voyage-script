@@ -10,6 +10,7 @@ import { useRouteRecorder, exportTraceAsGeoJSON, buildMarkersCSV, buildReconBrie
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { mapMarkerToPOI } from '@/lib/mapMarkerToPOI';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -42,7 +43,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { OptionMatrix } from './shared/OptionMatrix';
-import type { QuestConfig, RouteReconDetails, ProjectType, StepConfig } from '@/types/intake';
+import type { QuestConfig, RouteReconDetails, ProjectType } from '@/types/intake';
 import type { Json } from '@/integrations/supabase/types';
 
 // Check if admin mode is enabled
@@ -288,27 +289,11 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
       
       if (projectError) throw projectError;
       
-      // Create POIs from markers
+      // Create POIs from markers using the helper
       if (traceMarkers && traceMarkers.length > 0) {
-        const defaultStepConfig: StepConfig = {
-          possible_step_types: [],
-          possible_validation_modes: [],
-          final_step_type: 'enigme',
-          final_validation_mode: 'manual',
-          scoring: { points: 10, hint_penalty: 2, fail_penalty: 5 },
-          hints: [],
-          contentI18n: {},
-        };
-        
-        const poisToInsert = traceMarkers.map((marker, idx) => ({
-          project_id: newProject.id,
-          name: `Marker ${idx + 1}`,
-          zone: `Zone ${idx + 1}`,
-          notes: marker.note || null,
-          photo_url: marker.photo_url || null,
-          sort_order: idx,
-          step_config: defaultStepConfig as unknown as Json,
-        }));
+        const poisToInsert = traceMarkers.map((marker, idx) => 
+          mapMarkerToPOI(marker, idx, newProject.id)
+        );
         
         const { error: poisError } = await supabase
           .from('pois')
