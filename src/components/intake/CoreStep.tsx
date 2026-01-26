@@ -1,9 +1,11 @@
-import { Gamepad2, Users, Globe } from 'lucide-react';
+import { Gamepad2, Globe, Users, Target, Clock, Gauge, Building2, MapPin, Route } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { OptionMatrix, OptionRow } from './shared/OptionMatrix';
 import { EnumSelect } from './shared/EnumSelect';
 import { EnumCheckboxGroup } from './shared/EnumCheckboxGroup';
@@ -14,25 +16,30 @@ import type {
   CompetitionMode,
   SupportedLanguage,
   QuestConfig,
-  I18nText 
+  I18nText,
+  ProjectType,
+  CoreDetails
 } from '@/types/intake';
 import { 
   QUEST_TYPE_LABELS, 
   TARGET_AUDIENCE_LABELS, 
   COMPETITION_MODE_LABELS,
-  LANGUAGE_LABELS 
+  LANGUAGE_LABELS,
+  PROJECT_TYPE_LABELS
 } from '@/types/intake';
 
-interface QuestConfigStepProps {
+interface CoreStepProps {
   projectId: string;
 }
 
-export function QuestConfigStep({ projectId }: QuestConfigStepProps) {
+export function CoreStep({ projectId }: CoreStepProps) {
   const { project, updateProject } = useProject(projectId);
   const { toast } = useToast();
 
   const questConfig = project?.quest_config || {};
-  const languages = questConfig.languages || ['fr'];
+  const projectType = questConfig.project_type || 'establishment';
+  const coreDetails = questConfig.core || {};
+  const languages = coreDetails.languages || questConfig.languages || ['fr'];
   const teamConfig = questConfig.teamConfig || { enabled: false };
 
   const updateQuestConfig = (updates: Partial<QuestConfig>) => {
@@ -40,6 +47,14 @@ export function QuestConfigStep({ projectId }: QuestConfigStepProps) {
       { quest_config: { ...questConfig, ...updates } },
       { onSuccess: () => toast({ title: 'Sauvegardé' }) }
     );
+  };
+
+  const updateCoreDetails = (updates: Partial<CoreDetails>) => {
+    updateQuestConfig({ 
+      core: { ...coreDetails, ...updates },
+      // Also sync languages to top level for backward compat
+      languages: updates.languages || coreDetails.languages || ['fr']
+    });
   };
 
   const updateTitleI18n = (value: I18nText) => {
@@ -56,8 +71,46 @@ export function QuestConfigStep({ projectId }: QuestConfigStepProps) {
     );
   };
 
+  const handleArrayChange = (field: keyof CoreDetails, value: string) => {
+    const items = value.split('\n').map(s => s.trim()).filter(Boolean);
+    updateCoreDetails({ [field]: items });
+  };
+
   return (
     <div className="space-y-6">
+      {/* Project Type Selection */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Target className="w-5 h-5 text-primary" />
+            Type de projet
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {(['establishment', 'tourist_spot', 'route_recon'] as ProjectType[]).map((type) => {
+              const Icon = type === 'establishment' ? Building2 : type === 'tourist_spot' ? MapPin : Route;
+              const isSelected = projectType === type;
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => updateQuestConfig({ project_type: type })}
+                  className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                    isSelected 
+                      ? 'border-primary bg-primary/10 text-primary' 
+                      : 'border-border hover:border-primary/50 hover:bg-muted'
+                  }`}
+                >
+                  <Icon className={`w-8 h-8 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <span className="font-medium text-sm">{PROJECT_TYPE_LABELS[type]}</span>
+                </button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Quest Type & Audience */}
       <OptionMatrix 
         title="Configuration de la quête" 
@@ -72,13 +125,50 @@ export function QuestConfigStep({ projectId }: QuestConfigStepProps) {
           placeholder="Sélectionner le type..."
         />
 
-        <EnumSelect<TargetAudience>
+        <EnumCheckboxGroup<TargetAudience>
           label="Public cible"
-          value={questConfig.targetAudience}
-          onChange={(v) => updateQuestConfig({ targetAudience: v })}
+          values={coreDetails.target_audience || (questConfig.targetAudience ? [questConfig.targetAudience] : [])}
+          onChange={(v) => {
+            updateCoreDetails({ target_audience: v as TargetAudience[] });
+            // Also update legacy field
+            if (v.length > 0) {
+              updateQuestConfig({ targetAudience: v[0] as TargetAudience });
+            }
+          }}
           options={TARGET_AUDIENCE_LABELS}
-          placeholder="Sélectionner le public..."
         />
+      </OptionMatrix>
+
+      {/* Duration & Difficulty */}
+      <OptionMatrix 
+        title="Paramètres généraux" 
+        icon={Clock}
+        description="Durée estimée et niveau de difficulté"
+      >
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label className="text-sm">Durée estimée (min)</Label>
+            <Input
+              type="number"
+              min={15}
+              max={300}
+              value={coreDetails.duration_min || ''}
+              onChange={(e) => updateCoreDetails({ duration_min: parseInt(e.target.value) || undefined })}
+              placeholder="Ex: 60"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm">Difficulté (1-5)</Label>
+            <Input
+              type="number"
+              min={1}
+              max={5}
+              value={coreDetails.difficulty || ''}
+              onChange={(e) => updateCoreDetails({ difficulty: parseInt(e.target.value) || undefined })}
+              placeholder="Ex: 3"
+            />
+          </div>
+        </div>
       </OptionMatrix>
 
       {/* Languages */}
@@ -91,9 +181,8 @@ export function QuestConfigStep({ projectId }: QuestConfigStepProps) {
           label="Langues activées"
           values={languages}
           onChange={(v) => {
-            // Ensure FR is always included
             const newLangs = v.includes('fr') ? v : ['fr', ...v];
-            updateQuestConfig({ languages: newLangs as SupportedLanguage[] });
+            updateCoreDetails({ languages: newLangs as SupportedLanguage[] });
           }}
           options={LANGUAGE_LABELS}
           requiredValues={['fr']}
@@ -124,6 +213,40 @@ export function QuestConfigStep({ projectId }: QuestConfigStepProps) {
           frRequired
           placeholder="Décrivez l'intrigue et le contexte narratif..."
         />
+      </OptionMatrix>
+
+      {/* Business Objectives */}
+      <OptionMatrix 
+        title="Objectifs business" 
+        icon={Target}
+        description="Définissez les objectifs métier (un par ligne)"
+      >
+        <div className="space-y-1.5">
+          <Label className="text-sm">Objectifs</Label>
+          <Textarea
+            value={(coreDetails.objective_business || []).join('\n')}
+            onChange={(e) => handleArrayChange('objective_business', e.target.value)}
+            placeholder="Ex: Fidélisation client&#10;Animation événementielle&#10;Promotion locale"
+            rows={3}
+          />
+        </div>
+      </OptionMatrix>
+
+      {/* General Constraints */}
+      <OptionMatrix 
+        title="Contraintes générales" 
+        icon={Gauge}
+        description="Contraintes globales (un par ligne)"
+      >
+        <div className="space-y-1.5">
+          <Label className="text-sm">Contraintes</Label>
+          <Textarea
+            value={(coreDetails.constraints_general || []).join('\n')}
+            onChange={(e) => handleArrayChange('constraints_general', e.target.value)}
+            placeholder="Ex: Accessible PMR&#10;Sans bruit après 22h&#10;Budget limité"
+            rows={3}
+          />
+        </div>
       </OptionMatrix>
 
       {/* Team Configuration */}
