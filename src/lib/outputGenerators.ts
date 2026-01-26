@@ -1,4 +1,4 @@
-import type { Project, POI, WifiZone, ForbiddenZone, TeamConfig, ProjectType } from '@/types/intake';
+import type { Project, POI, WifiZone, ForbiddenZone, TeamConfig, ProjectType, Avatar } from '@/types/intake';
 import { 
   STEP_TYPE_LABELS, 
   VALIDATION_MODE_LABELS, 
@@ -10,11 +10,12 @@ import {
   PROJECT_TYPE_LABELS
 } from '@/types/intake';
 
-interface OutputData {
+export interface OutputData {
   project: Project;
   pois: POI[];
   wifiZones: WifiZone[];
   forbiddenZones: ForbiddenZone[];
+  avatars?: Avatar[];
 }
 
 // Helper to safely access teamConfig
@@ -454,7 +455,7 @@ function canonicalizeScoringKeys(scoring: unknown): Record<string, unknown> {
  * Enforces canonical values at export time and fails fast on invalid data.
  */
 export function buildQuestExport(data: OutputData) {
-  const { project, pois, wifiZones, forbiddenZones } = data;
+  const { project, pois, wifiZones, forbiddenZones, avatars = [] } = data;
   const questConfig = project.quest_config || {};
   const teamConfig = getTeamConfig(project.quest_config);
 
@@ -487,6 +488,43 @@ export function buildQuestExport(data: OutputData) {
   // Build project context based on project_type
   const projectContext = buildProjectContext(project);
 
+  // Build storytelling/narrator data
+  const storytelling = questConfig.storytelling;
+  let storytellingData: {
+    enabled: boolean;
+    narrator: {
+      avatar_id: string;
+      avatar_image_url: string;
+      avatar_tags: {
+        name: string;
+        style: string;
+        persona: string;
+        age: string;
+        outfit: string;
+      };
+    } | null;
+  } = {
+    enabled: storytelling?.enabled || false,
+    narrator: null,
+  };
+
+  if (storytelling?.enabled && storytelling.narrator?.avatar_id) {
+    const avatar = avatars.find(a => a.id === storytelling.narrator?.avatar_id);
+    if (avatar) {
+      storytellingData.narrator = {
+        avatar_id: avatar.id,
+        avatar_image_url: avatar.image_url,
+        avatar_tags: {
+          name: avatar.name,
+          style: avatar.style,
+          persona: avatar.persona,
+          age: avatar.age,
+          outfit: avatar.outfit,
+        },
+      };
+    }
+  }
+
   return {
     quest: {
       type: questConfig.questType,
@@ -505,6 +543,7 @@ export function buildQuestExport(data: OutputData) {
       hintRules: questConfig.hintRules || {},
       branching: questConfig.branchingPresets || {},
     },
+    storytelling: storytellingData,
     steps,
     projectContext,
     venue: {
@@ -594,12 +633,22 @@ export function generateQuestExportJSON(data: OutputData): string {
 }
 
 export function generatePrompt(data: OutputData): string {
-  const { project, pois, wifiZones, forbiddenZones } = data;
+  const { project, pois, wifiZones, forbiddenZones, avatars = [] } = data;
   const questConfig = project.quest_config || {};
   const teamConfig = getTeamConfig(project.quest_config);
   const defaultScoring = questConfig.scoring || {};
   const projectType = questConfig.project_type || 'establishment';
   const core = questConfig.core || {};
+  const storytelling = questConfig.storytelling;
+
+  // Build narrator summary for STEP_TABLE
+  let narratorSummary = '';
+  if (storytelling?.enabled && storytelling.narrator?.avatar_id) {
+    const avatar = avatars.find(a => a.id === storytelling.narrator?.avatar_id);
+    if (avatar) {
+      narratorSummary = `\n| Narrateur | ${avatar.name} (${avatar.persona}, ${avatar.style}) |`;
+    }
+  }
 
   // Build enhanced STEP_TABLE with all required columns
   const stepTableHeader = '| # | Nom | Zone | Type | Validation | QR/Photo | PhotoRef | Scoring | Hints | Branching | FR Content |';
@@ -682,7 +731,7 @@ ${forbiddenZones.map(fz => `- ${fz.zone}${fz.reason ? ` (${fz.reason})` : ''}`).
 ## WIFI COVERAGE
 ${wifiZones.map(wz => `- ${wz.zone}: ${WIFI_LABELS[wz.strength]}`).join('\n') || '- Non documenté'}
 
-## STEP_TABLE
+## STEP_TABLE${narratorSummary}
 ${stepTableHeader}
 ${stepTableSeparator}
 ${stepTable}

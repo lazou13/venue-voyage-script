@@ -194,6 +194,12 @@ export function useProject(projectId: string | undefined) {
       }
     }
 
+    // Storytelling validation (blocking if enabled without narrator)
+    const storytelling = project?.quest_config?.storytelling;
+    if (storytelling?.enabled === true && !storytelling.narrator?.avatar_id) {
+      errors.push('Avatar narrateur requis');
+    }
+
     // Step-specific validations (contentI18n is NOT required)
     pois.forEach((poi, index) => {
       const config = poi.step_config || {};

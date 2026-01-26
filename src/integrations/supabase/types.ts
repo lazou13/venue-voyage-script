@@ -14,6 +14,50 @@ export type Database = {
   }
   public: {
     Tables: {
+      avatars: {
+        Row: {
+          age: string
+          created_at: string | null
+          id: string
+          image_url: string
+          name: string
+          outfit: string
+          persona: string
+          project_id: string | null
+          style: string
+        }
+        Insert: {
+          age: string
+          created_at?: string | null
+          id?: string
+          image_url: string
+          name: string
+          outfit: string
+          persona: string
+          project_id?: string | null
+          style: string
+        }
+        Update: {
+          age?: string
+          created_at?: string | null
+          id?: string
+          image_url?: string
+          name?: string
+          outfit?: string
+          persona?: string
+          project_id?: string | null
+          style?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "avatars_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forbidden_zones: {
         Row: {
           id: string
