@@ -1,123 +1,92 @@
 
-# Plan : Traduction complète de l'interface en français
+
+# Plan : Ajouter les checkboxes multi-sélection dans l'onglet Terrain
 
 ## Contexte
-L'interface utilise actuellement un mélange d'anglais et de français. La documentation référence (QUEST_SCHEMA.json, QUEST_CREATION_GUIDE.md) définit la terminologie française officielle. L'utilisateur souhaite une interface 100% française.
+Actuellement, l'architecture sépare la création des étapes (onglet Terrain) de leur configuration détaillée (onglet Étapes). L'utilisateur souhaite pouvoir cocher plusieurs possibilités directement dans le formulaire de l'onglet Terrain.
 
----
+## Solution proposée
 
-## Éléments à traduire
+Intégrer les sections multi-sélection "Possibilités d'étape" et "Possibilités de validation" directement dans le composant POICard de FieldworkStep.
 
-### 1. Onglets de navigation (IntakeForm.tsx)
+## Fichiers à modifier
 
-| ID | Actuel (anglais) | Traduction |
-|----|------------------|------------|
-| venue | Venue | **Lieu** |
-| fieldwork | Fieldwork | **Terrain** |
-| quest | Quest | **Quête** |
-| steps | Steps | **Étapes** |
-| rules | Rules | **Règles** |
-| outputs | Outputs | **Exports** |
+### 1. src/components/intake/FieldworkStep.tsx
 
-Le bouton header "Outputs" devient aussi "Exports".
-
-### 2. Presets (questPresets.ts)
-
-| Actuel | Français |
-|--------|----------|
-| Hotel Indoor QR | **QR Intérieur Hôtel** |
-| Outdoor GPS | **GPS Extérieur** |
-| Family Friendly | **Familles** |
-
-### 3. Textes dans les composants
-
-#### StepsBuilderStep.tsx
-- "Configuration des Étapes" ✓ (déjà FR)
-- "Fieldwork" dans message → "Terrain"
-
-#### SelectiveApplyPanel.tsx  
-- "Scoring" → **Points**
-- Labels déjà en français ✓
-
-#### FieldworkStep.tsx
-- "Étapes / Points d'Intérêt" ✓ (déjà FR)
-- Tous les textes sont déjà en français ✓
-
-#### QuestConfigStep.tsx
-- "Configuration Quest" → **Configuration de la quête**
-- Autres textes déjà en français ✓
-
-#### RulesStep.tsx
-- "Scoring par défaut" → **Points par défaut**
-- Textes déjà en français ✓
-
-#### OutputsStep.tsx
-- Textes déjà en français ✓
-
----
-
-## Fichiers modifiés
-
-### 1. src/pages/IntakeForm.tsx
-**Lignes 15-22** : Labels des onglets STEPS
-**Ligne 72** : Bouton "Outputs" → "Exports"
+**Ajouts :**
+- Import du composant `EnumCheckboxGroup`
+- Import des types `StepType`, `ValidationMode` et leurs labels
+- Ajout des sections multi-sélection dans le formulaire d'édition POI (après le champ Notes)
 
 ```text
-STEPS = [
-  { id: 'venue',     label: 'Lieu' },
-  { id: 'fieldwork', label: 'Terrain' },
-  { id: 'quest',     label: 'Quête' },
-  { id: 'steps',     label: 'Étapes' },
-  { id: 'rules',     label: 'Règles' },
-  { id: 'outputs',   label: 'Exports' },
-]
+POICard (mode édition)
++------------------------------------+
+| Nom          | Zone                |
++------------------------------------+
+| Interaction  | Risque | Minutes    |
++------------------------------------+
+| Notes                              |
++------------------------------------+
+| Photo                              |
++------------------------------------+
+| [NOUVEAU] Possibilités d'étape     |
+|   [ ] Narration  [ ] QCM  [ ] ... |
++------------------------------------+
+| [NOUVEAU] Possibilités validation  |
+|   [ ] QR Code  [ ] Photo  [ ] ... |
++------------------------------------+
 ```
 
-### 2. src/lib/questPresets.ts
-**Lignes 22, 42, 72** : Propriété `name` des 3 presets
+**Modifications nécessaires :**
 
-```text
-hotelIndoorQR.name = "QR Intérieur Hôtel"
-outdoorGPS.name = "GPS Extérieur"  
-familyFriendly.name = "Familles"
-```
+1. **Lignes 1-15** : Ajouter les imports
+   - `EnumCheckboxGroup` depuis `./shared/EnumCheckboxGroup`
+   - `StepType`, `ValidationMode`, `StepConfig`, `STEP_TYPE_LABELS`, `VALIDATION_MODE_LABELS` depuis `@/types/intake`
 
-### 3. src/components/intake/StepsBuilderStep.tsx
-**Ligne 142** : "Fieldwork" → "Terrain"
+2. **Interface POICardProps** : Déjà compatible (onUpdate accepte Partial<POI>)
 
-```text
-"Ajoutez des étapes dans l'onglet Terrain"
-```
+3. **Fonction POICard (lignes 268-437)** : Ajouter après le bloc "Photo" (ligne 417) :
+   ```tsx
+   {/* Multi-select: Step Types */}
+   <EnumCheckboxGroup<StepType>
+     label="Possibilités d'étape"
+     values={poi.step_config?.possible_step_types || []}
+     onChange={(values) => onUpdate({ 
+       step_config: { 
+         ...poi.step_config, 
+         possible_step_types: values 
+       } 
+     })}
+     options={STEP_TYPE_LABELS}
+   />
 
-### 4. src/components/intake/SelectiveApplyPanel.tsx
-**Ligne 101** : "Scoring" → "Points"
+   {/* Multi-select: Validation Modes */}
+   <EnumCheckboxGroup<ValidationMode>
+     label="Possibilités de validation"
+     values={poi.step_config?.possible_validation_modes || []}
+     onChange={(values) => onUpdate({ 
+       step_config: { 
+         ...poi.step_config, 
+         possible_validation_modes: values 
+       } 
+     })}
+     options={VALIDATION_MODE_LABELS}
+   />
+   ```
 
-```text
-Label: "Points" au lieu de "Scoring"
-```
+## Impact sur l'UX
 
-### 5. src/components/intake/QuestConfigStep.tsx
-**Ligne 64** : "Configuration Quest" → "Configuration de la quête"
-
-### 6. src/components/intake/RulesStep.tsx
-**Ligne 49** : "Scoring par défaut" → "Points par défaut"
-
----
-
-## Détails techniques
-
-Aucun changement de logique métier. Seuls les labels UI sont modifiés.
-
-Les valeurs internes (IDs, enums, clés JSON) restent en anglais/snake_case pour la compatibilité avec l'export QUEST_EXPORT_JSON.
-
----
+- Les utilisateurs peuvent maintenant configurer les possibilités directement lors de la création/édition d'une étape
+- L'onglet Étapes reste disponible pour une vue d'ensemble et les configurations avancées (décision finale, validation photo, contenu i18n)
+- Aucune perte de données - les deux interfaces modifient le même champ `step_config`
 
 ## Vérification après implémentation
 
-1. Ouvrir le formulaire intake sur un projet existant
-2. Vérifier les 6 onglets : Lieu, Terrain, Quête, Étapes, Règles, Exports
-3. Vérifier les 3 boutons presets : QR Intérieur Hôtel, GPS Extérieur, Familles
-4. Dans Étapes sans POIs : vérifier "Ajoutez des étapes dans l'onglet Terrain"
-5. Panel "Appliquer défauts" : vérifier label "Points" au lieu de "Scoring"
-6. Onglet Quête : vérifier "Configuration de la quête"
-7. Onglet Règles : vérifier "Points par défaut"
+1. Ouvrir l'onglet Terrain
+2. Cliquer sur "Modifier" sur une étape existante
+3. Vérifier que les checkboxes apparaissent
+4. Cocher plusieurs types (ex: Énigme + Défi + Photo)
+5. Cocher plusieurs validations (ex: QR Code + Manuel)
+6. Fermer et rouvrir - vérifier que les valeurs persistent
+7. Aller dans l'onglet Étapes - vérifier que les mêmes valeurs sont affichées
+
