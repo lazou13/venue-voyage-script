@@ -1,92 +1,126 @@
 
+# Plan : Corriger les checkboxes multi-sélection qui ne fonctionnent pas
 
-# Plan : Ajouter les checkboxes multi-sélection dans l'onglet Terrain
+## Problème identifié
 
-## Contexte
-Actuellement, l'architecture sépare la création des étapes (onglet Terrain) de leur configuration détaillée (onglet Étapes). L'utilisateur souhaite pouvoir cocher plusieurs possibilités directement dans le formulaire de l'onglet Terrain.
+Le composant `EnumCheckboxGroup` utilise un `<label>` HTML natif qui entoure le `Checkbox` de Radix UI. Cela crée un conflit d'événements :
 
-## Solution proposée
+1. Le `<label>` natif intercepte le clic et tente de toggler l'input interne
+2. Le `Checkbox` de Radix gère également le clic via `onCheckedChange`
+3. Ces deux comportements entrent en conflit, causant un double-toggle (le checkbox revient à son état initial) ou aucune action
 
-Intégrer les sections multi-sélection "Possibilités d'étape" et "Possibilités de validation" directement dans le composant POICard de FieldworkStep.
+## Solution
 
-## Fichiers à modifier
+Remplacer le `<label>` HTML natif par un `<div>` avec un gestionnaire `onClick` explicite, et gérer le toggle manuellement sans dépendre du comportement natif label/input.
 
-### 1. src/components/intake/FieldworkStep.tsx
+## Fichier à modifier
 
-**Ajouts :**
-- Import du composant `EnumCheckboxGroup`
-- Import des types `StepType`, `ValidationMode` et leurs labels
-- Ajout des sections multi-sélection dans le formulaire d'édition POI (après le champ Notes)
+### src/components/intake/shared/EnumCheckboxGroup.tsx
 
-```text
-POICard (mode édition)
-+------------------------------------+
-| Nom          | Zone                |
-+------------------------------------+
-| Interaction  | Risque | Minutes    |
-+------------------------------------+
-| Notes                              |
-+------------------------------------+
-| Photo                              |
-+------------------------------------+
-| [NOUVEAU] Possibilités d'étape     |
-|   [ ] Narration  [ ] QCM  [ ] ... |
-+------------------------------------+
-| [NOUVEAU] Possibilités validation  |
-|   [ ] QR Code  [ ] Photo  [ ] ... |
-+------------------------------------+
+**Changements :**
+
+1. Remplacer `<label>` par `<div>` avec `role="button"` pour l'accessibilité
+2. Ajouter un `onClick` sur le conteneur qui appelle `handleToggle`
+3. Passer `onClick={(e) => e.stopPropagation()}` sur le `Checkbox` pour éviter le double-toggle
+4. Garder le `Checkbox` comme indicateur visuel uniquement (contrôlé par l'état parent)
+
+**Code final :**
+
+```tsx
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+
+interface EnumCheckboxGroupProps<T extends string> {
+  label: string;
+  values: T[];
+  onChange: (values: T[]) => void;
+  options: Record<T, string>;
+  disabled?: boolean;
+  requiredValues?: T[];
+}
+
+export function EnumCheckboxGroup<T extends string>({
+  label,
+  values,
+  onChange,
+  options,
+  disabled = false,
+  requiredValues = [],
+}: EnumCheckboxGroupProps<T>) {
+  const handleToggle = (key: T) => {
+    if (disabled || requiredValues.includes(key)) return;
+    
+    const isCurrentlyChecked = values.includes(key);
+    if (isCurrentlyChecked) {
+      onChange(values.filter((v) => v !== key));
+    } else {
+      onChange([...values, key]);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-sm">{label}</Label>
+      <div className="flex flex-wrap gap-2">
+        {Object.entries(options).map(([key, labelText]) => {
+          const typedKey = key as T;
+          const isRequired = requiredValues.includes(typedKey);
+          const isChecked = values.includes(typedKey);
+          const isDisabled = disabled || isRequired;
+          
+          return (
+            <div
+              key={key}
+              role="button"
+              tabIndex={isDisabled ? -1 : 0}
+              onClick={() => handleToggle(typedKey)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleToggle(typedKey);
+                }
+              }}
+              className={`flex items-center gap-2 px-3 py-2 border rounded-lg transition-colors select-none ${
+                isChecked
+                  ? 'bg-primary/10 border-primary'
+                  : 'bg-background hover:bg-muted'
+              } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <Checkbox
+                checked={isChecked}
+                disabled={isDisabled}
+                tabIndex={-1}
+                onClick={(e) => e.stopPropagation()}
+                onCheckedChange={() => {}}
+              />
+              <span className="text-sm">
+                {labelText as string}
+                {isRequired && <span className="text-destructive ml-1">*</span>}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 ```
 
-**Modifications nécessaires :**
+## Changements clés
 
-1. **Lignes 1-15** : Ajouter les imports
-   - `EnumCheckboxGroup` depuis `./shared/EnumCheckboxGroup`
-   - `StepType`, `ValidationMode`, `StepConfig`, `STEP_TYPE_LABELS`, `VALIDATION_MODE_LABELS` depuis `@/types/intake`
-
-2. **Interface POICardProps** : Déjà compatible (onUpdate accepte Partial<POI>)
-
-3. **Fonction POICard (lignes 268-437)** : Ajouter après le bloc "Photo" (ligne 417) :
-   ```tsx
-   {/* Multi-select: Step Types */}
-   <EnumCheckboxGroup<StepType>
-     label="Possibilités d'étape"
-     values={poi.step_config?.possible_step_types || []}
-     onChange={(values) => onUpdate({ 
-       step_config: { 
-         ...poi.step_config, 
-         possible_step_types: values 
-       } 
-     })}
-     options={STEP_TYPE_LABELS}
-   />
-
-   {/* Multi-select: Validation Modes */}
-   <EnumCheckboxGroup<ValidationMode>
-     label="Possibilités de validation"
-     values={poi.step_config?.possible_validation_modes || []}
-     onChange={(values) => onUpdate({ 
-       step_config: { 
-         ...poi.step_config, 
-         possible_validation_modes: values 
-       } 
-     })}
-     options={VALIDATION_MODE_LABELS}
-   />
-   ```
-
-## Impact sur l'UX
-
-- Les utilisateurs peuvent maintenant configurer les possibilités directement lors de la création/édition d'une étape
-- L'onglet Étapes reste disponible pour une vue d'ensemble et les configurations avancées (décision finale, validation photo, contenu i18n)
-- Aucune perte de données - les deux interfaces modifient le même champ `step_config`
+| Avant | Après |
+|-------|-------|
+| `<label>` HTML natif | `<div role="button">` |
+| Toggle via `onCheckedChange` | Toggle via `onClick` sur le conteneur |
+| Conflit label/Radix | Checkbox comme indicateur visuel seul |
+| `cursor-pointer` sur label | `cursor-pointer` conditionnel selon `disabled` |
 
 ## Vérification après implémentation
 
-1. Ouvrir l'onglet Terrain
-2. Cliquer sur "Modifier" sur une étape existante
-3. Vérifier que les checkboxes apparaissent
-4. Cocher plusieurs types (ex: Énigme + Défi + Photo)
-5. Cocher plusieurs validations (ex: QR Code + Manuel)
-6. Fermer et rouvrir - vérifier que les valeurs persistent
-7. Aller dans l'onglet Étapes - vérifier que les mêmes valeurs sont affichées
-
+1. Ouvrir l'onglet Terrain sur le projet "Nouvel Hôtel"
+2. Cliquer sur "Modifier" pour l'étape 2
+3. Dans "Possibilités d'étape", cliquer sur "QCM" → doit cocher
+4. Cliquer sur "Photo" → doit cocher (maintenant 3 options cochées)
+5. Cliquer sur "Énigme" → doit décocher
+6. Fermer et rouvrir → vérifier que les sélections persistent
+7. Dans "Possibilités de validation", répéter le test avec "QR Code" et "Photo"
