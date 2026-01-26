@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
   Route, AlertTriangle, MapPin, Shield, Navigation, 
-  Circle, Square, Plus, Download, Trash2, Clock, Ruler, MapPinned
+  Circle, Square, Plus, Download, Trash2, Clock, Ruler, MapPinned,
+  Zap, Camera, X, Check
 } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
 import { useRouteRecorder, exportTraceAsGeoJSON, RouteTrace, RecordingMode, RecordingStatus } from '@/hooks/useRouteRecorder';
@@ -83,6 +84,7 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
     startRecording,
     stopRecording,
     addMarker,
+    addMarkerAtLastCoord,
     deleteTrace,
     retry,
   } = useRouteRecorder(projectId, recordingMode);
@@ -95,6 +97,14 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
   const [markerNote, setMarkerNote] = useState('');
   const [markerPhotoUrl, setMarkerPhotoUrl] = useState('');
   const [duration, setDuration] = useState(0);
+  
+  // Quick marker drawer state
+  const [quickMarkerOpen, setQuickMarkerOpen] = useState(false);
+  const [quickMarkerNote, setQuickMarkerNote] = useState('');
+  const [quickMarkerPhoto, setQuickMarkerPhoto] = useState('');
+  const [quickMarkerNumber, setQuickMarkerNumber] = useState(1);
+  const [isSavingQuickMarker, setIsSavingQuickMarker] = useState(false);
+  const quickMarkerFileRef = useRef<HTMLInputElement>(null);
 
   // Fetch markers for selected trace
   const markersQuery = useTraceMarkers(selectedTraceId);
@@ -154,13 +164,55 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
     setMarkerPhotoUrl('');
   };
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>, setUrl: (url: string) => void) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const url = await uploadFile(file, `route-markers/${projectId}`);
     if (url) {
-      setMarkerPhotoUrl(url);
+      setUrl(url);
     }
+  };
+
+  // Quick marker handlers
+  const handleQuickMarkerOpen = () => {
+    setQuickMarkerNote('');
+    setQuickMarkerPhoto('');
+    setQuickMarkerOpen(true);
+  };
+
+  const handleQuickMarkerSave = async () => {
+    if (!lastPosition) {
+      toast({ title: 'Erreur', description: 'Aucune position GPS', variant: 'destructive' });
+      return;
+    }
+    
+    setIsSavingQuickMarker(true);
+    try {
+      const note = quickMarkerNote.trim() || `Marker ${quickMarkerNumber}`;
+      await addMarkerAtLastCoord(note, quickMarkerPhoto || undefined);
+      setQuickMarkerNumber(n => n + 1);
+      setQuickMarkerOpen(false);
+      setQuickMarkerNote('');
+      setQuickMarkerPhoto('');
+    } catch (err) {
+      toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setIsSavingQuickMarker(false);
+    }
+  };
+
+  const handleQuickMarkerCancel = () => {
+    setQuickMarkerOpen(false);
+    setQuickMarkerNote('');
+    setQuickMarkerPhoto('');
+  };
+
+  const handleQuickMarkerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await handlePhotoUpload(e, setQuickMarkerPhoto);
+  };
+
+  const handleMarkerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await handlePhotoUpload(e, setMarkerPhotoUrl);
   };
 
   const handleExportGeoJSON = (trace: RouteTrace) => {
@@ -275,16 +327,88 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
 
               {isRecording && (
                 <Button
-                  onClick={() => setMarkerDialogOpen(true)}
-                  variant="outline"
+                  onClick={handleQuickMarkerOpen}
+                  variant="secondary"
                   className="gap-2"
-                  disabled={!lastPosition}
+                  disabled={!lastPosition || quickMarkerOpen}
                 >
-                  <Plus className="w-4 h-4" />
-                  Ajouter marqueur
+                  <Zap className="w-4 h-4" />
+                  Marqueur rapide
                 </Button>
               )}
             </div>
+
+            {/* Quick marker inline drawer */}
+            {isRecording && quickMarkerOpen && (
+              <div className="p-3 rounded-md border border-primary/30 bg-primary/5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Marqueur rapide #{quickMarkerNumber}</p>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={handleQuickMarkerCancel}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                
+                <Textarea
+                  placeholder="Note (optionnel)"
+                  value={quickMarkerNote}
+                  onChange={(e) => setQuickMarkerNote(e.target.value)}
+                  className="min-h-[60px] text-sm"
+                />
+                
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    ref={quickMarkerFileRef}
+                    onChange={handleQuickMarkerPhotoUpload}
+                    className="hidden"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => quickMarkerFileRef.current?.click()}
+                    disabled={isUploading}
+                    className="gap-2"
+                  >
+                    <Camera className="w-4 h-4" />
+                    {isUploading ? 'Upload...' : 'Prendre photo'}
+                  </Button>
+                  {quickMarkerPhoto && (
+                    <img 
+                      src={quickMarkerPhoto} 
+                      alt="Preview" 
+                      className="h-10 w-10 object-cover rounded border"
+                    />
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleQuickMarkerSave}
+                    disabled={isSavingQuickMarker}
+                    className="gap-2"
+                  >
+                    <Check className="w-4 h-4" />
+                    Enregistrer
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleQuickMarkerCancel}
+                  >
+                    Annuler
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {/* Live stats when recording */}
             {isRecording && (
@@ -608,7 +732,7 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                onChange={handlePhotoUpload}
+                onChange={handleMarkerPhotoUpload}
                 className="hidden"
               />
               {markerPhotoUrl ? (

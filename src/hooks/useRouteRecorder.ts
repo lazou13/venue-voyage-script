@@ -454,6 +454,29 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     }));
   }, []);
 
+  // Add marker at last known coord (quick marker)
+  const addMarkerAtLastCoord = useCallback(async (note?: string, photoUrl?: string) => {
+    const { currentTraceId, coords } = state;
+    
+    if (!currentTraceId) {
+      throw new Error('Aucun enregistrement en cours');
+    }
+    
+    if (coords.length === 0) {
+      throw new Error('Aucune position GPS disponible');
+    }
+    
+    const lastCoord = coords[coords.length - 1];
+    
+    return addMarker.mutateAsync({
+      traceId: currentTraceId,
+      lat: lastCoord.lat,
+      lng: lastCoord.lng,
+      note: note || undefined,
+      photoUrl: photoUrl || undefined,
+    });
+  }, [state.currentTraceId, state.coords, addMarker]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -495,6 +518,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     startRecording,
     stopRecording,
     addMarker,
+    addMarkerAtLastCoord,
     deleteTrace,
     retry,
   };
