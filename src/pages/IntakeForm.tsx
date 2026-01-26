@@ -4,29 +4,29 @@ import { ArrowLeft, Check, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useProject } from '@/hooks/useProject';
-import { HotelInfoStep } from '@/components/intake/HotelInfoStep';
-import { MapUploadStep } from '@/components/intake/MapUploadStep';
-import { POIBuilderStep } from '@/components/intake/POIBuilderStep';
-import { ZonesStep } from '@/components/intake/ZonesStep';
-import { OpsStep } from '@/components/intake/OpsStep';
-import { DesignStep } from '@/components/intake/DesignStep';
+import { VenueStep } from '@/components/intake/VenueStep';
+import { FieldworkStep } from '@/components/intake/FieldworkStep';
+import { QuestConfigStep } from '@/components/intake/QuestConfigStep';
+import { StepsBuilderStep } from '@/components/intake/StepsBuilderStep';
+import { RulesStep } from '@/components/intake/RulesStep';
+import { OutputsStep } from '@/components/intake/OutputsStep';
 import { ValidationPanel } from '@/components/intake/ValidationPanel';
 
 const STEPS = [
-  { id: 'hotel', label: 'Hôtel', component: HotelInfoStep },
-  { id: 'map', label: 'Carte', component: MapUploadStep },
-  { id: 'pois', label: 'POIs', component: POIBuilderStep },
-  { id: 'zones', label: 'Zones', component: ZonesStep },
-  { id: 'ops', label: 'Ops', component: OpsStep },
-  { id: 'design', label: 'Design', component: DesignStep },
+  { id: 'venue', label: 'Venue', component: VenueStep },
+  { id: 'fieldwork', label: 'Fieldwork', component: FieldworkStep },
+  { id: 'quest', label: 'Quest', component: QuestConfigStep },
+  { id: 'steps', label: 'Steps', component: StepsBuilderStep },
+  { id: 'rules', label: 'Rules', component: RulesStep },
+  { id: 'outputs', label: 'Outputs', component: OutputsStep },
 ];
 
 export default function IntakeForm() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('hotel');
+  const [activeTab, setActiveTab] = useState('venue');
 
-  const { project, pois, wifiZones, forbiddenZones, isLoading, validate } = useProject(projectId);
+  const { project, isLoading, validate } = useProject(projectId);
   const validation = validate();
 
   if (isLoading) {
@@ -64,11 +64,12 @@ export default function IntakeForm() {
               </div>
             </div>
             <Button
-              onClick={() => navigate(`/intake/${projectId}/outputs`)}
+              onClick={() => setActiveTab('outputs')}
               disabled={!validation.isValid}
+              variant={validation.isValid ? 'default' : 'outline'}
             >
               <Check className="w-4 h-4 mr-2" />
-              Générer Outputs
+              Outputs
             </Button>
           </div>
         </div>

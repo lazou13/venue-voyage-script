@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import type { Project, POI, WifiZone, ForbiddenZone, ValidationResult } from '@/types/intake';
+import type { Project, POI, WifiZone, ForbiddenZone, ValidationResult, QuestConfig, I18nText, StepConfig } from '@/types/intake';
+import type { Json } from '@/integrations/supabase/types';
 
 export function useProject(projectId: string | undefined) {
   const queryClient = useQueryClient();
@@ -15,7 +16,16 @@ export function useProject(projectId: string | undefined) {
         .eq('id', projectId)
         .maybeSingle();
       if (error) throw error;
-      return data as Project | null;
+      // Cast JSONB fields to proper types
+      if (data) {
+        return {
+          ...data,
+          quest_config: (data.quest_config || {}) as QuestConfig,
+          title_i18n: (data.title_i18n || {}) as I18nText,
+          story_i18n: (data.story_i18n || {}) as I18nText,
+        } as Project;
+      }
+      return null;
     },
     enabled: !!projectId,
   });
@@ -30,7 +40,11 @@ export function useProject(projectId: string | undefined) {
         .eq('project_id', projectId)
         .order('sort_order');
       if (error) throw error;
-      return data as POI[];
+      // Cast step_config to proper type
+      return (data || []).map(poi => ({
+        ...poi,
+        step_config: (poi.step_config || {}) as StepConfig,
+      })) as POI[];
     },
     enabled: !!projectId,
   });
@@ -66,9 +80,23 @@ export function useProject(projectId: string | undefined) {
   const updateProject = useMutation({
     mutationFn: async (updates: Partial<Project>) => {
       if (!projectId) throw new Error('No project ID');
+      // Handle JSONB fields
+      const { quest_config, title_i18n, story_i18n, ...rest } = updates;
+      const updateData: Record<string, unknown> = { ...rest };
+      
+      if (quest_config !== undefined) {
+        updateData.quest_config = quest_config as unknown as Json;
+      }
+      if (title_i18n !== undefined) {
+        updateData.title_i18n = title_i18n as unknown as Json;
+      }
+      if (story_i18n !== undefined) {
+        updateData.story_i18n = story_i18n as unknown as Json;
+      }
+      
       const { data, error } = await supabase
         .from('projects')
-        .update(updates)
+        .update(updateData)
         .eq('id', projectId)
         .select()
         .single();
@@ -82,23 +110,96 @@ export function useProject(projectId: string | undefined) {
 
   const validate = (): ValidationResult => {
     const errors: string[] = [];
+    const warnings: string[] = [];
     const project = projectQuery.data;
     const pois = poisQuery.data || [];
     const forbiddenZones = forbiddenZonesQuery.data || [];
+    const wifiZones = wifiZonesQuery.data || [];
 
+    // Blocking errors
     if (!project?.map_url) {
       errors.push('Aucune carte uploadée');
     }
     if (pois.length < 10) {
-      errors.push(`POIs insuffisants: ${pois.length}/10 minimum`);
+      errors.push(`Étapes insuffisantes: ${pois.length}/10 minimum`);
     }
     if (forbiddenZones.length === 0) {
       errors.push('Zones interdites non définies');
     }
+    if (!project?.title_i18n?.fr) {
+      errors.push('Titre (FR) obligatoire');
+    }
+    if (!project?.story_i18n?.fr) {
+      errors.push('Histoire (FR) obligatoire');
+    }
+
+    // Team config validation
+    const teamConfig = project?.quest_config?.teamConfig;
+    if (teamConfig?.enabled) {
+      if (!teamConfig.maxTeams) {
+        errors.push('Team: nombre max d\'équipes requis');
+      }
+      if (!teamConfig.maxPlayersPerTeam) {
+        errors.push('Team: joueurs max par équipe requis');
+      }
+      if (teamConfig.competitionMode === 'timed' && !teamConfig.timeLimitMinutes) {
+        errors.push('Team: temps limite requis pour mode chronométré');
+      }
+    }
+
+    // Step-specific validations
+    pois.forEach((poi, index) => {
+      const config = poi.step_config || {};
+      
+      // GPS validation required for auto_gps
+      if (config.validationMode === 'auto_gps') {
+        if (!config.gps?.lat || !config.gps?.lng || !config.gps?.radius) {
+          errors.push(`Étape ${index + 1}: coordonnées GPS requises`);
+        }
+      }
+      
+      // Photo validation requirements
+      if (config.validationMode === 'photo' && config.photoValidation) {
+        if (config.photoValidation.type === 'reference' && !config.photoValidation.referenceUrl) {
+          errors.push(`Étape ${index + 1}: URL référence photo requise`);
+        }
+        if (config.photoValidation.type === 'qr_code' && !config.photoValidation.qrExpectedValue) {
+          errors.push(`Étape ${index + 1}: valeur QR attendue requise`);
+        }
+      }
+      
+      // i18n content check
+      if (!config.contentI18n?.fr) {
+        warnings.push(`Étape ${index + 1}: contenu FR manquant`);
+      }
+    });
+
+    // Warnings
+    const missingPhotos = pois.filter(p => !p.photo_url).length;
+    if (missingPhotos > 0) {
+      warnings.push(`${missingPhotos} étape(s) sans photo`);
+    }
+    
+    const weakWifi = wifiZones.filter(wz => wz.strength === 'weak').length;
+    if (weakWifi > 0) {
+      warnings.push(`${weakWifi} zone(s) Wi-Fi faible`);
+    }
+
+    // Check for missing translations (non-blocking)
+    const languages = project?.quest_config?.languages || ['fr'];
+    languages.filter(l => l !== 'fr').forEach(lang => {
+      if (!project?.title_i18n?.[lang]) {
+        warnings.push(`Titre ${lang.toUpperCase()} manquant`);
+      }
+      if (!project?.story_i18n?.[lang]) {
+        warnings.push(`Histoire ${lang.toUpperCase()} manquante`);
+      }
+    });
 
     return {
       isValid: errors.length === 0,
       errors,
+      warnings,
     };
   };
 
