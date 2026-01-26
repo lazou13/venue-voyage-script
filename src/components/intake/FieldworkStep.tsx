@@ -11,8 +11,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import type { POI, InteractionType, RiskLevel, WifiStrength } from '@/types/intake';
-import { INTERACTION_LABELS, RISK_LABELS, WIFI_LABELS } from '@/types/intake';
+import { EnumCheckboxGroup } from './shared/EnumCheckboxGroup';
+import type { POI, InteractionType, RiskLevel, WifiStrength, StepType, ValidationMode } from '@/types/intake';
+import { INTERACTION_LABELS, RISK_LABELS, WIFI_LABELS, STEP_TYPE_LABELS, VALIDATION_MODE_LABELS } from '@/types/intake';
 
 interface FieldworkStepProps {
   projectId: string;
@@ -415,6 +416,32 @@ function POICard({
                   </label>
                 )}
               </div>
+
+              {/* Multi-select: Step Types */}
+              <EnumCheckboxGroup<StepType>
+                label="Possibilités d'étape"
+                values={(poi.step_config as any)?.possible_step_types || []}
+                onChange={(values) => onUpdate({ 
+                  step_config: { 
+                    ...(poi.step_config as any), 
+                    possible_step_types: values 
+                  } 
+                })}
+                options={STEP_TYPE_LABELS}
+              />
+
+              {/* Multi-select: Validation Modes */}
+              <EnumCheckboxGroup<ValidationMode>
+                label="Possibilités de validation"
+                values={(poi.step_config as any)?.possible_validation_modes || []}
+                onChange={(values) => onUpdate({ 
+                  step_config: { 
+                    ...(poi.step_config as any), 
+                    possible_validation_modes: values 
+                  } 
+                })}
+                options={VALIDATION_MODE_LABELS}
+              />
             </div>
           ) : (
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
