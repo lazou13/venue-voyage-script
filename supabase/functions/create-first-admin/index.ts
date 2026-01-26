@@ -55,7 +55,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create the user
+    // Try to create the user first
+    let userId: string;
     const { data: userData, error: userError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -63,29 +64,79 @@ Deno.serve(async (req) => {
     });
 
     if (userError) {
-      console.error("Error creating user:", userError);
-      return new Response(
-        JSON.stringify({ error: userError.message || "Erreur lors de la création de l'utilisateur" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      // If user already exists, try to update password instead
+      if (userError.message?.includes("already been registered")) {
+        console.log("User exists, attempting password reset...");
+        
+        // Get user by email
+        const { data: usersData, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+        if (listError) {
+          console.error("Error listing users:", listError);
+          return new Response(
+            JSON.stringify({ error: "Erreur lors de la recherche de l'utilisateur" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        const existingUser = usersData.users.find(u => u.email === email);
+        if (!existingUser) {
+          return new Response(
+            JSON.stringify({ error: "Utilisateur non trouvé" }),
+            { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        // Update password
+        const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+          existingUser.id,
+          { password }
+        );
+        
+        if (updateError) {
+          console.error("Error updating password:", updateError);
+          return new Response(
+            JSON.stringify({ error: "Erreur lors de la mise à jour du mot de passe" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        userId = existingUser.id;
+        console.log(`Password reset for existing user: ${email}`);
+      } else {
+        console.error("Error creating user:", userError);
+        return new Response(
+          JSON.stringify({ error: userError.message || "Erreur lors de la création de l'utilisateur" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    } else {
+      userId = userData.user.id;
     }
 
-    // Assign admin role
-    const { error: roleError } = await supabaseAdmin
+    // Check if role already exists
+    const { data: existingRole } = await supabaseAdmin
       .from("user_roles")
-      .insert({ user_id: userData.user.id, role: "admin" });
+      .select("id")
+      .eq("user_id", userId)
+      .eq("role", "admin")
+      .maybeSingle();
 
-    if (roleError) {
-      console.error("Error assigning admin role:", roleError);
-      // Cleanup: delete the user if role assignment fails
-      await supabaseAdmin.auth.admin.deleteUser(userData.user.id);
-      return new Response(
-        JSON.stringify({ error: "Erreur lors de l'attribution du rôle admin" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!existingRole) {
+      // Assign admin role
+      const { error: roleError } = await supabaseAdmin
+        .from("user_roles")
+        .insert({ user_id: userId, role: "admin" });
+
+      if (roleError) {
+        console.error("Error assigning admin role:", roleError);
+        return new Response(
+          JSON.stringify({ error: "Erreur lors de l'attribution du rôle admin" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
-    console.log(`First admin created successfully: ${email}`);
+    console.log(`Admin configured successfully: ${email}`);
 
     return new Response(
       JSON.stringify({ 
