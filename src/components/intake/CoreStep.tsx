@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Gamepad2, Globe, Users, Target, Clock, Gauge, Building2, MapPin, Route } from 'lucide-react';
+import { Gamepad2, Globe, Users, Target, Clock, Gauge, Building2, MapPin, Route, CheckCircle2, Check } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
@@ -23,7 +23,8 @@ import type {
   CoreDetails,
   PlayMode,
   TeamConfig,
-  MultiSoloConfig
+  MultiSoloConfig,
+  DecisionsValidated
 } from '@/types/intake';
 import { 
   QUEST_TYPE_LABELS, 
@@ -31,7 +32,8 @@ import {
   COMPETITION_MODE_LABELS,
   LANGUAGE_LABELS,
   PROJECT_TYPE_LABELS,
-  PLAY_MODE_LABELS
+  PLAY_MODE_LABELS,
+  DECISIONS_LABELS
 } from '@/types/intake';
 
 interface CoreStepProps {
@@ -50,11 +52,12 @@ export function CoreStep({ projectId }: CoreStepProps) {
   const playMode = questConfig.play_mode;
   const teamConfig = questConfig.teamConfig || {};
   const multiSoloConfig = questConfig.multiSoloConfig || {};
-  
+  const decisionsValidated = questConfig.decisions_validated || {};
+  const decisionsNotes = questConfig.decisions_notes || '';
   // Local state for debounced text fields
   const [localObjectives, setLocalObjectives] = useState<string>('');
   const [localConstraints, setLocalConstraints] = useState<string>('');
-  
+  const [localDecisionsNotes, setLocalDecisionsNotes] = useState<string>('');
   // Sync local state when server data changes
   useEffect(() => {
     setLocalObjectives((coreDetails.objective_business || []).join('\n'));
@@ -63,6 +66,10 @@ export function CoreStep({ projectId }: CoreStepProps) {
   useEffect(() => {
     setLocalConstraints((coreDetails.constraints_general || []).join('\n'));
   }, [coreDetails.constraints_general?.join(',')]);
+  
+  useEffect(() => {
+    setLocalDecisionsNotes(decisionsNotes);
+  }, [decisionsNotes]);
   
   // Cleanup debounce timer on unmount
   useEffect(() => {
@@ -113,6 +120,28 @@ export function CoreStep({ projectId }: CoreStepProps) {
       const items = value.split('\n').map(s => s.trim()).filter(Boolean);
       updateCoreDetails({ [field]: items });
     }, 500);
+  };
+
+  // Debounced string field change (for decisions notes)
+  const handleDebouncedStringChange = (field: 'decisions_notes', value: string, setLocal: (v: string) => void) => {
+    setLocal(value);
+    
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      updateQuestConfig({ [field]: value });
+    }, 500);
+  };
+
+  // Toggle a decision checkbox
+  const toggleDecision = (key: keyof DecisionsValidated) => {
+    updateQuestConfig({
+      decisions_validated: {
+        ...decisionsValidated,
+        [key]: !decisionsValidated[key],
+      },
+    });
   };
 
   return (
@@ -423,6 +452,52 @@ export function CoreStep({ projectId }: CoreStepProps) {
 
       {/* Storytelling Section */}
       <StorytellingSection projectId={projectId} />
+
+      {/* Client Decisions Checklist - NOT for route_recon */}
+      {projectType !== 'route_recon' && (
+        <OptionMatrix 
+          title="✅ Décisions validées (client)" 
+          icon={CheckCircle2}
+          description="Validations client confirmées avant production"
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {(Object.keys(DECISIONS_LABELS) as (keyof DecisionsValidated)[]).map((key) => (
+              <label
+                key={key}
+                className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
+                  decisionsValidated[key]
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border hover:border-primary/50'
+                }`}
+                onClick={() => toggleDecision(key)}
+              >
+                <input
+                  type="checkbox"
+                  checked={decisionsValidated[key] || false}
+                  onChange={() => toggleDecision(key)}
+                  className="sr-only"
+                />
+                <div className={`w-4 h-4 rounded border flex items-center justify-center ${
+                  decisionsValidated[key] ? 'bg-primary border-primary' : 'border-muted-foreground'
+                }`}>
+                  {decisionsValidated[key] && <Check className="w-3 h-3 text-primary-foreground" />}
+                </div>
+                <span className="text-sm">{DECISIONS_LABELS[key]}</span>
+              </label>
+            ))}
+          </div>
+          
+          <div className="mt-4 space-y-1.5">
+            <Label className="text-sm">Notes (optionnel)</Label>
+            <Textarea
+              value={localDecisionsNotes}
+              onChange={(e) => handleDebouncedStringChange('decisions_notes', e.target.value, setLocalDecisionsNotes)}
+              placeholder="Notes additionnelles sur les décisions client..."
+              rows={2}
+            />
+          </div>
+        </OptionMatrix>
+      )}
     </div>
   );
 }

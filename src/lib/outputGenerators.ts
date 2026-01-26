@@ -1,4 +1,4 @@
-import type { Project, POI, WifiZone, ForbiddenZone, TeamConfig, ProjectType, Avatar } from '@/types/intake';
+import type { Project, POI, WifiZone, ForbiddenZone, TeamConfig, ProjectType, Avatar, DecisionsValidated } from '@/types/intake';
 import { 
   STEP_TYPE_LABELS, 
   VALIDATION_MODE_LABELS, 
@@ -7,7 +7,8 @@ import {
   TARGET_AUDIENCE_LABELS,
   COMPETITION_MODE_LABELS,
   LANGUAGE_LABELS,
-  PROJECT_TYPE_LABELS
+  PROJECT_TYPE_LABELS,
+  DECISIONS_LABELS
 } from '@/types/intake';
 
 export interface OutputData {
@@ -139,6 +140,9 @@ export function generatePRD(data: OutputData): string {
   // Build PROJECT_CONTEXT section
   const projectContextSection = buildProjectContextMarkdown(project);
   
+  // Build client decisions section (only for non-route_recon)
+  const decisionsSection = buildDecisionsMarkdown(project);
+  
   return `# PRD - Quest Configuration
 ## ${project.hotel_name}
 
@@ -241,7 +245,52 @@ ${wifiZones.filter(wz => wz.strength !== 'ok').map((wz) => `- ⚠️ ${wz.zone}:
 
 - Carte: ${project.map_url ? '✅ Uploadée' : '❌ Manquante'}
 - Photos étapes: ${pois.filter(p => p.photo_url).length}/${pois.length}
+${decisionsSection}
 `;
+}
+
+/**
+ * Build client decisions section for PRD (only for non-route_recon)
+ */
+function buildDecisionsMarkdown(project: Project): string {
+  const questConfig = project.quest_config || {};
+  const projectType = questConfig.project_type || 'establishment';
+  
+  // Skip for route_recon projects
+  if (projectType === 'route_recon') return '';
+  
+  const decisions = questConfig.decisions_validated || {};
+  const notes = questConfig.decisions_notes || '';
+  
+  const checkedDecisions = (Object.keys(DECISIONS_LABELS) as (keyof DecisionsValidated)[])
+    .filter(key => decisions[key] === true)
+    .map(key => DECISIONS_LABELS[key]);
+  
+  const uncheckedDecisions = (Object.keys(DECISIONS_LABELS) as (keyof DecisionsValidated)[])
+    .filter(key => !decisions[key])
+    .map(key => DECISIONS_LABELS[key]);
+  
+  let md = `
+
+---
+
+## 8. DÉCISIONS CLIENT VALIDÉES
+
+### ✅ Validées
+${checkedDecisions.length > 0 ? checkedDecisions.map(d => `- ${d}`).join('\n') : '- Aucune décision validée'}
+
+### ⏳ En attente
+${uncheckedDecisions.length > 0 ? uncheckedDecisions.map(d => `- ${d}`).join('\n') : '- Toutes les décisions ont été validées'}
+`;
+
+  if (notes.trim()) {
+    md += `
+### Notes
+${notes}
+`;
+  }
+
+  return md;
 }
 
 /**
