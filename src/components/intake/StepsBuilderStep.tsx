@@ -13,6 +13,7 @@ import { EnumSelect } from './shared/EnumSelect';
 import { I18nInput } from './shared/I18nInput';
 import { PresetSelector } from './PresetSelector';
 import { SelectiveApplyPanel } from './SelectiveApplyPanel';
+import { PhotoReferenceBlock } from './shared/PhotoReferenceBlock';
 import { stepConfigHasMissingDefaults } from '@/lib/normalizeStepConfig';
 import type { 
   POI, 
@@ -33,6 +34,29 @@ interface StepsBuilderStepProps {
   projectId: string;
 }
 
+// Helper to auto-reset photo reference fields when photo mode is removed
+function getPhotoReferenceResetIfNeeded(
+  config: StepConfig, 
+  updates: Partial<StepConfig>
+): Partial<StepConfig> {
+  // Check if we're updating possible_validation_modes
+  if (updates.possible_validation_modes) {
+    const hadPhoto = config.possible_validation_modes?.includes('photo') || config.validationMode === 'photo';
+    const hasPhoto = updates.possible_validation_modes.includes('photo');
+    
+    // If photo mode was removed, reset photo reference fields
+    if (hadPhoto && !hasPhoto) {
+      return {
+        ...updates,
+        photo_reference_required: false,
+        reference_image_url: null,
+        reference_image_caption: null,
+      };
+    }
+  }
+  return updates;
+}
+
 // Store current step defaults (can be updated by presets)
 let currentStepDefaults: Partial<StepConfig> = { ...DEFAULT_STEP_CONFIG };
 
@@ -45,7 +69,9 @@ export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
   const languages = (project?.quest_config?.languages || ['fr']) as SupportedLanguage[];
 
   const updateStepConfig = (poiId: string, currentConfig: StepConfig, updates: Partial<StepConfig>) => {
-    const newConfig = { ...currentConfig, ...updates };
+    // Auto-reset photo reference fields if photo mode is removed
+    const finalUpdates = getPhotoReferenceResetIfNeeded(currentConfig, updates);
+    const newConfig = { ...currentConfig, ...finalUpdates };
     updatePOI.mutate(
       { id: poiId, step_config: newConfig },
       { onSuccess: () => toast({ title: 'Sauvegardé' }) }
@@ -192,6 +218,7 @@ export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
           onDuplicate={() => handleDuplicate(poi)}
           languages={languages}
           isDuplicating={duplicatePOI.isPending}
+          projectId={projectId}
         />
       ))}
     </div>
@@ -207,6 +234,7 @@ interface StepConfigCardProps {
   onDuplicate: () => void;
   languages: SupportedLanguage[];
   isDuplicating: boolean;
+  projectId: string;
 }
 
 function StepConfigCard({
@@ -218,6 +246,7 @@ function StepConfigCard({
   onDuplicate,
   languages,
   isDuplicating,
+  projectId,
 }: StepConfigCardProps) {
   const config = poi.step_config || {};
 
@@ -349,49 +378,61 @@ function StepConfigCard({
 
           {/* Photo validation options - show if photo mode is selected */}
           {(config.possible_validation_modes?.includes('photo') || config.final_validation_mode === 'photo') && (
-            <div className="p-3 border rounded-lg bg-muted/30 space-y-3">
-              <EnumSelect<PhotoValidationType>
-                label="Type de validation photo"
-                value={config.photoValidation?.type}
-                onChange={(v) => onUpdateConfig({ 
-                  photoValidation: { ...config.photoValidation, type: v } 
-                })}
-                options={PHOTO_VALIDATION_LABELS}
-                placeholder="Sélectionner..."
+            <>
+              <div className="p-3 border rounded-lg bg-muted/30 space-y-3">
+                <EnumSelect<PhotoValidationType>
+                  label="Type de validation photo"
+                  value={config.photoValidation?.type}
+                  onChange={(v) => onUpdateConfig({ 
+                    photoValidation: { ...config.photoValidation, type: v } 
+                  })}
+                  options={PHOTO_VALIDATION_LABELS}
+                  placeholder="Sélectionner..."
+                />
+
+                {config.photoValidation?.type === 'reference' && (
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">
+                      URL de référence <span className="text-destructive">*</span>
+                    </Label>
+                    <input
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={config.photoValidation?.referenceUrl || ''}
+                      onChange={(e) => onUpdateConfig({ 
+                        photoValidation: { ...config.photoValidation, referenceUrl: e.target.value } 
+                      })}
+                      placeholder="https://..."
+                    />
+                  </div>
+                )}
+
+                {config.photoValidation?.type === 'qr_code' && (
+                  <div className="space-y-1.5">
+                    <Label className="text-sm">
+                      Valeur QR attendue <span className="text-destructive">*</span>
+                    </Label>
+                    <input
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={config.photoValidation?.qrExpectedValue || ''}
+                      onChange={(e) => onUpdateConfig({ 
+                        photoValidation: { ...config.photoValidation, qrExpectedValue: e.target.value } 
+                      })}
+                      placeholder="Valeur encodée dans le QR..."
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Photo Reference Block - for capturing reference photo */}
+              <PhotoReferenceBlock
+                photoReferenceRequired={config.photo_reference_required || false}
+                referenceImageUrl={config.reference_image_url || null}
+                referenceImageCaption={config.reference_image_caption || null}
+                onUpdate={onUpdateConfig}
+                projectId={projectId}
+                stepId={poi.id}
               />
-
-              {config.photoValidation?.type === 'reference' && (
-                <div className="space-y-1.5">
-                  <Label className="text-sm">
-                    URL de référence <span className="text-destructive">*</span>
-                  </Label>
-                  <input
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    value={config.photoValidation?.referenceUrl || ''}
-                    onChange={(e) => onUpdateConfig({ 
-                      photoValidation: { ...config.photoValidation, referenceUrl: e.target.value } 
-                    })}
-                    placeholder="https://..."
-                  />
-                </div>
-              )}
-
-              {config.photoValidation?.type === 'qr_code' && (
-                <div className="space-y-1.5">
-                  <Label className="text-sm">
-                    Valeur QR attendue <span className="text-destructive">*</span>
-                  </Label>
-                  <input
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    value={config.photoValidation?.qrExpectedValue || ''}
-                    onChange={(e) => onUpdateConfig({ 
-                      photoValidation: { ...config.photoValidation, qrExpectedValue: e.target.value } 
-                    })}
-                    placeholder="Valeur encodée dans le QR..."
-                  />
-                </div>
-              )}
-            </div>
+            </>
           )}
 
           {/* QR Code value - show if qr_code mode is selected */}

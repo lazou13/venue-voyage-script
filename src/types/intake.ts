@@ -154,6 +154,10 @@ export interface StepConfig {
   hints?: string[];
   branching?: BranchingLogic;
   contentI18n?: I18nText;
+  // Photo reference fields (for photo validation)
+  photo_reference_required?: boolean;
+  reference_image_url?: string | null;
+  reference_image_caption?: string | null;
   // Migration warning flag
   _gps_migrated_warning?: boolean;
 }
