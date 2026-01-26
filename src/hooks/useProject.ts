@@ -104,7 +104,34 @@ export function useProject(projectId: string | undefined) {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    // Optimistic update for instant UI feedback
+    onMutate: async (updates) => {
+      await queryClient.cancelQueries({ queryKey: ['project', projectId] });
+      const previousProject = queryClient.getQueryData<Project>(['project', projectId]);
+      
+      queryClient.setQueryData<Project | null>(['project', projectId], (old) => {
+        if (!old) return old;
+        // Deep merge quest_config if present
+        const mergedQuestConfig = updates.quest_config 
+          ? { ...old.quest_config, ...updates.quest_config }
+          : old.quest_config;
+        return { 
+          ...old, 
+          ...updates,
+          quest_config: mergedQuestConfig,
+          title_i18n: updates.title_i18n ?? old.title_i18n,
+          story_i18n: updates.story_i18n ?? old.story_i18n,
+        };
+      });
+      
+      return { previousProject };
+    },
+    onError: (_err, _updates, context) => {
+      if (context?.previousProject) {
+        queryClient.setQueryData(['project', projectId], context.previousProject);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
     },
   });

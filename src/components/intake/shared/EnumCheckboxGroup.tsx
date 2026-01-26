@@ -62,7 +62,7 @@ export function EnumCheckboxGroup<T extends string>({
                 disabled={isDisabled}
                 tabIndex={-1}
                 onClick={(e) => e.stopPropagation()}
-                onCheckedChange={() => {}}
+                onCheckedChange={() => handleToggle(typedKey)}
               />
               <span className="text-sm">
                 {labelText as string}
