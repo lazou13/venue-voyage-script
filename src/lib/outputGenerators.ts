@@ -506,8 +506,8 @@ export function buildQuestExport(data: OutputData) {
     _warning?: string;
   } | null = null;
 
-  // Only include storytelling block if enabled
-  if (storytelling?.enabled) {
+  // Only include storytelling block if enabled === true
+  if (storytelling?.enabled === true) {
     storytellingData = {
       enabled: true,
       narrator: null,
@@ -532,10 +532,8 @@ export function buildQuestExport(data: OutputData) {
         storytellingData._warning = 'narrator_avatar_deleted';
       }
     }
-  } else {
-    // Storytelling disabled - include minimal block
-    storytellingData = { enabled: false, narrator: null };
   }
+  // If storytelling is not enabled, storytellingData stays null (omitted from export)
 
   return {
     quest: {

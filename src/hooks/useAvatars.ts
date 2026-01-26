@@ -70,13 +70,27 @@ export function useAvatars(projectId: string | undefined) {
     },
   });
 
-  // Seed 10 placeholder avatars (all global)
+  // Seed 10 placeholder avatars (all global) with duplicate prevention
   const seedPlaceholderAvatars = useMutation({
     mutationFn: async () => {
-      const avatarsToInsert = PLACEHOLDER_AVATARS.map(avatar => ({
-        ...avatar,
-        project_id: null, // All placeholders are global
-      }));
+      // Check existing avatars to prevent duplicates
+      const { data: existing } = await supabase
+        .from('avatars')
+        .select('name, style, persona, age, outfit')
+        .is('project_id', null);
+      
+      const existingSet = new Set(
+        (existing || []).map(a => `${a.name}|${a.style}|${a.persona}|${a.age}|${a.outfit}`)
+      );
+      
+      const avatarsToInsert = PLACEHOLDER_AVATARS
+        .filter(avatar => !existingSet.has(`${avatar.name}|${avatar.style}|${avatar.persona}|${avatar.age}|${avatar.outfit}`))
+        .map(avatar => ({
+          ...avatar,
+          project_id: null, // All placeholders are global
+        }));
+      
+      if (avatarsToInsert.length === 0) return; // Nothing new to insert
       
       const { error } = await supabase
         .from('avatars')
@@ -85,7 +99,8 @@ export function useAvatars(projectId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['avatars', projectId] });
+      // Invalidate both global and project-specific avatar queries
+      queryClient.invalidateQueries({ queryKey: ['avatars'] });
     },
   });
 
