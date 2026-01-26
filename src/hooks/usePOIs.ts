@@ -69,7 +69,31 @@ export function usePOIs(projectId: string | undefined) {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    // Optimistic update for instant UI feedback
+    onMutate: async ({ id, step_config, ...updates }) => {
+      await queryClient.cancelQueries({ queryKey: ['pois', projectId] });
+      const previousPois = queryClient.getQueryData<POI[]>(['pois', projectId]);
+      
+      queryClient.setQueryData<POI[]>(['pois', projectId], (old) => {
+        if (!old) return old;
+        return old.map((poi) => {
+          if (poi.id !== id) return poi;
+          // Merge step_config if present
+          const mergedStepConfig = step_config 
+            ? { ...poi.step_config, ...step_config }
+            : poi.step_config;
+          return { ...poi, ...updates, step_config: mergedStepConfig };
+        });
+      });
+      
+      return { previousPois };
+    },
+    onError: (_err, _updates, context) => {
+      if (context?.previousPois) {
+        queryClient.setQueryData(['pois', projectId], context.previousPois);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['pois', projectId] });
     },
   });

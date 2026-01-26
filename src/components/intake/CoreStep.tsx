@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from 'react';
 import { Gamepad2, Globe, Users, Target, Clock, Gauge, Building2, MapPin, Route } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
 import { useToast } from '@/hooks/use-toast';
@@ -35,12 +36,35 @@ interface CoreStepProps {
 export function CoreStep({ projectId }: CoreStepProps) {
   const { project, updateProject } = useProject(projectId);
   const { toast } = useToast();
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const questConfig = project?.quest_config || {};
   const projectType = questConfig.project_type || 'establishment';
   const coreDetails = questConfig.core || {};
   const languages = coreDetails.languages || questConfig.languages || ['fr'];
   const teamConfig = questConfig.teamConfig || { enabled: false };
+  
+  // Local state for debounced text fields
+  const [localObjectives, setLocalObjectives] = useState<string>('');
+  const [localConstraints, setLocalConstraints] = useState<string>('');
+  
+  // Sync local state when server data changes
+  useEffect(() => {
+    setLocalObjectives((coreDetails.objective_business || []).join('\n'));
+  }, [coreDetails.objective_business?.join(',')]);
+  
+  useEffect(() => {
+    setLocalConstraints((coreDetails.constraints_general || []).join('\n'));
+  }, [coreDetails.constraints_general?.join(',')]);
+  
+  // Cleanup debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   const updateQuestConfig = (updates: Partial<QuestConfig>) => {
     updateProject.mutate(
@@ -71,9 +95,17 @@ export function CoreStep({ projectId }: CoreStepProps) {
     );
   };
 
-  const handleArrayChange = (field: keyof CoreDetails, value: string) => {
-    const items = value.split('\n').map(s => s.trim()).filter(Boolean);
-    updateCoreDetails({ [field]: items });
+  // Debounced array field change (for objectives and constraints)
+  const handleDebouncedArrayChange = (field: keyof CoreDetails, value: string, setLocal: (v: string) => void) => {
+    setLocal(value);
+    
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      const items = value.split('\n').map(s => s.trim()).filter(Boolean);
+      updateCoreDetails({ [field]: items });
+    }, 500);
   };
 
   return (
@@ -224,8 +256,8 @@ export function CoreStep({ projectId }: CoreStepProps) {
         <div className="space-y-1.5">
           <Label className="text-sm">Objectifs</Label>
           <Textarea
-            value={(coreDetails.objective_business || []).join('\n')}
-            onChange={(e) => handleArrayChange('objective_business', e.target.value)}
+            value={localObjectives}
+            onChange={(e) => handleDebouncedArrayChange('objective_business', e.target.value, setLocalObjectives)}
             placeholder="Ex: Fidélisation client&#10;Animation événementielle&#10;Promotion locale"
             rows={3}
           />
@@ -241,8 +273,8 @@ export function CoreStep({ projectId }: CoreStepProps) {
         <div className="space-y-1.5">
           <Label className="text-sm">Contraintes</Label>
           <Textarea
-            value={(coreDetails.constraints_general || []).join('\n')}
-            onChange={(e) => handleArrayChange('constraints_general', e.target.value)}
+            value={localConstraints}
+            onChange={(e) => handleDebouncedArrayChange('constraints_general', e.target.value, setLocalConstraints)}
             placeholder="Ex: Accessible PMR&#10;Sans bruit après 22h&#10;Budget limité"
             rows={3}
           />

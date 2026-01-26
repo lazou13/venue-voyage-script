@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -29,17 +29,44 @@ export function I18nInput({
   frRequired = true,
 }: I18nInputProps) {
   const [activeTab, setActiveTab] = useState<SupportedLanguage>('fr');
+  // Local state for fluid typing - one value per language
+  const [localValue, setLocalValue] = useState<I18nText>(value);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Sync local state when external value changes (e.g., after server response)
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
   
   const handleChange = (lang: SupportedLanguage, text: string) => {
-    onChange({ ...value, [lang]: text });
+    // Update local state immediately for fluid typing
+    const newValue = { ...localValue, [lang]: text };
+    setLocalValue(newValue);
+    
+    // Debounce the onChange callback
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      onChange(newValue);
+    }, 500);
   };
+  
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, []);
 
   const getMissingTranslations = (): SupportedLanguage[] => {
-    return languages.filter((lang) => lang !== 'fr' && !value[lang]);
+    return languages.filter((lang) => lang !== 'fr' && !localValue[lang]);
   };
 
   const missingTranslations = getMissingTranslations();
-  const isFrEmpty = frRequired && !value.fr;
+  const isFrEmpty = frRequired && !localValue.fr;
 
   return (
     <div className="space-y-2">
@@ -58,7 +85,7 @@ export function I18nInput({
       {/* Language tabs */}
       <div className="flex gap-1 border-b">
         {languages.map((lang) => {
-          const isEmpty = !value[lang];
+          const isEmpty = !localValue[lang];
           const isRequired = lang === 'fr' && frRequired;
           
           return (
@@ -88,7 +115,7 @@ export function I18nInput({
       <div>
         {multiline ? (
           <Textarea
-            value={value[activeTab] || ''}
+            value={localValue[activeTab] || ''}
             onChange={(e) => handleChange(activeTab, e.target.value)}
             rows={rows}
             placeholder={placeholder || `Contenu en ${LANGUAGE_LABELS[activeTab]}...`}
@@ -96,7 +123,7 @@ export function I18nInput({
           />
         ) : (
           <Input
-            value={value[activeTab] || ''}
+            value={localValue[activeTab] || ''}
             onChange={(e) => handleChange(activeTab, e.target.value)}
             placeholder={placeholder || `Texte en ${LANGUAGE_LABELS[activeTab]}...`}
             className={isFrEmpty && activeTab === 'fr' ? 'border-destructive' : ''}
