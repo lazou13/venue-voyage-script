@@ -55,6 +55,7 @@ export type Database = {
           project_id: string
           risk: Database["public"]["Enums"]["risk_level"]
           sort_order: number
+          step_config: Json
           zone: string
         }
         Insert: {
@@ -68,6 +69,7 @@ export type Database = {
           project_id: string
           risk?: Database["public"]["Enums"]["risk_level"]
           sort_order?: number
+          step_config?: Json
           zone: string
         }
         Update: {
@@ -81,6 +83,7 @@ export type Database = {
           project_id?: string
           risk?: Database["public"]["Enums"]["risk_level"]
           sort_order?: number
+          step_config?: Json
           zone?: string
         }
         Relationships: [
@@ -105,10 +108,13 @@ export type Database = {
           map_uploaded_at: string | null
           map_url: string | null
           props_allowed: boolean | null
+          quest_config: Json
           reset_time_mins: number | null
           staff_available: boolean | null
+          story_i18n: Json
           target_duration_mins: number | null
           theme: string | null
+          title_i18n: Json
           updated_at: string
           visit_date: string | null
         }
@@ -123,10 +129,13 @@ export type Database = {
           map_uploaded_at?: string | null
           map_url?: string | null
           props_allowed?: boolean | null
+          quest_config?: Json
           reset_time_mins?: number | null
           staff_available?: boolean | null
+          story_i18n?: Json
           target_duration_mins?: number | null
           theme?: string | null
+          title_i18n?: Json
           updated_at?: string
           visit_date?: string | null
         }
@@ -141,10 +150,13 @@ export type Database = {
           map_uploaded_at?: string | null
           map_url?: string | null
           props_allowed?: boolean | null
+          quest_config?: Json
           reset_time_mins?: number | null
           staff_available?: boolean | null
+          story_i18n?: Json
           target_duration_mins?: number | null
           theme?: string | null
+          title_i18n?: Json
           updated_at?: string
           visit_date?: string | null
         }

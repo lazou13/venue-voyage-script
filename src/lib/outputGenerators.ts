@@ -1,5 +1,13 @@
-import type { Project, POI, WifiZone, ForbiddenZone } from '@/types/intake';
-import { INTERACTION_LABELS, RISK_LABELS, WIFI_LABELS, DIFFICULTY_LABELS } from '@/types/intake';
+import type { Project, POI, WifiZone, ForbiddenZone, TeamConfig } from '@/types/intake';
+import { 
+  STEP_TYPE_LABELS, 
+  VALIDATION_MODE_LABELS, 
+  WIFI_LABELS, 
+  QUEST_TYPE_LABELS,
+  TARGET_AUDIENCE_LABELS,
+  COMPETITION_MODE_LABELS,
+  LANGUAGE_LABELS
+} from '@/types/intake';
 
 interface OutputData {
   project: Project;
@@ -8,12 +16,35 @@ interface OutputData {
   forbiddenZones: ForbiddenZone[];
 }
 
+// Helper to safely access teamConfig
+function getTeamConfig(questConfig: Project['quest_config']): TeamConfig {
+  return questConfig?.teamConfig || { enabled: false };
+}
+
 export function generateChecklist(data: OutputData): string {
   const { project, pois, wifiZones, forbiddenZones } = data;
+  const questConfig = project.quest_config || {};
+  
+  // Determine validation requirements from steps
+  const validationModes = new Set(pois.map(p => p.step_config?.validationMode).filter(Boolean));
+  const hasQrValidation = validationModes.has('qr_code');
+  const hasGpsValidation = validationModes.has('auto_gps');
+  const hasPhotoValidation = validationModes.has('photo');
   
   return `# FIELDWORK CHECKLIST
 ## ${project.hotel_name} - ${project.city}
 Date de visite: ${project.visit_date ? new Date(project.visit_date).toLocaleDateString('fr-FR') : 'Non définie'}
+Quest Type: ${questConfig.questType ? QUEST_TYPE_LABELS[questConfig.questType] : 'Non défini'}
+
+---
+
+## 📱 ÉQUIPEMENT REQUIS
+
+${hasQrValidation ? '- [ ] Scanner QR Code testé' : ''}
+${hasGpsValidation ? '- [ ] GPS activé et fonctionnel' : ''}
+${hasPhotoValidation ? '- [ ] Appareil photo / caméra prêt' : ''}
+- [ ] Application installée et configurée
+- [ ] Connexion Wi-Fi vérifiée
 
 ---
 
@@ -27,21 +58,26 @@ Date de visite: ${project.visit_date ? new Date(project.visit_date).toLocaleDate
 - [ ] Rooftop (si accessible)
 - [ ] Restaurant/Bar
 
-### Photos POIs (${pois.length} points)
-${pois.map((poi, i) => `- [ ] POI ${i + 1}: ${poi.name} (${poi.zone})`).join('\n')}
+### Photos Étapes (${pois.length} points)
+${pois.map((poi, i) => `- [ ] Étape ${i + 1}: ${poi.name} (${poi.zone})`).join('\n')}
 
 ---
 
-## 📍 POIs À VALIDER SUR SITE
+## 📍 ÉTAPES À VALIDER SUR SITE
 
-${pois.map((poi, i) => `### ${i + 1}. ${poi.name}
+${pois.map((poi, i) => {
+  const config = poi.step_config || {};
+  return `### ${i + 1}. ${poi.name}
 - Zone: ${poi.zone}
-- Type: ${INTERACTION_LABELS[poi.interaction]}
-- Risque: ${RISK_LABELS[poi.risk]}
-- [ ] Photo prise
+- Type: ${config.stepType ? STEP_TYPE_LABELS[config.stepType] : 'Non défini'}
+- Validation: ${config.validationMode ? VALIDATION_MODE_LABELS[config.validationMode] : 'Manuelle'}
+${config.validationMode === 'auto_gps' ? `- GPS: ${config.gps?.lat || '?'}, ${config.gps?.lng || '?'} (rayon ${config.gps?.radius || '?'}m)` : ''}
+${config.validationMode === 'qr_code' ? '- [ ] QR Code installé et testé' : ''}
+${config.validationMode === 'photo' && config.photoValidation?.type === 'reference' ? '- [ ] Photo de référence prise' : ''}
 - [ ] Accessibilité confirmée
 - [ ] Interaction testée
-`).join('\n')}
+`;
+}).join('\n')}
 
 ---
 
@@ -68,7 +104,7 @@ ${forbiddenZones.map((fz) => `- [ ] ${fz.zone}${fz.reason ? ` (${fz.reason})` : 
 ## ✅ VALIDATION FINALE
 
 - [ ] Carte/plan récupéré
-- [ ] ${pois.length} POIs documentés
+- [ ] ${pois.length} étapes documentées
 - [ ] ${forbiddenZones.length} zones interdites confirmées
 - [ ] Tests Wi-Fi effectués
 - [ ] Contraintes ops validées avec staff
@@ -77,9 +113,25 @@ ${forbiddenZones.map((fz) => `- [ ] ${fz.zone}${fz.reason ? ` (${fz.reason})` : 
 
 export function generatePRD(data: OutputData): string {
   const { project, pois, wifiZones, forbiddenZones } = data;
-  const totalDuration = pois.reduce((sum, poi) => sum + (poi.minutes_from_prev || 0), 0);
+  const questConfig = project.quest_config || {};
+  const teamConfig = getTeamConfig(project.quest_config);
+  const scoring = questConfig.scoring || {};
   
-  return `# PRD - Treasure Hunt
+  // Count step types
+  const stepTypeCounts: Record<string, number> = {};
+  pois.forEach(poi => {
+    const type = poi.step_config?.stepType || 'undefined';
+    stepTypeCounts[type] = (stepTypeCounts[type] || 0) + 1;
+  });
+  
+  // Count validation modes
+  const validationCounts: Record<string, number> = {};
+  pois.forEach(poi => {
+    const mode = poi.step_config?.validationMode || 'manual';
+    validationCounts[mode] = (validationCounts[mode] || 0) + 1;
+  });
+  
+  return `# PRD - Quest Configuration
 ## ${project.hotel_name}
 
 ---
@@ -95,68 +147,136 @@ export function generatePRD(data: OutputData): string {
 
 ---
 
-## 2. REQUIREMENTS
+## 2. QUEST CONFIGURATION
 
-### 2.1 Durée & Difficulté
-- **Durée cible**: ${project.target_duration_mins || 60} minutes
-- **Durée estimée (POIs)**: ${totalDuration} minutes
-- **Difficulté**: ${project.difficulty ? DIFFICULTY_LABELS[project.difficulty] : 'Non définie'}
-- **Thème**: ${project.theme || 'Non défini'}
+### 2.1 Type & Audience
+- **Type de quête**: ${questConfig.questType ? QUEST_TYPE_LABELS[questConfig.questType] : 'Non défini'}
+- **Public cible**: ${questConfig.targetAudience ? TARGET_AUDIENCE_LABELS[questConfig.targetAudience] : 'Non défini'}
+- **Langues**: ${(questConfig.languages || ['fr']).map(l => LANGUAGE_LABELS[l]).join(', ')}
 
-### 2.2 Points d'Intérêt
-- **Total**: ${pois.length} POIs
-- **Types d'interaction**:
-${Object.entries(
-  pois.reduce((acc, poi) => {
-    acc[poi.interaction] = (acc[poi.interaction] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>)
-).map(([type, count]) => `  - ${INTERACTION_LABELS[type as keyof typeof INTERACTION_LABELS]}: ${count}`).join('\n')}
+### 2.2 Titre & Histoire
+- **Titre (FR)**: ${project.title_i18n?.fr || 'Non défini'}
+- **Histoire (FR)**: ${project.story_i18n?.fr || 'Non définie'}
 
-### 2.3 Zones
-- **Zones Wi-Fi couvertes**: ${wifiZones.length}
-- **Zones interdites**: ${forbiddenZones.length}
+### 2.3 Team Configuration
+${teamConfig.enabled ? `
+- **Mode équipe**: Activé
+- **Mode compétition**: ${teamConfig.competitionMode ? COMPETITION_MODE_LABELS[teamConfig.competitionMode] : 'N/A'}
+- **Max équipes**: ${teamConfig.maxTeams || 'N/A'}
+- **Joueurs/équipe**: ${teamConfig.maxPlayersPerTeam || 'N/A'}
+${teamConfig.competitionMode === 'timed' ? `- **Temps limite**: ${teamConfig.timeLimitMinutes || 'N/A'} min` : ''}
+` : '- **Mode équipe**: Désactivé'}
 
 ---
 
-## 3. CONSTRAINTS
+## 3. STEPS ANALYSIS
 
-### 3.1 Opérationnelles
+### 3.1 Summary
+- **Total étapes**: ${pois.length}
+
+### 3.2 Types d'étapes
+${Object.entries(stepTypeCounts).map(([type, count]) => 
+  `- ${type in STEP_TYPE_LABELS ? STEP_TYPE_LABELS[type as keyof typeof STEP_TYPE_LABELS] : type}: ${count}`
+).join('\n')}
+
+### 3.3 Modes de validation
+${Object.entries(validationCounts).map(([mode, count]) => 
+  `- ${mode in VALIDATION_MODE_LABELS ? VALIDATION_MODE_LABELS[mode as keyof typeof VALIDATION_MODE_LABELS] : mode}: ${count}`
+).join('\n')}
+
+---
+
+## 4. SCORING & RULES
+
+### 4.1 Scoring par défaut
+- **Points/étape**: ${scoring.points || 10}
+- **Pénalité indice**: ${scoring.hintPenalty || 2}
+- **Pénalité échec**: ${scoring.failPenalty || 5}
+- **Temps limite**: ${scoring.timeLimitSec ? `${scoring.timeLimitSec}s` : 'Illimité'}
+- **Bonus temps**: ${scoring.timeBonus || 0}
+
+### 4.2 Indices
+- **Max indices**: ${questConfig.hintRules?.maxHints || 3}
+- **Auto-révélation**: ${questConfig.hintRules?.autoRevealAfterSec ? `${questConfig.hintRules.autoRevealAfterSec}s` : 'Désactivé'}
+
+### 4.3 Branchement
+- **Succès**: ${questConfig.branchingPresets?.onSuccess || 'next'}
+- **Échec**: ${questConfig.branchingPresets?.onFailure || 'retry'}
+
+---
+
+## 5. CONSTRAINTS
+
+### 5.1 Opérationnelles
 - Staff disponible: ${project.staff_available ? '✅ Oui' : '❌ Non'}
 - Temps de reset: ${project.reset_time_mins || 'N/A'} min
 - Props autorisés: ${project.props_allowed ? '✅ Oui' : '❌ Non'}
 
-### 3.2 Zones Interdites
+### 5.2 Zones Interdites
 ${forbiddenZones.map((fz) => `- ${fz.zone}${fz.reason ? `: ${fz.reason}` : ''}`).join('\n') || '- Aucune restriction définie'}
 
-### 3.3 Connectivité
+### 5.3 Connectivité
 ${wifiZones.filter(wz => wz.strength !== 'ok').map((wz) => `- ⚠️ ${wz.zone}: ${WIFI_LABELS[wz.strength]}`).join('\n') || '- Toutes zones OK'}
 
 ---
 
-## 4. ASSETS
+## 6. ASSETS
 
 - Carte: ${project.map_url ? '✅ Uploadée' : '❌ Manquante'}
-- Photos POIs: ${pois.filter(p => p.photo_url).length}/${pois.length}
-
----
-
-## 5. RISKS
-
-${pois.filter(p => p.risk === 'high').length > 0 ? `### POIs à risque élevé
-${pois.filter(p => p.risk === 'high').map(p => `- ${p.name} (${p.zone})`).join('\n')}` : '- Aucun POI à risque élevé identifié'}
-
-${wifiZones.filter(wz => wz.strength === 'dead').length > 0 ? `### Zones sans Wi-Fi
-${wifiZones.filter(wz => wz.strength === 'dead').map(wz => `- ${wz.zone}`).join('\n')}` : ''}
+- Photos étapes: ${pois.filter(p => p.photo_url).length}/${pois.length}
 `;
 }
 
 export function generatePrompt(data: OutputData): string {
   const { project, pois, wifiZones, forbiddenZones } = data;
+  const questConfig = project.quest_config || {};
+  const teamConfig = getTeamConfig(project.quest_config);
   
-  const poiTable = pois.map((poi, i) => 
-    `| ${i + 1} | ${poi.name} | ${poi.zone} | ${INTERACTION_LABELS[poi.interaction]} | ${RISK_LABELS[poi.risk]} | ${poi.minutes_from_prev} | ${poi.notes || '-'} |`
-  ).join('\n');
+  // Build STEP_TABLE
+  const stepTable = pois.map((poi, i) => {
+    const config = poi.step_config || {};
+    return `| ${i + 1} | ${poi.name} | ${poi.zone} | ${config.stepType ? STEP_TYPE_LABELS[config.stepType] : '-'} | ${config.validationMode ? VALIDATION_MODE_LABELS[config.validationMode] : 'manual'} | ${config.scoring?.points || questConfig.scoring?.points || 10} | ${config.hints?.length || 0} | ${config.contentI18n?.fr?.substring(0, 50) || '-'}... |`;
+  }).join('\n');
+
+  // Build QUEST_EXPORT_JSON
+  const questExport = {
+    quest: {
+      type: questConfig.questType,
+      targetAudience: questConfig.targetAudience,
+      languages: questConfig.languages || ['fr'],
+      title: project.title_i18n,
+      story: project.story_i18n,
+      teamConfig: teamConfig.enabled ? {
+        enabled: true,
+        competitionMode: teamConfig.competitionMode,
+        maxTeams: teamConfig.maxTeams,
+        maxPlayersPerTeam: teamConfig.maxPlayersPerTeam,
+        timeLimitMinutes: teamConfig.timeLimitMinutes,
+      } : { enabled: false },
+      scoring: questConfig.scoring || {},
+      hintRules: questConfig.hintRules || {},
+      branching: questConfig.branchingPresets || {},
+    },
+    steps: pois.map((poi, i) => ({
+      order: i + 1,
+      name: poi.name,
+      zone: poi.zone,
+      ...poi.step_config,
+    })),
+    venue: {
+      hotelName: project.hotel_name,
+      city: project.city,
+      floors: project.floors,
+      mapUrl: project.map_url,
+    },
+    constraints: {
+      forbiddenZones: forbiddenZones.map(fz => ({ zone: fz.zone, reason: fz.reason })),
+      wifiZones: wifiZones.map(wz => ({ zone: wz.zone, strength: wz.strength })),
+      staffAvailable: project.staff_available,
+      propsAllowed: project.props_allowed,
+      resetTimeMins: project.reset_time_mins,
+    },
+  };
 
   return `# PERFECT PRODUCTION PROMPT
 
@@ -168,11 +288,29 @@ Tu dois créer une expérience complète pour l'hôtel suivant.
 - **Nom**: ${project.hotel_name}
 - **Ville**: ${project.city}
 - **Étages**: ${project.floors}
-- **Thème souhaité**: ${project.theme || 'À définir selon l\'identité de l\'hôtel'}
+- **Titre**: ${project.title_i18n?.fr || 'À définir'}
+- **Histoire**: ${project.story_i18n?.fr || 'À définir'}
+
+## QUEST CONFIGURATION
+- **Type**: ${questConfig.questType ? QUEST_TYPE_LABELS[questConfig.questType] : 'sequential'}
+- **Public**: ${questConfig.targetAudience ? TARGET_AUDIENCE_LABELS[questConfig.targetAudience] : 'family'}
+- **Langues**: ${(questConfig.languages || ['fr']).map(l => LANGUAGE_LABELS[l]).join(', ')}
+${teamConfig.enabled ? `
+### TEAM MODE
+- Competition: ${teamConfig.competitionMode ? COMPETITION_MODE_LABELS[teamConfig.competitionMode] : 'race'}
+- Max teams: ${teamConfig.maxTeams}
+- Players/team: ${teamConfig.maxPlayersPerTeam}
+${teamConfig.timeLimitMinutes ? `- Time limit: ${teamConfig.timeLimitMinutes} min` : ''}
+` : ''}
+
+## SCORING DEFAULTS
+- Points/step: ${questConfig.scoring?.points || 10}
+- Hint penalty: ${questConfig.scoring?.hintPenalty || 2}
+- Fail penalty: ${questConfig.scoring?.failPenalty || 5}
+- Time limit: ${questConfig.scoring?.timeLimitSec ? `${questConfig.scoring.timeLimitSec}s` : 'none'}
+- Time bonus: ${questConfig.scoring?.timeBonus || 0}
 
 ## CONSTRAINTS
-- **Durée cible**: ${project.target_duration_mins || 60} minutes
-- **Difficulté**: ${project.difficulty ? DIFFICULTY_LABELS[project.difficulty] : 'Moyenne'}
 - **Staff disponible**: ${project.staff_available ? 'Oui (peut participer)' : 'Non (autonome)'}
 - **Props autorisés**: ${project.props_allowed ? 'Oui' : 'Non (digital only)'}
 - **Temps reset entre sessions**: ${project.reset_time_mins || 'N/A'} min
@@ -183,21 +321,27 @@ ${forbiddenZones.map(fz => `- ${fz.zone}${fz.reason ? ` (${fz.reason})` : ''}`).
 ## WIFI COVERAGE
 ${wifiZones.map(wz => `- ${wz.zone}: ${WIFI_LABELS[wz.strength]}`).join('\n') || '- Non documenté'}
 
-## POI_TABLE
-| # | Nom | Zone | Interaction | Risque | Min depuis précédent | Notes |
-|---|-----|------|-------------|--------|---------------------|-------|
-${poiTable}
+## STEP_TABLE
+| # | Nom | Zone | Type | Validation | Points | Hints | Contenu FR |
+|---|-----|------|------|------------|--------|-------|------------|
+${stepTable}
 
 ## MAP REFERENCE
 ${project.map_url ? `Carte disponible: ${project.map_url}` : 'Aucune carte fournie'}
 
+## QUEST_EXPORT_JSON
+\`\`\`json
+${JSON.stringify(questExport, null, 2)}
+\`\`\`
+
 ## DELIVERABLES ATTENDUS
 1. **Scénario narratif** (histoire, personnages, intrigue)
-2. **Parcours détaillé** (ordre des POIs, transitions)
-3. **Énigmes par POI** (description, solution, indices)
+2. **Parcours détaillé** (ordre des étapes, transitions)
+3. **Énigmes par étape** (description, solution, indices)
 4. **Script NPC** (si applicable)
 5. **Liste matériel** (props, QR codes, éléments à imprimer)
 6. **Guide reset** (instructions pour préparer la prochaine session)
+7. **Fichier i18n** (traductions pour toutes les langues configurées)
 
 ## FORMAT DE SORTIE
 Structure ta réponse en sections claires avec:
@@ -205,5 +349,6 @@ Structure ta réponse en sections claires avec:
 - Tableaux pour les énigmes
 - Checklist pour le matériel
 - Timeline visuelle du parcours
+- JSON exportable pour l'application
 `;
 }
