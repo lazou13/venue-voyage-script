@@ -135,6 +135,8 @@ export interface QuestConfig {
   // New play mode system (required)
   play_mode?: PlayMode;
   multiSoloConfig?: MultiSoloConfig;
+  // Storytelling / Narrator
+  storytelling?: StorytellingConfig;
 }
 
 // ============= Step Config (stored in pois.step_config) =============
@@ -320,4 +322,62 @@ export const PLAY_MODE_LABELS: Record<PlayMode, string> = {
   team: 'Équipes',
   one_vs_one: '1 vs 1',
   multi_solo: 'Multi-joueurs (classement)',
+};
+
+// ============= Avatar types =============
+export type AvatarStyle = 'cartoon' | 'realistic' | 'semi_realistic' | 'anime' | 'minimal';
+export type AvatarAge = 'child' | 'teen' | 'adult' | 'senior';
+export type AvatarPersona = 'guide_host' | 'detective' | 'explorer' | 'historian' | 'local_character' | 'mascot' | 'ai_assistant' | 'villain_light';
+export type AvatarOutfit = 'traditional' | 'modern' | 'luxury' | 'adventure';
+
+export interface Avatar {
+  id: string;
+  project_id: string | null;
+  name: string;
+  style: AvatarStyle;
+  age: AvatarAge;
+  persona: AvatarPersona;
+  outfit: AvatarOutfit;
+  image_url: string;
+  created_at: string;
+}
+
+export interface StorytellingConfig {
+  enabled: boolean;
+  narrator?: {
+    avatar_id: string | null;
+  };
+}
+
+export const AVATAR_STYLE_LABELS: Record<AvatarStyle, string> = {
+  cartoon: 'Cartoon',
+  realistic: 'Réaliste',
+  semi_realistic: 'Semi-réaliste',
+  anime: 'Anime',
+  minimal: 'Minimal',
+};
+
+export const AVATAR_AGE_LABELS: Record<AvatarAge, string> = {
+  child: 'Enfant',
+  teen: 'Ado',
+  adult: 'Adulte',
+  senior: 'Senior',
+};
+
+export const AVATAR_PERSONA_LABELS: Record<AvatarPersona, string> = {
+  guide_host: 'Guide/Hôte',
+  detective: 'Détective',
+  explorer: 'Explorateur',
+  historian: 'Historien',
+  local_character: 'Personnage local',
+  mascot: 'Mascotte',
+  ai_assistant: 'Assistant IA',
+  villain_light: 'Villain léger',
+};
+
+export const AVATAR_OUTFIT_LABELS: Record<AvatarOutfit, string> = {
+  traditional: 'Traditionnel',
+  modern: 'Moderne',
+  luxury: 'Luxe',
+  adventure: 'Aventure',
 };

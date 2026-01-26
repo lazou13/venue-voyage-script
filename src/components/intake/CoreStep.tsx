@@ -11,6 +11,7 @@ import { OptionMatrix, OptionRow } from './shared/OptionMatrix';
 import { EnumSelect } from './shared/EnumSelect';
 import { EnumCheckboxGroup } from './shared/EnumCheckboxGroup';
 import { I18nInput } from './shared/I18nInput';
+import { StorytellingSection } from './shared/StorytellingSection';
 import type { 
   QuestType, 
   TargetAudience, 
@@ -419,6 +420,9 @@ export function CoreStep({ projectId }: CoreStepProps) {
           </div>
         )}
       </OptionMatrix>
+
+      {/* Storytelling Section */}
+      <StorytellingSection projectId={projectId} />
     </div>
   );
 }

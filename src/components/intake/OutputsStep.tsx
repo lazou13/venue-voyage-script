@@ -1,5 +1,6 @@
 import { Copy, Download, Check, AlertCircle, AlertTriangle } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
+import { useAvatars } from '@/hooks/useAvatars';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +14,7 @@ interface OutputsStepProps {
 
 export function OutputsStep({ projectId }: OutputsStepProps) {
   const { project, pois, wifiZones, forbiddenZones, validate } = useProject(projectId);
+  const { avatars } = useAvatars(projectId);
   const { toast } = useToast();
   const validation = validate();
 
@@ -85,7 +87,7 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
     );
   }
 
-  const data = { project, pois, wifiZones, forbiddenZones };
+  const data = { project, pois, wifiZones, forbiddenZones, avatars };
   const outputs = [
     { id: 'checklist', label: 'Checklist', content: generateChecklist(data) },
     { id: 'prd', label: 'PRD', content: generatePRD(data) },
