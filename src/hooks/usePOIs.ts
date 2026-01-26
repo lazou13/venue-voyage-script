@@ -149,18 +149,71 @@ export function usePOIs(projectId: string | undefined) {
     },
   });
 
-  const applyDefaultsToAll = useMutation({
-    mutationFn: async (defaults: { stepType: StepConfig['stepType']; validationMode: StepConfig['validationMode']; scoring: StepConfig['scoring'] }) => {
+  // Selective apply - only updates checked fields where missing
+  const applySelectiveDefaults = useMutation({
+    mutationFn: async (params: {
+      defaults: Partial<StepConfig>;
+      fields: { stepType?: boolean; validationMode?: boolean; scoring?: boolean; hints?: boolean };
+    }) => {
       if (!projectId) throw new Error('No project ID');
       
-      // Fetch all POIs
       const { data: allPois, error: fetchError } = await supabase
         .from('pois')
         .select('id, step_config')
         .eq('project_id', projectId);
       if (fetchError) throw fetchError;
       
-      // Update each POI that has missing values
+      let updatedCount = 0;
+      for (const poi of allPois || []) {
+        const config = (poi.step_config || {}) as StepConfig;
+        const updatedConfig: StepConfig = { ...config };
+        let needsUpdate = false;
+        
+        // Only apply checked fields where value is missing
+        if (params.fields.stepType && !config.stepType && params.defaults.stepType) {
+          updatedConfig.stepType = params.defaults.stepType;
+          needsUpdate = true;
+        }
+        if (params.fields.validationMode && !config.validationMode && params.defaults.validationMode) {
+          updatedConfig.validationMode = params.defaults.validationMode;
+          needsUpdate = true;
+        }
+        if (params.fields.scoring && !config.scoring && params.defaults.scoring) {
+          updatedConfig.scoring = params.defaults.scoring;
+          needsUpdate = true;
+        }
+        if (params.fields.hints && (!config.hints || config.hints.length === 0) && params.defaults.hints) {
+          updatedConfig.hints = params.defaults.hints;
+          needsUpdate = true;
+        }
+        
+        if (needsUpdate) {
+          const { error } = await supabase
+            .from('pois')
+            .update({ step_config: updatedConfig as unknown as Json })
+            .eq('id', poi.id);
+          if (error) throw error;
+          updatedCount++;
+        }
+      }
+      return updatedCount;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pois', projectId] });
+    },
+  });
+
+  // Legacy - kept for backwards compat
+  const applyDefaultsToAll = useMutation({
+    mutationFn: async (defaults: { stepType: StepConfig['stepType']; validationMode: StepConfig['validationMode']; scoring: StepConfig['scoring'] }) => {
+      if (!projectId) throw new Error('No project ID');
+      
+      const { data: allPois, error: fetchError } = await supabase
+        .from('pois')
+        .select('id, step_config')
+        .eq('project_id', projectId);
+      if (fetchError) throw fetchError;
+      
       for (const poi of allPois || []) {
         const config = (poi.step_config || {}) as StepConfig;
         const needsUpdate = !config.stepType || !config.validationMode || !config.scoring;
@@ -194,5 +247,6 @@ export function usePOIs(projectId: string | undefined) {
     reorderPOIs,
     duplicatePOI,
     applyDefaultsToAll,
+    applySelectiveDefaults,
   };
 }
