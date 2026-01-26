@@ -1,4 +1,4 @@
-import type { Project, POI, WifiZone, ForbiddenZone, TeamConfig } from '@/types/intake';
+import type { Project, POI, WifiZone, ForbiddenZone, TeamConfig, ProjectType } from '@/types/intake';
 import { 
   STEP_TYPE_LABELS, 
   VALIDATION_MODE_LABELS, 
@@ -6,7 +6,8 @@ import {
   QUEST_TYPE_LABELS,
   TARGET_AUDIENCE_LABELS,
   COMPETITION_MODE_LABELS,
-  LANGUAGE_LABELS
+  LANGUAGE_LABELS,
+  PROJECT_TYPE_LABELS
 } from '@/types/intake';
 
 interface OutputData {
@@ -116,6 +117,8 @@ export function generatePRD(data: OutputData): string {
   const questConfig = project.quest_config || {};
   const teamConfig = getTeamConfig(project.quest_config);
   const scoring = questConfig.scoring || {};
+  const projectType = questConfig.project_type || 'establishment';
+  const core = questConfig.core || {};
   
   // Count step types
   const stepTypeCounts: Record<string, number> = {};
@@ -130,35 +133,47 @@ export function generatePRD(data: OutputData): string {
     const mode = poi.step_config?.validationMode || 'manual';
     validationCounts[mode] = (validationCounts[mode] || 0) + 1;
   });
+
+  // Build PROJECT_CONTEXT section
+  const projectContextSection = buildProjectContextMarkdown(project);
   
   return `# PRD - Quest Configuration
 ## ${project.hotel_name}
 
 ---
 
-## 1. OVERVIEW
+## 1. PROJECT_CONTEXT
+
+${projectContextSection}
+
+---
+
+## 2. OVERVIEW
 
 | Paramètre | Valeur |
 |-----------|--------|
-| Hôtel | ${project.hotel_name} |
+| Nom | ${project.hotel_name} |
 | Ville | ${project.city} |
+| Type | ${PROJECT_TYPE_LABELS[projectType]} |
 | Étages | ${project.floors} |
 | Date visite | ${project.visit_date ? new Date(project.visit_date).toLocaleDateString('fr-FR') : 'TBD'} |
 
 ---
 
-## 2. QUEST CONFIGURATION
+## 3. QUEST CONFIGURATION
 
-### 2.1 Type & Audience
+### 3.1 Type & Audience
 - **Type de quête**: ${questConfig.questType ? QUEST_TYPE_LABELS[questConfig.questType] : 'Non défini'}
-- **Public cible**: ${questConfig.targetAudience ? TARGET_AUDIENCE_LABELS[questConfig.targetAudience] : 'Non défini'}
-- **Langues**: ${(questConfig.languages || ['fr']).map(l => LANGUAGE_LABELS[l]).join(', ')}
+- **Public cible**: ${(core.target_audience || [questConfig.targetAudience]).filter(Boolean).map(a => TARGET_AUDIENCE_LABELS[a as keyof typeof TARGET_AUDIENCE_LABELS]).join(', ') || 'Non défini'}
+- **Langues**: ${(core.languages || questConfig.languages || ['fr']).map(l => LANGUAGE_LABELS[l]).join(', ')}
+- **Durée estimée**: ${core.duration_min ? `${core.duration_min} min` : 'Non définie'}
+- **Difficulté**: ${core.difficulty ? `${core.difficulty}/5` : 'Non définie'}
 
-### 2.2 Titre & Histoire
+### 3.2 Titre & Histoire
 - **Titre (FR)**: ${project.title_i18n?.fr || 'Non défini'}
 - **Histoire (FR)**: ${project.story_i18n?.fr || 'Non définie'}
 
-### 2.3 Team Configuration
+### 3.3 Team Configuration
 ${teamConfig.enabled ? `
 - **Mode équipe**: Activé
 - **Mode compétition**: ${teamConfig.competitionMode ? COMPETITION_MODE_LABELS[teamConfig.competitionMode] : 'N/A'}
@@ -169,62 +184,122 @@ ${teamConfig.competitionMode === 'timed' ? `- **Temps limite**: ${teamConfig.tim
 
 ---
 
-## 3. STEPS ANALYSIS
+## 4. STEPS ANALYSIS
 
-### 3.1 Summary
+### 4.1 Summary
 - **Total étapes**: ${pois.length}
 
-### 3.2 Types d'étapes
+### 4.2 Types d'étapes
 ${Object.entries(stepTypeCounts).map(([type, count]) => 
   `- ${type in STEP_TYPE_LABELS ? STEP_TYPE_LABELS[type as keyof typeof STEP_TYPE_LABELS] : type}: ${count}`
 ).join('\n')}
 
-### 3.3 Modes de validation
+### 4.3 Modes de validation
 ${Object.entries(validationCounts).map(([mode, count]) => 
   `- ${mode in VALIDATION_MODE_LABELS ? VALIDATION_MODE_LABELS[mode as keyof typeof VALIDATION_MODE_LABELS] : mode}: ${count}`
 ).join('\n')}
 
 ---
 
-## 4. SCORING & RULES
+## 5. SCORING & RULES
 
-### 4.1 Scoring par défaut
+### 5.1 Scoring par défaut
 - **Points/étape**: ${scoring.points || 10}
 - **Pénalité indice**: ${scoring.hint_penalty || 2}
 - **Pénalité échec**: ${scoring.fail_penalty || 5}
 - **Temps limite**: ${scoring.time_limit_sec ? `${scoring.time_limit_sec}s` : 'Illimité'}
 - **Bonus temps**: ${scoring.time_bonus || 0}
 
-### 4.2 Indices
+### 5.2 Indices
 - **Max indices**: ${questConfig.hintRules?.maxHints || 3}
 - **Auto-révélation**: ${questConfig.hintRules?.autoRevealAfterSec ? `${questConfig.hintRules.autoRevealAfterSec}s` : 'Désactivé'}
 
-### 4.3 Branchement
+### 5.3 Branchement
 - **Succès**: ${questConfig.branchingPresets?.onSuccess || 'next'}
 - **Échec**: ${questConfig.branchingPresets?.onFailure || 'retry'}
 
 ---
 
-## 5. CONSTRAINTS
+## 6. CONSTRAINTS
 
-### 5.1 Opérationnelles
+### 6.1 Opérationnelles
 - Staff disponible: ${project.staff_available ? '✅ Oui' : '❌ Non'}
 - Temps de reset: ${project.reset_time_mins || 'N/A'} min
 - Props autorisés: ${project.props_allowed ? '✅ Oui' : '❌ Non'}
 
-### 5.2 Zones Interdites
+### 6.2 Zones Interdites
 ${forbiddenZones.map((fz) => `- ${fz.zone}${fz.reason ? `: ${fz.reason}` : ''}`).join('\n') || '- Aucune restriction définie'}
 
-### 5.3 Connectivité
+### 6.3 Connectivité
 ${wifiZones.filter(wz => wz.strength !== 'ok').map((wz) => `- ⚠️ ${wz.zone}: ${WIFI_LABELS[wz.strength]}`).join('\n') || '- Toutes zones OK'}
 
 ---
 
-## 6. ASSETS
+## 7. ASSETS
 
 - Carte: ${project.map_url ? '✅ Uploadée' : '❌ Manquante'}
 - Photos étapes: ${pois.filter(p => p.photo_url).length}/${pois.length}
 `;
+}
+
+/**
+ * Build PROJECT_CONTEXT as structured markdown (no narrative)
+ */
+function buildProjectContextMarkdown(project: Project): string {
+  const questConfig = project.quest_config || {};
+  const projectType = questConfig.project_type || 'establishment';
+  const core = questConfig.core || {};
+
+  let md = `### Type: ${PROJECT_TYPE_LABELS[projectType]}
+
+### Core
+| Paramètre | Valeur |
+|-----------|--------|
+| Langues | ${(core.languages || ['fr']).join(', ')} |
+| Public cible | ${(core.target_audience || []).join(', ') || '-'} |
+| Durée estimée | ${core.duration_min ? `${core.duration_min} min` : '-'} |
+| Difficulté | ${core.difficulty ? `${core.difficulty}/5` : '-'} |
+
+**Objectifs business:**
+${(core.objective_business || []).map(o => `- ${o}`).join('\n') || '- Aucun défini'}
+
+**Contraintes générales:**
+${(core.constraints_general || []).map(c => `- ${c}`).join('\n') || '- Aucune définie'}
+`;
+
+  // Type-specific details
+  if (projectType === 'establishment' && questConfig.establishment_details) {
+    const d = questConfig.establishment_details;
+    md += `
+### Détails Établissement
+**Espaces:** ${(d.spaces || []).join(', ') || '-'}
+**Zones privées:** ${(d.private_zones || []).join(', ') || '-'}
+**Ops staff:** ${(d.staff_ops || []).join(', ') || '-'}
+**Notes Wi-Fi:** ${(d.wifi_notes || []).join(', ') || '-'}
+`;
+  } else if (projectType === 'tourist_spot' && questConfig.tourist_spot_details) {
+    const d = questConfig.tourist_spot_details;
+    md += `
+### Détails Site Touristique
+**Points départ:** ${(d.start_points || []).join(', ') || '-'}
+**Points arrivée:** ${(d.end_points || []).join(', ') || '-'}
+**Landmarks:** ${(d.landmarks || []).join(', ') || '-'}
+**Zones à éviter:** ${(d.avoid_zones || []).join(', ') || '-'}
+**Créneaux:** ${(d.time_windows || []).join(', ') || '-'}
+`;
+  } else if (projectType === 'route_recon' && questConfig.route_recon_details) {
+    const d = questConfig.route_recon_details;
+    md += `
+### Détails Reconnaissance Parcours
+**Type route:** ${d.route_type || '-'}
+**Segments:** ${(d.segments || []).join(', ') || '-'}
+**Points danger:** ${(d.danger_points || []).join(', ') || '-'}
+**Arrêts obligatoires:** ${(d.mandatory_stops || []).join(', ') || '-'}
+**Consignes sécurité:** ${(d.safety_brief || []).join(', ') || '-'}
+`;
+  }
+
+  return md;
 }
 
 // Helper to build validation summary
@@ -401,6 +476,9 @@ export function buildQuestExport(data: OutputData) {
     };
   });
 
+  // Build project context based on project_type
+  const projectContext = buildProjectContext(project);
+
   return {
     quest: {
       type: questConfig.questType,
@@ -420,6 +498,7 @@ export function buildQuestExport(data: OutputData) {
       branching: questConfig.branchingPresets || {},
     },
     steps,
+    projectContext,
     venue: {
       hotelName: project.hotel_name,
       city: project.city,
@@ -434,6 +513,38 @@ export function buildQuestExport(data: OutputData) {
       resetTimeMins: project.reset_time_mins,
     },
   };
+}
+
+/**
+ * Build PROJECT_CONTEXT based on project_type
+ */
+function buildProjectContext(project: Project) {
+  const questConfig = project.quest_config || {};
+  const projectType = questConfig.project_type || 'establishment';
+  const core = questConfig.core || {};
+
+  const context: Record<string, unknown> = {
+    project_type: projectType,
+    core: {
+      languages: core.languages || questConfig.languages || ['fr'],
+      target_audience: core.target_audience || (questConfig.targetAudience ? [questConfig.targetAudience] : []),
+      duration_min: core.duration_min,
+      difficulty: core.difficulty,
+      objective_business: core.objective_business || [],
+      constraints_general: core.constraints_general || [],
+    },
+  };
+
+  // Add type-specific details
+  if (projectType === 'establishment' && questConfig.establishment_details) {
+    context.establishment_details = questConfig.establishment_details;
+  } else if (projectType === 'tourist_spot' && questConfig.tourist_spot_details) {
+    context.tourist_spot_details = questConfig.tourist_spot_details;
+  } else if (projectType === 'route_recon' && questConfig.route_recon_details) {
+    context.route_recon_details = questConfig.route_recon_details;
+  }
+
+  return context;
 }
 
 // French labels that must NEVER appear in export
@@ -479,6 +590,8 @@ export function generatePrompt(data: OutputData): string {
   const questConfig = project.quest_config || {};
   const teamConfig = getTeamConfig(project.quest_config);
   const defaultScoring = questConfig.scoring || {};
+  const projectType = questConfig.project_type || 'establishment';
+  const core = questConfig.core || {};
 
   // Build enhanced STEP_TABLE with all required columns
   const stepTableHeader = '| # | Nom | Zone | Type | Validation | GPS/QR/Photo | Scoring | Hints | Branching | FR Content |';
@@ -500,42 +613,57 @@ export function generatePrompt(data: OutputData): string {
   // Use the shared buildQuestExport function
   const questExport = buildQuestExport(data);
 
-  return `# PERFECT PRODUCTION PROMPT
+  // Build PROJECT_CONTEXT section (structured, no narrative)
+  const projectContextSection = buildProjectContextMarkdown(project);
 
-## CONTEXT
-Tu es un game designer spécialisé dans les treasure hunts immersifs pour hôtels de luxe.
-Tu dois créer une expérience complète pour l'hôtel suivant.
+  return `# PRODUCTION PROMPT
 
-## HOTEL PROFILE
-- **Nom**: ${project.hotel_name}
-- **Ville**: ${project.city}
-- **Étages**: ${project.floors}
-- **Titre**: ${project.title_i18n?.fr || 'À définir'}
-- **Histoire**: ${project.story_i18n?.fr || 'À définir'}
+## PROJECT_CONTEXT
+${projectContextSection}
+
+## PROFILE
+| Paramètre | Valeur |
+|-----------|--------|
+| Nom | ${project.hotel_name} |
+| Ville | ${project.city} |
+| Type | ${PROJECT_TYPE_LABELS[projectType]} |
+| Étages | ${project.floors} |
+| Titre | ${project.title_i18n?.fr || '-'} |
+| Histoire | ${project.story_i18n?.fr || '-'} |
 
 ## QUEST CONFIGURATION
-- **Type**: ${questConfig.questType ? QUEST_TYPE_LABELS[questConfig.questType] : 'sequential'}
-- **Public**: ${questConfig.targetAudience ? TARGET_AUDIENCE_LABELS[questConfig.targetAudience] : 'family'}
-- **Langues**: ${(questConfig.languages || ['fr']).map(l => LANGUAGE_LABELS[l]).join(', ')}
-${teamConfig.enabled ? `
-### TEAM MODE
-- Competition: ${teamConfig.competitionMode ? COMPETITION_MODE_LABELS[teamConfig.competitionMode] : 'race'}
-- Max teams: ${teamConfig.maxTeams}
-- Players/team: ${teamConfig.maxPlayersPerTeam}
-${teamConfig.timeLimitMinutes ? `- Time limit: ${teamConfig.timeLimitMinutes} min` : ''}
+| Paramètre | Valeur |
+|-----------|--------|
+| Type quête | ${questConfig.questType ? QUEST_TYPE_LABELS[questConfig.questType] : 'sequential'} |
+| Public | ${(core.target_audience || [questConfig.targetAudience]).filter(Boolean).map(a => TARGET_AUDIENCE_LABELS[a as keyof typeof TARGET_AUDIENCE_LABELS]).join(', ') || 'family'} |
+| Langues | ${(core.languages || questConfig.languages || ['fr']).map(l => LANGUAGE_LABELS[l]).join(', ')} |
+| Durée | ${core.duration_min ? `${core.duration_min} min` : '-'} |
+| Difficulté | ${core.difficulty ? `${core.difficulty}/5` : '-'} |
+
+${teamConfig.enabled ? `### TEAM MODE
+| Paramètre | Valeur |
+|-----------|--------|
+| Mode compétition | ${teamConfig.competitionMode ? COMPETITION_MODE_LABELS[teamConfig.competitionMode] : 'race'} |
+| Max équipes | ${teamConfig.maxTeams || '-'} |
+| Joueurs/équipe | ${teamConfig.maxPlayersPerTeam || '-'} |
+${teamConfig.timeLimitMinutes ? `| Temps limite | ${teamConfig.timeLimitMinutes} min |` : ''}
 ` : ''}
 
 ## SCORING DEFAULTS
-- Points/step: ${questConfig.scoring?.points || 10}
-- Hint penalty: ${questConfig.scoring?.hint_penalty || 2}
-- Fail penalty: ${questConfig.scoring?.fail_penalty || 5}
-- Time limit: ${questConfig.scoring?.time_limit_sec ? `${questConfig.scoring.time_limit_sec}s` : 'none'}
-- Time bonus: ${questConfig.scoring?.time_bonus || 0}
+| Paramètre | Valeur |
+|-----------|--------|
+| Points/étape | ${questConfig.scoring?.points || 10} |
+| Pénalité indice | ${questConfig.scoring?.hint_penalty || 2} |
+| Pénalité échec | ${questConfig.scoring?.fail_penalty || 5} |
+| Temps limite | ${questConfig.scoring?.time_limit_sec ? `${questConfig.scoring.time_limit_sec}s` : '-'} |
+| Bonus temps | ${questConfig.scoring?.time_bonus || 0} |
 
 ## CONSTRAINTS
-- **Staff disponible**: ${project.staff_available ? 'Oui (peut participer)' : 'Non (autonome)'}
-- **Props autorisés**: ${project.props_allowed ? 'Oui' : 'Non (digital only)'}
-- **Temps reset entre sessions**: ${project.reset_time_mins || 'N/A'} min
+| Paramètre | Valeur |
+|-----------|--------|
+| Staff disponible | ${project.staff_available ? 'Oui' : 'Non'} |
+| Props autorisés | ${project.props_allowed ? 'Oui' : 'Non'} |
+| Temps reset | ${project.reset_time_mins || '-'} min |
 
 ## ZONES INTERDITES
 ${forbiddenZones.map(fz => `- ${fz.zone}${fz.reason ? ` (${fz.reason})` : ''}`).join('\n') || '- Aucune'}
@@ -549,28 +677,11 @@ ${stepTableSeparator}
 ${stepTable}
 
 ## MAP REFERENCE
-${project.map_url ? `Carte disponible: ${project.map_url}` : 'Aucune carte fournie'}
+${project.map_url ? `Carte: ${project.map_url}` : 'Aucune carte'}
 
 ## QUEST_EXPORT_JSON
 \`\`\`json
 ${JSON.stringify(questExport, null, 2)}
 \`\`\`
-
-## DELIVERABLES ATTENDUS
-1. **Scénario narratif** (histoire, personnages, intrigue)
-2. **Parcours détaillé** (ordre des étapes, transitions)
-3. **Énigmes par étape** (description, solution, indices)
-4. **Script NPC** (si applicable)
-5. **Liste matériel** (props, QR codes, éléments à imprimer)
-6. **Guide reset** (instructions pour préparer la prochaine session)
-7. **Fichier i18n** (traductions pour toutes les langues configurées)
-
-## FORMAT DE SORTIE
-Structure ta réponse en sections claires avec:
-- Titres markdown
-- Tableaux pour les énigmes
-- Checklist pour le matériel
-- Timeline visuelle du parcours
-- JSON exportable pour l'application
 `;
 }

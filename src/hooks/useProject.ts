@@ -117,6 +117,11 @@ export function useProject(projectId: string | undefined) {
     const forbiddenZones = forbiddenZonesQuery.data || [];
     const wifiZones = wifiZonesQuery.data || [];
 
+    // Project type is required
+    if (!project?.quest_config?.project_type) {
+      errors.push('Type de projet requis');
+    }
+
     // Blocking errors
     if (!project?.map_url) {
       errors.push('Aucune carte uploadée');

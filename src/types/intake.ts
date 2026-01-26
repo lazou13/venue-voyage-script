@@ -13,6 +13,9 @@ export type CompetitionMode = 'race' | 'score' | 'timed';
 export type TargetAudience = 'family' | 'couples' | 'corporate' | 'teens' | 'seniors';
 export type SupportedLanguage = 'fr' | 'en' | 'ar' | 'es' | 'ary';
 
+// ============= Project Type (new) =============
+export type ProjectType = 'establishment' | 'tourist_spot' | 'route_recon';
+
 // ============= I18n types =============
 export interface I18nText {
   fr?: string;
@@ -63,8 +66,45 @@ export interface GpsConfig {
   radius?: number;
 }
 
+// ============= Core Details (common to all project types) =============
+export interface CoreDetails {
+  languages?: SupportedLanguage[];
+  target_audience?: TargetAudience[];
+  duration_min?: number;
+  difficulty?: number; // 1-5
+  objective_business?: string[];
+  constraints_general?: string[];
+}
+
+// ============= Establishment Details =============
+export interface EstablishmentDetails {
+  spaces?: string[];
+  private_zones?: string[];
+  staff_ops?: string[];
+  wifi_notes?: string[];
+}
+
+// ============= Tourist Spot Details =============
+export interface TouristSpotDetails {
+  start_points?: string[];
+  end_points?: string[];
+  avoid_zones?: string[];
+  time_windows?: string[];
+  landmarks?: string[];
+}
+
+// ============= Route Recon Details =============
+export interface RouteReconDetails {
+  route_type?: string;
+  segments?: string[];
+  danger_points?: string[];
+  mandatory_stops?: string[];
+  safety_brief?: string[];
+}
+
 // ============= Quest Config (stored in projects.quest_config) =============
 export interface QuestConfig {
+  // Existing fields
   questType?: QuestType;
   targetAudience?: TargetAudience;
   languages?: SupportedLanguage[];
@@ -75,6 +115,12 @@ export interface QuestConfig {
     autoRevealAfterSec?: number;
   };
   branchingPresets?: BranchingLogic;
+  // New project_type system
+  project_type?: ProjectType;
+  core?: CoreDetails;
+  establishment_details?: EstablishmentDetails;
+  tourist_spot_details?: TouristSpotDetails;
+  route_recon_details?: RouteReconDetails;
 }
 
 // ============= Step Config (stored in pois.step_config) =============
@@ -234,4 +280,10 @@ export const LANGUAGE_LABELS: Record<SupportedLanguage, string> = {
   ar: 'العربية',
   es: 'Español',
   ary: 'Darija',
+};
+
+export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
+  establishment: 'Établissement',
+  tourist_spot: 'Site Touristique',
+  route_recon: 'Reconnaissance Parcours',
 };

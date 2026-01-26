@@ -1,21 +1,35 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useProject } from '@/hooks/useProject';
-import { VenueStep } from '@/components/intake/VenueStep';
+import { CoreStep } from '@/components/intake/CoreStep';
+import { EstablishmentStep } from '@/components/intake/EstablishmentStep';
+import { TouristSpotStep } from '@/components/intake/TouristSpotStep';
+import { RouteReconStep } from '@/components/intake/RouteReconStep';
 import { FieldworkStep } from '@/components/intake/FieldworkStep';
-import { QuestConfigStep } from '@/components/intake/QuestConfigStep';
 import { StepsBuilderStep } from '@/components/intake/StepsBuilderStep';
 import { RulesStep } from '@/components/intake/RulesStep';
 import { OutputsStep } from '@/components/intake/OutputsStep';
 import { ValidationPanel } from '@/components/intake/ValidationPanel';
+import type { ProjectType } from '@/types/intake';
 
-const STEPS = [
-  { id: 'venue', label: 'Lieu', component: VenueStep },
+// Core steps that are always visible
+const CORE_STEPS = [
+  { id: 'core', label: 'Core', component: CoreStep },
+];
+
+// Type-specific steps
+const TYPE_STEPS: Record<ProjectType, { id: string; label: string; component: React.ComponentType<{ projectId: string }> }> = {
+  establishment: { id: 'establishment', label: 'Établissement', component: EstablishmentStep },
+  tourist_spot: { id: 'tourist_spot', label: 'Site Touristique', component: TouristSpotStep },
+  route_recon: { id: 'route_recon', label: 'Parcours', component: RouteReconStep },
+};
+
+// Common steps that are always visible
+const COMMON_STEPS = [
   { id: 'fieldwork', label: 'Terrain', component: FieldworkStep },
-  { id: 'quest', label: 'Quête', component: QuestConfigStep },
   { id: 'steps', label: 'Étapes', component: StepsBuilderStep },
   { id: 'rules', label: 'Règles', component: RulesStep },
   { id: 'outputs', label: 'Exports', component: OutputsStep },
@@ -24,10 +38,23 @@ const STEPS = [
 export default function IntakeForm() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('venue');
+  const [activeTab, setActiveTab] = useState('core');
 
   const { project, isLoading, validate } = useProject(projectId);
   const validation = validate();
+
+  // Get project type from quest_config
+  const projectType: ProjectType = project?.quest_config?.project_type || 'establishment';
+
+  // Build dynamic steps based on project type
+  const steps = useMemo(() => {
+    const typeStep = TYPE_STEPS[projectType];
+    return [
+      ...CORE_STEPS,
+      typeStep,
+      ...COMMON_STEPS,
+    ];
+  }, [projectType]);
 
   if (isLoading) {
     return (
@@ -79,15 +106,15 @@ export default function IntakeForm() {
         <ValidationPanel validation={validation} />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-          <TabsList className="grid w-full grid-cols-6 mb-4">
-            {STEPS.map((step) => (
+          <TabsList className="grid w-full mb-4" style={{ gridTemplateColumns: `repeat(${steps.length}, 1fr)` }}>
+            {steps.map((step) => (
               <TabsTrigger key={step.id} value={step.id} className="text-xs sm:text-sm">
                 {step.label}
               </TabsTrigger>
             ))}
           </TabsList>
 
-          {STEPS.map((step) => (
+          {steps.map((step) => (
             <TabsContent key={step.id} value={step.id}>
               <step.component projectId={projectId!} />
             </TabsContent>
