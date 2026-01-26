@@ -60,7 +60,7 @@ export function QuestConfigStep({ projectId }: QuestConfigStepProps) {
     <div className="space-y-6">
       {/* Quest Type & Audience */}
       <OptionMatrix 
-        title="Configuration Quest" 
+        title="Configuration de la quête" 
         icon={Gamepad2}
         description="Définissez le type de quête et le public cible"
       >

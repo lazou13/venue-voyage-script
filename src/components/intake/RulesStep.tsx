@@ -46,7 +46,7 @@ export function RulesStep({ projectId }: RulesStepProps) {
     <div className="space-y-6">
       {/* Scoring Defaults */}
       <OptionMatrix 
-        title="Scoring par défaut" 
+        title="Points par défaut" 
         icon={Award}
         description="Points et pénalités appliqués à toutes les étapes"
       >

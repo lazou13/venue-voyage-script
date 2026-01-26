@@ -19,7 +19,7 @@ const DEFAULT_SCORING: ScoringConfig = {
 // Preset: Hotel Indoor QR
 const hotelIndoorQR: QuestPreset = {
   id: 'hotel_indoor_qr',
-  name: 'Hotel Indoor QR',
+  name: 'QR Intérieur Hôtel',
   description: 'Chasse au trésor en intérieur avec validation QR',
   icon: 'qr',
   questConfig: {
@@ -40,7 +40,7 @@ const hotelIndoorQR: QuestPreset = {
 // Preset: Outdoor GPS
 const outdoorGPS: QuestPreset = {
   id: 'outdoor_gps',
-  name: 'Outdoor GPS',
+  name: 'GPS Extérieur',
   description: 'Exploration en extérieur avec géolocalisation',
   icon: 'gps',
   questConfig: {
@@ -70,7 +70,7 @@ const outdoorGPS: QuestPreset = {
 // Preset: Family Friendly
 const familyFriendly: QuestPreset = {
   id: 'family_friendly',
-  name: 'Family Friendly',
+  name: 'Familles',
   description: 'Facile et amusant pour toute la famille',
   icon: 'family',
   questConfig: {
