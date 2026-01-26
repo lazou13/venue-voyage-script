@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 export type RecordingMode = 'walking' | 'scooter';
+export type RecordingStatus = 'idle' | 'recording' | 'error';
 
 // Speed thresholds in m/s for filtering unrealistic jumps
 const SPEED_THRESHOLDS: Record<RecordingMode, number> = {
@@ -46,7 +47,8 @@ export interface RouteTrace {
 }
 
 interface RecordingState {
-  isRecording: boolean;
+  status: RecordingStatus;
+  errorMessage: string | null;
   startTime: number | null;
   coords: RouteCoord[];
   currentTraceId: string | null;
@@ -90,7 +92,8 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
   }, [mode]);
   
   const [state, setState] = useState<RecordingState>({
-    isRecording: false,
+    status: 'idle',
+    errorMessage: null,
     startTime: null,
     coords: [],
     currentTraceId: null,
@@ -226,8 +229,13 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
 
   // Start recording
   const startRecording = useCallback(async () => {
+    // Check geolocation support
     if (!('geolocation' in navigator)) {
-      toast({ title: 'Géolocalisation non disponible', variant: 'destructive' });
+      setState(prev => ({
+        ...prev,
+        status: 'error',
+        errorMessage: 'Géolocalisation non disponible sur cet appareil',
+      }));
       return;
     }
 
@@ -238,7 +246,8 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
       lastKeptPointRef.current = null;
       
       setState({
-        isRecording: true,
+        status: 'recording',
+        errorMessage: null,
         startTime: Date.now(),
         coords: [],
         currentTraceId: trace.id,
@@ -303,7 +312,33 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
         },
         (error) => {
           console.error('Geolocation error:', error);
-          toast({ title: 'Erreur GPS', description: error.message, variant: 'destructive' });
+          
+          // Clear watch on error
+          if (watchIdRef.current !== null) {
+            navigator.geolocation.clearWatch(watchIdRef.current);
+            watchIdRef.current = null;
+          }
+          
+          let message: string;
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              message = 'Permission GPS refusée. Autorisez l\'accès dans les paramètres.';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              message = 'Position GPS indisponible. Vérifiez que le GPS est activé.';
+              break;
+            case error.TIMEOUT:
+              message = 'Délai GPS dépassé. Réessayez dans un endroit ouvert.';
+              break;
+            default:
+              message = error.message || 'Erreur GPS inconnue';
+          }
+          
+          setState(prev => ({
+            ...prev,
+            status: 'error',
+            errorMessage: message,
+          }));
         },
         {
           enableHighAccuracy: true,
@@ -314,7 +349,11 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
 
       toast({ title: 'Enregistrement démarré' });
     } catch (err) {
-      toast({ title: 'Erreur', description: 'Impossible de démarrer l\'enregistrement', variant: 'destructive' });
+      setState(prev => ({
+        ...prev,
+        status: 'error',
+        errorMessage: 'Impossible de créer la trace. Vérifiez la connexion.',
+      }));
     }
   }, [createTrace, toast]);
 
@@ -341,7 +380,8 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     // Reset state
     lastKeptPointRef.current = null;
     setState({
-      isRecording: false,
+      status: 'idle',
+      errorMessage: null,
       startTime: null,
       coords: [],
       currentTraceId: null,
@@ -350,6 +390,15 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
 
     toast({ title: 'Enregistrement arrêté' });
   }, [state.currentTraceId, state.coords, updateTrace, toast]);
+
+  // Retry after error
+  const retry = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      status: 'idle',
+      errorMessage: null,
+    }));
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -372,7 +421,9 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
 
   return {
     // State
-    isRecording: state.isRecording,
+    status: state.status,
+    errorMessage: state.errorMessage,
+    isRecording: state.status === 'recording',
     currentTraceId: state.currentTraceId,
     coords: state.coords,
     liveStats,
@@ -388,6 +439,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     stopRecording,
     addMarker,
     deleteTrace,
+    retry,
   };
 }
 
