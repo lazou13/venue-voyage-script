@@ -235,6 +235,11 @@ export function useProject(projectId: string | undefined) {
         }
       }
       
+      // Photo reference required validation
+      if (config.photo_reference_required && !config.reference_image_url) {
+        errors.push(`Étape ${stepNum}: photo de référence requise (uploader une image)`);
+      }
+      
       // contentI18n is now OPTIONAL - just a warning if missing
       if (!config.contentI18n?.fr) {
         warnings.push(`Étape ${stepNum}: contenu FR manquant`);

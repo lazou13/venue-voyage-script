@@ -16,6 +16,10 @@ export const DEFAULT_STEP_CONFIG: StepConfig = {
   },
   hints: [],
   contentI18n: {},
+  // Photo reference defaults
+  photo_reference_required: false,
+  reference_image_url: null,
+  reference_image_caption: null,
 };
 
 // Export for use in StepsBuilderStep

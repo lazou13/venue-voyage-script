@@ -473,6 +473,10 @@ export function buildQuestExport(data: OutputData) {
       final_step_type: config.final_step_type || null,
       final_validation_mode: config.final_validation_mode || null,
       photoValidation: config.photoValidation,
+      // Photo reference fields
+      photo_reference_required: config.photo_reference_required || false,
+      reference_image_url: config.reference_image_url || null,
+      reference_image_caption: config.reference_image_caption || null,
       scoring: canonicalizeScoringKeys(config.scoring),
       hints: config.hints,
       branching: config.branching,
@@ -598,20 +602,23 @@ export function generatePrompt(data: OutputData): string {
   const core = questConfig.core || {};
 
   // Build enhanced STEP_TABLE with all required columns
-  const stepTableHeader = '| # | Nom | Zone | Type | Validation | GPS/QR/Photo | Scoring | Hints | Branching | FR Content |';
-  const stepTableSeparator = '|---|-----|------|------|------------|--------------|---------|-------|-----------|------------|';
+  const stepTableHeader = '| # | Nom | Zone | Type | Validation | QR/Photo | PhotoRef | Scoring | Hints | Branching | FR Content |';
+  const stepTableSeparator = '|---|-----|------|------|------------|----------|----------|---------|-------|-----------|------------|';
   const stepTable = pois.map((poi, i) => {
     const config = poi.step_config || {};
     const orderIndex = poi.sort_order ?? i;
     const stepType = config.stepType ? STEP_TYPE_LABELS[config.stepType] : 'enigme';
     const validationMode = config.validationMode ? VALIDATION_MODE_LABELS[config.validationMode] : 'Manuel';
     const validationSummary = getValidationSummary(config);
+    const photoRefSummary = config.photo_reference_required 
+      ? (config.reference_image_url ? 'yes' : 'MISSING') 
+      : 'no';
     const scoringSummary = getScoringSummary(config, defaultScoring);
     const hintsCount = config.hints?.length || 0;
     const branchingSummary = getBranchingSummary(config);
     const frExcerpt = config.contentI18n?.fr?.substring(0, 40) || '-';
     
-    return `| ${orderIndex + 1} | ${poi.name} | ${poi.zone} | ${stepType} | ${validationMode} | ${validationSummary} | ${scoringSummary} | ${hintsCount} | ${branchingSummary} | ${frExcerpt}${config.contentI18n?.fr && config.contentI18n.fr.length > 40 ? '…' : ''} |`;
+    return `| ${orderIndex + 1} | ${poi.name} | ${poi.zone} | ${stepType} | ${validationMode} | ${validationSummary} | ${photoRefSummary} | ${scoringSummary} | ${hintsCount} | ${branchingSummary} | ${frExcerpt}${config.contentI18n?.fr && config.contentI18n.fr.length > 40 ? '…' : ''} |`;
   }).join('\n');
 
   // Use the shared buildQuestExport function
