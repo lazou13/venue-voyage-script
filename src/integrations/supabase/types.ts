@@ -206,6 +206,85 @@ export type Database = {
         }
         Relationships: []
       }
+      route_markers: {
+        Row: {
+          created_at: string
+          id: string
+          lat: number
+          lng: number
+          note: string | null
+          photo_url: string | null
+          trace_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lat: number
+          lng: number
+          note?: string | null
+          photo_url?: string | null
+          trace_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lat?: number
+          lng?: number
+          note?: string | null
+          photo_url?: string | null
+          trace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "route_markers_trace_id_fkey"
+            columns: ["trace_id"]
+            isOneToOne: false
+            referencedRelation: "route_traces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      route_traces: {
+        Row: {
+          created_at: string
+          distance_meters: number | null
+          ended_at: string | null
+          geojson: Json
+          id: string
+          name: string | null
+          project_id: string
+          started_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          distance_meters?: number | null
+          ended_at?: string | null
+          geojson?: Json
+          id?: string
+          name?: string | null
+          project_id: string
+          started_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          distance_meters?: number | null
+          ended_at?: string | null
+          geojson?: Json
+          id?: string
+          name?: string | null
+          project_id?: string
+          started_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "route_traces_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wifi_zones: {
         Row: {
           id: string
