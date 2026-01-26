@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, AlertCircle, FileJson, Copy, RefreshCw, Shield } from 'lucide-react';
+import { ArrowLeft, Check, AlertCircle, FileJson, Copy, RefreshCw, Shield, LogIn, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { useAdminRole } from '@/hooks/useAdminRole';
 import type { CapabilitiesPayload } from '@/hooks/useCapabilities';
 
 interface AppConfig {
@@ -26,15 +28,11 @@ interface ValidationError {
   message: string;
 }
 
-// Check if admin mode is enabled (simple flag for now)
-const isAdminMode = () => {
-  return import.meta.env.VITE_ADMIN_MODE === 'true' || 
-         localStorage.getItem('admin_mode') === 'true';
-};
-
 export default function AdminConfig() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, isLoading: authLoading, signOut } = useAuth();
+  const { isAdmin, isLoading: roleLoading } = useAdminRole(user?.id);
   
   const [activeTab, setActiveTab] = useState<'published' | 'draft'>('published');
   const [publishedConfig, setPublishedConfig] = useState<AppConfig | null>(null);
@@ -45,10 +43,12 @@ export default function AdminConfig() {
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
 
-  // Load configs
+  // Load configs only when admin
   useEffect(() => {
-    loadConfigs();
-  }, []);
+    if (isAdmin && !roleLoading) {
+      loadConfigs();
+    }
+  }, [isAdmin, roleLoading]);
 
   const loadConfigs = async () => {
     setIsLoading(true);
@@ -320,24 +320,71 @@ export default function AdminConfig() {
     }
   };
 
-  // Access gate
-  if (!isAdminMode()) {
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
+
+  // Loading state
+  if (authLoading || roleLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Vérification des droits...</div>
+      </div>
+    );
+  }
+
+  // Not authenticated
+  if (!user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="max-w-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Shield className="w-5 h-5" />
-              Accès restreint
+              Authentification requise
             </CardTitle>
             <CardDescription>
-              Cette page est réservée aux administrateurs.
+              Connectez-vous pour accéder à l'administration.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex gap-2">
+            <Button onClick={() => navigate('/auth')}>
+              <LogIn className="w-4 h-4 mr-2" />
+              Se connecter
+            </Button>
+            <Button onClick={() => navigate('/')} variant="outline">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Retour
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Authenticated but not admin
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-destructive" />
+              Accès refusé
+            </CardTitle>
+            <CardDescription>
+              Votre compte n'a pas les droits d'administration.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex gap-2">
             <Button onClick={() => navigate('/')} variant="outline">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Retour au dashboard
+            </Button>
+            <Button onClick={handleSignOut} variant="ghost">
+              <LogOut className="w-4 h-4 mr-2" />
+              Déconnexion
             </Button>
           </CardContent>
         </Card>
@@ -370,10 +417,16 @@ export default function AdminConfig() {
                 <p className="text-xs text-muted-foreground">Registre des capacités</p>
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={loadConfigs}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Rafraîchir
-            </Button>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">{user.email}</span>
+              <Button variant="outline" size="sm" onClick={loadConfigs}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Rafraîchir
+              </Button>
+              <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
