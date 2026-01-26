@@ -5,7 +5,7 @@ import {
   Zap, Camera, X, Check
 } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
-import { useRouteRecorder, exportTraceAsGeoJSON, buildMarkersCSV, RouteTrace, RecordingMode, RecordingStatus } from '@/hooks/useRouteRecorder';
+import { useRouteRecorder, exportTraceAsGeoJSON, buildMarkersCSV, buildReconBriefMarkdown, RouteTrace, RecordingMode, RecordingStatus } from '@/hooks/useRouteRecorder';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
@@ -508,27 +508,48 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
             {/* Markers for selected trace */}
             {selectedTrace && markers.length > 0 && (
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <Label className="text-sm font-medium">Marqueurs ({markers.length})</Label>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={() => {
-                      const csv = buildMarkersCSV(markers);
-                      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      const traceName = selectedTrace.name || new Date(selectedTrace.created_at).toISOString().slice(0, 10);
-                      a.download = `markers_${traceName}.csv`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }}
-                  >
-                    <Download className="w-3 h-3" />
-                    Exporter CSV
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => {
+                        const md = buildReconBriefMarkdown(selectedTrace, markers, recordingMode);
+                        const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        const traceName = selectedTrace.name || new Date(selectedTrace.created_at).toISOString().slice(0, 10);
+                        a.download = `recon_${traceName}.md`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      <Download className="w-3 h-3" />
+                      Brief (.md)
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => {
+                        const csv = buildMarkersCSV(markers);
+                        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        const traceName = selectedTrace.name || new Date(selectedTrace.created_at).toISOString().slice(0, 10);
+                        a.download = `markers_${traceName}.csv`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      <Download className="w-3 h-3" />
+                      CSV
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-1">
                   {markers.map((marker, idx) => (

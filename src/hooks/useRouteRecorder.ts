@@ -588,3 +588,74 @@ export function buildMarkersCSV(markers: RouteMarker[]): string {
   });
   return [header, ...rows].join('\n');
 }
+
+// Export helper for recon brief markdown
+export function buildReconBriefMarkdown(trace: RouteTrace, markers: RouteMarker[], mode: RecordingMode): string {
+  const traceName = trace.name || `Trace ${new Date(trace.created_at).toLocaleDateString('fr-FR')}`;
+  const modeLabel = mode === 'walking' ? 'Marche' : 'Trottinette';
+  const distance = trace.distance_meters ? `${(trace.distance_meters / 1000).toFixed(2)} km` : '—';
+  const pointsCount = trace.geojson.coordinates.length;
+  
+  // Calculate duration if we have start and end
+  let duration = '—';
+  if (trace.started_at && trace.ended_at) {
+    const start = new Date(trace.started_at).getTime();
+    const end = new Date(trace.ended_at).getTime();
+    const mins = Math.round((end - start) / 60000);
+    duration = `${mins} min`;
+  }
+  
+  const date = new Date(trace.created_at).toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  // Build markers table
+  const tableHeader = '| # | Titre | Note | Coordonnées | Photo |';
+  const tableSeparator = '|---|-------|------|-------------|-------|';
+  const tableRows = markers.map((marker, idx) => {
+    const title = `Marker ${idx + 1}`;
+    const note = marker.note?.replace(/\|/g, '\\|').replace(/\n/g, ' ') || '—';
+    const coords = `${marker.lat.toFixed(5)}, ${marker.lng.toFixed(5)}`;
+    const photo = marker.photo_url ? `[📷](${marker.photo_url})` : '—';
+    return `| ${idx + 1} | ${title} | ${note} | ${coords} | ${photo} |`;
+  });
+
+  // Build quick list
+  const quickList = markers.map((marker, idx) => {
+    const note = marker.note || '(sans note)';
+    const coords = `${marker.lat.toFixed(5)}, ${marker.lng.toFixed(5)}`;
+    const photo = marker.photo_url || '';
+    return `- **Marker ${idx + 1}** — ${note} (${coords})${photo ? ` ${photo}` : ''}`;
+  });
+
+  return `# ${traceName}
+
+- **Date** : ${date}
+- **Mode** : ${modeLabel}
+- **Distance** : ${distance}
+- **Durée** : ${duration}
+- **Points GPS** : ${pointsCount}
+
+## Résumé
+
+_Observations :_
+
+
+_Risques identifiés :_
+
+
+_Opportunités :_
+
+
+## Marqueurs
+
+${markers.length > 0 ? `${tableHeader}\n${tableSeparator}\n${tableRows.join('\n')}` : '_Aucun marqueur enregistré._'}
+
+## Liste rapide (copy/paste)
+
+${quickList.length > 0 ? quickList.join('\n') : '_Aucun marqueur._'}
+`;
+}
