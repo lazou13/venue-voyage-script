@@ -227,15 +227,70 @@ ${wifiZones.filter(wz => wz.strength !== 'ok').map((wz) => `- ⚠️ ${wz.zone}:
 `;
 }
 
+// Helper to build validation summary
+function getValidationSummary(config: POI['step_config']): string {
+  if (!config) return '-';
+  const parts: string[] = [];
+  
+  if (config.validationMode === 'auto_gps' && config.gps) {
+    parts.push(`GPS(${config.gps.lat?.toFixed(4) || '?'},${config.gps.lng?.toFixed(4) || '?'},r${config.gps.radius || '?'}m)`);
+  } else if (config.validationMode === 'qr_code') {
+    parts.push(`QR:${config.photoValidation?.qrExpectedValue || '?'}`);
+  } else if (config.validationMode === 'photo' && config.photoValidation) {
+    if (config.photoValidation.type === 'reference') {
+      parts.push(`Photo:ref${config.photoValidation.referenceUrl ? '✓' : '?'}`);
+    } else if (config.photoValidation.type === 'qr_code') {
+      parts.push(`Photo:qr${config.photoValidation.qrExpectedValue ? '✓' : '?'}`);
+    } else {
+      parts.push('Photo:free');
+    }
+  }
+  
+  return parts.length > 0 ? parts.join(' ') : '-';
+}
+
+// Helper to build scoring summary
+function getScoringSummary(config: POI['step_config'], defaults: { points?: number; hintPenalty?: number; failPenalty?: number }): string {
+  const scoring = config?.scoring || {};
+  const pts = scoring.points ?? defaults.points ?? 10;
+  const hint = scoring.hintPenalty ?? defaults.hintPenalty ?? 2;
+  const fail = scoring.failPenalty ?? defaults.failPenalty ?? 5;
+  const time = scoring.timeLimitSec ? `/${scoring.timeLimitSec}s` : '';
+  return `${pts}pts/-${hint}h/-${fail}f${time}`;
+}
+
+// Helper to build branching summary
+function getBranchingSummary(config: POI['step_config']): string {
+  if (!config?.branching) return '-';
+  const b = config.branching;
+  const parts: string[] = [];
+  if (b.onSuccess && b.onSuccess !== 'next') parts.push(`✓→${b.onSuccess}`);
+  if (b.onFailure && b.onFailure !== 'retry') parts.push(`✗→${b.onFailure}`);
+  if (b.scoreAbove) parts.push(`>${b.scoreAbove}→${b.scoreAboveTarget || '?'}`);
+  return parts.length > 0 ? parts.join(' ') : '-';
+}
+
 export function generatePrompt(data: OutputData): string {
   const { project, pois, wifiZones, forbiddenZones } = data;
   const questConfig = project.quest_config || {};
   const teamConfig = getTeamConfig(project.quest_config);
+  const defaultScoring = questConfig.scoring || {};
   
-  // Build STEP_TABLE
+  // Build enhanced STEP_TABLE with all required columns
+  const stepTableHeader = '| # | Nom | Zone | Type | Validation | GPS/QR/Photo | Scoring | Hints | Branching | FR Content |';
+  const stepTableSeparator = '|---|-----|------|------|------------|--------------|---------|-------|-----------|------------|';
   const stepTable = pois.map((poi, i) => {
     const config = poi.step_config || {};
-    return `| ${i + 1} | ${poi.name} | ${poi.zone} | ${config.stepType ? STEP_TYPE_LABELS[config.stepType] : '-'} | ${config.validationMode ? VALIDATION_MODE_LABELS[config.validationMode] : 'manual'} | ${config.scoring?.points || questConfig.scoring?.points || 10} | ${config.hints?.length || 0} | ${config.contentI18n?.fr?.substring(0, 50) || '-'}... |`;
+    const orderIndex = poi.sort_order ?? i;
+    const stepType = config.stepType ? STEP_TYPE_LABELS[config.stepType] : 'enigme';
+    const validationMode = config.validationMode ? VALIDATION_MODE_LABELS[config.validationMode] : 'Manuel';
+    const validationSummary = getValidationSummary(config);
+    const scoringSummary = getScoringSummary(config, defaultScoring);
+    const hintsCount = config.hints?.length || 0;
+    const branchingSummary = getBranchingSummary(config);
+    const frExcerpt = config.contentI18n?.fr?.substring(0, 40) || '-';
+    
+    return `| ${orderIndex + 1} | ${poi.name} | ${poi.zone} | ${stepType} | ${validationMode} | ${validationSummary} | ${scoringSummary} | ${hintsCount} | ${branchingSummary} | ${frExcerpt}${config.contentI18n?.fr && config.contentI18n.fr.length > 40 ? '…' : ''} |`;
   }).join('\n');
 
   // Build QUEST_EXPORT_JSON
@@ -322,8 +377,8 @@ ${forbiddenZones.map(fz => `- ${fz.zone}${fz.reason ? ` (${fz.reason})` : ''}`).
 ${wifiZones.map(wz => `- ${wz.zone}: ${WIFI_LABELS[wz.strength]}`).join('\n') || '- Non documenté'}
 
 ## STEP_TABLE
-| # | Nom | Zone | Type | Validation | Points | Hints | Contenu FR |
-|---|-----|------|------|------------|--------|-------|------------|
+${stepTableHeader}
+${stepTableSeparator}
 ${stepTable}
 
 ## MAP REFERENCE
