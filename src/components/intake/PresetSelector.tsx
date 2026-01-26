@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { QrCode, MapPin, Users } from 'lucide-react';
+import { QrCode, Users, Briefcase } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -16,8 +16,8 @@ import type { QuestConfig, StepConfig } from '@/types/intake';
 
 const PRESET_ICONS = {
   qr: QrCode,
-  gps: MapPin,
   family: Users,
+  corporate: Briefcase,
 };
 
 interface PresetSelectorProps {

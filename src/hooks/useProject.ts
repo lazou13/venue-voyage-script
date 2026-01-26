@@ -149,6 +149,11 @@ export function useProject(projectId: string | undefined) {
       errors.push('Type de projet requis');
     }
 
+    // Play mode is required
+    if (!project?.quest_config?.play_mode) {
+      errors.push('Mode de jeu requis');
+    }
+
     // Blocking errors
     if (!project?.map_url) {
       errors.push('Aucune carte uploadée');
@@ -166,21 +171,30 @@ export function useProject(projectId: string | undefined) {
       errors.push('Histoire (FR) obligatoire');
     }
 
-    // Team config validation
+    // Play mode specific validation
+    const playMode = project?.quest_config?.play_mode;
     const teamConfig = project?.quest_config?.teamConfig;
-    if (teamConfig?.enabled) {
-      if (!teamConfig.maxTeams) {
+    const multiSoloConfig = project?.quest_config?.multiSoloConfig;
+
+    if (playMode === 'team') {
+      if (!teamConfig?.maxTeams) {
         errors.push('Team: nombre max d\'équipes requis');
       }
-      if (!teamConfig.maxPlayersPerTeam) {
+      if (!teamConfig?.maxPlayersPerTeam) {
         errors.push('Team: joueurs max par équipe requis');
       }
-      if (teamConfig.competitionMode === 'timed' && !teamConfig.timeLimitMinutes) {
-        errors.push('Team: temps limite requis pour mode chronométré');
+      if (teamConfig?.competitionMode === 'timed' && !teamConfig?.timeLimitMinutes) {
+        warnings.push('Team: temps limite recommandé pour mode chronométré');
       }
     }
 
-    // Step-specific validations
+    if (playMode === 'multi_solo') {
+      if (!multiSoloConfig?.maxPlayers) {
+        warnings.push('Multi-solo: nombre max de joueurs recommandé');
+      }
+    }
+
+    // Step-specific validations (contentI18n is NOT required)
     pois.forEach((poi, index) => {
       const config = poi.step_config || {};
       const stepNum = index + 1;
@@ -221,9 +235,9 @@ export function useProject(projectId: string | undefined) {
         }
       }
       
-      // FR content is REQUIRED for every step (blocker)
+      // contentI18n is now OPTIONAL - just a warning if missing
       if (!config.contentI18n?.fr) {
-        errors.push(`Étape ${stepNum}: contenu FR obligatoire`);
+        warnings.push(`Étape ${stepNum}: contenu FR manquant`);
       }
     });
 

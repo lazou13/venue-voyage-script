@@ -19,14 +19,18 @@ import type {
   QuestConfig,
   I18nText,
   ProjectType,
-  CoreDetails
+  CoreDetails,
+  PlayMode,
+  TeamConfig,
+  MultiSoloConfig
 } from '@/types/intake';
 import { 
   QUEST_TYPE_LABELS, 
   TARGET_AUDIENCE_LABELS, 
   COMPETITION_MODE_LABELS,
   LANGUAGE_LABELS,
-  PROJECT_TYPE_LABELS
+  PROJECT_TYPE_LABELS,
+  PLAY_MODE_LABELS
 } from '@/types/intake';
 
 interface CoreStepProps {
@@ -42,7 +46,9 @@ export function CoreStep({ projectId }: CoreStepProps) {
   const projectType = questConfig.project_type || 'establishment';
   const coreDetails = questConfig.core || {};
   const languages = coreDetails.languages || questConfig.languages || ['fr'];
-  const teamConfig = questConfig.teamConfig || { enabled: false };
+  const playMode = questConfig.play_mode;
+  const teamConfig = questConfig.teamConfig || {};
+  const multiSoloConfig = questConfig.multiSoloConfig || {};
   
   // Local state for debounced text fields
   const [localObjectives, setLocalObjectives] = useState<string>('');
@@ -281,23 +287,39 @@ export function CoreStep({ projectId }: CoreStepProps) {
         </div>
       </OptionMatrix>
 
-      {/* Team Configuration */}
+      {/* Play Mode Selection */}
       <OptionMatrix 
-        title="Configuration Équipes" 
+        title="Mode de jeu" 
         icon={Users}
-        description="Activez le mode équipe pour les compétitions"
+        description="Choisissez comment les joueurs participent"
       >
-        <OptionRow label="Mode équipe activé" description="Permet de jouer en équipes">
-          <Switch
-            checked={teamConfig.enabled}
-            onCheckedChange={(v) => updateQuestConfig({ 
-              teamConfig: { ...teamConfig, enabled: v } 
-            })}
-          />
-        </OptionRow>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          {(['solo', 'team', 'one_vs_one', 'multi_solo'] as PlayMode[]).map((mode) => {
+            const isSelected = playMode === mode;
+            return (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => updateQuestConfig({ play_mode: mode })}
+                className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
+                  isSelected 
+                    ? 'border-primary bg-primary/10 text-primary' 
+                    : 'border-border hover:border-primary/50 hover:bg-muted'
+                }`}
+              >
+                <span className="font-medium text-sm">{PLAY_MODE_LABELS[mode]}</span>
+              </button>
+            );
+          })}
+        </div>
+        
+        {!playMode && (
+          <p className="text-xs text-destructive">Mode de jeu requis</p>
+        )}
 
-        {teamConfig.enabled && (
-          <>
+        {/* Team mode fields */}
+        {playMode === 'team' && (
+          <div className="space-y-4 p-3 border rounded-lg bg-muted/30">
             <EnumSelect<CompetitionMode>
               label="Mode de compétition"
               value={teamConfig.competitionMode}
@@ -345,9 +367,7 @@ export function CoreStep({ projectId }: CoreStepProps) {
 
             {teamConfig.competitionMode === 'timed' && (
               <div className="space-y-1.5">
-                <Label className="text-sm">
-                  Temps limite (minutes) <span className="text-destructive">*</span>
-                </Label>
+                <Label className="text-sm">Temps limite (minutes)</Label>
                 <Input
                   type="number"
                   min={5}
@@ -360,7 +380,43 @@ export function CoreStep({ projectId }: CoreStepProps) {
                 />
               </div>
             )}
-          </>
+          </div>
+        )}
+
+        {/* One vs One - fixed 2 players info */}
+        {playMode === 'one_vs_one' && (
+          <div className="p-3 border rounded-lg bg-muted/30">
+            <p className="text-sm text-muted-foreground">
+              Mode duel : 2 joueurs s'affrontent en temps réel.
+            </p>
+          </div>
+        )}
+
+        {/* Multi Solo fields */}
+        {playMode === 'multi_solo' && (
+          <div className="space-y-4 p-3 border rounded-lg bg-muted/30">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Nombre max de joueurs</Label>
+              <Input
+                type="number"
+                min={2}
+                max={100}
+                value={multiSoloConfig.maxPlayers || ''}
+                onChange={(e) => updateQuestConfig({ 
+                  multiSoloConfig: { ...multiSoloConfig, maxPlayers: parseInt(e.target.value) || undefined } 
+                })}
+                placeholder="Ex: 20"
+              />
+            </div>
+            <OptionRow label="Classement activé" description="Afficher un leaderboard des scores">
+              <Switch
+                checked={multiSoloConfig.leaderboardEnabled ?? true}
+                onCheckedChange={(v) => updateQuestConfig({ 
+                  multiSoloConfig: { ...multiSoloConfig, leaderboardEnabled: v } 
+                })}
+              />
+            </OptionRow>
+          </div>
         )}
       </OptionMatrix>
     </div>
