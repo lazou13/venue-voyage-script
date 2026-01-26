@@ -79,12 +79,17 @@ function calculateTotalDistance(coords: RouteCoord[]): number {
   return total;
 }
 
+// Autosave interval in ms
+const AUTOSAVE_INTERVAL_MS = 15000;
+
 export function useRouteRecorder(projectId: string | undefined, mode: RecordingMode = 'walking') {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const watchIdRef = useRef<number | null>(null);
   const lastKeptPointRef = useRef<RouteCoord | null>(null);
   const modeRef = useRef<RecordingMode>(mode);
+  const autosaveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastSavedCountRef = useRef<number>(0);
   
   // Keep mode ref in sync
   useEffect(() => {
@@ -227,6 +232,37 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     },
   });
 
+  // Autosave function - updates DB with current coords
+  const performAutosave = useCallback(async (traceId: string, coords: RouteCoord[]) => {
+    // Only save if we have new coords
+    if (coords.length <= lastSavedCountRef.current) {
+      return;
+    }
+    
+    const geojson = {
+      type: 'LineString' as const,
+      coordinates: coords.map(c => [c.lng, c.lat]),
+    };
+    const distance = calculateTotalDistance(coords);
+    
+    try {
+      const { error } = await supabase
+        .from('route_traces')
+        .update({
+          geojson: JSON.parse(JSON.stringify(geojson)),
+          distance_meters: distance,
+        })
+        .eq('id', traceId);
+      
+      if (error) throw error;
+      
+      lastSavedCountRef.current = coords.length;
+      console.log(`Autosave: ${coords.length} points saved`);
+    } catch (err) {
+      console.error('Autosave failed:', err);
+    }
+  }, []);
+
   // Start recording
   const startRecording = useCallback(async () => {
     // Check geolocation support
@@ -242,8 +278,9 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     try {
       const trace = await createTrace.mutateAsync();
       
-      // Reset last kept point
+      // Reset refs
       lastKeptPointRef.current = null;
+      lastSavedCountRef.current = 0;
       
       setState({
         status: 'recording',
@@ -253,6 +290,16 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
         currentTraceId: trace.id,
         mode: modeRef.current,
       });
+
+      // Start autosave interval
+      autosaveIntervalRef.current = setInterval(() => {
+        setState(currentState => {
+          if (currentState.status === 'recording' && currentState.currentTraceId && currentState.coords.length > 0) {
+            performAutosave(currentState.currentTraceId, currentState.coords);
+          }
+          return currentState;
+        });
+      }, AUTOSAVE_INTERVAL_MS);
 
       // Start watching position with filtering
       watchIdRef.current = navigator.geolocation.watchPosition(
@@ -359,6 +406,12 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
 
   // Stop recording
   const stopRecording = useCallback(async () => {
+    // Clear autosave interval
+    if (autosaveIntervalRef.current !== null) {
+      clearInterval(autosaveIntervalRef.current);
+      autosaveIntervalRef.current = null;
+    }
+    
     // Always clear watch first
     if (watchIdRef.current !== null) {
       navigator.geolocation.clearWatch(watchIdRef.current);
@@ -377,8 +430,9 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
       });
     }
 
-    // Reset state
+    // Reset state and refs
     lastKeptPointRef.current = null;
+    lastSavedCountRef.current = 0;
     setState({
       status: 'idle',
       errorMessage: null,
@@ -405,6 +459,9 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     return () => {
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      if (autosaveIntervalRef.current !== null) {
+        clearInterval(autosaveIntervalRef.current);
       }
     };
   }, []);

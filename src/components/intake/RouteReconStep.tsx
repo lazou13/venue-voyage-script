@@ -288,29 +288,34 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
 
             {/* Live stats when recording */}
             {isRecording && (
-              <div className="grid grid-cols-3 gap-3">
-                <div className="flex items-center gap-2 p-2 rounded-md bg-background border">
-                  <Clock className="w-4 h-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Durée</p>
-                    <p className="font-mono font-medium">{formatDuration(duration)}</p>
+              <>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-background border">
+                    <Clock className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Durée</p>
+                      <p className="font-mono font-medium">{formatDuration(duration)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-background border">
+                    <Ruler className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Distance</p>
+                      <p className="font-mono font-medium">{formatDistance(liveStats.distance)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-background border">
+                    <MapPinned className="w-4 h-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Points</p>
+                      <p className="font-mono font-medium">{liveStats.points}</p>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 p-2 rounded-md bg-background border">
-                  <Ruler className="w-4 h-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Distance</p>
-                    <p className="font-mono font-medium">{formatDistance(liveStats.distance)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 p-2 rounded-md bg-background border">
-                  <MapPinned className="w-4 h-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">Points</p>
-                    <p className="font-mono font-medium">{liveStats.points}</p>
-                  </div>
-                </div>
-              </div>
+                <p className="text-xs text-muted-foreground">
+                  💾 Sauvegarde auto: ON (15s)
+                </p>
+              </>
             )}
 
             {/* Current position */}
