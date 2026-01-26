@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import type { Project, POI, WifiZone, ForbiddenZone, ValidationResult, QuestConfig, I18nText, StepConfig } from '@/types/intake';
 import type { Json } from '@/integrations/supabase/types';
+import { normalizeStepConfig } from '@/lib/normalizeStepConfig';
 
 export function useProject(projectId: string | undefined) {
   const queryClient = useQueryClient();
@@ -40,10 +41,10 @@ export function useProject(projectId: string | undefined) {
         .eq('project_id', projectId)
         .order('sort_order');
       if (error) throw error;
-      // Cast step_config to proper type
+      // Cast step_config to proper type and normalize legacy values
       return (data || []).map(poi => ({
         ...poi,
-        step_config: (poi.step_config || {}) as StepConfig,
+        step_config: normalizeStepConfig((poi.step_config || {}) as StepConfig),
       })) as POI[];
     },
     enabled: !!projectId,

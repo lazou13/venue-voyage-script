@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Settings2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Settings2, Copy, Wand2 } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
-import { usePOIs } from '@/hooks/usePOIs';
+import { usePOIs, DEFAULT_STEP_CONFIG, DEFAULT_SCORING } from '@/hooks/usePOIs';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EnumSelect } from './shared/EnumSelect';
 import { I18nInput } from './shared/I18nInput';
+import { stepConfigHasMissingDefaults } from '@/lib/normalizeStepConfig';
 import type { 
   POI, 
   StepType, 
@@ -30,7 +31,7 @@ interface StepsBuilderStepProps {
 
 export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
   const { pois, project } = useProject(projectId);
-  const { updatePOI } = usePOIs(projectId);
+  const { updatePOI, duplicatePOI, applyDefaultsToAll } = usePOIs(projectId);
   const { toast } = useToast();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -43,6 +44,38 @@ export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
       { onSuccess: () => toast({ title: 'Sauvegardé' }) }
     );
   };
+
+  const handleDuplicate = (poi: POI) => {
+    duplicatePOI.mutate(poi, {
+      onSuccess: () => toast({ title: 'Étape dupliquée', description: `${poi.name} (copie) créée` }),
+      onError: (err) => toast({ title: 'Erreur', description: String(err), variant: 'destructive' }),
+    });
+  };
+
+  const handleApplyDefaults = () => {
+    const stepsNeedingDefaults = pois.filter(p => stepConfigHasMissingDefaults(p.step_config));
+    if (stepsNeedingDefaults.length === 0) {
+      toast({ title: 'Rien à appliquer', description: 'Toutes les étapes ont déjà des valeurs définies' });
+      return;
+    }
+    
+    applyDefaultsToAll.mutate(
+      {
+        stepType: DEFAULT_STEP_CONFIG.stepType,
+        validationMode: DEFAULT_STEP_CONFIG.validationMode,
+        scoring: DEFAULT_SCORING,
+      },
+      {
+        onSuccess: () => toast({ 
+          title: 'Défauts appliqués', 
+          description: `${stepsNeedingDefaults.length} étape(s) mises à jour` 
+        }),
+        onError: (err) => toast({ title: 'Erreur', description: String(err), variant: 'destructive' }),
+      }
+    );
+  };
+
+  const stepsWithMissingDefaults = pois.filter(p => stepConfigHasMissingDefaults(p.step_config)).length;
 
   if (pois.length === 0) {
     return (
@@ -65,7 +98,20 @@ export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
             Définissez le type, la validation et le contenu de chaque étape
           </p>
         </div>
-        <Badge variant="outline">{pois.length} étapes</Badge>
+        <div className="flex items-center gap-2">
+          {stepsWithMissingDefaults > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleApplyDefaults}
+              disabled={applyDefaultsToAll.isPending}
+            >
+              <Wand2 className="w-4 h-4 mr-1" />
+              Appliquer défauts ({stepsWithMissingDefaults})
+            </Button>
+          )}
+          <Badge variant="outline">{pois.length} étapes</Badge>
+        </div>
       </div>
 
       {pois.map((poi, index) => (
@@ -76,7 +122,9 @@ export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
           isExpanded={expandedId === poi.id}
           onToggle={() => setExpandedId(expandedId === poi.id ? null : poi.id)}
           onUpdateConfig={(updates) => updateStepConfig(poi.id, poi.step_config || {}, updates)}
+          onDuplicate={() => handleDuplicate(poi)}
           languages={languages}
+          isDuplicating={duplicatePOI.isPending}
         />
       ))}
     </div>
@@ -89,7 +137,9 @@ interface StepConfigCardProps {
   isExpanded: boolean;
   onToggle: () => void;
   onUpdateConfig: (updates: Partial<StepConfig>) => void;
+  onDuplicate: () => void;
   languages: SupportedLanguage[];
+  isDuplicating: boolean;
 }
 
 function StepConfigCard({
@@ -98,7 +148,9 @@ function StepConfigCard({
   isExpanded,
   onToggle,
   onUpdateConfig,
+  onDuplicate,
   languages,
+  isDuplicating,
 }: StepConfigCardProps) {
   const config = poi.step_config || {};
 
@@ -135,6 +187,15 @@ function StepConfigCard({
                 Contenu manquant
               </Badge>
             )}
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+              disabled={isDuplicating}
+              title="Dupliquer l'étape"
+            >
+              <Copy className="w-4 h-4" />
+            </Button>
             <Button variant="ghost" size="icon">
               {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </Button>
