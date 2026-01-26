@@ -1,126 +1,159 @@
 
-# Plan : Corriger les checkboxes multi-sélection qui ne fonctionnent pas
+# Plan : Corriger les clics sur les langues et rendre l'écriture fluide
 
-## Problème identifié
+## Problemes identifiés
 
-Le composant `EnumCheckboxGroup` utilise un `<label>` HTML natif qui entoure le `Checkbox` de Radix UI. Cela crée un conflit d'événements :
+### 1. Checkboxes des langues ne cliquent pas bien
+Le composant `EnumCheckboxGroup` a été corrigé pour le conteneur (`<div role="button">`), mais la checkbox Radix elle-même a `onCheckedChange={() => {}}` - elle ne fait rien quand on clique directement dessus.
 
-1. Le `<label>` natif intercepte le clic et tente de toggler l'input interne
-2. Le `Checkbox` de Radix gère également le clic via `onCheckedChange`
-3. Ces deux comportements entrent en conflit, causant un double-toggle (le checkbox revient à son état initial) ou aucune action
+### 2. L'écriture n'est pas fluide
+Chaque frappe dans un champ texte (titre, histoire, notes, objectifs, contraintes) déclenche immédiatement :
+- `updateProject.mutate()` ou `updateCoreDetails()`
+- Un appel réseau vers Supabase
+- Un toast "Sauvegardé"
 
-## Solution
+Resultat : lag, curseur qui saute, perte de caractères lors de la frappe rapide.
 
-Remplacer le `<label>` HTML natif par un `<div>` avec un gestionnaire `onClick` explicite, et gérer le toggle manuellement sans dépendre du comportement natif label/input.
+### 3. Race conditions sur les mutations
+Les mutations `updateProject` (useProject.ts) et `updatePOI` (usePOIs.ts) n'ont pas de mise a jour optimiste. Entre deux clics rapides, l'UI n'a pas encore recu la nouvelle valeur du backend, donc le 2e clic ecrase le 1er.
 
-## Fichier à modifier
+## Solution proposée
 
-### src/components/intake/shared/EnumCheckboxGroup.tsx
+### A. Corriger le clic direct sur les checkboxes
 
-**Changements :**
+**Fichier : `src/components/intake/shared/EnumCheckboxGroup.tsx`**
 
-1. Remplacer `<label>` par `<div>` avec `role="button"` pour l'accessibilité
-2. Ajouter un `onClick` sur le conteneur qui appelle `handleToggle`
-3. Passer `onClick={(e) => e.stopPropagation()}` sur le `Checkbox` pour éviter le double-toggle
-4. Garder le `Checkbox` comme indicateur visuel uniquement (contrôlé par l'état parent)
-
-**Code final :**
-
+Changer :
 ```tsx
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
+onCheckedChange={() => {}}
+```
+Par :
+```tsx
+onCheckedChange={() => handleToggle(typedKey)}
+```
 
-interface EnumCheckboxGroupProps<T extends string> {
-  label: string;
-  values: T[];
-  onChange: (values: T[]) => void;
-  options: Record<T, string>;
-  disabled?: boolean;
-  requiredValues?: T[];
-}
+Ainsi cliquer sur la petite case OU sur le chip fonctionne. Le `stopPropagation` empeche le double-toggle.
 
-export function EnumCheckboxGroup<T extends string>({
-  label,
-  values,
-  onChange,
-  options,
-  disabled = false,
-  requiredValues = [],
-}: EnumCheckboxGroupProps<T>) {
-  const handleToggle = (key: T) => {
-    if (disabled || requiredValues.includes(key)) return;
-    
-    const isCurrentlyChecked = values.includes(key);
-    if (isCurrentlyChecked) {
-      onChange(values.filter((v) => v !== key));
-    } else {
-      onChange([...values, key]);
-    }
-  };
+### B. Ajouter du debounce sur les champs texte
 
-  return (
-    <div className="space-y-2">
-      <Label className="text-sm">{label}</Label>
-      <div className="flex flex-wrap gap-2">
-        {Object.entries(options).map(([key, labelText]) => {
-          const typedKey = key as T;
-          const isRequired = requiredValues.includes(typedKey);
-          const isChecked = values.includes(typedKey);
-          const isDisabled = disabled || isRequired;
-          
-          return (
-            <div
-              key={key}
-              role="button"
-              tabIndex={isDisabled ? -1 : 0}
-              onClick={() => handleToggle(typedKey)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleToggle(typedKey);
-                }
-              }}
-              className={`flex items-center gap-2 px-3 py-2 border rounded-lg transition-colors select-none ${
-                isChecked
-                  ? 'bg-primary/10 border-primary'
-                  : 'bg-background hover:bg-muted'
-              } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            >
-              <Checkbox
-                checked={isChecked}
-                disabled={isDisabled}
-                tabIndex={-1}
-                onClick={(e) => e.stopPropagation()}
-                onCheckedChange={() => {}}
-              />
-              <span className="text-sm">
-                {labelText as string}
-                {isRequired && <span className="text-destructive ml-1">*</span>}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
+**Nouveau fichier : `src/hooks/useDebounce.ts`**
+
+Hook simple pour debouncer les valeurs :
+```tsx
+import { useState, useEffect } from 'react';
+
+export function useDebounce<T>(value: T, delay: number = 500): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+
+  return debouncedValue;
 }
 ```
 
-## Changements clés
+**Fichier : `src/components/intake/CoreStep.tsx`**
 
-| Avant | Après |
-|-------|-------|
-| `<label>` HTML natif | `<div role="button">` |
-| Toggle via `onCheckedChange` | Toggle via `onClick` sur le conteneur |
-| Conflit label/Radix | Checkbox comme indicateur visuel seul |
-| `cursor-pointer` sur label | `cursor-pointer` conditionnel selon `disabled` |
+Modifier les champs texte pour utiliser un etat local + debounce :
+- Titre i18n : etat local qui se synchronise apres 500ms
+- Histoire i18n : idem
+- Objectifs business : idem
+- Contraintes : idem
+- Duree/Difficulte : idem
 
-## Vérification après implémentation
+Architecture :
+```text
+[Input local] --frappe--> [localValue] --500ms--> [updateProject.mutate()]
+```
 
-1. Ouvrir l'onglet Terrain sur le projet "Nouvel Hôtel"
-2. Cliquer sur "Modifier" pour l'étape 2
-3. Dans "Possibilités d'étape", cliquer sur "QCM" → doit cocher
-4. Cliquer sur "Photo" → doit cocher (maintenant 3 options cochées)
-5. Cliquer sur "Énigme" → doit décocher
-6. Fermer et rouvrir → vérifier que les sélections persistent
-7. Dans "Possibilités de validation", répéter le test avec "QR Code" et "Photo"
+**Fichier : `src/components/intake/shared/I18nInput.tsx`**
+
+Modifier pour accepter un mode "controlled with debounce" :
+- Ajouter un etat local pour la valeur en cours de frappe
+- Synchroniser avec la prop `value` quand elle change depuis l'exterieur
+- Appeler `onChange` seulement apres 500ms d'inactivite
+
+### C. Ajouter des mises a jour optimistes
+
+**Fichier : `src/hooks/useProject.ts`**
+
+Ajouter sur `updateProject` mutation :
+```tsx
+onMutate: async (updates) => {
+  await queryClient.cancelQueries({ queryKey: ['project', projectId] });
+  const previousProject = queryClient.getQueryData(['project', projectId]);
+  
+  queryClient.setQueryData(['project', projectId], (old: Project | null) => 
+    old ? { ...old, ...updates } : old
+  );
+  
+  return { previousProject };
+},
+onError: (err, updates, context) => {
+  if (context?.previousProject) {
+    queryClient.setQueryData(['project', projectId], context.previousProject);
+  }
+},
+onSettled: () => {
+  queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+},
+```
+
+**Fichier : `src/hooks/usePOIs.ts`**
+
+Meme pattern pour `updatePOI` :
+```tsx
+onMutate: async ({ id, ...updates }) => {
+  await queryClient.cancelQueries({ queryKey: ['pois', projectId] });
+  const previousPois = queryClient.getQueryData(['pois', projectId]);
+  
+  queryClient.setQueryData(['pois', projectId], (old: POI[] | undefined) => 
+    old?.map(poi => poi.id === id ? { ...poi, ...updates } : poi) || []
+  );
+  
+  return { previousPois };
+},
+onError: (err, updates, context) => {
+  if (context?.previousPois) {
+    queryClient.setQueryData(['pois', projectId], context.previousPois);
+  }
+},
+onSettled: () => {
+  queryClient.invalidateQueries({ queryKey: ['pois', projectId] });
+},
+```
+
+## Fichiers a modifier
+
+| Fichier | Changement |
+|---------|------------|
+| `src/components/intake/shared/EnumCheckboxGroup.tsx` | Activer onCheckedChange sur Checkbox |
+| `src/hooks/useDebounce.ts` | Nouveau - hook debounce |
+| `src/components/intake/shared/I18nInput.tsx` | Ajouter etat local + debounce interne |
+| `src/components/intake/CoreStep.tsx` | Utiliser debounce pour les champs texte |
+| `src/hooks/useProject.ts` | Ajouter optimistic update sur updateProject |
+| `src/hooks/usePOIs.ts` | Ajouter optimistic update sur updatePOI |
+
+## Verification apres implementation
+
+### Test des checkboxes langues
+1. Aller sur l'onglet Quete (Core)
+2. Dans la section Langues, cliquer sur la case "English"
+3. Verifier qu'elle se coche instantanement
+4. Cliquer rapidement sur "Espanol" puis "Darija"
+5. Les 3 doivent rester cochees
+
+### Test de l'ecriture fluide
+1. Dans "Titre de la quete", taper rapidement "Mon super titre"
+2. Le texte doit s'afficher sans lag ni saut de curseur
+3. Attendre 500ms - le toast "Sauvegarde" apparait
+4. Recharger la page - le titre est bien sauvegarde
+
+### Test des etapes (Terrain)
+1. Ouvrir une etape en mode edition
+2. Cliquer rapidement sur 3 types d'etape differents
+3. Les 3 doivent rester coches
+4. Taper dans le champ Notes rapidement
+5. Pas de lag, sauvegarde apres 500ms d'inactivite
