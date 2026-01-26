@@ -60,7 +60,6 @@ const LEGACY_STEP_TYPE_MAP: Record<string, StepType> = {
   'mémoire': 'memory',
   'memoire': 'memory',
   'défi': 'defi',
-  'defi': 'defi',
   // English/legacy variants
   'question': 'mcq',
   'quiz': 'mcq',
@@ -76,7 +75,7 @@ const LEGACY_STEP_TYPE_MAP: Record<string, StepType> = {
   'secret code': 'code',
   'challenge': 'defi',
   'field': 'terrain',
-  // Passthrough canonical values
+  // Passthrough canonical values (all 11 step types)
   'story': 'story',
   'information': 'information',
   'mcq': 'mcq',
@@ -87,6 +86,7 @@ const LEGACY_STEP_TYPE_MAP: Record<string, StepType> = {
   'gps': 'gps',
   'photo': 'photo',
   'terrain': 'terrain',
+  'defi': 'defi',
 };
 
 /**
