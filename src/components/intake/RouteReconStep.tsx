@@ -4,7 +4,7 @@ import {
   Circle, Square, Plus, Download, Trash2, Clock, Ruler, MapPinned
 } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
-import { useRouteRecorder, exportTraceAsGeoJSON, RouteTrace } from '@/hooks/useRouteRecorder';
+import { useRouteRecorder, exportTraceAsGeoJSON, RouteTrace, RecordingMode } from '@/hooks/useRouteRecorder';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Dialog,
   DialogContent,
@@ -64,6 +65,9 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
   const questConfig = project?.quest_config || {};
   const details = questConfig.route_recon_details || {};
 
+  // Recording mode state
+  const [recordingMode, setRecordingMode] = useState<RecordingMode>('walking');
+
   // Route recorder hook
   const {
     isRecording,
@@ -78,7 +82,7 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
     stopRecording,
     addMarker,
     deleteTrace,
-  } = useRouteRecorder(projectId);
+  } = useRouteRecorder(projectId, recordingMode);
 
   // UI state
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
@@ -195,6 +199,35 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Mode selector */}
+            <div className="flex items-center gap-4">
+              <Label className="text-sm font-medium">Mode:</Label>
+              <RadioGroup
+                value={recordingMode}
+                onValueChange={(v) => setRecordingMode(v as RecordingMode)}
+                className="flex gap-4"
+                disabled={isRecording}
+              >
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="walking" id="mode-walking" />
+                  <Label htmlFor="mode-walking" className="text-sm cursor-pointer">
+                    🚶 Marche
+                  </Label>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <RadioGroupItem value="scooter" id="mode-scooter" />
+                  <Label htmlFor="mode-scooter" className="text-sm cursor-pointer">
+                    🛵 Scooter
+                  </Label>
+                </div>
+              </RadioGroup>
+              {isRecording && (
+                <Badge variant="outline" className="text-xs">
+                  Max: {recordingMode === 'walking' ? '12' : '25'} m/s
+                </Badge>
+              )}
+            </div>
+
             {/* Recording controls */}
             <div className="flex items-center gap-3">
               {!isRecording ? (
