@@ -5,7 +5,7 @@ import {
   Zap, Camera, X, Check
 } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
-import { useRouteRecorder, exportTraceAsGeoJSON, RouteTrace, RecordingMode, RecordingStatus } from '@/hooks/useRouteRecorder';
+import { useRouteRecorder, exportTraceAsGeoJSON, buildMarkersCSV, RouteTrace, RecordingMode, RecordingStatus } from '@/hooks/useRouteRecorder';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
@@ -508,7 +508,28 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
             {/* Markers for selected trace */}
             {selectedTrace && markers.length > 0 && (
               <div className="space-y-2">
-                <Label className="text-sm font-medium">Marqueurs ({markers.length})</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">Marqueurs ({markers.length})</Label>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => {
+                      const csv = buildMarkersCSV(markers);
+                      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      const traceName = selectedTrace.name || new Date(selectedTrace.created_at).toISOString().slice(0, 10);
+                      a.download = `markers_${traceName}.csv`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                  >
+                    <Download className="w-3 h-3" />
+                    Exporter CSV
+                  </Button>
+                </div>
                 <div className="space-y-1">
                   {markers.map((marker, idx) => (
                     <div key={marker.id} className="flex items-start gap-2 p-2 rounded bg-muted/30 text-sm">

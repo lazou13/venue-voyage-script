@@ -560,3 +560,31 @@ export function exportTraceAsGeoJSON(trace: RouteTrace, markers: RouteMarker[]):
   
   return JSON.stringify(featureCollection, null, 2);
 }
+
+// Helper to escape CSV field values
+function escapeCSVField(value: string | null | undefined): string {
+  if (value == null) return '';
+  const str = String(value);
+  // If contains comma, quote, or newline, wrap in quotes and escape inner quotes
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+// Export helper for markers CSV
+export function buildMarkersCSV(markers: RouteMarker[]): string {
+  const header = 'title,note,lng,lat,created_at,photo_url';
+  const rows = markers.map((marker, idx) => {
+    const title = `Marker ${idx + 1}`;
+    return [
+      escapeCSVField(title),
+      escapeCSVField(marker.note),
+      marker.lng,
+      marker.lat,
+      escapeCSVField(marker.created_at),
+      escapeCSVField(marker.photo_url),
+    ].join(',');
+  });
+  return [header, ...rows].join('\n');
+}
