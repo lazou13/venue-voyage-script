@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { generateChecklist, generatePRD, generatePrompt } from '@/lib/outputGenerators';
+import { generateChecklist, generatePRD, generatePrompt, generateVisitReportMD } from '@/lib/outputGenerators';
 
 interface OutputsStepProps {
   projectId: string;
@@ -94,10 +94,14 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
   }
 
   const data = { project, pois, wifiZones, forbiddenZones, avatars };
+  const projectType = project.quest_config?.project_type || 'establishment';
+  const isIntakeProject = projectType !== 'route_recon';
+  
   const outputs = [
     { id: 'checklist', label: 'Checklist', content: generateChecklist(data) },
     { id: 'prd', label: 'PRD', content: generatePRD(data) },
     { id: 'prompt', label: 'Prompt', content: generatePrompt(data) },
+    ...(isIntakeProject ? [{ id: 'compte_rendu', label: 'Compte-rendu', content: generateVisitReportMD(data) }] : []),
   ];
 
   return (
@@ -130,9 +134,9 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
       )}
 
       <Tabs defaultValue="checklist">
-        <TabsList className="grid w-full grid-cols-3 mb-4">
+        <TabsList className={`grid w-full mb-4 ${isIntakeProject ? 'grid-cols-4' : 'grid-cols-3'}`}>
           {outputs.map((output) => (
-            <TabsTrigger key={output.id} value={output.id}>
+            <TabsTrigger key={output.id} value={output.id} className="text-xs sm:text-sm">
               {output.label}
             </TabsTrigger>
           ))}
@@ -158,7 +162,9 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
                     onClick={() =>
                       downloadFile(
                         output.content,
-                        `${project.hotel_name.replace(/\s+/g, '_')}_${output.id}.md`
+                        output.id === 'compte_rendu' 
+                          ? `compte_rendu_${project.hotel_name.replace(/\s+/g, '_')}.md`
+                          : `${project.hotel_name.replace(/\s+/g, '_')}_${output.id}.md`
                       )
                     }
                   >
