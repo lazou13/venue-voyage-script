@@ -113,6 +113,33 @@ export interface RouteReconDetails {
   safety_brief?: string[];
 }
 
+// ============= Decisions Validated (client sign-off checklist) =============
+export interface DecisionsValidated {
+  qr_allowed?: boolean;
+  photo_challenges_allowed?: boolean;
+  staff_involved?: boolean;
+  prizes_gifts?: boolean;
+  kids_mode?: boolean;
+  multilingual?: boolean;
+  restricted_zones_confirmed?: boolean;
+  avatar_style_approved?: boolean;
+  story_theme_approved?: boolean;
+  schedule_window_confirmed?: boolean;
+}
+
+export const DECISIONS_LABELS: Record<keyof DecisionsValidated, string> = {
+  qr_allowed: 'QR codes autorisés',
+  photo_challenges_allowed: 'Défis photo autorisés',
+  staff_involved: 'Staff impliqué',
+  prizes_gifts: 'Prix / cadeaux prévus',
+  kids_mode: 'Mode enfants activé',
+  multilingual: 'Contenu multilingue',
+  restricted_zones_confirmed: 'Zones restreintes confirmées',
+  avatar_style_approved: 'Style avatar approuvé',
+  story_theme_approved: 'Thème histoire approuvé',
+  schedule_window_confirmed: 'Créneau horaire confirmé',
+};
+
 // ============= Quest Config (stored in projects.quest_config) =============
 export interface QuestConfig {
   // Existing fields
@@ -137,6 +164,9 @@ export interface QuestConfig {
   multiSoloConfig?: MultiSoloConfig;
   // Storytelling / Narrator
   storytelling?: StorytellingConfig;
+  // Client decisions checklist
+  decisions_validated?: DecisionsValidated;
+  decisions_notes?: string;
 }
 
 // ============= Step Config (stored in pois.step_config) =============

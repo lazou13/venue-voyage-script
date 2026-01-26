@@ -195,6 +195,16 @@ export function useProject(projectId: string | undefined) {
       }
     }
 
+    // Decisions validated warning (non-blocking, only for non-route_recon)
+    const projectType = project?.quest_config?.project_type;
+    const decisionsValidated = project?.quest_config?.decisions_validated || {};
+    if (projectType && projectType !== 'route_recon') {
+      const hasAnyDecision = Object.values(decisionsValidated).some(v => v === true);
+      if (!hasAnyDecision) {
+        warnings.push('Aucune décision client validée');
+      }
+    }
+
     // Storytelling validation (blocking if enabled without narrator)
     const storytelling = project?.quest_config?.storytelling;
     if (storytelling?.enabled === true && !storytelling.narrator?.avatar_id) {
