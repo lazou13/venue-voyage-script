@@ -30,18 +30,18 @@ const hotelIndoorQR: QuestPreset = {
     hintRules: { maxHints: 3, autoRevealAfterSec: 120 },
   },
   stepDefaults: {
-    stepType: 'enigme',
-    validationMode: 'qr_code',
+    possible_step_types: ['enigme'],
+    possible_validation_modes: ['qr_code'],
     scoring: { ...DEFAULT_SCORING },
     hints: ['Indice 1', 'Indice 2', 'Indice 3'],
   },
 };
 
-// Preset: Outdoor GPS
-const outdoorGPS: QuestPreset = {
-  id: 'outdoor_gps',
-  name: 'GPS Extérieur',
-  description: 'Exploration en extérieur avec géolocalisation',
+// Preset: Outdoor Terrain (GPS removed)
+const outdoorTerrain: QuestPreset = {
+  id: 'outdoor_terrain',
+  name: 'Terrain Extérieur',
+  description: 'Exploration en extérieur avec validation terrain',
   icon: 'gps',
   questConfig: {
     questType: 'exploration',
@@ -56,8 +56,8 @@ const outdoorGPS: QuestPreset = {
     hintRules: { maxHints: 2, autoRevealAfterSec: 180 },
   },
   stepDefaults: {
-    stepType: 'gps',
-    validationMode: 'auto_gps',
+    possible_step_types: ['terrain', 'photo'],
+    possible_validation_modes: ['manual', 'photo'],
     scoring: {
       points: 15,
       hint_penalty: 3,
@@ -85,8 +85,8 @@ const familyFriendly: QuestPreset = {
     hintRules: { maxHints: 5, autoRevealAfterSec: 60 },
   },
   stepDefaults: {
-    stepType: 'mcq',
-    validationMode: 'manual',
+    possible_step_types: ['mcq', 'enigme'],
+    possible_validation_modes: ['manual'],
     scoring: {
       points: 10,
       hint_penalty: 0,
@@ -96,7 +96,7 @@ const familyFriendly: QuestPreset = {
   },
 };
 
-export const QUEST_PRESETS: QuestPreset[] = [hotelIndoorQR, outdoorGPS, familyFriendly];
+export const QUEST_PRESETS: QuestPreset[] = [hotelIndoorQR, outdoorTerrain, familyFriendly];
 
 export function getPresetById(id: string): QuestPreset | undefined {
   return QUEST_PRESETS.find(p => p.id === id);

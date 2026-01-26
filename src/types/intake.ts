@@ -6,8 +6,10 @@ export type DifficultyLevel = 'easy' | 'medium' | 'hard';
 
 // ============= New Quest Config enums =============
 export type QuestType = 'exploration' | 'sequential' | 'timed_race' | 'collaborative' | 'team_competition';
-export type StepType = 'story' | 'information' | 'mcq' | 'enigme' | 'code' | 'hangman' | 'memory' | 'gps' | 'photo' | 'terrain' | 'defi';
-export type ValidationMode = 'auto_gps' | 'qr_code' | 'manual' | 'photo' | 'code' | 'free';
+// GPS removed from StepType - use terrain for outdoor activities
+export type StepType = 'story' | 'information' | 'mcq' | 'enigme' | 'code' | 'hangman' | 'memory' | 'photo' | 'terrain' | 'defi';
+// GPS removed from ValidationMode - use manual for GPS-like validation
+export type ValidationMode = 'qr_code' | 'photo' | 'code' | 'manual' | 'free';
 export type PhotoValidationType = 'free' | 'reference' | 'qr_code';
 export type CompetitionMode = 'race' | 'score' | 'timed';
 export type TargetAudience = 'family' | 'couples' | 'corporate' | 'teens' | 'seniors';
@@ -125,14 +127,23 @@ export interface QuestConfig {
 
 // ============= Step Config (stored in pois.step_config) =============
 export interface StepConfig {
+  // Multi-select possibilities (new)
+  possible_step_types?: StepType[];
+  possible_validation_modes?: ValidationMode[];
+  // Final decision (optional, single select)
+  final_step_type?: StepType | null;
+  final_validation_mode?: ValidationMode | null;
+  // Legacy single values (kept for migration)
   stepType?: StepType;
   validationMode?: ValidationMode;
+  // Other config
   photoValidation?: PhotoValidationConfig;
-  gps?: GpsConfig;
   scoring?: ScoringConfig;
   hints?: string[];
   branching?: BranchingLogic;
   contentI18n?: I18nText;
+  // Migration warning flag
+  _gps_migrated_warning?: boolean;
 }
 
 // ============= Main interfaces =============
@@ -239,18 +250,16 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   code: 'Code secret',
   hangman: 'Pendu',
   memory: 'Memory',
-  gps: 'GPS',
   photo: 'Photo',
   terrain: 'Terrain',
   defi: 'Défi',
 };
 
 export const VALIDATION_MODE_LABELS: Record<ValidationMode, string> = {
-  auto_gps: 'GPS auto',
   qr_code: 'QR Code',
-  manual: 'Manuel',
   photo: 'Photo',
   code: 'Code',
+  manual: 'Manuel',
   free: 'Libre',
 };
 

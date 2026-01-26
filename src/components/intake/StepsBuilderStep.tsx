@@ -4,10 +4,11 @@ import { useProject } from '@/hooks/useProject';
 import { usePOIs, DEFAULT_STEP_CONFIG, DEFAULT_SCORING } from '@/hooks/usePOIs';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { EnumCheckboxGroup } from './shared/EnumCheckboxGroup';
 import { EnumSelect } from './shared/EnumSelect';
 import { I18nInput } from './shared/I18nInput';
 import { PresetSelector } from './PresetSelector';
@@ -152,7 +153,7 @@ export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
         <div>
           <h3 className="font-semibold">Configuration des Étapes</h3>
           <p className="text-sm text-muted-foreground">
-            Définissez le type, la validation et le contenu de chaque étape
+            Définissez les possibilités et le contenu de chaque étape
           </p>
         </div>
         <Badge variant="outline">{pois.length} étapes</Badge>
@@ -221,11 +222,15 @@ function StepConfigCard({
   const config = poi.step_config || {};
 
   const hasContent = config.contentI18n?.fr;
-  const hasType = config.stepType;
-  const hasValidation = config.validationMode;
+  const hasPossibleTypes = config.possible_step_types && config.possible_step_types.length > 0;
+  const hasPossibleModes = config.possible_validation_modes && config.possible_validation_modes.length > 0;
+  
+  // Summary badges
+  const typeCount = config.possible_step_types?.length || 0;
+  const modeCount = config.possible_validation_modes?.length || 0;
 
   return (
-    <Card className={!hasContent || !hasType ? 'border-amber-300' : ''}>
+    <Card className={!hasContent || !hasPossibleTypes || !hasPossibleModes ? 'border-amber-300' : ''}>
       <CardHeader className="py-3 cursor-pointer" onClick={onToggle}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -238,14 +243,19 @@ function StepConfigCard({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {hasType && (
+            {typeCount > 0 && (
               <Badge variant="secondary" className="text-xs">
-                {STEP_TYPE_LABELS[config.stepType!]}
+                {typeCount} type{typeCount > 1 ? 's' : ''}
               </Badge>
             )}
-            {hasValidation && (
+            {modeCount > 0 && (
               <Badge variant="outline" className="text-xs">
-                {VALIDATION_MODE_LABELS[config.validationMode!]}
+                {modeCount} valid.
+              </Badge>
+            )}
+            {config.final_step_type && (
+              <Badge variant="default" className="text-xs">
+                ✓ {STEP_TYPE_LABELS[config.final_step_type]}
               </Badge>
             )}
             {!hasContent && (
@@ -271,27 +281,74 @@ function StepConfigCard({
 
       {isExpanded && (
         <CardContent className="pt-0 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <EnumSelect<StepType>
-              label="Type d'étape"
-              value={config.stepType}
-              onChange={(v) => onUpdateConfig({ stepType: v })}
-              options={STEP_TYPE_LABELS}
-              placeholder="Sélectionner..."
-              required
-            />
+          {/* Multi-select: Step Types */}
+          <EnumCheckboxGroup<StepType>
+            label="Possibilités d'étape (multi-sélection)"
+            values={config.possible_step_types || []}
+            onChange={(values) => onUpdateConfig({ possible_step_types: values })}
+            options={STEP_TYPE_LABELS}
+          />
 
-            <EnumSelect<ValidationMode>
-              label="Mode de validation"
-              value={config.validationMode}
-              onChange={(v) => onUpdateConfig({ validationMode: v })}
-              options={VALIDATION_MODE_LABELS}
-              placeholder="Sélectionner..."
-            />
+          {/* Multi-select: Validation Modes */}
+          <EnumCheckboxGroup<ValidationMode>
+            label="Possibilités de validation (multi-sélection)"
+            values={config.possible_validation_modes || []}
+            onChange={(values) => onUpdateConfig({ possible_validation_modes: values })}
+            options={VALIDATION_MODE_LABELS}
+          />
+
+          {/* Optional: Final Decision Section */}
+          <div className="p-3 border rounded-lg bg-muted/30 space-y-3">
+            <p className="text-sm font-medium">Décision finale (optionnel)</p>
+            <p className="text-xs text-muted-foreground mb-2">
+              Choisissez le type et mode final si la décision est prise
+            </p>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm">Type final</Label>
+                <RadioGroup
+                  value={config.final_step_type || ''}
+                  onValueChange={(v) => onUpdateConfig({ final_step_type: v as StepType || null })}
+                  className="flex flex-wrap gap-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="" id={`${poi.id}-type-none`} />
+                    <Label htmlFor={`${poi.id}-type-none`} className="text-xs">Non décidé</Label>
+                  </div>
+                  {(config.possible_step_types || []).map((type) => (
+                    <div key={type} className="flex items-center space-x-2">
+                      <RadioGroupItem value={type} id={`${poi.id}-type-${type}`} />
+                      <Label htmlFor={`${poi.id}-type-${type}`} className="text-xs">{STEP_TYPE_LABELS[type]}</Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="text-sm">Validation finale</Label>
+                <RadioGroup
+                  value={config.final_validation_mode || ''}
+                  onValueChange={(v) => onUpdateConfig({ final_validation_mode: v as ValidationMode || null })}
+                  className="flex flex-wrap gap-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="" id={`${poi.id}-mode-none`} />
+                    <Label htmlFor={`${poi.id}-mode-none`} className="text-xs">Non décidé</Label>
+                  </div>
+                  {(config.possible_validation_modes || []).map((mode) => (
+                    <div key={mode} className="flex items-center space-x-2">
+                      <RadioGroupItem value={mode} id={`${poi.id}-mode-${mode}`} />
+                      <Label htmlFor={`${poi.id}-mode-${mode}`} className="text-xs">{VALIDATION_MODE_LABELS[mode]}</Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </div>
+            </div>
           </div>
 
-          {/* Photo validation options */}
-          {config.validationMode === 'photo' && (
+          {/* Photo validation options - show if photo mode is selected */}
+          {(config.possible_validation_modes?.includes('photo') || config.final_validation_mode === 'photo') && (
             <div className="p-3 border rounded-lg bg-muted/30 space-y-3">
               <EnumSelect<PhotoValidationType>
                 label="Type de validation photo"
@@ -308,7 +365,8 @@ function StepConfigCard({
                   <Label className="text-sm">
                     URL de référence <span className="text-destructive">*</span>
                   </Label>
-                  <Input
+                  <input
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     value={config.photoValidation?.referenceUrl || ''}
                     onChange={(e) => onUpdateConfig({ 
                       photoValidation: { ...config.photoValidation, referenceUrl: e.target.value } 
@@ -323,7 +381,8 @@ function StepConfigCard({
                   <Label className="text-sm">
                     Valeur QR attendue <span className="text-destructive">*</span>
                   </Label>
-                  <Input
+                  <input
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     value={config.photoValidation?.qrExpectedValue || ''}
                     onChange={(e) => onUpdateConfig({ 
                       photoValidation: { ...config.photoValidation, qrExpectedValue: e.target.value } 
@@ -335,53 +394,21 @@ function StepConfigCard({
             </div>
           )}
 
-          {/* GPS validation options */}
-          {config.validationMode === 'auto_gps' && (
+          {/* QR Code value - show if qr_code mode is selected */}
+          {(config.possible_validation_modes?.includes('qr_code') || config.final_validation_mode === 'qr_code') && (
             <div className="p-3 border rounded-lg bg-muted/30 space-y-3">
-              <p className="text-sm font-medium">Configuration GPS</p>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">
-                    Latitude <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    type="number"
-                    step="0.000001"
-                    value={config.gps?.lat || ''}
-                    onChange={(e) => onUpdateConfig({ 
-                      gps: { ...config.gps, lat: parseFloat(e.target.value) || undefined } 
-                    })}
-                    placeholder="48.8566"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">
-                    Longitude <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    type="number"
-                    step="0.000001"
-                    value={config.gps?.lng || ''}
-                    onChange={(e) => onUpdateConfig({ 
-                      gps: { ...config.gps, lng: parseFloat(e.target.value) || undefined } 
-                    })}
-                    placeholder="2.3522"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">
-                    Rayon (m) <span className="text-destructive">*</span>
-                  </Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={config.gps?.radius || ''}
-                    onChange={(e) => onUpdateConfig({ 
-                      gps: { ...config.gps, radius: parseInt(e.target.value) || undefined } 
-                    })}
-                    placeholder="10"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm">
+                  Valeur QR Code attendue <span className="text-destructive">*</span>
+                </Label>
+                <input
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  value={config.photoValidation?.qrExpectedValue || ''}
+                  onChange={(e) => onUpdateConfig({ 
+                    photoValidation: { ...config.photoValidation, qrExpectedValue: e.target.value } 
+                  })}
+                  placeholder="Valeur encodée dans le QR Code..."
+                />
               </div>
             </div>
           )}

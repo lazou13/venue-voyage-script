@@ -27,9 +27,10 @@ export function generateChecklist(data: OutputData): string {
   const questConfig = project.quest_config || {};
   
   // Determine validation requirements from steps
-  const validationModes = new Set(pois.map(p => p.step_config?.validationMode).filter(Boolean));
+  const validationModes = new Set(
+    pois.flatMap(p => p.step_config?.possible_validation_modes || [p.step_config?.validationMode].filter(Boolean))
+  );
   const hasQrValidation = validationModes.has('qr_code');
-  const hasGpsValidation = validationModes.has('auto_gps');
   const hasPhotoValidation = validationModes.has('photo');
   
   return `# FIELDWORK CHECKLIST
@@ -42,7 +43,6 @@ Quest Type: ${questConfig.questType ? QUEST_TYPE_LABELS[questConfig.questType] :
 ## 📱 ÉQUIPEMENT REQUIS
 
 ${hasQrValidation ? '- [ ] Scanner QR Code testé' : ''}
-${hasGpsValidation ? '- [ ] GPS activé et fonctionnel' : ''}
 ${hasPhotoValidation ? '- [ ] Appareil photo / caméra prêt' : ''}
 - [ ] Application installée et configurée
 - [ ] Connexion Wi-Fi vérifiée
@@ -68,13 +68,14 @@ ${pois.map((poi, i) => `- [ ] Étape ${i + 1}: ${poi.name} (${poi.zone})`).join(
 
 ${pois.map((poi, i) => {
   const config = poi.step_config || {};
+  const stepTypes = config.possible_step_types?.join(', ') || config.stepType || 'Non défini';
+  const validationModes = config.possible_validation_modes?.join(', ') || config.validationMode || 'Manuel';
   return `### ${i + 1}. ${poi.name}
 - Zone: ${poi.zone}
-- Type: ${config.stepType ? STEP_TYPE_LABELS[config.stepType] : 'Non défini'}
-- Validation: ${config.validationMode ? VALIDATION_MODE_LABELS[config.validationMode] : 'Manuelle'}
-${config.validationMode === 'auto_gps' ? `- GPS: ${config.gps?.lat || '?'}, ${config.gps?.lng || '?'} (rayon ${config.gps?.radius || '?'}m)` : ''}
-${config.validationMode === 'qr_code' ? '- [ ] QR Code installé et testé' : ''}
-${config.validationMode === 'photo' && config.photoValidation?.type === 'reference' ? '- [ ] Photo de référence prise' : ''}
+- Types possibles: ${stepTypes}
+- Validations possibles: ${validationModes}
+${config.possible_validation_modes?.includes('qr_code') || config.validationMode === 'qr_code' ? '- [ ] QR Code installé et testé' : ''}
+${(config.possible_validation_modes?.includes('photo') || config.validationMode === 'photo') && config.photoValidation?.type === 'reference' ? '- [ ] Photo de référence prise' : ''}
 - [ ] Accessibilité confirmée
 - [ ] Interaction testée
 `;
@@ -307,11 +308,13 @@ function getValidationSummary(config: POI['step_config']): string {
   if (!config) return '-';
   const parts: string[] = [];
   
-  if (config.validationMode === 'auto_gps' && config.gps) {
-    parts.push(`GPS(${config.gps.lat?.toFixed(4) || '?'},${config.gps.lng?.toFixed(4) || '?'},r${config.gps.radius || '?'}m)`);
-  } else if (config.validationMode === 'qr_code') {
+  // Handle multi-select modes
+  const modes = config.possible_validation_modes || (config.validationMode ? [config.validationMode] : []);
+  
+  if (modes.includes('qr_code')) {
     parts.push(`QR:${config.photoValidation?.qrExpectedValue || '?'}`);
-  } else if (config.validationMode === 'photo' && config.photoValidation) {
+  }
+  if (modes.includes('photo') && config.photoValidation) {
     if (config.photoValidation.type === 'reference') {
       parts.push(`Photo:ref${config.photoValidation.referenceUrl ? '✓' : '?'}`);
     } else if (config.photoValidation.type === 'qr_code') {
@@ -458,17 +461,18 @@ export function buildQuestExport(data: OutputData) {
   // Canonicalize quest-level scoring
   const canonicalQuestScoring = canonicalizeScoringKeys(questConfig.scoring);
 
-  // Build steps with canonical values
+  // Build steps with canonical values and multi-select arrays
   const steps = pois.map((poi, i) => {
     const config = poi.step_config || {};
     return {
       order: i + 1,
       name: poi.name,
       zone: poi.zone,
-      stepType: canonicalizeStepType(config.stepType),
-      validationMode: canonicalizeValidationMode(config.validationMode),
+      possible_step_types: config.possible_step_types || (config.stepType ? [config.stepType] : ['enigme']),
+      possible_validation_modes: config.possible_validation_modes || (config.validationMode ? [config.validationMode] : ['manual']),
+      final_step_type: config.final_step_type || null,
+      final_validation_mode: config.final_validation_mode || null,
       photoValidation: config.photoValidation,
-      gps: config.gps,
       scoring: canonicalizeScoringKeys(config.scoring),
       hints: config.hints,
       branching: config.branching,
