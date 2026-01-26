@@ -18,6 +18,12 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
   const { toast } = useToast();
   const validation = validate();
 
+  // Add avatar count warning (non-blocking)
+  const avatarCountWarning = 'Moins de 10 avatars disponibles (recommandé: 10+)';
+  if (avatars.length < 10 && !validation.warnings.includes(avatarCountWarning)) {
+    validation.warnings.push(avatarCountWarning);
+  }
+
   const copyToClipboard = (content: string, label: string) => {
     navigator.clipboard.writeText(content);
     toast({
