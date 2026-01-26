@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Route, AlertTriangle, MapPin, Shield, Navigation, 
   Circle, Square, Plus, Download, Trash2, Clock, Ruler, MapPinned,
-  Zap, Camera, X, Check, Copy
+  Zap, Camera, X, Check, Copy, Package
 } from 'lucide-react';
+import JSZip from 'jszip';
 import { useProject } from '@/hooks/useProject';
 import { useRouteRecorder, exportTraceAsGeoJSON, buildMarkersCSV, buildReconBriefMarkdown, RouteTrace, RouteMarker, RecordingMode, RecordingStatus } from '@/hooks/useRouteRecorder';
 import { useFileUpload } from '@/hooks/useFileUpload';
@@ -601,7 +602,7 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <Label className="text-sm font-medium">Marqueurs ({markers.length})</Label>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"
@@ -639,6 +640,61 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                     >
                       <Download className="w-3 h-3" />
                       CSV
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="gap-2"
+                      onClick={async () => {
+                        try {
+                          const zip = new JSZip();
+                          const traceName = selectedTrace.name || new Date(selectedTrace.created_at).toISOString().slice(0, 10);
+                          const dateStr = new Date().toISOString().slice(0, 10);
+                          
+                          // 1. brief_reperage.md
+                          const md = buildReconBriefMarkdown(selectedTrace, markers, recordingMode);
+                          zip.file('brief_reperage.md', md);
+                          
+                          // 2. markers.csv
+                          const csv = buildMarkersCSV(markers);
+                          zip.file('markers.csv', csv);
+                          
+                          // 3. photos.txt (marker_title\tphoto_url)
+                          const photosLines = markers
+                            .filter(m => m.photo_url)
+                            .map((m, idx) => `Marker ${idx + 1}\t${m.photo_url}`);
+                          zip.file('photos.txt', photosLines.join('\n'));
+                          
+                          // 4. meta.json
+                          const meta = {
+                            projectId: projectId,
+                            trackId: selectedTrace.id,
+                            trackName: traceName,
+                            createdAt: selectedTrace.created_at,
+                            exportedAt: new Date().toISOString(),
+                            mode: recordingMode,
+                            markerCount: markers.length,
+                            photoCount: photosLines.length,
+                          };
+                          zip.file('meta.json', JSON.stringify(meta, null, 2));
+                          
+                          // Generate and download
+                          const content = await zip.generateAsync({ type: 'blob' });
+                          const url = URL.createObjectURL(content);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `mission_pack_${traceName}_${dateStr}.zip`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                          
+                          toast({ title: 'Mission Pack exporté', description: '4 fichiers dans le ZIP' });
+                        } catch (err) {
+                          toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
+                        }
+                      }}
+                    >
+                      <Package className="w-3 h-3" />
+                      Pack (.zip)
                     </Button>
                   </div>
                 </div>
