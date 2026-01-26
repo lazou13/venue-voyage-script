@@ -250,6 +250,98 @@ ${decisionsSection}
 }
 
 /**
+ * Generate Visit Report markdown for intake projects
+ */
+export function generateVisitReportMD(data: OutputData): string {
+  const { project, pois, avatars = [] } = data;
+  const questConfig = project.quest_config || {};
+  const projectType = questConfig.project_type || 'establishment';
+  const core = questConfig.core || {};
+  const storytelling = questConfig.storytelling;
+  const decisions = questConfig.decisions_validated || {};
+  const decisionsNotes = questConfig.decisions_notes || '';
+
+  // Get narrator avatar if selected
+  const narratorAvatarId = storytelling?.enabled ? storytelling.narrator?.avatar_id : null;
+  const narratorAvatar = narratorAvatarId ? avatars.find(a => a.id === narratorAvatarId) : null;
+
+  // Build checked decisions list
+  const checkedDecisions = (Object.keys(DECISIONS_LABELS) as (keyof DecisionsValidated)[])
+    .filter(key => decisions[key] === true)
+    .map(key => DECISIONS_LABELS[key]);
+
+  // Build POI table rows
+  const poiTableRows = pois.map((poi, i) => {
+    const config = poi.step_config || {};
+    const stepTypes = (config.possible_step_types || [])
+      .map(t => STEP_TYPE_LABELS[t] || t)
+      .join(', ') || '-';
+    const validationModes = (config.possible_validation_modes || [])
+      .map(m => VALIDATION_MODE_LABELS[m] || m)
+      .join(', ') || '-';
+    const hasPhotoRef = config.photo_reference_required && config.reference_image_url ? '✓' : '-';
+    const note = poi.notes ? poi.notes.slice(0, 30) + (poi.notes.length > 30 ? '...' : '') : '-';
+    
+    return `| ${i + 1} | ${poi.name} | ${stepTypes} / ${validationModes} | ${hasPhotoRef} | ${note} |`;
+  }).join('\n');
+
+  return `# Compte-rendu visite — ${project.title_i18n?.fr || project.hotel_name}
+
+**Date:** ${project.visit_date ? new Date(project.visit_date).toLocaleDateString('fr-FR') : '_________________'}
+
+**Type projet:** ${PROJECT_TYPE_LABELS[projectType]}
+
+**Contact sur place:** _________________
+
+**Objectif business:**
+${(core.objective_business || []).map(o => `- ${o}`).join('\n') || '- _________________'}
+
+**Public cible / Mode de jeu / Langues:**
+- Public: ${(core.target_audience || []).map(a => TARGET_AUDIENCE_LABELS[a]).join(', ') || '-'}
+- Mode: ${questConfig.play_mode ? (questConfig.play_mode === 'solo' ? 'Solo' : questConfig.play_mode === 'team' ? 'Équipes' : questConfig.play_mode === 'one_vs_one' ? '1 vs 1' : 'Multi-joueurs') : '-'}
+- Langues: ${(core.languages || questConfig.languages || ['fr']).map(l => LANGUAGE_LABELS[l]).join(', ')}
+
+---
+
+## Storytelling
+
+**Thème validé:** ${project.theme || '_________________'}
+
+**Avatar narrateur choisi:** ${narratorAvatar ? `${narratorAvatar.name} (${narratorAvatar.persona})` : (storytelling?.enabled ? '⚠️ Non sélectionné' : 'Non activé')}
+
+**Notes:** _________________
+
+---
+
+## Décisions validées (client)
+
+${checkedDecisions.length > 0 ? checkedDecisions.map(d => `- ✅ ${d}`).join('\n') : '- _Aucune décision validée_'}
+
+**Notes décisions:** ${decisionsNotes || '_________________'}
+
+---
+
+## Parcours / POIs (résumé)
+
+**Nombre de POIs:** ${pois.length}
+
+| # | POI | Options possibles (types / validations) | Photo ref? | Note |
+|---|-----|----------------------------------------|------------|------|
+${poiTableRows || '| - | _Aucun POI_ | - | - | - |'}
+
+---
+
+## Prochaines étapes (interne)
+
+- [ ] _________________
+- [ ] _________________
+- [ ] _________________
+- [ ] _________________
+- [ ] _________________
+`;
+}
+
+/**
  * Build client decisions section for PRD (only for non-route_recon)
  */
 function buildDecisionsMarkdown(project: Project): string {
