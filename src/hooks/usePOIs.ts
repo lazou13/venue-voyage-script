@@ -3,6 +3,19 @@ import { supabase } from '@/integrations/supabase/client';
 import type { POI, StepConfig } from '@/types/intake';
 import type { Json } from '@/integrations/supabase/types';
 
+// Default step configuration for new steps
+const DEFAULT_STEP_CONFIG: StepConfig = {
+  stepType: 'enigme',
+  validationMode: 'manual',
+  scoring: {
+    points: 10,
+    hintPenalty: 2,
+    failPenalty: 5,
+  },
+  hints: [],
+  contentI18n: {},
+};
+
 export function usePOIs(projectId: string | undefined) {
   const queryClient = useQueryClient();
 
@@ -10,12 +23,21 @@ export function usePOIs(projectId: string | undefined) {
     mutationFn: async (poi: Omit<POI, 'id' | 'created_at' | 'project_id'>) => {
       if (!projectId) throw new Error('No project ID');
       const { step_config, ...rest } = poi;
+      // Merge with defaults
+      const mergedConfig: StepConfig = {
+        ...DEFAULT_STEP_CONFIG,
+        ...(step_config || {}),
+        scoring: {
+          ...DEFAULT_STEP_CONFIG.scoring,
+          ...(step_config?.scoring || {}),
+        },
+      };
       const { data, error } = await supabase
         .from('pois')
         .insert({ 
           ...rest, 
           project_id: projectId,
-          step_config: (step_config || {}) as unknown as Json
+          step_config: mergedConfig as unknown as Json
         })
         .select()
         .single();

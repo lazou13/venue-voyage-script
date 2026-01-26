@@ -150,27 +150,42 @@ export function useProject(projectId: string | undefined) {
     // Step-specific validations
     pois.forEach((poi, index) => {
       const config = poi.step_config || {};
+      const stepNum = index + 1;
       
       // GPS validation required for auto_gps
       if (config.validationMode === 'auto_gps') {
-        if (!config.gps?.lat || !config.gps?.lng || !config.gps?.radius) {
-          errors.push(`Étape ${index + 1}: coordonnées GPS requises`);
+        if (!config.gps?.lat) {
+          errors.push(`Étape ${stepNum}: latitude GPS requise (auto_gps)`);
+        }
+        if (!config.gps?.lng) {
+          errors.push(`Étape ${stepNum}: longitude GPS requise (auto_gps)`);
+        }
+        if (!config.gps?.radius) {
+          errors.push(`Étape ${stepNum}: rayon GPS requis (auto_gps)`);
+        }
+      }
+      
+      // QR code validation required
+      if (config.validationMode === 'qr_code') {
+        if (!config.photoValidation?.qrExpectedValue) {
+          errors.push(`Étape ${stepNum}: valeur QR attendue requise (qr_code)`);
         }
       }
       
       // Photo validation requirements
-      if (config.validationMode === 'photo' && config.photoValidation) {
-        if (config.photoValidation.type === 'reference' && !config.photoValidation.referenceUrl) {
-          errors.push(`Étape ${index + 1}: URL référence photo requise`);
+      if (config.validationMode === 'photo' || config.photoValidation?.type) {
+        const photoType = config.photoValidation?.type;
+        if (photoType === 'reference' && !config.photoValidation?.referenceUrl) {
+          errors.push(`Étape ${stepNum}: URL référence photo requise`);
         }
-        if (config.photoValidation.type === 'qr_code' && !config.photoValidation.qrExpectedValue) {
-          errors.push(`Étape ${index + 1}: valeur QR attendue requise`);
+        if (photoType === 'qr_code' && !config.photoValidation?.qrExpectedValue) {
+          errors.push(`Étape ${stepNum}: valeur QR attendue requise (photo_validation)`);
         }
       }
       
-      // i18n content check
+      // FR content is REQUIRED for every step (blocker)
       if (!config.contentI18n?.fr) {
-        warnings.push(`Étape ${index + 1}: contenu FR manquant`);
+        errors.push(`Étape ${stepNum}: contenu FR obligatoire`);
       }
     });
 
