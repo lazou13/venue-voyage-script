@@ -18,43 +18,57 @@ export function EnumCheckboxGroup<T extends string>({
   disabled = false,
   requiredValues = [],
 }: EnumCheckboxGroupProps<T>) {
-  const handleToggle = (key: T, checked: boolean) => {
-    if (requiredValues.includes(key)) return; // Can't uncheck required values
+  const handleToggle = (key: T) => {
+    if (disabled || requiredValues.includes(key)) return;
     
-    if (checked) {
-      onChange([...values, key]);
-    } else {
+    const isCurrentlyChecked = values.includes(key);
+    if (isCurrentlyChecked) {
       onChange(values.filter((v) => v !== key));
+    } else {
+      onChange([...values, key]);
     }
   };
 
   return (
     <div className="space-y-2">
       <Label className="text-sm">{label}</Label>
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-2">
         {Object.entries(options).map(([key, labelText]) => {
-          const isRequired = requiredValues.includes(key as T);
-          const isChecked = values.includes(key as T);
+          const typedKey = key as T;
+          const isRequired = requiredValues.includes(typedKey);
+          const isChecked = values.includes(typedKey);
+          const isDisabled = disabled || isRequired;
           
           return (
-            <label
+            <div
               key={key}
-              className={`flex items-center gap-2 px-3 py-2 border rounded-lg cursor-pointer transition-colors ${
+              role="button"
+              tabIndex={isDisabled ? -1 : 0}
+              onClick={() => handleToggle(typedKey)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleToggle(typedKey);
+                }
+              }}
+              className={`flex items-center gap-2 px-3 py-2 border rounded-lg transition-colors select-none ${
                 isChecked
                   ? 'bg-primary/10 border-primary'
                   : 'bg-background hover:bg-muted'
-              } ${disabled || isRequired ? 'opacity-75' : ''}`}
+              } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               <Checkbox
                 checked={isChecked}
-                onCheckedChange={(checked) => handleToggle(key as T, !!checked)}
-                disabled={disabled || isRequired}
+                disabled={isDisabled}
+                tabIndex={-1}
+                onClick={(e) => e.stopPropagation()}
+                onCheckedChange={() => {}}
               />
               <span className="text-sm">
                 {labelText as string}
                 {isRequired && <span className="text-destructive ml-1">*</span>}
               </span>
-            </label>
+            </div>
           );
         })}
       </div>
