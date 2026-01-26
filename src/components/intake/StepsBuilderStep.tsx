@@ -413,15 +413,15 @@ function StepConfigCard({
             </div>
           )}
 
-          {/* I18n Content */}
+          {/* I18n Content - now optional */}
           <I18nInput
-            label="Contenu de l'étape"
+            label="Contenu de l'étape (optionnel)"
             value={config.contentI18n || {}}
             onChange={(v) => onUpdateConfig({ contentI18n: v })}
             languages={languages}
             multiline
             rows={3}
-            frRequired
+            frRequired={false}
             placeholder="Décrivez l'énigme, l'instruction ou le contenu..."
           />
         </CardContent>

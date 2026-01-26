@@ -4,7 +4,7 @@ export interface QuestPreset {
   id: string;
   name: string;
   description: string;
-  icon: 'qr' | 'gps' | 'family';
+  icon: 'qr' | 'family' | 'corporate';
   questConfig: Partial<QuestConfig>;
   stepDefaults: Partial<StepConfig>;
 }
@@ -25,7 +25,7 @@ const hotelIndoorQR: QuestPreset = {
   questConfig: {
     questType: 'sequential',
     targetAudience: 'family',
-    teamConfig: { enabled: false },
+    play_mode: 'solo',
     scoring: { ...DEFAULT_SCORING },
     hintRules: { maxHints: 3, autoRevealAfterSec: 120 },
   },
@@ -34,36 +34,6 @@ const hotelIndoorQR: QuestPreset = {
     possible_validation_modes: ['qr_code'],
     scoring: { ...DEFAULT_SCORING },
     hints: ['Indice 1', 'Indice 2', 'Indice 3'],
-  },
-};
-
-// Preset: Outdoor Terrain (GPS removed)
-const outdoorTerrain: QuestPreset = {
-  id: 'outdoor_terrain',
-  name: 'Terrain Extérieur',
-  description: 'Exploration en extérieur avec validation terrain',
-  icon: 'gps',
-  questConfig: {
-    questType: 'exploration',
-    targetAudience: 'family',
-    teamConfig: { enabled: false },
-    scoring: {
-      points: 15,
-      hint_penalty: 3,
-      fail_penalty: 5,
-      time_bonus: 10,
-    },
-    hintRules: { maxHints: 2, autoRevealAfterSec: 180 },
-  },
-  stepDefaults: {
-    possible_step_types: ['terrain', 'photo'],
-    possible_validation_modes: ['manual', 'photo'],
-    scoring: {
-      points: 15,
-      hint_penalty: 3,
-      fail_penalty: 5,
-    },
-    hints: ['Cherchez près de...', 'C\'est dans la direction...'],
   },
 };
 
@@ -76,7 +46,8 @@ const familyFriendly: QuestPreset = {
   questConfig: {
     questType: 'sequential',
     targetAudience: 'family',
-    teamConfig: { enabled: true, competitionMode: 'score', maxTeams: 4, maxPlayersPerTeam: 6 },
+    play_mode: 'team',
+    teamConfig: { competitionMode: 'score', maxTeams: 4, maxPlayersPerTeam: 6 },
     scoring: {
       points: 10,
       hint_penalty: 0,
@@ -96,7 +67,38 @@ const familyFriendly: QuestPreset = {
   },
 };
 
-export const QUEST_PRESETS: QuestPreset[] = [hotelIndoorQR, outdoorTerrain, familyFriendly];
+// Preset: Corporate Team Building
+const corporateTeamBuilding: QuestPreset = {
+  id: 'corporate_team',
+  name: 'Team Building',
+  description: 'Challenge compétitif pour équipes corporate',
+  icon: 'corporate',
+  questConfig: {
+    questType: 'team_competition',
+    targetAudience: 'corporate',
+    play_mode: 'team',
+    teamConfig: { competitionMode: 'timed', maxTeams: 8, maxPlayersPerTeam: 5, timeLimitMinutes: 60 },
+    scoring: {
+      points: 15,
+      hint_penalty: 3,
+      fail_penalty: 5,
+      time_bonus: 10,
+    },
+    hintRules: { maxHints: 2, autoRevealAfterSec: 180 },
+  },
+  stepDefaults: {
+    possible_step_types: ['enigme', 'defi', 'code'],
+    possible_validation_modes: ['qr_code', 'code'],
+    scoring: {
+      points: 15,
+      hint_penalty: 3,
+      fail_penalty: 5,
+    },
+    hints: ['Indice 1', 'Indice 2'],
+  },
+};
+
+export const QUEST_PRESETS: QuestPreset[] = [hotelIndoorQR, familyFriendly, corporateTeamBuilding];
 
 export function getPresetById(id: string): QuestPreset | undefined {
   return QUEST_PRESETS.find(p => p.id === id);

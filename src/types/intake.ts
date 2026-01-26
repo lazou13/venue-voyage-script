@@ -12,8 +12,11 @@ export type StepType = 'story' | 'information' | 'mcq' | 'enigme' | 'code' | 'ha
 export type ValidationMode = 'qr_code' | 'photo' | 'code' | 'manual' | 'free';
 export type PhotoValidationType = 'free' | 'reference' | 'qr_code';
 export type CompetitionMode = 'race' | 'score' | 'timed';
-export type TargetAudience = 'family' | 'couples' | 'corporate' | 'teens' | 'seniors';
+// Extended target audiences
+export type TargetAudience = 'family' | 'couples' | 'corporate' | 'teens' | 'seniors' | 'kids' | 'friends';
 export type SupportedLanguage = 'fr' | 'en' | 'ar' | 'es' | 'ary';
+// New play mode enum
+export type PlayMode = 'solo' | 'team' | 'one_vs_one' | 'multi_solo';
 
 // ============= Project Type (new) =============
 export type ProjectType = 'establishment' | 'tourist_spot' | 'route_recon';
@@ -27,13 +30,19 @@ export interface I18nText {
   ary?: string;
 }
 
-// ============= Team Config =============
+// ============= Team Config (only used when play_mode=team) =============
 export interface TeamConfig {
-  enabled: boolean;
+  enabled?: boolean; // Legacy field
   competitionMode?: CompetitionMode;
   maxTeams?: number;
   maxPlayersPerTeam?: number;
   timeLimitMinutes?: number;
+}
+
+// ============= Multi Solo Config (only used when play_mode=multi_solo) =============
+export interface MultiSoloConfig {
+  maxPlayers?: number;
+  leaderboardEnabled?: boolean;
 }
 
 // ============= Scoring Config (snake_case keys) =============
@@ -123,6 +132,9 @@ export interface QuestConfig {
   establishment_details?: EstablishmentDetails;
   tourist_spot_details?: TouristSpotDetails;
   route_recon_details?: RouteReconDetails;
+  // New play mode system (required)
+  play_mode?: PlayMode;
+  multiSoloConfig?: MultiSoloConfig;
 }
 
 // ============= Step Config (stored in pois.step_config) =============
@@ -281,6 +293,8 @@ export const TARGET_AUDIENCE_LABELS: Record<TargetAudience, string> = {
   corporate: 'Corporate',
   teens: 'Ados',
   seniors: 'Seniors',
+  kids: 'Enfants',
+  friends: 'Amis',
 };
 
 export const LANGUAGE_LABELS: Record<SupportedLanguage, string> = {
@@ -295,4 +309,11 @@ export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   establishment: 'Établissement',
   tourist_spot: 'Site Touristique',
   route_recon: 'Reconnaissance Parcours',
+};
+
+export const PLAY_MODE_LABELS: Record<PlayMode, string> = {
+  solo: 'Solo',
+  team: 'Équipes',
+  one_vs_one: '1 vs 1',
+  multi_solo: 'Multi-joueurs (classement)',
 };
