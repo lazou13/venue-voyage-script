@@ -31,13 +31,13 @@ export interface TeamConfig {
   timeLimitMinutes?: number;
 }
 
-// ============= Scoring Config =============
+// ============= Scoring Config (snake_case keys) =============
 export interface ScoringConfig {
   points?: number;
-  hintPenalty?: number;
-  failPenalty?: number;
-  timeLimitSec?: number;
-  timeBonus?: number;
+  hint_penalty?: number;
+  fail_penalty?: number;
+  time_limit_sec?: number;
+  time_bonus?: number;
 }
 
 // ============= Branching Logic =============

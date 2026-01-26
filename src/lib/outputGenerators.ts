@@ -190,10 +190,10 @@ ${Object.entries(validationCounts).map(([mode, count]) =>
 
 ### 4.1 Scoring par défaut
 - **Points/étape**: ${scoring.points || 10}
-- **Pénalité indice**: ${scoring.hintPenalty || 2}
-- **Pénalité échec**: ${scoring.failPenalty || 5}
-- **Temps limite**: ${scoring.timeLimitSec ? `${scoring.timeLimitSec}s` : 'Illimité'}
-- **Bonus temps**: ${scoring.timeBonus || 0}
+- **Pénalité indice**: ${scoring.hint_penalty || 2}
+- **Pénalité échec**: ${scoring.fail_penalty || 5}
+- **Temps limite**: ${scoring.time_limit_sec ? `${scoring.time_limit_sec}s` : 'Illimité'}
+- **Bonus temps**: ${scoring.time_bonus || 0}
 
 ### 4.2 Indices
 - **Max indices**: ${questConfig.hintRules?.maxHints || 3}
@@ -249,13 +249,13 @@ function getValidationSummary(config: POI['step_config']): string {
   return parts.length > 0 ? parts.join(' ') : '-';
 }
 
-// Helper to build scoring summary
-function getScoringSummary(config: POI['step_config'], defaults: { points?: number; hintPenalty?: number; failPenalty?: number }): string {
+// Helper to build scoring summary (snake_case keys)
+function getScoringSummary(config: POI['step_config'], defaults: { points?: number; hint_penalty?: number; fail_penalty?: number }): string {
   const scoring = config?.scoring || {};
   const pts = scoring.points ?? defaults.points ?? 10;
-  const hint = scoring.hintPenalty ?? defaults.hintPenalty ?? 2;
-  const fail = scoring.failPenalty ?? defaults.failPenalty ?? 5;
-  const time = scoring.timeLimitSec ? `/${scoring.timeLimitSec}s` : '';
+  const hint = scoring.hint_penalty ?? defaults.hint_penalty ?? 2;
+  const fail = scoring.fail_penalty ?? defaults.fail_penalty ?? 5;
+  const time = scoring.time_limit_sec ? `/${scoring.time_limit_sec}s` : '';
   return `${pts}pts/-${hint}h/-${fail}f${time}`;
 }
 
@@ -360,10 +360,10 @@ ${teamConfig.timeLimitMinutes ? `- Time limit: ${teamConfig.timeLimitMinutes} mi
 
 ## SCORING DEFAULTS
 - Points/step: ${questConfig.scoring?.points || 10}
-- Hint penalty: ${questConfig.scoring?.hintPenalty || 2}
-- Fail penalty: ${questConfig.scoring?.failPenalty || 5}
-- Time limit: ${questConfig.scoring?.timeLimitSec ? `${questConfig.scoring.timeLimitSec}s` : 'none'}
-- Time bonus: ${questConfig.scoring?.timeBonus || 0}
+- Hint penalty: ${questConfig.scoring?.hint_penalty || 2}
+- Fail penalty: ${questConfig.scoring?.fail_penalty || 5}
+- Time limit: ${questConfig.scoring?.time_limit_sec ? `${questConfig.scoring.time_limit_sec}s` : 'none'}
+- Time bonus: ${questConfig.scoring?.time_bonus || 0}
 
 ## CONSTRAINTS
 - **Staff disponible**: ${project.staff_available ? 'Oui (peut participer)' : 'Non (autonome)'}

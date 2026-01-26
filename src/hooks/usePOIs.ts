@@ -3,14 +3,14 @@ import { supabase } from '@/integrations/supabase/client';
 import type { POI, StepConfig, ScoringConfig } from '@/types/intake';
 import type { Json } from '@/integrations/supabase/types';
 
-// Default step configuration for new steps - canonical keys
+// Default step configuration for new steps - canonical snake_case keys
 export const DEFAULT_STEP_CONFIG: StepConfig = {
   stepType: 'enigme',
   validationMode: 'manual',
   scoring: {
     points: 10,
-    hintPenalty: 2,
-    failPenalty: 5,
+    hint_penalty: 2,
+    fail_penalty: 5,
   },
   hints: [],
   contentI18n: {},
