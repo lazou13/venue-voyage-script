@@ -270,31 +270,15 @@ function getBranchingSummary(config: POI['step_config']): string {
   return parts.length > 0 ? parts.join(' ') : '-';
 }
 
-export function generatePrompt(data: OutputData): string {
+/**
+ * Build the canonical quest export object (used for JSON export)
+ */
+export function buildQuestExport(data: OutputData) {
   const { project, pois, wifiZones, forbiddenZones } = data;
   const questConfig = project.quest_config || {};
   const teamConfig = getTeamConfig(project.quest_config);
-  const defaultScoring = questConfig.scoring || {};
-  
-  // Build enhanced STEP_TABLE with all required columns
-  const stepTableHeader = '| # | Nom | Zone | Type | Validation | GPS/QR/Photo | Scoring | Hints | Branching | FR Content |';
-  const stepTableSeparator = '|---|-----|------|------|------------|--------------|---------|-------|-----------|------------|';
-  const stepTable = pois.map((poi, i) => {
-    const config = poi.step_config || {};
-    const orderIndex = poi.sort_order ?? i;
-    const stepType = config.stepType ? STEP_TYPE_LABELS[config.stepType] : 'enigme';
-    const validationMode = config.validationMode ? VALIDATION_MODE_LABELS[config.validationMode] : 'Manuel';
-    const validationSummary = getValidationSummary(config);
-    const scoringSummary = getScoringSummary(config, defaultScoring);
-    const hintsCount = config.hints?.length || 0;
-    const branchingSummary = getBranchingSummary(config);
-    const frExcerpt = config.contentI18n?.fr?.substring(0, 40) || '-';
-    
-    return `| ${orderIndex + 1} | ${poi.name} | ${poi.zone} | ${stepType} | ${validationMode} | ${validationSummary} | ${scoringSummary} | ${hintsCount} | ${branchingSummary} | ${frExcerpt}${config.contentI18n?.fr && config.contentI18n.fr.length > 40 ? '…' : ''} |`;
-  }).join('\n');
 
-  // Build QUEST_EXPORT_JSON
-  const questExport = {
+  return {
     quest: {
       type: questConfig.questType,
       targetAudience: questConfig.targetAudience,
@@ -332,6 +316,40 @@ export function generatePrompt(data: OutputData): string {
       resetTimeMins: project.reset_time_mins,
     },
   };
+}
+
+/**
+ * Generate the QUEST_EXPORT_JSON as a formatted string
+ */
+export function generateQuestExportJSON(data: OutputData): string {
+  return JSON.stringify(buildQuestExport(data), null, 2);
+}
+
+export function generatePrompt(data: OutputData): string {
+  const { project, pois, wifiZones, forbiddenZones } = data;
+  const questConfig = project.quest_config || {};
+  const teamConfig = getTeamConfig(project.quest_config);
+  const defaultScoring = questConfig.scoring || {};
+
+  // Build enhanced STEP_TABLE with all required columns
+  const stepTableHeader = '| # | Nom | Zone | Type | Validation | GPS/QR/Photo | Scoring | Hints | Branching | FR Content |';
+  const stepTableSeparator = '|---|-----|------|------|------------|--------------|---------|-------|-----------|------------|';
+  const stepTable = pois.map((poi, i) => {
+    const config = poi.step_config || {};
+    const orderIndex = poi.sort_order ?? i;
+    const stepType = config.stepType ? STEP_TYPE_LABELS[config.stepType] : 'enigme';
+    const validationMode = config.validationMode ? VALIDATION_MODE_LABELS[config.validationMode] : 'Manuel';
+    const validationSummary = getValidationSummary(config);
+    const scoringSummary = getScoringSummary(config, defaultScoring);
+    const hintsCount = config.hints?.length || 0;
+    const branchingSummary = getBranchingSummary(config);
+    const frExcerpt = config.contentI18n?.fr?.substring(0, 40) || '-';
+    
+    return `| ${orderIndex + 1} | ${poi.name} | ${poi.zone} | ${stepType} | ${validationMode} | ${validationSummary} | ${scoringSummary} | ${hintsCount} | ${branchingSummary} | ${frExcerpt}${config.contentI18n?.fr && config.contentI18n.fr.length > 40 ? '…' : ''} |`;
+  }).join('\n');
+
+  // Use the shared buildQuestExport function
+  const questExport = buildQuestExport(data);
 
   return `# PERFECT PRODUCTION PROMPT
 
