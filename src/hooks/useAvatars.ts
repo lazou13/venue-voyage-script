@@ -12,6 +12,20 @@ interface AvatarInsert {
   image_url: string;
 }
 
+// Placeholder avatar data for seeding
+const PLACEHOLDER_AVATARS: Omit<AvatarInsert, 'project_id'>[] = [
+  { name: 'Luna', style: 'cartoon', persona: 'guide_host', age: 'adult', outfit: 'modern', image_url: 'https://ui-avatars.com/api/?name=Luna&size=200&background=6366f1&color=fff&bold=true' },
+  { name: 'Max', style: 'realistic', persona: 'detective', age: 'adult', outfit: 'adventure', image_url: 'https://ui-avatars.com/api/?name=Max&size=200&background=22c55e&color=fff&bold=true' },
+  { name: 'Sofia', style: 'anime', persona: 'explorer', age: 'teen', outfit: 'modern', image_url: 'https://ui-avatars.com/api/?name=Sofia&size=200&background=ec4899&color=fff&bold=true' },
+  { name: 'Karim', style: 'semi_realistic', persona: 'historian', age: 'senior', outfit: 'traditional', image_url: 'https://ui-avatars.com/api/?name=Karim&size=200&background=f59e0b&color=fff&bold=true' },
+  { name: 'Yuki', style: 'minimal', persona: 'ai_assistant', age: 'adult', outfit: 'modern', image_url: 'https://ui-avatars.com/api/?name=Yuki&size=200&background=06b6d4&color=fff&bold=true' },
+  { name: 'Theo', style: 'cartoon', persona: 'mascot', age: 'child', outfit: 'adventure', image_url: 'https://ui-avatars.com/api/?name=Theo&size=200&background=8b5cf6&color=fff&bold=true' },
+  { name: 'Nadia', style: 'realistic', persona: 'local_character', age: 'adult', outfit: 'traditional', image_url: 'https://ui-avatars.com/api/?name=Nadia&size=200&background=ef4444&color=fff&bold=true' },
+  { name: 'Jade', style: 'anime', persona: 'villain_light', age: 'teen', outfit: 'luxury', image_url: 'https://ui-avatars.com/api/?name=Jade&size=200&background=10b981&color=fff&bold=true' },
+  { name: 'Omar', style: 'cartoon', persona: 'guide_host', age: 'adult', outfit: 'adventure', image_url: 'https://ui-avatars.com/api/?name=Omar&size=200&background=3b82f6&color=fff&bold=true' },
+  { name: 'Emma', style: 'semi_realistic', persona: 'explorer', age: 'adult', outfit: 'modern', image_url: 'https://ui-avatars.com/api/?name=Emma&size=200&background=d946ef&color=fff&bold=true' },
+];
+
 export function useAvatars(projectId: string | undefined) {
   const queryClient = useQueryClient();
 
@@ -56,10 +70,31 @@ export function useAvatars(projectId: string | undefined) {
     },
   });
 
+  // Seed 10 placeholder avatars (all global)
+  const seedPlaceholderAvatars = useMutation({
+    mutationFn: async () => {
+      const avatarsToInsert = PLACEHOLDER_AVATARS.map(avatar => ({
+        ...avatar,
+        project_id: null, // All placeholders are global
+      }));
+      
+      const { error } = await supabase
+        .from('avatars')
+        .insert(avatarsToInsert);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['avatars', projectId] });
+    },
+  });
+
   return {
     avatars: avatarsQuery.data || [],
     isLoading: avatarsQuery.isLoading,
     addAvatar,
     deleteAvatar,
+    seedPlaceholderAvatars,
+    isSeeding: seedPlaceholderAvatars.isPending,
   };
 }

@@ -1,11 +1,12 @@
-import { useState, useRef } from 'react';
-import { User, Plus, X, Check, Upload } from 'lucide-react';
+import { useState, useRef, useMemo } from 'react';
+import { User, Plus, X, Check, Upload, Search, Package } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Select,
   SelectContent,
@@ -26,6 +37,7 @@ import { useAvatars } from '@/hooks/useAvatars';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
 import type {
+  Avatar,
   AvatarStyle,
   AvatarAge,
   AvatarPersona,
@@ -50,12 +62,18 @@ const AVATAR_OUTFITS: AvatarOutfit[] = ['traditional', 'modern', 'luxury', 'adve
 
 export function StorytellingSection({ projectId }: StorytellingSectionProps) {
   const { project, updateProject } = useProject(projectId);
-  const { avatars, addAvatar, deleteAvatar } = useAvatars(projectId);
+  const { avatars, addAvatar, deleteAvatar, seedPlaceholderAvatars, isSeeding } = useAvatars(projectId);
   const { uploadFile, isUploading } = useFileUpload();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingAvatarId, setPendingAvatarId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterStyle, setFilterStyle] = useState<AvatarStyle | 'all'>('all');
+  const [filterPersona, setFilterPersona] = useState<AvatarPersona | 'all'>('all');
+  const [filterAge, setFilterAge] = useState<AvatarAge | 'all'>('all');
   const [formData, setFormData] = useState({
     name: '',
     style: 'cartoon' as AvatarStyle,
@@ -69,6 +87,24 @@ export function StorytellingSection({ projectId }: StorytellingSectionProps) {
   const questConfig = project?.quest_config || {};
   const storytelling = questConfig.storytelling || { enabled: false };
   const narratorAvatarId = storytelling.narrator?.avatar_id;
+
+  // Split avatars by scope
+  const globalAvatars = useMemo(() => avatars.filter(a => a.project_id === null), [avatars]);
+  const projectAvatars = useMemo(() => avatars.filter(a => a.project_id === projectId), [avatars, projectId]);
+
+  // Filter avatars client-side
+  const filterAvatars = (list: Avatar[]) => {
+    return list.filter(avatar => {
+      const matchesSearch = !searchQuery || avatar.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStyle = filterStyle === 'all' || avatar.style === filterStyle;
+      const matchesPersona = filterPersona === 'all' || avatar.persona === filterPersona;
+      const matchesAge = filterAge === 'all' || avatar.age === filterAge;
+      return matchesSearch && matchesStyle && matchesPersona && matchesAge;
+    });
+  };
+
+  const filteredGlobalAvatars = useMemo(() => filterAvatars(globalAvatars), [globalAvatars, searchQuery, filterStyle, filterPersona, filterAge]);
+  const filteredProjectAvatars = useMemo(() => filterAvatars(projectAvatars), [projectAvatars, searchQuery, filterStyle, filterPersona, filterAge]);
 
   const updateStorytelling = (updates: Partial<StorytellingConfig>) => {
     updateProject.mutate({
@@ -84,10 +120,36 @@ export function StorytellingSection({ projectId }: StorytellingSectionProps) {
   };
 
   const handleSelectAvatar = (avatarId: string) => {
-    updateStorytelling({
-      enabled: true,
-      narrator: { avatar_id: avatarId },
-    });
+    // If already selected, do nothing
+    if (avatarId === narratorAvatarId) return;
+
+    // If a narrator is already selected, show confirmation
+    if (narratorAvatarId) {
+      setPendingAvatarId(avatarId);
+      setConfirmDialogOpen(true);
+    } else {
+      // Direct selection
+      updateStorytelling({
+        enabled: true,
+        narrator: { avatar_id: avatarId },
+      });
+    }
+  };
+
+  const handleConfirmChange = () => {
+    if (pendingAvatarId) {
+      updateStorytelling({
+        enabled: true,
+        narrator: { avatar_id: pendingAvatarId },
+      });
+    }
+    setConfirmDialogOpen(false);
+    setPendingAvatarId(null);
+  };
+
+  const handleCancelChange = () => {
+    setConfirmDialogOpen(false);
+    setPendingAvatarId(null);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,6 +219,127 @@ export function StorytellingSection({ projectId }: StorytellingSectionProps) {
     }
   };
 
+  const handleSeedAvatars = async () => {
+    try {
+      await seedPlaceholderAvatars.mutateAsync();
+      toast({ title: '10 avatars placeholders ajoutés!' });
+    } catch {
+      toast({
+        title: 'Erreur',
+        description: 'Impossible d\'ajouter les avatars',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const clearFilters = () => {
+    setSearchQuery('');
+    setFilterStyle('all');
+    setFilterPersona('all');
+    setFilterAge('all');
+  };
+
+  const hasFilters = searchQuery || filterStyle !== 'all' || filterPersona !== 'all' || filterAge !== 'all';
+
+  // Avatar card renderer
+  const renderAvatarCard = (avatar: Avatar) => {
+    const isSelected = avatar.id === narratorAvatarId;
+    return (
+      <div
+        key={avatar.id}
+        onClick={() => storytelling.enabled && handleSelectAvatar(avatar.id)}
+        className={`relative group rounded-lg border-2 p-2 transition-all ${
+          storytelling.enabled ? 'cursor-pointer' : 'cursor-default opacity-75'
+        } ${
+          isSelected
+            ? 'border-primary bg-primary/10'
+            : 'border-border hover:border-primary/50 hover:bg-muted/50'
+        }`}
+      >
+        {/* Narrator badge */}
+        {isSelected && (
+          <Badge className="absolute -top-2 left-1/2 -translate-x-1/2 text-[10px] px-1.5 py-0 z-10">
+            Narrateur
+          </Badge>
+        )}
+        {/* Selection indicator */}
+        {isSelected && (
+          <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground rounded-full p-1 z-10">
+            <Check className="w-3 h-3" />
+          </div>
+        )}
+        {/* Delete button */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDeleteAvatar(avatar.id);
+          }}
+          className="absolute top-1 right-1 bg-destructive/80 text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+        >
+          <X className="w-3 h-3" />
+        </button>
+        {/* "Set as narrator" button on hover (only if storytelling enabled and not already selected) */}
+        {storytelling.enabled && !isSelected && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleSelectAvatar(avatar.id);
+            }}
+            className="absolute bottom-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] px-2 py-0.5 h-auto z-10"
+          >
+            Définir narrateur
+          </Button>
+        )}
+        {/* Avatar image */}
+        <div className="aspect-square rounded-md overflow-hidden bg-muted mb-2">
+          <img
+            src={avatar.image_url}
+            alt={avatar.name}
+            className="w-full h-full object-cover"
+          />
+        </div>
+        {/* Name */}
+        <p className="text-xs font-medium truncate text-center">
+          {avatar.name}
+        </p>
+        {/* Badges */}
+        <div className="flex flex-wrap gap-1 mt-1 justify-center">
+          <Badge variant="outline" className="text-[10px] px-1 py-0">
+            {AVATAR_PERSONA_LABELS[avatar.persona]}
+          </Badge>
+          <Badge variant="secondary" className="text-[10px] px-1 py-0">
+            {AVATAR_STYLE_LABELS[avatar.style]}
+          </Badge>
+        </div>
+      </div>
+    );
+  };
+
+  // Empty state component
+  const EmptyState = () => (
+    <div className="text-center py-8 space-y-4">
+      <Package className="w-12 h-12 mx-auto text-muted-foreground/50" />
+      <div>
+        <p className="text-sm text-muted-foreground">Aucun avatar disponible.</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Commencez par importer le pack de 10 avatars placeholders ou ajoutez vos propres avatars.
+        </p>
+      </div>
+      <Button
+        variant="outline"
+        onClick={handleSeedAvatars}
+        disabled={isSeeding}
+        className="mx-auto"
+      >
+        <Package className="w-4 h-4 mr-2" />
+        {isSeeding ? 'Import en cours...' : 'Importer le pack de 10 avatars'}
+      </Button>
+    </div>
+  );
+
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -178,94 +361,118 @@ export function StorytellingSection({ projectId }: StorytellingSectionProps) {
           />
         </div>
 
-        {/* Avatar Gallery (only when enabled) */}
-        {storytelling.enabled && (
+        {/* Add Avatar Button - always visible */}
+        <Button
+          variant="outline"
+          onClick={() => setDialogOpen(true)}
+          className="w-full"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Ajouter un avatar
+        </Button>
+
+        {/* Empty state */}
+        {avatars.length === 0 && <EmptyState />}
+
+        {/* Avatar Gallery with tabs (only show when avatars exist) */}
+        {avatars.length > 0 && (
           <>
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">
-                Avatar narrateur <span className="text-destructive">*</span>
-              </Label>
-              {avatars.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Aucun avatar disponible. Ajoutez-en un pour commencer.
-                </p>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {avatars.map((avatar) => {
-                    const isSelected = avatar.id === narratorAvatarId;
-                    return (
-                      <div
-                        key={avatar.id}
-                        onClick={() => handleSelectAvatar(avatar.id)}
-                        className={`relative group cursor-pointer rounded-lg border-2 p-2 transition-all ${
-                          isSelected
-                            ? 'border-primary bg-primary/10'
-                            : 'border-border hover:border-primary/50 hover:bg-muted/50'
-                        }`}
-                      >
-                        {/* Selection indicator */}
-                        {isSelected && (
-                          <div className="absolute -top-2 -right-2 bg-primary text-primary-foreground rounded-full p-1">
-                            <Check className="w-3 h-3" />
-                          </div>
-                        )}
-                        {/* Delete button */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteAvatar(avatar.id);
-                          }}
-                          className="absolute top-1 right-1 bg-destructive/80 text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                        {/* Avatar image */}
-                        <div className="aspect-square rounded-md overflow-hidden bg-muted mb-2">
-                          <img
-                            src={avatar.image_url}
-                            alt={avatar.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        {/* Name */}
-                        <p className="text-xs font-medium truncate text-center">
-                          {avatar.name}
-                        </p>
-                        {/* Badges */}
-                        <div className="flex flex-wrap gap-1 mt-1 justify-center">
-                          <Badge variant="outline" className="text-[10px] px-1 py-0">
-                            {AVATAR_PERSONA_LABELS[avatar.persona]}
-                          </Badge>
-                          <Badge variant="secondary" className="text-[10px] px-1 py-0">
-                            {AVATAR_STYLE_LABELS[avatar.style]}
-                          </Badge>
-                        </div>
-                        {/* Global/Project indicator */}
-                        {avatar.project_id === null && (
-                          <Badge variant="outline" className="text-[10px] px-1 py-0 mt-1 w-full justify-center">
-                            Global
-                          </Badge>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+            {/* Search and Filters */}
+            <div className="space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher par nom..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              
+              {/* Filter chips */}
+              <div className="flex flex-wrap gap-2">
+                <Select value={filterStyle} onValueChange={(v) => setFilterStyle(v as AvatarStyle | 'all')}>
+                  <SelectTrigger className="w-auto h-8 text-xs">
+                    <SelectValue placeholder="Style" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous styles</SelectItem>
+                    {AVATAR_STYLES.map(s => (
+                      <SelectItem key={s} value={s}>{AVATAR_STYLE_LABELS[s]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                <Select value={filterPersona} onValueChange={(v) => setFilterPersona(v as AvatarPersona | 'all')}>
+                  <SelectTrigger className="w-auto h-8 text-xs">
+                    <SelectValue placeholder="Persona" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous personas</SelectItem>
+                    {AVATAR_PERSONAS.map(p => (
+                      <SelectItem key={p} value={p}>{AVATAR_PERSONA_LABELS[p]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                <Select value={filterAge} onValueChange={(v) => setFilterAge(v as AvatarAge | 'all')}>
+                  <SelectTrigger className="w-auto h-8 text-xs">
+                    <SelectValue placeholder="Âge" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous âges</SelectItem>
+                    {AVATAR_AGES.map(a => (
+                      <SelectItem key={a} value={a}>{AVATAR_AGE_LABELS[a]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {hasFilters && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters} className="h-8 text-xs">
+                    Effacer filtres
+                  </Button>
+                )}
+              </div>
             </div>
 
-            {/* Add Avatar Button */}
-            <Button
-              variant="outline"
-              onClick={() => setDialogOpen(true)}
-              className="w-full"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Ajouter un avatar
-            </Button>
+            {/* Tabs for global vs project avatars */}
+            <Tabs defaultValue="library" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="library" className="text-xs">
+                  Bibliothèque ({filteredGlobalAvatars.length})
+                </TabsTrigger>
+                <TabsTrigger value="project" className="text-xs">
+                  Ce projet ({filteredProjectAvatars.length})
+                </TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="library" className="mt-3">
+                {filteredGlobalAvatars.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    {hasFilters ? 'Aucun avatar ne correspond aux filtres' : 'Aucun avatar global'}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {filteredGlobalAvatars.map(renderAvatarCard)}
+                  </div>
+                )}
+              </TabsContent>
+              
+              <TabsContent value="project" className="mt-3">
+                {filteredProjectAvatars.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    {hasFilters ? 'Aucun avatar ne correspond aux filtres' : 'Aucun avatar spécifique à ce projet'}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {filteredProjectAvatars.map(renderAvatarCard)}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
 
             {/* Validation hint */}
-            {!narratorAvatarId && (
+            {storytelling.enabled && !narratorAvatarId && (
               <p className="text-xs text-destructive">
                 Sélectionnez un avatar narrateur pour valider
               </p>
@@ -444,6 +651,22 @@ export function StorytellingSection({ projectId }: StorytellingSectionProps) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Confirm narrator change dialog */}
+        <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Changer de narrateur?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Un narrateur est déjà sélectionné. Voulez-vous le remplacer par cet avatar?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={handleCancelChange}>Annuler</AlertDialogCancel>
+              <AlertDialogAction onClick={handleConfirmChange}>Confirmer</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );

@@ -488,7 +488,7 @@ export function buildQuestExport(data: OutputData) {
   // Build project context based on project_type
   const projectContext = buildProjectContext(project);
 
-  // Build storytelling/narrator data
+  // Build storytelling/narrator data with fallback for deleted avatars
   const storytelling = questConfig.storytelling;
   let storytellingData: {
     enabled: boolean;
@@ -503,26 +503,38 @@ export function buildQuestExport(data: OutputData) {
         outfit: string;
       };
     } | null;
-  } = {
-    enabled: storytelling?.enabled || false,
-    narrator: null,
-  };
+    _warning?: string;
+  } | null = null;
 
-  if (storytelling?.enabled && storytelling.narrator?.avatar_id) {
-    const avatar = avatars.find(a => a.id === storytelling.narrator?.avatar_id);
-    if (avatar) {
-      storytellingData.narrator = {
-        avatar_id: avatar.id,
-        avatar_image_url: avatar.image_url,
-        avatar_tags: {
-          name: avatar.name,
-          style: avatar.style,
-          persona: avatar.persona,
-          age: avatar.age,
-          outfit: avatar.outfit,
-        },
-      };
+  // Only include storytelling block if enabled
+  if (storytelling?.enabled) {
+    storytellingData = {
+      enabled: true,
+      narrator: null,
+    };
+
+    if (storytelling.narrator?.avatar_id) {
+      const avatar = avatars.find(a => a.id === storytelling.narrator?.avatar_id);
+      if (avatar) {
+        storytellingData.narrator = {
+          avatar_id: avatar.id,
+          avatar_image_url: avatar.image_url,
+          avatar_tags: {
+            name: avatar.name,
+            style: avatar.style,
+            persona: avatar.persona,
+            age: avatar.age,
+            outfit: avatar.outfit,
+          },
+        };
+      } else {
+        // Avatar was deleted - add explicit warning
+        storytellingData._warning = 'narrator_avatar_deleted';
+      }
     }
+  } else {
+    // Storytelling disabled - include minimal block
+    storytellingData = { enabled: false, narrator: null };
   }
 
   return {
