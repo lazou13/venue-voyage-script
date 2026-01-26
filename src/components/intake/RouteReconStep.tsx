@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Route, AlertTriangle, MapPin, Shield, Navigation, 
   Circle, Square, Plus, Download, Trash2, Clock, Ruler, MapPinned,
-  Zap, Camera, X, Check
+  Zap, Camera, X, Check, Copy
 } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
-import { useRouteRecorder, exportTraceAsGeoJSON, buildMarkersCSV, buildReconBriefMarkdown, RouteTrace, RecordingMode, RecordingStatus } from '@/hooks/useRouteRecorder';
+import { useRouteRecorder, exportTraceAsGeoJSON, buildMarkersCSV, buildReconBriefMarkdown, RouteTrace, RouteMarker, RecordingMode, RecordingStatus } from '@/hooks/useRouteRecorder';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -32,8 +34,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { OptionMatrix } from './shared/OptionMatrix';
-import type { QuestConfig, RouteReconDetails } from '@/types/intake';
+import type { QuestConfig, RouteReconDetails, ProjectType, StepConfig } from '@/types/intake';
+import type { Json } from '@/integrations/supabase/types';
 
 // Check if admin mode is enabled
 const isAdminMode = import.meta.env.VITE_ADMIN_MODE === 'true';
@@ -105,6 +115,13 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
   const [quickMarkerNumber, setQuickMarkerNumber] = useState(1);
   const [isSavingQuickMarker, setIsSavingQuickMarker] = useState(false);
   const quickMarkerFileRef = useRef<HTMLInputElement>(null);
+
+  // Duplicate to project state
+  const navigate = useNavigate();
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [duplicateTargetType, setDuplicateTargetType] = useState<ProjectType>('establishment');
+  const [traceToDuplicate, setTraceToDuplicate] = useState<RouteTrace | null>(null);
+  const [isDuplicating, setIsDuplicating] = useState(false);
 
   // Fetch markers for selected trace
   const markersQuery = useTraceMarkers(selectedTraceId);
@@ -237,6 +254,80 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
     }
     setDeleteDialogOpen(false);
     setTraceToDelete(null);
+  };
+
+  // Duplicate trace to new project
+  const handleDuplicateToProject = async () => {
+    if (!traceToDuplicate) return;
+    
+    setIsDuplicating(true);
+    try {
+      // Fetch markers for this trace
+      const { data: traceMarkers, error: markersError } = await supabase
+        .from('route_markers')
+        .select('*')
+        .eq('trace_id', traceToDuplicate.id)
+        .order('created_at', { ascending: true });
+      
+      if (markersError) throw markersError;
+      
+      const traceName = traceToDuplicate.name || new Date(traceToDuplicate.created_at).toLocaleDateString('fr-FR');
+      
+      // Create new project
+      const { data: newProject, error: projectError } = await supabase
+        .from('projects')
+        .insert({
+          hotel_name: traceName,
+          city: '',
+          title_i18n: { fr: traceName } as unknown as Json,
+          story_i18n: {} as unknown as Json,
+          quest_config: { project_type: duplicateTargetType } as unknown as Json,
+        })
+        .select()
+        .single();
+      
+      if (projectError) throw projectError;
+      
+      // Create POIs from markers
+      if (traceMarkers && traceMarkers.length > 0) {
+        const defaultStepConfig: StepConfig = {
+          possible_step_types: [],
+          possible_validation_modes: [],
+          final_step_type: 'enigme',
+          final_validation_mode: 'manual',
+          scoring: { points: 10, hint_penalty: 2, fail_penalty: 5 },
+          hints: [],
+          contentI18n: {},
+        };
+        
+        const poisToInsert = traceMarkers.map((marker, idx) => ({
+          project_id: newProject.id,
+          name: `Marker ${idx + 1}`,
+          zone: `Zone ${idx + 1}`,
+          notes: marker.note || null,
+          photo_url: marker.photo_url || null,
+          sort_order: idx,
+          step_config: defaultStepConfig as unknown as Json,
+        }));
+        
+        const { error: poisError } = await supabase
+          .from('pois')
+          .insert(poisToInsert);
+        
+        if (poisError) throw poisError;
+      }
+      
+      toast({ title: 'Projet créé', description: `${traceMarkers?.length || 0} POIs importés` });
+      setDuplicateDialogOpen(false);
+      setTraceToDuplicate(null);
+      
+      // Navigate to new project
+      navigate(`/intake/${newProject.id}`);
+    } catch (err) {
+      toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setIsDuplicating(false);
+    }
   };
 
   const selectedTrace = traces.find(t => t.id === selectedTraceId);
@@ -479,6 +570,20 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
+                          title="Dupliquer en projet"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTraceToDuplicate(trace);
+                            setDuplicateDialogOpen(true);
+                          }}
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title="Exporter GeoJSON"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleExportGeoJSON(trace);
@@ -490,6 +595,7 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-destructive hover:text-destructive"
+                          title="Supprimer"
                           onClick={(e) => {
                             e.stopPropagation();
                             setTraceToDelete(trace.id);
@@ -833,6 +939,54 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Duplicate to Project Modal */}
+      <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Dupliquer en projet</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Créer un nouveau projet à partir de cette trace. Les marqueurs seront importés comme POIs.
+            </p>
+            <div className="space-y-2">
+              <Label>Type de projet cible</Label>
+              <Select
+                value={duplicateTargetType}
+                onValueChange={(v) => setDuplicateTargetType(v as ProjectType)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="establishment">Établissement (hôtel/venue)</SelectItem>
+                  <SelectItem value="tourist_spot">Spot touristique</SelectItem>
+                  <SelectItem value="route_recon">Repérage route</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {traceToDuplicate && (
+              <div className="p-3 rounded-md bg-muted/50 text-sm">
+                <p className="font-medium">
+                  {traceToDuplicate.name || new Date(traceToDuplicate.created_at).toLocaleDateString('fr-FR')}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {traceToDuplicate.geojson.coordinates.length} points GPS
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDuplicateDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleDuplicateToProject} disabled={isDuplicating}>
+              {isDuplicating ? 'Création...' : 'Créer le projet'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
