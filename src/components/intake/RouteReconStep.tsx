@@ -407,17 +407,23 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                 </Button>
               )}
 
-              {isRecording && !departureMarked && lastPosition && (
+              {isRecording && !departureMarked && (
                 <Button
                   onClick={async () => {
                     await addMarkerAtLastCoord('Point de départ');
                     setDepartureMarked(true);
                   }}
                   variant="outline"
-                  className="gap-2 border-green-500 text-green-600 hover:bg-green-50"
+                  className={cn(
+                    "gap-2",
+                    lastPosition 
+                      ? "border-green-500 text-green-600 hover:bg-green-50" 
+                      : "border-muted text-muted-foreground"
+                  )}
+                  disabled={!lastPosition}
                 >
                   <Flag className="w-4 h-4" />
-                  Marquer départ
+                  {lastPosition ? "Marquer départ" : "GPS en attente..."}
                 </Button>
               )}
 
