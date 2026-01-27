@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import IntakeForm from "./pages/IntakeForm";
 import AdminConfig from "./pages/AdminConfig";
 import Auth from "./pages/Auth";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/intake/:projectId" element={<IntakeForm />} />
           <Route path="/admin/config" element={<AdminConfig />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
