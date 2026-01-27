@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Route, AlertTriangle, MapPin, Shield, Navigation, 
   Circle, Square, Plus, Download, Trash2, Clock, Ruler, MapPinned,
-  Zap, Camera, X, Check, Copy, Package
+  Zap, Camera, X, Check, Copy, Package, Flag
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
 import { useProject } from '@/hooks/useProject';
 import { useRouteRecorder, exportTraceAsGeoJSON, buildMarkersCSV, buildReconBriefMarkdown, RouteTrace, RouteMarker, RecordingMode, RecordingStatus } from '@/hooks/useRouteRecorder';
@@ -115,6 +116,14 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
   const [quickMarkerNumber, setQuickMarkerNumber] = useState(1);
   const [isSavingQuickMarker, setIsSavingQuickMarker] = useState(false);
   const quickMarkerFileRef = useRef<HTMLInputElement>(null);
+  
+  // Departure marker state
+  const [departureMarked, setDepartureMarked] = useState(false);
+  
+  // Reset departure marker when recording stops
+  useEffect(() => {
+    if (!isRecording) setDepartureMarked(false);
+  }, [isRecording]);
 
   // Duplicate to project state
   const navigate = useNavigate();
@@ -398,6 +407,20 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                 </Button>
               )}
 
+              {isRecording && !departureMarked && lastPosition && (
+                <Button
+                  onClick={async () => {
+                    await addMarkerAtLastCoord('Point de départ');
+                    setDepartureMarked(true);
+                  }}
+                  variant="outline"
+                  className="gap-2 border-green-500 text-green-600 hover:bg-green-50"
+                >
+                  <Flag className="w-4 h-4" />
+                  Marquer départ
+                </Button>
+              )}
+
               {isRecording && (
                 <Button
                   onClick={handleQuickMarkerOpen}
@@ -410,6 +433,30 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                 </Button>
               )}
             </div>
+            
+            {/* GPS quality indicator */}
+            {isRecording && lastPosition && (
+              <div className="flex items-center gap-2 text-sm">
+                <div className={cn(
+                  "w-2 h-2 rounded-full",
+                  (lastPosition.accuracy || 0) <= 20 ? "bg-green-500" :
+                  (lastPosition.accuracy || 0) <= 40 ? "bg-yellow-500" : "bg-red-500"
+                )} />
+                <span className="text-muted-foreground">
+                  GPS: {lastPosition.accuracy?.toFixed(0) || '?'}m
+                </span>
+                {(lastPosition.accuracy || 0) > 40 && (
+                  <span className="text-amber-600 text-xs">(faible précision)</span>
+                )}
+              </div>
+            )}
+
+            {isRecording && !lastPosition && (
+              <div className="flex items-center gap-2 text-sm text-amber-600">
+                <AlertTriangle className="w-4 h-4" />
+                Recherche GPS en cours...
+              </div>
+            )}
 
             {/* Quick marker inline drawer */}
             {isRecording && quickMarkerOpen && (
