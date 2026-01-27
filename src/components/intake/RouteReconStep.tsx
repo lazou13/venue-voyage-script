@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Route, AlertTriangle, MapPin, Shield, Navigation, 
   Circle, Square, Plus, Download, Trash2, Clock, Ruler, MapPinned,
-  Zap, Camera, X, Check, Copy, Package, Flag
+  Zap, Camera, X, Check, Copy, Package, Flag, Compass
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
 import { useProject } from '@/hooks/useProject';
 import { useRouteRecorder, exportTraceAsGeoJSON, buildMarkersCSV, buildReconBriefMarkdown, RouteTrace, RouteMarker, RecordingMode, RecordingStatus } from '@/hooks/useRouteRecorder';
+import { RouteGuidanceView } from './RouteGuidanceView';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -131,6 +132,10 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
   const [duplicateTargetType, setDuplicateTargetType] = useState<ProjectType>('establishment');
   const [traceToDuplicate, setTraceToDuplicate] = useState<RouteTrace | null>(null);
   const [isDuplicating, setIsDuplicating] = useState(false);
+  
+  // Guidance view state
+  const [guidanceTrace, setGuidanceTrace] = useState<RouteTrace | null>(null);
+  const [guidanceMarkers, setGuidanceMarkers] = useState<RouteMarker[]>([]);
 
   // Fetch markers for selected trace
   const markersQuery = useTraceMarkers(selectedTraceId);
@@ -601,6 +606,25 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-primary hover:text-primary"
+                          title="Guidage"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            // Fetch markers for this trace
+                            const { data: traceMarkers } = await supabase
+                              .from('route_markers')
+                              .select('*')
+                              .eq('trace_id', trace.id)
+                              .order('created_at', { ascending: true });
+                            setGuidanceMarkers((traceMarkers || []) as RouteMarker[]);
+                            setGuidanceTrace(trace);
+                          }}
+                        >
+                          <Compass className="w-4 h-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -1076,6 +1100,18 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* Guidance View */}
+      {guidanceTrace && (
+        <RouteGuidanceView
+          trace={guidanceTrace}
+          markers={guidanceMarkers}
+          onClose={() => {
+            setGuidanceTrace(null);
+            setGuidanceMarkers([]);
+          }}
+        />
+      )}
     </div>
   );
 }
