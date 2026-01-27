@@ -341,42 +341,67 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
           </CardTitle>
         </CardHeader>
         
-        {/* Bandeau Guidage proéminent */}
-        {traces.filter(t => t.geojson.coordinates.length >= 2).length > 0 && (
-          <div className="mx-6 mb-2">
-            <div className="flex items-center gap-3 p-3 rounded-md bg-blue-50 border border-blue-200">
-              <Compass className="w-5 h-5 text-blue-600 flex-shrink-0" />
-              <div className="flex-1">
-                <p className="text-sm font-medium text-blue-900">Mode Guidage disponible</p>
-                <p className="text-xs text-blue-600">
-                  {traces.filter(t => t.geojson.coordinates.length >= 2).length} trace(s) prête(s)
-                </p>
+        {/* Bandeau Guidage proéminent - toujours visible */}
+        {(() => {
+          const validTraceCount = traces.filter(t => t.geojson.coordinates.length >= 2).length;
+          const hasValidTraces = validTraceCount > 0;
+          
+          return (
+            <div className="mx-6 mb-2">
+              <div className={`flex items-center gap-3 p-3 rounded-md border ${
+                hasValidTraces 
+                  ? 'bg-blue-50 border-blue-200' 
+                  : 'bg-muted/50 border-border'
+              }`}>
+                <Compass className={`w-5 h-5 flex-shrink-0 ${
+                  hasValidTraces ? 'text-blue-600' : 'text-muted-foreground'
+                }`} />
+                <div className="flex-1">
+                  <p className={`text-sm font-medium ${
+                    hasValidTraces ? 'text-blue-900' : 'text-muted-foreground'
+                  }`}>
+                    {hasValidTraces ? 'Mode Guidage disponible' : 'Mode Guidage'}
+                  </p>
+                  <p className={`text-xs ${
+                    hasValidTraces ? 'text-blue-600' : 'text-muted-foreground/70'
+                  }`}>
+                    {hasValidTraces 
+                      ? `${validTraceCount} trace(s) prête(s)` 
+                      : 'Enregistrez une trace pour activer'}
+                  </p>
+                </div>
+                <Button 
+                  variant="default" 
+                  className={`gap-2 ${
+                    hasValidTraces 
+                      ? 'bg-blue-600 hover:bg-blue-700' 
+                      : 'bg-muted text-muted-foreground cursor-not-allowed'
+                  }`}
+                  disabled={!hasValidTraces}
+                  onClick={async () => {
+                    if (!hasValidTraces) return;
+                    const validTraces = traces.filter(t => t.geojson.coordinates.length >= 2);
+                    const trace = selectedTrace && selectedTrace.geojson.coordinates.length >= 2 
+                      ? selectedTrace 
+                      : validTraces[0];
+                    
+                    const { data: traceMarkers } = await supabase
+                      .from('route_markers')
+                      .select('*')
+                      .eq('trace_id', trace.id)
+                      .order('created_at', { ascending: true });
+                    
+                    setGuidanceMarkers((traceMarkers || []) as RouteMarker[]);
+                    setGuidanceTrace(trace);
+                  }}
+                >
+                  <Compass className="w-4 h-4" />
+                  Lancer le Guidage
+                </Button>
               </div>
-              <Button 
-                variant="default" 
-                className="gap-2 bg-blue-600 hover:bg-blue-700"
-                onClick={async () => {
-                  const validTraces = traces.filter(t => t.geojson.coordinates.length >= 2);
-                  const trace = selectedTrace && selectedTrace.geojson.coordinates.length >= 2 
-                    ? selectedTrace 
-                    : validTraces[0];
-                  
-                  const { data: traceMarkers } = await supabase
-                    .from('route_markers')
-                    .select('*')
-                    .eq('trace_id', trace.id)
-                    .order('created_at', { ascending: true });
-                  
-                  setGuidanceMarkers((traceMarkers || []) as RouteMarker[]);
-                  setGuidanceTrace(trace);
-                }}
-              >
-                <Compass className="w-4 h-4" />
-                Lancer le Guidage
-              </Button>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
           <CardContent className="space-y-4">
             {/* Mode selector */}
