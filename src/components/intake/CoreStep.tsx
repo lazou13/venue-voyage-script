@@ -1,7 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Gamepad2, Globe, Users, Target, Clock, Gauge, Building2, MapPin, Route, CheckCircle2, Check } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
 import { useToast } from '@/hooks/use-toast';
+import { useCapabilities } from '@/hooks/useCapabilities';
+import { 
+  getQuestTypeLabels,
+  getTargetAudienceLabels,
+  getProjectTypeLabels,
+  getPlayModeLabels,
+  getLanguageLabels,
+  getCompetitionModeLabels,
+} from '@/lib/capabilitiesHelpers';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,7 +52,16 @@ interface CoreStepProps {
 export function CoreStep({ projectId }: CoreStepProps) {
   const { project, updateProject } = useProject(projectId);
   const { toast } = useToast();
+  const { capabilities } = useCapabilities();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Dynamic labels from capabilities (with fallback to hardcoded)
+  const projectTypeLabels = useMemo(() => getProjectTypeLabels(capabilities) || PROJECT_TYPE_LABELS, [capabilities]);
+  const questTypeLabels = useMemo(() => getQuestTypeLabels(capabilities) || QUEST_TYPE_LABELS, [capabilities]);
+  const targetAudienceLabels = useMemo(() => getTargetAudienceLabels(capabilities) || TARGET_AUDIENCE_LABELS, [capabilities]);
+  const playModeLabels = useMemo(() => getPlayModeLabels(capabilities) || PLAY_MODE_LABELS, [capabilities]);
+  const languageLabels = useMemo(() => getLanguageLabels(capabilities) || LANGUAGE_LABELS, [capabilities]);
+  const competitionModeLabels = useMemo(() => getCompetitionModeLabels(capabilities) || COMPETITION_MODE_LABELS, [capabilities]);
 
   const questConfig = project?.quest_config || {};
   const projectType = questConfig.project_type || 'establishment';
@@ -171,7 +189,7 @@ export function CoreStep({ projectId }: CoreStepProps) {
                   }`}
                 >
                   <Icon className={`w-8 h-8 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
-                  <span className="font-medium text-sm">{PROJECT_TYPE_LABELS[type]}</span>
+                  <span className="font-medium text-sm">{projectTypeLabels[type]}</span>
                 </button>
               );
             })}
@@ -189,7 +207,7 @@ export function CoreStep({ projectId }: CoreStepProps) {
           label="Type de quête"
           value={questConfig.questType}
           onChange={(v) => updateQuestConfig({ questType: v })}
-          options={QUEST_TYPE_LABELS}
+          options={questTypeLabels}
           placeholder="Sélectionner le type..."
         />
 
@@ -203,7 +221,7 @@ export function CoreStep({ projectId }: CoreStepProps) {
               updateQuestConfig({ targetAudience: v[0] as TargetAudience });
             }
           }}
-          options={TARGET_AUDIENCE_LABELS}
+          options={targetAudienceLabels}
         />
       </OptionMatrix>
 
@@ -252,7 +270,7 @@ export function CoreStep({ projectId }: CoreStepProps) {
             const newLangs = v.includes('fr') ? v : ['fr', ...v];
             updateCoreDetails({ languages: newLangs as SupportedLanguage[] });
           }}
-          options={LANGUAGE_LABELS}
+          options={languageLabels}
           requiredValues={['fr']}
         />
       </OptionMatrix>
@@ -337,7 +355,7 @@ export function CoreStep({ projectId }: CoreStepProps) {
                     : 'border-border hover:border-primary/50 hover:bg-muted'
                 }`}
               >
-                <span className="font-medium text-sm">{PLAY_MODE_LABELS[mode]}</span>
+                <span className="font-medium text-sm">{playModeLabels[mode]}</span>
               </button>
             );
           })}
@@ -356,7 +374,7 @@ export function CoreStep({ projectId }: CoreStepProps) {
               onChange={(v) => updateQuestConfig({ 
                 teamConfig: { ...teamConfig, competitionMode: v } 
               })}
-              options={COMPETITION_MODE_LABELS}
+              options={competitionModeLabels}
               placeholder="Sélectionner le mode..."
               required
             />

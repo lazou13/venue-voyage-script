@@ -1,8 +1,10 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp, Settings2, Copy } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
 import { usePOIs, DEFAULT_STEP_CONFIG, DEFAULT_SCORING } from '@/hooks/usePOIs';
 import { useToast } from '@/hooks/use-toast';
+import { useCapabilities } from '@/hooks/useCapabilities';
+import { getStepTypeLabels, getValidationModeLabels, getPhotoValidationTypeLabels } from '@/lib/capabilitiesHelpers';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -64,7 +66,13 @@ export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
   const { pois, project, updateProject } = useProject(projectId);
   const { updatePOI, duplicatePOI, applySelectiveDefaults } = usePOIs(projectId);
   const { toast } = useToast();
+  const { capabilities } = useCapabilities();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Dynamic labels from capabilities (with fallback to hardcoded)
+  const stepTypeLabels = useMemo(() => getStepTypeLabels(capabilities) || STEP_TYPE_LABELS, [capabilities]);
+  const validationModeLabels = useMemo(() => getValidationModeLabels(capabilities) || VALIDATION_MODE_LABELS, [capabilities]);
+  const photoValidationLabels = useMemo(() => getPhotoValidationTypeLabels(capabilities) || PHOTO_VALIDATION_LABELS, [capabilities]);
 
   const languages = (project?.quest_config?.languages || ['fr']) as SupportedLanguage[];
 
@@ -219,6 +227,9 @@ export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
           languages={languages}
           isDuplicating={duplicatePOI.isPending}
           projectId={projectId}
+          stepTypeLabels={stepTypeLabels}
+          validationModeLabels={validationModeLabels}
+          photoValidationLabels={photoValidationLabels}
         />
       ))}
     </div>
@@ -235,6 +246,9 @@ interface StepConfigCardProps {
   languages: SupportedLanguage[];
   isDuplicating: boolean;
   projectId: string;
+  stepTypeLabels: Record<string, string>;
+  validationModeLabels: Record<string, string>;
+  photoValidationLabels: Record<string, string>;
 }
 
 function StepConfigCard({
@@ -247,6 +261,9 @@ function StepConfigCard({
   languages,
   isDuplicating,
   projectId,
+  stepTypeLabels,
+  validationModeLabels,
+  photoValidationLabels,
 }: StepConfigCardProps) {
   const config = poi.step_config || {};
 
@@ -284,7 +301,7 @@ function StepConfigCard({
             )}
             {config.final_step_type && (
               <Badge variant="default" className="text-xs">
-                ✓ {STEP_TYPE_LABELS[config.final_step_type]}
+                ✓ {stepTypeLabels[config.final_step_type]}
               </Badge>
             )}
             {!hasContent && (
@@ -315,7 +332,7 @@ function StepConfigCard({
             label="Possibilités d'étape (multi-sélection)"
             values={config.possible_step_types || []}
             onChange={(values) => onUpdateConfig({ possible_step_types: values })}
-            options={STEP_TYPE_LABELS}
+            options={stepTypeLabels}
           />
 
           {/* Multi-select: Validation Modes */}
@@ -323,7 +340,7 @@ function StepConfigCard({
             label="Possibilités de validation (multi-sélection)"
             values={config.possible_validation_modes || []}
             onChange={(values) => onUpdateConfig({ possible_validation_modes: values })}
-            options={VALIDATION_MODE_LABELS}
+            options={validationModeLabels}
           />
 
           {/* Optional: Final Decision Section */}
@@ -348,7 +365,7 @@ function StepConfigCard({
                   {(config.possible_step_types || []).map((type) => (
                     <div key={type} className="flex items-center space-x-2">
                       <RadioGroupItem value={type} id={`${poi.id}-type-${type}`} />
-                      <Label htmlFor={`${poi.id}-type-${type}`} className="text-xs">{STEP_TYPE_LABELS[type]}</Label>
+                      <Label htmlFor={`${poi.id}-type-${type}`} className="text-xs">{stepTypeLabels[type]}</Label>
                     </div>
                   ))}
                 </RadioGroup>
@@ -368,7 +385,7 @@ function StepConfigCard({
                   {(config.possible_validation_modes || []).map((mode) => (
                     <div key={mode} className="flex items-center space-x-2">
                       <RadioGroupItem value={mode} id={`${poi.id}-mode-${mode}`} />
-                      <Label htmlFor={`${poi.id}-mode-${mode}`} className="text-xs">{VALIDATION_MODE_LABELS[mode]}</Label>
+                      <Label htmlFor={`${poi.id}-mode-${mode}`} className="text-xs">{validationModeLabels[mode]}</Label>
                     </div>
                   ))}
                 </RadioGroup>
@@ -386,7 +403,7 @@ function StepConfigCard({
                   onChange={(v) => onUpdateConfig({ 
                     photoValidation: { ...config.photoValidation, type: v } 
                   })}
-                  options={PHOTO_VALIDATION_LABELS}
+                  options={photoValidationLabels}
                   placeholder="Sélectionner..."
                 />
 
