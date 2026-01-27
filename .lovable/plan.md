@@ -1,57 +1,59 @@
 
-# Correction : Redirection des routes Admin
+# Activer l'enregistreur GPS pour tous
 
-## Problème identifié
+## Probleme identifie
 
-La route `/admin/config` (ligne 27 dans App.tsx) pointe toujours vers l'ancien éditeur JSON `AdminConfig.tsx`. Quand vous naviguez vers `/admin/config`, vous voyez l'ancien éditeur, pas le nouveau panneau admin.
+L'enregistreur GPS (boutons REC/STOP, marqueurs rapides, etc.) dans l'onglet "Parcours" est cache derriere une condition:
 
-Les nouvelles routes (`/admin/enums`, `/admin/publish`) fonctionnent, mais vous êtes actuellement sur `/admin/config` qui affiche l'ancien composant.
+```typescript
+const isAdminMode = import.meta.env.VITE_ADMIN_MODE === 'true';
+
+{isAdminMode && (
+  // Tout l'enregistreur GPS ici
+)}
+```
+
+La variable `VITE_ADMIN_MODE` n'est pas definie dans `.env`, donc l'enregistreur n'apparait jamais.
 
 ## Solution
 
-### 1. Supprimer la route `/admin/config` et rediriger vers le nouveau panneau
+Supprimer la condition `isAdminMode` pour afficher l'enregistreur GPS a tous les utilisateurs.
 
-**Fichier : `src/App.tsx`**
+## Modifications
 
-Remplacer :
+| Fichier | Changement |
+|---------|------------|
+| `src/components/intake/RouteReconStep.tsx` | Supprimer la ligne `const isAdminMode = ...` et la condition `{isAdminMode && (...)}` autour de la section GPS |
+
+## Details techniques
+
+**Avant (lignes 51, 324-325):**
 ```typescript
-<Route path="/admin/config" element={<AdminConfig />} />
+const isAdminMode = import.meta.env.VITE_ADMIN_MODE === 'true';
+// ...
+{isAdminMode && (
+  <Card className="border-primary/50 bg-primary/5">
 ```
 
-Par une redirection vers le nouveau panneau :
+**Apres:**
 ```typescript
-<Route path="/admin/config" element={<Navigate to="/admin/enums" replace />} />
+// Supprime la variable isAdminMode
+// Affiche directement la Card sans condition
+<Card className="border-primary/50 bg-primary/5">
 ```
 
-### 2. Supprimer l'import inutile
+## Resultat attendu
 
-Retirer :
-```typescript
-import AdminConfig from "./pages/AdminConfig";
-```
-
-### 3. (Optionnel) Supprimer l'ancien fichier
-
-Après validation, supprimer `src/pages/AdminConfig.tsx` qui n'est plus utilisé.
-
-## Résultat attendu
-
-| URL actuelle | Comportement après fix |
-|--------------|------------------------|
-| `/admin/config` | Redirige vers `/admin/enums` |
-| `/admin` | Redirige vers `/admin/enums` |
-| `/admin/enums` | Affiche le nouveau panneau Enums avec sidebar |
-| `/admin/publish` | Affiche le nouveau panneau Publish avec sidebar |
-
-## Fichiers modifiés
-
-| Fichier | Modification |
-|---------|-------------|
-| `src/App.tsx` | Remplacer la route `/admin/config` par une redirection, supprimer l'import `AdminConfig` |
-| `src/pages/AdminConfig.tsx` | Supprimer (optionnel, après validation) |
+- L'onglet "Parcours" affichera:
+  - Section "Mode Reperage" avec selecteur Marche/Scooter
+  - Bouton REC pour demarrer l'enregistrement GPS
+  - Bouton "Marqueur rapide" pendant l'enregistrement
+  - Stats en direct (duree, distance, points)
+  - Liste des traces enregistrees avec export GeoJSON/CSV
 
 ## Test
 
-1. Aller sur `/admin/config` → devrait rediriger vers `/admin/enums`
-2. Voir le nouveau panneau avec la sidebar à gauche (Enums, Publier)
-3. Cliquer sur "Publier" dans la sidebar → affiche `/admin/publish`
+1. Aller sur `/intake/{projectId}` avec un projet de type `route_recon`
+2. Cliquer sur l'onglet "Parcours"
+3. Verifier que la section "Mode Reperage" avec bouton REC est visible
+4. Tester l'enregistrement GPS
