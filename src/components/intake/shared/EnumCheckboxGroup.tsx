@@ -1,5 +1,7 @@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
+import { Check } from 'lucide-react';
 
 interface EnumCheckboxGroupProps<T extends string> {
   label: string;
@@ -30,8 +32,8 @@ export function EnumCheckboxGroup<T extends string>({
   };
 
   return (
-    <div className="space-y-2">
-      <Label className="text-sm">{label}</Label>
+    <div className="space-y-2.5">
+      <Label className="text-sm font-medium">{label}</Label>
       <div className="flex flex-wrap gap-2">
         {Object.entries(options).map(([key, labelText]) => {
           const typedKey = key as T;
@@ -51,22 +53,25 @@ export function EnumCheckboxGroup<T extends string>({
                   handleToggle(typedKey);
                 }
               }}
-              className={`flex items-center gap-2 px-3 py-2 border rounded-lg transition-colors select-none ${
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-xl border-2 transition-all select-none",
                 isChecked
-                  ? 'bg-primary/10 border-primary'
-                  : 'bg-background hover:bg-muted'
-              } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                  ? 'bg-primary/10 border-primary text-primary shadow-soft'
+                  : 'bg-background border-border/60 hover:border-primary/30 hover:bg-muted/30',
+                isDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer active:scale-[0.98]'
+              )}
             >
-              <Checkbox
-                checked={isChecked}
-                disabled={isDisabled}
-                tabIndex={-1}
-                onClick={(e) => e.stopPropagation()}
-                onCheckedChange={() => handleToggle(typedKey)}
-              />
-              <span className="text-sm">
+              <div className={cn(
+                "w-4 h-4 rounded-md border-2 flex items-center justify-center transition-colors",
+                isChecked 
+                  ? "bg-primary border-primary" 
+                  : "border-muted-foreground/30 bg-transparent"
+              )}>
+                {isChecked && <Check className="w-3 h-3 text-primary-foreground" strokeWidth={3} />}
+              </div>
+              <span className="text-sm font-medium">
                 {labelText as string}
-                {isRequired && <span className="text-destructive ml-1">*</span>}
+                {isRequired && <span className="text-destructive ml-0.5">*</span>}
               </span>
             </div>
           );
