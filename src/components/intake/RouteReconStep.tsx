@@ -47,8 +47,6 @@ import { OptionMatrix } from './shared/OptionMatrix';
 import type { QuestConfig, RouteReconDetails, ProjectType } from '@/types/intake';
 import type { Json } from '@/integrations/supabase/types';
 
-// Check if admin mode is enabled
-const isAdminMode = import.meta.env.VITE_ADMIN_MODE === 'true';
 
 interface RouteReconStepProps {
   projectId: string;
@@ -320,16 +318,14 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
 
   return (
     <div className="space-y-6">
-      {/* Admin-only: Route Recording Section */}
-      {isAdminMode && (
-        <Card className="border-primary/50 bg-primary/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Navigation className="w-5 h-5 text-primary" />
-              Mode Repérage
-              <Badge variant="secondary" className="text-xs">Admin</Badge>
-            </CardTitle>
-          </CardHeader>
+      {/* Route Recording Section */}
+      <Card className="border-primary/50 bg-primary/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Navigation className="w-5 h-5 text-primary" />
+            Mode Repérage
+          </CardTitle>
+        </CardHeader>
           <CardContent className="space-y-4">
             {/* Mode selector */}
             <div className="flex items-center gap-4">
@@ -808,7 +804,6 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
             )}
           </CardContent>
         </Card>
-      )}
 
       {/* Route Type */}
       <OptionMatrix 
