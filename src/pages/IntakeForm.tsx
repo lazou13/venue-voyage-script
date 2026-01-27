@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Check, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Check, AlertCircle, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { useProject } from '@/hooks/useProject';
 import { CoreStep } from '@/components/intake/CoreStep';
 import { EstablishmentStep } from '@/components/intake/EstablishmentStep';
@@ -13,6 +14,7 @@ import { StepsBuilderStep } from '@/components/intake/StepsBuilderStep';
 import { RulesStep } from '@/components/intake/RulesStep';
 import { OutputsStep } from '@/components/intake/OutputsStep';
 import { ValidationPanel } from '@/components/intake/ValidationPanel';
+import { cn } from '@/lib/utils';
 import type { ProjectType } from '@/types/intake';
 
 // Core steps that are always visible
@@ -59,7 +61,10 @@ export default function IntakeForm() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-pulse text-muted-foreground">Chargement...</div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground text-sm">Chargement...</p>
+        </div>
       </div>
     );
   }
@@ -67,10 +72,15 @@ export default function IntakeForm() {
   if (!project) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <AlertCircle className="w-12 h-12 mx-auto text-destructive mb-4" />
+        <div className="text-center animate-fade-in">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-destructive/10 flex items-center justify-center">
+            <AlertCircle className="w-8 h-8 text-destructive" />
+          </div>
           <h2 className="text-xl font-semibold mb-2">Projet non trouvé</h2>
-          <Button onClick={() => navigate('/')}>Retour au dashboard</Button>
+          <p className="text-muted-foreground mb-6">Ce projet n'existe pas ou a été supprimé.</p>
+          <Button onClick={() => navigate('/')} className="rounded-full">
+            Retour au dashboard
+          </Button>
         </div>
       </div>
     );
@@ -78,26 +88,43 @@ export default function IntakeForm() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card sticky top-0 z-10">
+      {/* Modern Header */}
+      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b border-border/50">
         <div className="container mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => navigate('/')}
+                className="rounded-full shrink-0"
+              >
                 <ArrowLeft className="w-5 h-5" />
               </Button>
-              <div>
-                <h1 className="font-semibold text-foreground">{project.hotel_name}</h1>
-                <p className="text-xs text-muted-foreground">{project.city}</p>
+              <div className="min-w-0">
+                <h1 className="font-semibold text-foreground truncate">{project.hotel_name}</h1>
+                <p className="text-xs text-muted-foreground truncate">{project.city}</p>
               </div>
             </div>
-            <Button
-              onClick={() => setActiveTab('outputs')}
-              disabled={!validation.isValid}
-              variant={validation.isValid ? 'default' : 'outline'}
-            >
-              <Check className="w-4 h-4 mr-2" />
-              Exports
-            </Button>
+            <div className="flex items-center gap-2">
+              {validation.isValid && (
+                <Badge className="bg-success/10 text-success rounded-full gap-1 hidden sm:flex">
+                  <Check className="w-3 h-3" />
+                  Prêt
+                </Badge>
+              )}
+              <Button
+                onClick={() => setActiveTab('outputs')}
+                disabled={!validation.isValid}
+                className={cn(
+                  "rounded-full gap-2 shadow-soft",
+                  validation.isValid ? "hover:shadow-glow" : ""
+                )}
+              >
+                <Sparkles className="w-4 h-4" />
+                <span className="hidden sm:inline">Exports</span>
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -106,16 +133,27 @@ export default function IntakeForm() {
         <ValidationPanel validation={validation} />
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
-          <TabsList className="grid w-full mb-4" style={{ gridTemplateColumns: `repeat(${steps.length}, 1fr)` }}>
-            {steps.map((step) => (
-              <TabsTrigger key={step.id} value={step.id} className="text-xs sm:text-sm">
+          <TabsList 
+            className="grid w-full mb-6 p-1.5 bg-muted/50 rounded-2xl"
+            style={{ gridTemplateColumns: `repeat(${steps.length}, 1fr)` }}
+          >
+            {steps.map((step, index) => (
+              <TabsTrigger 
+                key={step.id} 
+                value={step.id} 
+                className={cn(
+                  "text-xs sm:text-sm rounded-xl transition-all data-[state=active]:shadow-soft",
+                  "data-[state=active]:bg-background data-[state=active]:text-foreground"
+                )}
+                style={{ animationDelay: `${index * 30}ms` }}
+              >
                 {step.label}
               </TabsTrigger>
             ))}
           </TabsList>
 
           {steps.map((step) => (
-            <TabsContent key={step.id} value={step.id}>
+            <TabsContent key={step.id} value={step.id} className="animate-fade-in">
               <step.component projectId={projectId!} />
             </TabsContent>
           ))}
