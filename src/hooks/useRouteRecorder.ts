@@ -312,13 +312,20 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
             accuracy,
           };
           
-          // Filter 1: Reject poor accuracy
-          if (accuracy > MAX_ACCURACY_METERS) {
+          const lastKept = lastKeptPointRef.current;
+          const isFirstPoint = lastKept === null;
+          
+          // Filter 1: For first point, accept even with poor accuracy (for departure marker)
+          // For subsequent points, reject poor accuracy
+          if (!isFirstPoint && accuracy > MAX_ACCURACY_METERS) {
             console.log(`GPS filtered: accuracy ${accuracy.toFixed(1)}m > ${MAX_ACCURACY_METERS}m`);
             return;
           }
           
-          const lastKept = lastKeptPointRef.current;
+          // Warn if first point has poor accuracy
+          if (isFirstPoint && accuracy > MAX_ACCURACY_METERS) {
+            console.warn(`First GPS point accepted despite poor accuracy: ${accuracy.toFixed(1)}m`);
+          }
           
           // Always keep first point
           if (!lastKept) {
