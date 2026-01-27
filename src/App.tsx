@@ -2,13 +2,16 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import IntakeForm from "./pages/IntakeForm";
 import AdminConfig from "./pages/AdminConfig";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminEnums from "./pages/admin/AdminEnums";
+import AdminPublish from "./pages/admin/AdminPublish";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +27,14 @@ const App = () => (
           <Route path="/admin/config" element={<AdminConfig />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          
+          {/* New Admin Panel Routes */}
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<Navigate to="/admin/enums" replace />} />
+            <Route path="enums" element={<AdminEnums />} />
+            <Route path="publish" element={<AdminPublish />} />
+          </Route>
+          
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
