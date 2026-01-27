@@ -1,8 +1,6 @@
 import { useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
-import { LogOut, Save, Rocket, Loader2, AlertCircle } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
-import { useAdminRole } from '@/hooks/useAdminRole';
+import { Save, Rocket, Loader2, Home } from 'lucide-react';
 import { useAppConfig } from '@/hooks/useAppConfig';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -11,8 +9,6 @@ import { AdminSidebar } from '@/components/admin/AdminSidebar';
 
 export default function AdminLayout() {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
-  const { isAdmin, isLoading: roleLoading } = useAdminRole(user?.id);
   const { toast } = useToast();
   
   const {
@@ -25,13 +21,6 @@ export default function AdminLayout() {
     saveDraft,
     publish,
   } = useAppConfig();
-
-  // Redirect if not admin
-  useEffect(() => {
-    if (!roleLoading && !isAdmin) {
-      navigate('/auth');
-    }
-  }, [isAdmin, roleLoading, navigate]);
 
   // Show error toast
   useEffect(() => {
@@ -56,23 +45,6 @@ export default function AdminLayout() {
       });
     }
   };
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/auth');
-  };
-
-  if (roleLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return null;
-  }
 
   return (
     <div className="min-h-screen flex bg-background">
@@ -126,15 +98,10 @@ export default function AdminLayout() {
               Publier v{publishedVersion + 1}
             </Button>
             
-            {/* User info */}
-            <div className="flex items-center gap-2 pl-3 border-l border-border">
-              <span className="text-sm text-muted-foreground truncate max-w-[150px]">
-                {user?.email}
-              </span>
-              <Button variant="ghost" size="icon" onClick={handleSignOut} title="Déconnexion">
-                <LogOut className="w-4 h-4" />
-              </Button>
-            </div>
+            {/* Home button */}
+            <Button variant="ghost" size="icon" onClick={() => navigate('/')} title="Retour au dashboard">
+              <Home className="w-4 h-4" />
+            </Button>
           </div>
         </header>
         
