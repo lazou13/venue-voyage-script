@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { List, Rocket, LayoutDashboard } from 'lucide-react';
+import { List, Rocket, LayoutDashboard, Sliders, Settings2, ShieldCheck, Languages } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
@@ -9,6 +9,10 @@ interface AdminSidebarProps {
 
 const navItems = [
   { to: '/admin/enums', label: 'Enums', icon: List },
+  { to: '/admin/presets', label: 'Préréglages', icon: Sliders },
+  { to: '/admin/fields', label: 'Champs', icon: Settings2 },
+  { to: '/admin/rules', label: 'Règles', icon: ShieldCheck },
+  { to: '/admin/labels', label: 'Labels', icon: Languages },
   { to: '/admin/publish', label: 'Publier', icon: Rocket },
 ];
 

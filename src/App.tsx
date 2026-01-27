@@ -11,6 +11,10 @@ import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminEnums from "./pages/admin/AdminEnums";
+import AdminPresets from "./pages/admin/AdminPresets";
+import AdminFields from "./pages/admin/AdminFields";
+import AdminRules from "./pages/admin/AdminRules";
+import AdminLabels from "./pages/admin/AdminLabels";
 import AdminPublish from "./pages/admin/AdminPublish";
 
 const queryClient = new QueryClient();
@@ -28,10 +32,14 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           
-          {/* New Admin Panel Routes */}
+          {/* Admin Panel Routes */}
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Navigate to="/admin/enums" replace />} />
             <Route path="enums" element={<AdminEnums />} />
+            <Route path="presets" element={<AdminPresets />} />
+            <Route path="fields" element={<AdminFields />} />
+            <Route path="rules" element={<AdminRules />} />
+            <Route path="labels" element={<AdminLabels />} />
             <Route path="publish" element={<AdminPublish />} />
           </Route>
           
