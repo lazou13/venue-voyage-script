@@ -1,95 +1,85 @@
 
 
-# Corriger l'affichage du bouton "Marquer départ"
+# Ajouter un bandeau "Mode Guidage disponible" proéminent
 
-## Problème identifié
+## Objectif
 
-Le bouton "Marquer départ" ne s'affiche pas car il dépend de `lastPosition` qui est `null` (aucun point GPS capturé).
+Ajouter un bandeau bleu visible entre le titre "Mode Repérage" et les contrôles, avec un bouton "Lancer le Guidage" impossible à manquer.
 
-La condition actuelle (ligne 410) :
-```typescript
-{isRecording && !departureMarked && lastPosition && (
+## Rendu visuel
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│ 🧭 Mode Repérage                                        │
+├─────────────────────────────────────────────────────────┤
+│ ┌─────────────────────────────────────────────────────┐ │
+│ │ 🧭 Mode Guidage disponible          [Lancer Guidage]│ │
+│ │    2 trace(s) prête(s)                              │ │
+│ └─────────────────────────────────────────────────────┘ │
+│                                                         │
+│ Mode: ○ 🚶 Marche  ○ 🛵 Scooter                         │
+│ ...                                                     │
+└─────────────────────────────────────────────────────────┘
 ```
 
-Cette condition cache le bouton tant qu'aucun point GPS n'est disponible, ce qui est contre-productif puisque le but était de permettre le marquage même avec un GPS de mauvaise qualité.
-
-## Solution
-
-### Option A : Afficher le bouton dès le début avec gestion d'erreur
-
-Modifier la condition pour afficher le bouton dès que l'enregistrement démarre, puis afficher un message d'erreur si on clique sans position GPS :
-
-```typescript
-{isRecording && !departureMarked && (
-  <Button
-    onClick={async () => {
-      if (!lastPosition) {
-        toast({
-          title: "Position GPS indisponible",
-          description: "Attendez que le GPS soit prêt...",
-          variant: "destructive"
-        });
-        return;
-      }
-      await addMarkerAtLastCoord('Point de départ');
-      setDepartureMarked(true);
-    }}
-    variant="outline"
-    className="gap-2 border-green-500 text-green-600 hover:bg-green-50"
-    disabled={!lastPosition}
-  >
-    <Flag className="w-4 h-4" />
-    {lastPosition ? "Marquer départ" : "GPS en attente..."}
-  </Button>
-)}
-```
-
-### Option B (recommandée) : Toujours afficher, mais désactivé si pas de GPS
-
-Le bouton s'affiche toujours pendant l'enregistrement, mais est désactivé et montre un état visuel différent quand le GPS n'est pas prêt.
-
-## Modifications techniques
+## Modification technique
 
 | Fichier | Changement |
 |---------|------------|
-| `src/components/intake/RouteReconStep.tsx` | Modifier condition ligne 410 : `lastPosition &&` devient optionnel, ajouter `disabled={!lastPosition}` et texte dynamique |
+| `src/components/intake/RouteReconStep.tsx` | Insérer bandeau bleu entre `CardHeader` (ligne 342) et `CardContent` (ligne 343) |
 
-## Code modifié
+## Code à ajouter (après ligne 342, avant CardContent)
 
 ```typescript
-{isRecording && !departureMarked && (
-  <Button
-    onClick={async () => {
-      await addMarkerAtLastCoord('Point de départ');
-      setDepartureMarked(true);
-    }}
-    variant="outline"
-    className={cn(
-      "gap-2",
-      lastPosition 
-        ? "border-green-500 text-green-600 hover:bg-green-50" 
-        : "border-muted text-muted-foreground"
-    )}
-    disabled={!lastPosition}
-  >
-    <Flag className="w-4 h-4" />
-    {lastPosition ? "Marquer départ" : "GPS en attente..."}
-  </Button>
+{/* Bandeau Guidage proéminent */}
+{traces.filter(t => t.geojson.coordinates.length >= 2).length > 0 && (
+  <div className="mx-6 mb-2">
+    <div className="flex items-center gap-3 p-3 rounded-md bg-blue-50 border border-blue-200">
+      <Compass className="w-5 h-5 text-blue-600 flex-shrink-0" />
+      <div className="flex-1">
+        <p className="text-sm font-medium text-blue-900">Mode Guidage disponible</p>
+        <p className="text-xs text-blue-600">
+          {traces.filter(t => t.geojson.coordinates.length >= 2).length} trace(s) prête(s)
+        </p>
+      </div>
+      <Button 
+        variant="default" 
+        className="gap-2 bg-blue-600 hover:bg-blue-700"
+        onClick={async () => {
+          const validTraces = traces.filter(t => t.geojson.coordinates.length >= 2);
+          const trace = selectedTrace && selectedTrace.geojson.coordinates.length >= 2 
+            ? selectedTrace 
+            : validTraces[0];
+          
+          const { data: traceMarkers } = await supabase
+            .from('route_markers')
+            .select('*')
+            .eq('trace_id', trace.id)
+            .order('created_at', { ascending: true });
+          
+          setGuidanceMarkers((traceMarkers || []) as RouteMarker[]);
+          setGuidanceTrace(trace);
+        }}
+      >
+        <Compass className="w-4 h-4" />
+        Lancer le Guidage
+      </Button>
+    </div>
+  </div>
 )}
 ```
 
+## Comportement
+
+1. Le bandeau bleu n'apparaît **que si** au moins une trace a 2+ coordonnées
+2. Cliquer "Lancer le Guidage" ouvre directement le mode guidage avec :
+   - La trace sélectionnée (si elle a des coordonnées)
+   - Sinon la première trace valide
+3. Le bandeau reste visible en permanence en haut de la section
+
 ## Résultat attendu
 
-1. Le bouton "Marquer départ" s'affiche immédiatement dès que l'enregistrement commence
-2. Si le GPS n'est pas prêt : bouton désactivé, grisé, avec texte "GPS en attente..."
-3. Dès qu'un point GPS est reçu : bouton actif, vert, avec texte "Marquer départ"
-4. Le message "Recherche GPS en cours..." reste visible en dessous pour contexte
-
-## Test
-
-1. Démarrer l'enregistrement
-2. Vérifier que le bouton "GPS en attente..." apparaît immédiatement (grisé)
-3. Attendre que le GPS soit capturé
-4. Vérifier que le bouton devient "Marquer départ" (vert, actif)
-5. Cliquer pour marquer le départ
+- Bandeau bleu impossible à rater en haut de la section "Mode Repérage"
+- Texte informatif "Mode Guidage disponible" + nombre de traces
+- Bouton bleu "Lancer le Guidage" qui ouvre immédiatement la carte
 
