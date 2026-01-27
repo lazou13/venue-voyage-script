@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import IntakeForm from "./pages/IntakeForm";
-import AdminConfig from "./pages/AdminConfig";
+
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
@@ -24,7 +24,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/intake/:projectId" element={<IntakeForm />} />
-          <Route path="/admin/config" element={<AdminConfig />} />
+          <Route path="/admin/config" element={<Navigate to="/admin/enums" replace />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           
