@@ -304,11 +304,6 @@ function StepConfigCard({
                 ✓ {stepTypeLabels[config.final_step_type]}
               </Badge>
             )}
-            {!hasContent && (
-              <Badge variant="destructive" className="text-xs">
-                Contenu manquant
-              </Badge>
-            )}
             <Button 
               variant="ghost" 
               size="icon"
