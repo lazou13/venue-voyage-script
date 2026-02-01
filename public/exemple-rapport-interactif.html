@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rapport Interactif - Parcours Découverte Médina</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-light: #3b82f6;
+      --danger: #dc2626;
+      --warning: #f59e0b;
+      --success: #16a34a;
+      --muted: #6b7280;
+      --bg: #f9fafb;
+      --card: #ffffff;
+      --border: #e5e7eb;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: #1f2937;
+      line-height: 1.5;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+    
+    /* Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    
+    .header-info h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #111827;
+    }
+    
+    .header-info .subtitle {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.625rem 1.25rem;
+      border-radius: 0.5rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s;
+    }
+    
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: var(--primary-light);
+    }
+    
+    /* Config Panel */
+    .config-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .config-panel h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      color: #374151;
+    }
+    
+    .config-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+    }
+    
+    .config-item label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.375rem;
+    }
+    
+    .config-item select,
+    .config-item input {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 0.375rem;
+      font-size: 0.95rem;
+      background: white;
+    }
+    
+    .config-item select:focus,
+    .config-item input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 1rem;
+      text-align: center;
+    }
+    
+    .stat-card .icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.25rem;
+    }
+    
+    .stat-card .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #111827;
+    }
+    
+    .stat-card .label {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    
+    /* Map */
+    .map-container {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+    
+    #map {
+      height: 400px;
+      width: 100%;
+    }
+    
+    .map-fallback {
+      height: 400px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f3f4f6;
+      color: var(--muted);
+    }
+    
+    /* POI Table */
+    .poi-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      overflow: hidden;
+    }
+    
+    .poi-section h2 {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    
+    .poi-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    .poi-table th,
+    .poi-table td {
+      padding: 0.875rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .poi-table th {
+      background: #f9fafb;
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+      color: var(--muted);
+    }
+    
+    .poi-table tr:last-child td {
+      border-bottom: none;
+    }
+    
+    .poi-table tbody tr:hover {
+      background: #f9fafb;
+    }
+    
+    .poi-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.25rem 0.625rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    
+    .poi-badge.departure {
+      background: #dcfce7;
+      color: #166534;
+    }
+    
+    .poi-badge.danger {
+      background: #fef2f2;
+      color: #991b1b;
+    }
+    
+    .poi-badge.mandatory_stop {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    
+    .poi-badge.poi {
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+    
+    .time-input {
+      width: 60px;
+      padding: 0.375rem 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 0.25rem;
+      text-align: center;
+    }
+    
+    .time-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+    
+    /* Footer */
+    .footer {
+      margin-top: 2rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    
+    /* Print styles */
+    @media print {
+      body {
+        background: white;
+      }
+      
+      .btn-primary {
+        display: none;
+      }
+      
+      .config-panel {
+        break-inside: avoid;
+      }
+      
+      #map {
+        height: 300px;
+      }
+      
+      .poi-section {
+        break-inside: avoid;
+      }
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      
+      .poi-table {
+        font-size: 0.9rem;
+      }
+      
+      .poi-table th,
+      .poi-table td {
+        padding: 0.625rem 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-info">
+        <h1>🗺️ Parcours Découverte Médina</h1>
+        <p class="subtitle">Marrakech, Maroc • Route de reconnaissance</p>
+      </div>
+      <button class="btn btn-primary" onclick="window.print()">
+        🖨️ Exporter PDF
+      </button>
+    </header>
+    
+    <!-- Config Panel -->
+    <section class="config-panel">
+      <h2>⚙️ Configuration</h2>
+      <div class="config-grid">
+        <div class="config-item">
+          <label for="transport">Mode de transport</label>
+          <select id="transport" onchange="updateTransport()">
+            <option value="walking" selected>🚶 Marche</option>
+            <option value="scooter">🛵 Scooter</option>
+            <option value="car">🚗 Voiture</option>
+          </select>
+        </div>
+        <div class="config-item">
+          <label for="speed">Vitesse (km/h)</label>
+          <input type="number" id="speed" value="5" min="1" max="120" onchange="recalculate()">
+        </div>
+        <div class="config-item">
+          <label for="players">Nombre de joueurs</label>
+          <input type="number" id="players" value="1" min="1" max="100">
+        </div>
+      </div>
+    </section>
+    
+    <!-- Stats Grid -->
+    <section class="stats-grid">
+      <div class="stat-card">
+        <div class="icon">📏</div>
+        <div class="value" id="stat-distance">850 m</div>
+        <div class="label">Distance</div>
+      </div>
+      <div class="stat-card">
+        <div class="icon">🚶</div>
+        <div class="value" id="stat-travel">10 min</div>
+        <div class="label">Temps trajet</div>
+      </div>
+      <div class="stat-card">
+        <div class="icon">⏸️</div>
+        <div class="value" id="stat-stops">5 min</div>
+        <div class="label">Temps arrêts</div>
+      </div>
+      <div class="stat-card">
+        <div class="icon">⏱️</div>
+        <div class="value" id="stat-total">15 min</div>
+        <div class="label">Temps total</div>
+      </div>
+    </section>
+    
+    <!-- Map -->
+    <section class="map-container">
+      <div id="map"></div>
+    </section>
+    
+    <!-- POI Table -->
+    <section class="poi-section">
+      <h2>📍 Points d'Intérêt</h2>
+      <table class="poi-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Type</th>
+            <th>Note</th>
+            <th>Temps d'arrêt (min)</th>
+          </tr>
+        </thead>
+        <tbody id="poi-tbody">
+          <!-- Generated by JS -->
+        </tbody>
+      </table>
+    </section>
+    
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Généré le <span id="generated-date"></span> • Rapport Interactif v1.0</p>
+    </footer>
+  </div>
+  
+  <script>
+    // ===== DATA =====
+    const TRACE_COORDS = [
+      [-7.9898, 31.6295], // Place Jemaa el-Fna
+      [-7.9880, 31.6280], // Rue des Souks
+      [-7.9860, 31.6270], // Fontaine historique
+      [-7.9845, 31.6255], // Riad Ben Youssef
+      [-7.9830, 31.6240], // Bab Agnaou
+    ];
+    
+    const POIS = [
+      {
+        id: 1,
+        type: 'departure',
+        lat: 31.6295,
+        lng: -7.9898,
+        note: 'Point de départ - Place Jemaa el-Fna',
+        stopMinutes: 0,
+      },
+      {
+        id: 2,
+        type: 'danger',
+        lat: 31.6270,
+        lng: -7.9860,
+        note: 'Danger: Circulation dense, traversée difficile',
+        stopMinutes: 2,
+      },
+      {
+        id: 3,
+        type: 'mandatory_stop',
+        lat: 31.6240,
+        lng: -7.9830,
+        note: 'Stop: Photo obligatoire devant Bab Agnaou',
+        stopMinutes: 3,
+      },
+    ];
+    
+    const SPEED_DEFAULTS = {
+      walking: 5,
+      scooter: 15,
+      car: 30,
+    };
+    
+    const TYPE_LABELS = {
+      departure: { emoji: '🚩', label: 'Départ', class: 'departure' },
+      danger: { emoji: '⚠️', label: 'Danger', class: 'danger' },
+      mandatory_stop: { emoji: '⛔', label: 'Arrêt obligatoire', class: 'mandatory_stop' },
+      poi: { emoji: '📍', label: 'POI', class: 'poi' },
+    };
+    
+    const TOTAL_DISTANCE_M = 850;
+    
+    // ===== MAP INITIALIZATION =====
+    let map = null;
+    let polyline = null;
+    let markers = [];
+    
+    function initMap() {
+      try {
+        // Center on midpoint
+        const centerLat = TRACE_COORDS.reduce((sum, c) => sum + c[1], 0) / TRACE_COORDS.length;
+        const centerLng = TRACE_COORDS.reduce((sum, c) => sum + c[0], 0) / TRACE_COORDS.length;
+        
+        map = L.map('map').setView([centerLat, centerLng], 16);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors',
+        }).addTo(map);
+        
+        // Draw polyline
+        const latLngs = TRACE_COORDS.map(c => [c[1], c[0]]);
+        polyline = L.polyline(latLngs, {
+          color: '#2563eb',
+          weight: 4,
+          opacity: 0.8,
+        }).addTo(map);
+        
+        // Start marker (green)
+        const startIcon = L.divIcon({
+          html: '<div style="background:#16a34a;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>',
+          className: '',
+          iconSize: [16, 16],
+          iconAnchor: [8, 8],
+        });
+        L.marker([TRACE_COORDS[0][1], TRACE_COORDS[0][0]], { icon: startIcon })
+          .bindPopup('🚩 Départ')
+          .addTo(map);
+        
+        // End marker (red)
+        const endIcon = L.divIcon({
+          html: '<div style="background:#dc2626;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>',
+          className: '',
+          iconSize: [16, 16],
+          iconAnchor: [8, 8],
+        });
+        L.marker([TRACE_COORDS[4][1], TRACE_COORDS[4][0]], { icon: endIcon })
+          .bindPopup('🏁 Arrivée')
+          .addTo(map);
+        
+        // POI markers
+        POIS.forEach(poi => {
+          const typeInfo = TYPE_LABELS[poi.type] || TYPE_LABELS.poi;
+          const poiIcon = L.divIcon({
+            html: `<div style="font-size:1.25rem;text-shadow:0 1px 2px rgba(0,0,0,0.3);">${typeInfo.emoji}</div>`,
+            className: '',
+            iconSize: [24, 24],
+            iconAnchor: [12, 12],
+          });
+          
+          L.marker([poi.lat, poi.lng], { icon: poiIcon })
+            .bindPopup(`<strong>${typeInfo.emoji} ${typeInfo.label}</strong><br>${poi.note}`)
+            .addTo(map);
+        });
+        
+        // Fit bounds
+        map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+        
+      } catch (e) {
+        console.error('Map init failed:', e);
+        document.getElementById('map').innerHTML = `
+          <div class="map-fallback">
+            <div>
+              <p style="font-size:2rem;margin-bottom:0.5rem;">🗺️</p>
+              <p>Carte non disponible</p>
+            </div>
+          </div>
+        `;
+      }
+    }
+    
+    // ===== POI TABLE =====
+    function renderPOITable() {
+      const tbody = document.getElementById('poi-tbody');
+      tbody.innerHTML = POIS.map(poi => {
+        const typeInfo = TYPE_LABELS[poi.type] || TYPE_LABELS.poi;
+        return `
+          <tr>
+            <td>${poi.id}</td>
+            <td>
+              <span class="poi-badge ${typeInfo.class}">
+                ${typeInfo.emoji} ${typeInfo.label}
+              </span>
+            </td>
+            <td>${poi.note}</td>
+            <td>
+              <input 
+                type="number" 
+                class="time-input" 
+                value="${poi.stopMinutes}" 
+                min="0" 
+                max="60"
+                data-poi-id="${poi.id}"
+                onchange="updateStopTime(${poi.id}, this.value)"
+              >
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+    
+    // ===== CALCULATIONS =====
+    function recalculate() {
+      const speed = parseFloat(document.getElementById('speed').value) || 5;
+      const distanceKm = TOTAL_DISTANCE_M / 1000;
+      const travelMinutes = (distanceKm / speed) * 60;
+      
+      const stopMinutes = POIS.reduce((sum, poi) => sum + poi.stopMinutes, 0);
+      const totalMinutes = travelMinutes + stopMinutes;
+      
+      document.getElementById('stat-travel').textContent = `${Math.round(travelMinutes)} min`;
+      document.getElementById('stat-stops').textContent = `${stopMinutes} min`;
+      document.getElementById('stat-total').textContent = `${Math.round(totalMinutes)} min`;
+    }
+    
+    function updateTransport() {
+      const mode = document.getElementById('transport').value;
+      document.getElementById('speed').value = SPEED_DEFAULTS[mode] || 5;
+      recalculate();
+    }
+    
+    function updateStopTime(poiId, value) {
+      const poi = POIS.find(p => p.id === poiId);
+      if (poi) {
+        poi.stopMinutes = parseInt(value) || 0;
+        recalculate();
+      }
+    }
+    
+    // ===== INIT =====
+    document.addEventListener('DOMContentLoaded', () => {
+      // Set generated date
+      document.getElementById('generated-date').textContent = new Date().toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      
+      initMap();
+      renderPOITable();
+      recalculate();
+    });
+  </script>
+</body>
+</html>
