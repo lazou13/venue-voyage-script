@@ -534,60 +534,53 @@ export function generateInteractiveReportHTML(
       color: #4b5563;
     }
     
-    /* Summary Stats - Redesigned */
-    .summary-section {
+    /* Stats Section - Redesigned like Project Sheet */
+    .stats-section {
       background: white;
       border-radius: 16px;
       margin-bottom: 20px;
       box-shadow: 0 4px 16px rgba(0,0,0,0.08);
       overflow: hidden;
     }
-    .summary-header {
+    .stats-header {
       background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
       color: white;
-      padding: 14px 24px;
+      padding: 16px 24px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .summary-header h3 {
-      font-size: 1rem;
+    .stats-header h3 {
+      font-size: 1.1rem;
       font-weight: 700;
       margin: 0;
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .summary-header .summary-total {
+    .stats-total {
       background: rgba(255,255,255,0.2);
-      padding: 6px 14px;
+      padding: 8px 16px;
       border-radius: 8px;
-      font-size: 1.1rem;
+      font-size: 1.2rem;
       font-weight: 700;
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .summary-header .summary-total span { font-size: 0.75rem; opacity: 0.9; font-weight: 500; }
-    .summary-body { padding: 20px 24px; }
-    .summary {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 16px;
+    .stats-total span:first-child { font-size: 0.75rem; opacity: 0.9; font-weight: 500; }
+    .stats-body { padding: 20px 24px; }
+    .stats-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #f59e0b;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
-    .stat-card {
-      background: #f8f9fa;
-      padding: 16px;
-      border-radius: 12px;
-      text-align: center;
-      border: 1px solid #e5e7eb;
-    }
-    .stat-card.highlight { 
-      background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); 
-      border-color: #667eea40;
-    }
-    .stat-label { font-size: 0.7rem; color: #6b7280; text-transform: uppercase; font-weight: 600; letter-spacing: 0.3px; }
-    .stat-value { font-size: 1.4rem; font-weight: 700; margin-top: 6px; color: #1f2937; }
     
     /* Project Sheet - Redesigned */
     .project-sheet { 
@@ -764,18 +757,16 @@ export function generateInteractiveReportHTML(
       .meta-bar { margin-bottom: 10px; box-shadow: none; }
       .meta-bar-header { background: #0891b2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 10px 16px; }
       .meta-bar-body { padding: 12px 16px; }
-      .meta-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
-      .meta-card { padding: 10px; border: 1px solid #ddd; background: #f8f9fa !important; }
-      /* Summary print */
-      .summary-section { margin-bottom: 10px; box-shadow: none; }
-      .summary-header { background: #d97706 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 10px 16px; }
-      .summary-body { padding: 12px 16px; }
-      .stat-card { background: #f8f9fa !important; }
-      .stat-card.highlight { background: #667eea15 !important; }
+      /* Stats section print */
+      .stats-section { margin-bottom: 10px; box-shadow: none; }
+      .stats-header { background: #d97706 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 10px 16px; }
+      .stats-body { padding: 12px 16px; }
       /* Project sheet print */
       .project-sheet { box-shadow: none; }
       .project-sheet-header { background: #667eea !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 10px 16px; }
       .project-sheet-body { padding: 12px 16px; }
+      /* Inputs print */
+      .sheet-input, .sheet-select, .sheet-number { border: none; background: transparent; padding: 0; }
       /* Map */
       .map-section { break-inside: avoid; }
       #map { height: 300px; }
@@ -795,11 +786,10 @@ export function generateInteractiveReportHTML(
       /* Meta bar mobile */
       .meta-bar-header { flex-direction: column; gap: 10px; padding: 14px 16px; }
       .meta-bar-body { padding: 14px 16px; }
-      .meta-grid { grid-template-columns: 1fr; }
-      /* Summary mobile */
-      .summary-header { flex-direction: column; gap: 10px; padding: 14px 16px; }
-      .summary-body { padding: 14px 16px; }
-      .summary { grid-template-columns: repeat(2, 1fr); }
+      .sheet-grid { grid-template-columns: 1fr 1fr; }
+      /* Stats section mobile */
+      .stats-header { flex-direction: column; gap: 10px; padding: 14px 16px; }
+      .stats-body { padding: 14px 16px; }
       /* Map */
       #map { height: 300px; }
       .pois-section { padding: 12px; }
@@ -1017,27 +1007,76 @@ export function generateInteractiveReportHTML(
         <div class="meta-distance" id="meta-distance">${formatDistance(payload.trace.totalDistanceM)}</div>
       </div>
       <div class="meta-bar-body">
-        <div class="meta-grid">
-          <div class="meta-card">
-            <div class="meta-title">🗺️ Trace</div>
-            <div class="meta-row"><span>Nom</span><strong id="meta-trace-name">—</strong></div>
-            <div class="meta-row"><span>ID</span><code id="meta-trace-id">—</code></div>
-            <div class="meta-row"><span>Points GPS</span><strong id="meta-points">0</strong></div>
-            <div class="meta-row"><span>Marqueurs</span><strong id="meta-markers">0</strong></div>
+        <!-- Section 1: Trace -->
+        <div class="sheet-section">
+          <div class="meta-title">🗺️ Trace</div>
+          <div class="sheet-grid">
+            <div class="sheet-field">
+              <span class="sheet-field-label">Nom de la trace</span>
+              <input type="text" class="sheet-input" id="meta-trace-name-input" data-meta-field="traceName" value="${escapeHtml(payload.trace.name || 'Trace')}">
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">ID Trace</span>
+              <div class="sheet-field-value" style="font-family: 'SF Mono', Monaco, monospace; font-size: 0.75rem;">${escapeHtml(payload.trace.id.slice(0, 8))}</div>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Points GPS</span>
+              <div class="sheet-field-value">${payload.trace.coordinates.length}</div>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Marqueurs</span>
+              <div class="sheet-field-value" id="meta-markers-display">${payload.pois.length}</div>
+            </div>
           </div>
-          <div class="meta-card">
-            <div class="meta-title">⏱️ Timing</div>
-            <div class="meta-row"><span>Début</span><strong id="meta-start">—</strong></div>
-            <div class="meta-row"><span>Fin</span><strong id="meta-end">—</strong></div>
-            <div class="meta-row"><span>Trajet</span><strong id="meta-travel">—</strong></div>
-            <div class="meta-row"><span>Arrêts</span><strong id="meta-stops">—</strong></div>
-            <div class="meta-row"><span>Total</span><strong id="meta-total">—</strong></div>
+        </div>
+        
+        <!-- Section 2: Timing -->
+        <div class="sheet-section">
+          <div class="meta-title">⏱️ Timing</div>
+          <div class="sheet-grid">
+            <div class="sheet-field">
+              <span class="sheet-field-label">Date début</span>
+              <input type="text" class="sheet-input" id="meta-start-input" data-meta-field="startDate" value="${payload.trace.startedAt ? new Date(payload.trace.startedAt).toLocaleString('fr-FR') : '—'}">
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Date fin</span>
+              <input type="text" class="sheet-input" id="meta-end-input" data-meta-field="endDate" value="${payload.trace.endedAt ? new Date(payload.trace.endedAt).toLocaleString('fr-FR') : '—'}">
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Temps trajet</span>
+              <div class="sheet-field-value" id="meta-travel">${Math.round(payload.computed.travelMinutes)} min</div>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Temps arrêts</span>
+              <div class="sheet-field-value" id="meta-stops">${payload.computed.stopMinutes} min</div>
+            </div>
           </div>
-          <div class="meta-card">
-            <div class="meta-title">⚙️ Configuration</div>
-            <div class="meta-row"><span>Transport</span><strong id="meta-transport">—</strong></div>
-            <div class="meta-row"><span>Vitesse</span><strong><span id="meta-speed">—</span> km/h</strong></div>
-            <div class="meta-row"><span>Joueurs</span><strong id="meta-players">—</strong></div>
+        </div>
+        
+        <!-- Section 3: Configuration -->
+        <div class="sheet-section" style="margin-bottom: 0; padding-bottom: 0; border-bottom: none;">
+          <div class="meta-title">⚙️ Configuration</div>
+          <div class="sheet-grid">
+            <div class="sheet-field">
+              <span class="sheet-field-label">Mode de transport</span>
+              <select class="sheet-select" id="meta-transport-select" data-meta-field="transportMode">
+                <option value="walking" ${payload.config.transportMode === 'walking' ? 'selected' : ''}>🚶 Marche</option>
+                <option value="scooter" ${payload.config.transportMode === 'scooter' ? 'selected' : ''}>🛵 Scooter</option>
+                <option value="car" ${payload.config.transportMode === 'car' ? 'selected' : ''}>🚗 Voiture</option>
+              </select>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Vitesse (km/h)</span>
+              <input type="number" class="sheet-number" style="width: 100%;" id="meta-speed-input" data-meta-field="speedKmh" value="${payload.config.speedKmh}" min="1" max="120">
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Nombre de joueurs</span>
+              <input type="number" class="sheet-number" style="width: 100%;" id="meta-players-input" data-meta-field="playersCount" value="${payload.config.playersCount}" min="1" max="100">
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Notes parcours</span>
+              <input type="text" class="sheet-input" id="meta-notes-input" data-meta-field="routeNotes" value="" placeholder="Observations...">
+            </div>
           </div>
         </div>
       </div>
@@ -1053,31 +1092,69 @@ export function generateInteractiveReportHTML(
       </div>
     </div>
     
-    <section class="summary-section">
-      <div class="summary-header">
+    <section class="stats-section">
+      <div class="stats-header">
         <h3>📊 Statistiques</h3>
-        <div class="summary-total">
+        <div class="stats-total">
           <span>TEMPS TOTAL</span>
           <span id="total-time">${Math.round(payload.computed.totalMinutes)} min</span>
         </div>
       </div>
-      <div class="summary-body">
-        <div class="summary">
-          <div class="stat-card">
-            <div class="stat-label">Distance</div>
-            <div class="stat-value" id="total-distance">${formatDistance(payload.trace.totalDistanceM)}</div>
+      <div class="stats-body">
+        <!-- Section Distances -->
+        <div class="sheet-section">
+          <div class="stats-title">📏 Distances</div>
+          <div class="sheet-grid">
+            <div class="sheet-field">
+              <span class="sheet-field-label">Distance totale</span>
+              <div class="sheet-field-value" id="total-distance" style="font-weight: 700; color: #f59e0b;">${formatDistance(payload.trace.totalDistanceM)}</div>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Points GPS</span>
+              <div class="sheet-field-value">${payload.trace.coordinates.length}</div>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Segments</span>
+              <div class="sheet-field-value">${payload.computed.segmentDistancesM.length}</div>
+            </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">Temps trajet</div>
-            <div class="stat-value" id="travel-time">${Math.round(payload.computed.travelMinutes)} min</div>
+        </div>
+        
+        <!-- Section Temps -->
+        <div class="sheet-section">
+          <div class="stats-title">⏱️ Temps</div>
+          <div class="sheet-grid">
+            <div class="sheet-field">
+              <span class="sheet-field-label">Temps de trajet</span>
+              <div class="sheet-field-value" id="travel-time">${Math.round(payload.computed.travelMinutes)} min</div>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Temps d'arrêts</span>
+              <div class="sheet-field-value" id="stop-time">${payload.computed.stopMinutes} min</div>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Temps total</span>
+              <div class="sheet-field-value" style="font-weight: 700; color: #f59e0b;" id="stats-total-time">${Math.round(payload.computed.totalMinutes)} min</div>
+            </div>
           </div>
-          <div class="stat-card">
-            <div class="stat-label">Temps arrêts</div>
-            <div class="stat-value" id="stop-time">${payload.computed.stopMinutes} min</div>
-          </div>
-          <div class="stat-card highlight">
-            <div class="stat-label">Marqueurs</div>
-            <div class="stat-value">${payload.pois.length}</div>
+        </div>
+        
+        <!-- Section Marqueurs -->
+        <div class="sheet-section" style="margin-bottom: 0; padding-bottom: 0; border-bottom: none;">
+          <div class="stats-title">📍 Marqueurs</div>
+          <div class="sheet-grid">
+            <div class="sheet-field">
+              <span class="sheet-field-label">Total marqueurs</span>
+              <div class="sheet-field-value" style="font-weight: 700; color: #667eea;">${payload.pois.length}</div>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Avec action</span>
+              <div class="sheet-field-value">${payload.pois.filter(p => p.action).length}</div>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Risque élevé</span>
+              <div class="sheet-field-value" style="color: ${payload.pois.filter(p => p.risk === 'high').length > 0 ? '#ef4444' : '#22c55e'};">${payload.pois.filter(p => p.risk === 'high').length}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -1235,6 +1312,13 @@ export function generateInteractiveReportHTML(
         photoAllowed: REPORT_DATA.project.decisions?.photoAllowed || false,
         staffInvolved: REPORT_DATA.project.decisions?.staffInvolved || false,
         storytellingEnabled: REPORT_DATA.project.storytelling?.enabled || false
+      },
+      // Meta bar state (editable fields)
+      meta: {
+        traceName: REPORT_DATA.trace.name || 'Trace',
+        startDate: REPORT_DATA.trace.startedAt ? new Date(REPORT_DATA.trace.startedAt).toLocaleString('fr-FR') : '—',
+        endDate: REPORT_DATA.trace.endedAt ? new Date(REPORT_DATA.trace.endedAt).toLocaleString('fr-FR') : '—',
+        routeNotes: ''
       }
     };
     
@@ -1261,6 +1345,10 @@ export function generateInteractiveReportHTML(
         // Merge project sheet state
         if (parsed.project) {
           Object.assign(STATE.project, parsed.project);
+        }
+        // Merge meta bar state
+        if (parsed.meta) {
+          Object.assign(STATE.meta, parsed.meta);
         }
       } catch (e) {
         console.warn('Failed to load state:', e);
@@ -1303,6 +1391,9 @@ export function generateInteractiveReportHTML(
       
       // Apply project sheet state
       applyProjectSheetToDOM();
+      
+      // Apply meta bar state
+      applyMetaBarToDOM();
     }
     
     // Apply project sheet state to DOM
@@ -1355,13 +1446,36 @@ export function generateInteractiveReportHTML(
       });
     }
     
-    // Update speed when transport mode changes
+    // Apply meta bar state to DOM
+    function applyMetaBarToDOM() {
+      // Text inputs
+      const metaInputs = document.querySelectorAll('[data-meta-field]');
+      metaInputs.forEach(el => {
+        const field = el.dataset.metaField;
+        if (field === 'transportMode') {
+          el.value = STATE.config.transportMode;
+        } else if (field === 'speedKmh') {
+          el.value = STATE.config.speedKmh;
+        } else if (field === 'playersCount') {
+          el.value = STATE.config.playersCount;
+        } else if (STATE.meta[field] !== undefined) {
+          el.value = STATE.meta[field];
+        }
+      });
+    }
+    
+    // Update speed when transport mode changes (old config panel)
     function updateSpeed() {
       const mode = document.getElementById('transport').value;
       const speed = SPEED_DEFAULTS[mode] || 5;
       document.getElementById('speed').value = speed;
       STATE.config.transportMode = mode;
       STATE.config.speedKmh = speed;
+      // Sync meta bar inputs
+      const metaTransportSelect = document.getElementById('meta-transport-select');
+      if (metaTransportSelect) metaTransportSelect.value = mode;
+      const metaSpeedInput = document.getElementById('meta-speed-input');
+      if (metaSpeedInput) metaSpeedInput.value = speed;
       saveState();
       recalculate();
     }
@@ -1380,15 +1494,31 @@ export function generateInteractiveReportHTML(
       
       const totalMin = travelMin + stopMin;
       
-      // Update DOM
+      // Update DOM - Stats section
       document.getElementById('travel-time').textContent = Math.round(travelMin) + ' min';
       document.getElementById('stop-time').textContent = stopMin + ' min';
       document.getElementById('total-time').textContent = Math.round(totalMin) + ' min';
+      
+      // Update stats section total time
+      const statsTotalTime = document.getElementById('stats-total-time');
+      if (statsTotalTime) {
+        statsTotalTime.textContent = Math.round(totalMin) + ' min';
+      }
       
       // Update project sheet total time
       const sheetTotal = document.getElementById('sheet-total-time');
       if (sheetTotal) {
         sheetTotal.textContent = Math.round(totalMin) + ' min';
+      }
+      
+      // Update meta bar timing
+      const metaTravel = document.getElementById('meta-travel');
+      if (metaTravel) {
+        metaTravel.textContent = Math.round(travelMin) + ' min';
+      }
+      const metaStops = document.getElementById('meta-stops');
+      if (metaStops) {
+        metaStops.textContent = stopMin + ' min';
       }
       
       // Update STATE
@@ -1397,7 +1527,6 @@ export function generateInteractiveReportHTML(
       STATE.computed.stopMinutes = stopMin;
       STATE.computed.totalMinutes = totalMin;
       saveState();
-      updateHeaderMeta();
     }
     
     // Format date helper
@@ -1417,25 +1546,12 @@ export function generateInteractiveReportHTML(
     // Transport mode labels
     const TRANSPORT_LABELS = { walking: '🚶 Marche', scooter: '🛵 Scooter', car: '🚗 Voiture' };
     
-    // Update header meta bar
-    function updateHeaderMeta() {
-      // Parcours
-      document.getElementById('meta-trace-name').textContent = REPORT_DATA.trace.name || 'Trace';
-      document.getElementById('meta-trace-id').textContent = shortId(REPORT_DATA.trace.id);
-      document.getElementById('meta-points').textContent = REPORT_DATA.trace.coordinates.length;
-      document.getElementById('meta-markers').textContent = STATE.pois.length;
-      
-      // Timing
-      document.getElementById('meta-start').textContent = formatDate(REPORT_DATA.trace.startedAt);
-      document.getElementById('meta-end').textContent = formatDate(REPORT_DATA.trace.endedAt);
-      document.getElementById('meta-travel').textContent = Math.round(STATE.computed.travelMinutes) + ' min';
-      document.getElementById('meta-stops').textContent = STATE.computed.stopMinutes + ' min';
-      document.getElementById('meta-total').textContent = Math.round(STATE.computed.totalMinutes) + ' min';
-      
-      // Config
-      document.getElementById('meta-transport').textContent = TRANSPORT_LABELS[STATE.config.transportMode] || STATE.config.transportMode;
-      document.getElementById('meta-speed').textContent = STATE.config.speedKmh;
-      document.getElementById('meta-players').textContent = STATE.config.playersCount;
+    // Update markers display
+    function updateMarkersDisplay() {
+      const markersDisplay = document.getElementById('meta-markers-display');
+      if (markersDisplay) {
+        markersDisplay.textContent = STATE.pois.length;
+      }
     }
     
     // Shared handler for POI field updates (input, change, select)
@@ -1526,23 +1642,67 @@ export function generateInteractiveReportHTML(
       });
     });
     
-    // Speed input change
+    // Meta bar field handlers
+    document.querySelectorAll('[data-meta-field]').forEach(el => {
+      const handler = function() {
+        const field = this.dataset.metaField;
+        if (field === 'transportMode') {
+          const mode = this.value;
+          const speed = SPEED_DEFAULTS[mode] || 5;
+          STATE.config.transportMode = mode;
+          STATE.config.speedKmh = speed;
+          const speedInput = document.getElementById('meta-speed-input');
+          if (speedInput) speedInput.value = speed;
+          // Also sync old config panel
+          document.getElementById('transport').value = mode;
+          document.getElementById('speed').value = speed;
+          saveState();
+          recalculate();
+        } else if (field === 'speedKmh') {
+          const speed = parseFloat(this.value) || 5;
+          STATE.config.speedKmh = speed;
+          // Sync old config panel
+          document.getElementById('speed').value = speed;
+          saveState();
+          recalculate();
+        } else if (field === 'playersCount') {
+          STATE.config.playersCount = parseInt(this.value) || 1;
+          // Sync old config panel
+          document.getElementById('players').value = this.value;
+          saveState();
+        } else {
+          STATE.meta[field] = this.value;
+          saveState();
+        }
+      };
+      el.addEventListener('input', handler);
+      el.addEventListener('change', handler);
+    });
+    
+    // Speed input change (old config panel)
     document.getElementById('speed').addEventListener('input', function() {
+      const speedInput = document.getElementById('meta-speed-input');
+      if (speedInput) speedInput.value = this.value;
       recalculate();
     });
     
-    // Players input change
+    // Players input change (old config panel)
     document.getElementById('players').addEventListener('input', function() {
       STATE.config.playersCount = parseInt(this.value) || 1;
+      const playersInput = document.getElementById('meta-players-input');
+      if (playersInput) playersInput.value = this.value;
       saveState();
-      updateHeaderMeta();
     });
     
     // Export JSON (with edits)
     function exportJSON() {
       const exportData = {
         project: Object.assign({}, REPORT_DATA.project, STATE.project),
-        trace: REPORT_DATA.trace,
+        trace: Object.assign({}, REPORT_DATA.trace, { 
+          name: STATE.meta.traceName,
+          notes: STATE.meta.routeNotes 
+        }),
+        meta: STATE.meta,
         config: STATE.config,
         pois: STATE.pois,
         computed: STATE.computed,
