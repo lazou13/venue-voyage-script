@@ -411,7 +411,12 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     }
   }, [createTrace, toast]);
 
-  // Stop recording
+  // Stop recording - use ref to get current state to avoid stale closures
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+
   const stopRecording = useCallback(async () => {
     // Clear autosave interval
     if (autosaveIntervalRef.current !== null) {
@@ -425,16 +430,20 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
       watchIdRef.current = null;
     }
 
-    // Get current state for saving
-    const { currentTraceId, coords } = state;
+    // Get current state from ref to avoid stale closure
+    const { currentTraceId, coords } = stateRef.current;
     
     // Ensure last point is included if we have coords
     if (currentTraceId && coords.length > 0) {
-      await updateTrace.mutateAsync({
-        traceId: currentTraceId,
-        coords: coords,
-        ended: true,
-      });
+      try {
+        await updateTrace.mutateAsync({
+          traceId: currentTraceId,
+          coords: coords,
+          ended: true,
+        });
+      } catch (err) {
+        console.error('Failed to save trace on stop:', err);
+      }
     }
 
     // Reset state and refs
@@ -450,7 +459,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     });
 
     toast({ title: 'Enregistrement arrêté' });
-  }, [state.currentTraceId, state.coords, updateTrace, toast]);
+  }, [updateTrace, toast]);
 
   // Retry after error
   const retry = useCallback(() => {
