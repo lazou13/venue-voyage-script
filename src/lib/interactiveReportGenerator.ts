@@ -429,39 +429,87 @@ export function generateInteractiveReportHTML(
     .stat-label { font-size: 0.75rem; color: inherit; opacity: 0.7; text-transform: uppercase; font-weight: 600; }
     .stat-value { font-size: 1.5rem; font-weight: 700; margin-top: 4px; }
     
-    /* POI Table */
+    /* POI Table - Redesigned */
     .pois-section {
       background: white;
-      border-radius: 12px;
+      border-radius: 16px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .pois-header {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .pois-header h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pois-count {
+      background: rgba(255,255,255,0.2);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .pois-body {
       padding: 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
       overflow-x: auto;
     }
-    .pois-section h2 { font-size: 1.1rem; margin-bottom: 16px; color: #333; }
     table { width: 100%; border-collapse: collapse; min-width: 1200px; }
-    th, td { padding: 8px 6px; text-align: left; border-bottom: 1px solid #eee; vertical-align: top; }
-    th { font-size: 0.65rem; text-transform: uppercase; color: #666; font-weight: 600; white-space: nowrap; }
-    td { font-size: 0.8rem; }
+    th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    th { 
+      font-size: 0.7rem; 
+      text-transform: uppercase; 
+      color: #10b981; 
+      font-weight: 700; 
+      white-space: nowrap;
+      letter-spacing: 0.3px;
+      background: #f0fdf4;
+    }
+    td { font-size: 0.85rem; }
+    tbody tr:hover { background: #f9fafb; }
     .poi-input, .poi-select, .poi-textarea {
-      padding: 4px 6px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 0.8rem;
+      padding: 6px 8px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 0.85rem;
       width: 100%;
       box-sizing: border-box;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
     .poi-input:focus, .poi-select:focus, .poi-textarea:focus {
       outline: none;
-      border-color: #667eea;
-      box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
+      border-color: #10b981;
+      box-shadow: 0 0 0 3px rgba(16,185,129,0.15);
     }
-    .poi-input.name { min-width: 80px; }
-    .poi-input.stop { width: 50px; text-align: center; }
-    .poi-input.gps { width: 100px; background: #f5f5f5; color: #666; font-size: 0.7rem; }
-    .poi-select { min-width: 70px; }
-    .poi-textarea { min-height: 40px; resize: vertical; font-family: inherit; }
-    .poi-photo-link { color: #3498db; text-decoration: none; font-size: 0.85rem; }
-    .poi-photo-link:hover { text-decoration: underline; }
+    .poi-input.name { min-width: 90px; }
+    .poi-input.stop { width: 55px; text-align: center; font-weight: 600; }
+    .poi-input.gps { width: 105px; background: #f8f9fa; color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace; }
+    .poi-select { min-width: 75px; }
+    .poi-textarea { min-height: 45px; resize: vertical; font-family: inherit; }
+    .poi-photo-link { 
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      background: #dbeafe;
+      border-radius: 6px;
+      color: #3b82f6;
+      text-decoration: none;
+      font-size: 1rem;
+      transition: background 0.2s;
+    }
+    .poi-photo-link:hover { background: #bfdbfe; }
     .empty-state { padding: 40px; text-align: center; color: #999; }
     
     /* Meta bar - Redesigned */
@@ -534,53 +582,6 @@ export function generateInteractiveReportHTML(
       color: #4b5563;
     }
     
-    /* Stats Section - Redesigned like Project Sheet */
-    .stats-section {
-      background: white;
-      border-radius: 16px;
-      margin-bottom: 20px;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
-      overflow: hidden;
-    }
-    .stats-header {
-      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-      color: white;
-      padding: 16px 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .stats-header h3 {
-      font-size: 1.1rem;
-      font-weight: 700;
-      margin: 0;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .stats-total {
-      background: rgba(255,255,255,0.2);
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 1.2rem;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .stats-total span:first-child { font-size: 0.75rem; opacity: 0.9; font-weight: 500; }
-    .stats-body { padding: 20px 24px; }
-    .stats-title {
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      font-weight: 700;
-      color: #f59e0b;
-      margin-bottom: 12px;
-      letter-spacing: 0.5px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
     
     /* Project Sheet - Redesigned */
     .project-sheet { 
@@ -757,10 +758,6 @@ export function generateInteractiveReportHTML(
       .meta-bar { margin-bottom: 10px; box-shadow: none; }
       .meta-bar-header { background: #0891b2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 10px 16px; }
       .meta-bar-body { padding: 12px 16px; }
-      /* Stats section print */
-      .stats-section { margin-bottom: 10px; box-shadow: none; }
-      .stats-header { background: #d97706 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 10px 16px; }
-      .stats-body { padding: 12px 16px; }
       /* Project sheet print */
       .project-sheet { box-shadow: none; }
       .project-sheet-header { background: #667eea !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 10px 16px; }
@@ -770,10 +767,13 @@ export function generateInteractiveReportHTML(
       /* Map */
       .map-section { break-inside: avoid; }
       #map { height: 300px; }
-      /* POI table */
-      .pois-section { break-inside: avoid; overflow: visible; box-shadow: none; }
+      /* POI table print */
+      .pois-section { break-inside: avoid; box-shadow: none; }
+      .pois-header { background: #059669 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 10px 16px; }
+      .pois-body { padding: 12px 16px; overflow: visible; }
       table { font-size: 0.65rem; min-width: auto; }
       th, td { padding: 4px 3px; }
+      th { background: #ecfdf5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .poi-input, .poi-select, .poi-textarea { border: none; padding: 0; font-size: 0.65rem; background: transparent; }
       .poi-textarea { min-height: auto; }
     }
@@ -787,12 +787,11 @@ export function generateInteractiveReportHTML(
       .meta-bar-header { flex-direction: column; gap: 10px; padding: 14px 16px; }
       .meta-bar-body { padding: 14px 16px; }
       .sheet-grid { grid-template-columns: 1fr 1fr; }
-      /* Stats section mobile */
-      .stats-header { flex-direction: column; gap: 10px; padding: 14px 16px; }
-      .stats-body { padding: 14px 16px; }
+      /* POI section mobile */
+      .pois-header { flex-direction: column; gap: 10px; padding: 14px 16px; }
+      .pois-body { padding: 12px; }
       /* Map */
       #map { height: 300px; }
-      .pois-section { padding: 12px; }
     }
   </style>
 </head>
@@ -1092,76 +1091,14 @@ export function generateInteractiveReportHTML(
       </div>
     </div>
     
-    <section class="stats-section">
-      <div class="stats-header">
-        <h3>📊 Statistiques</h3>
-        <div class="stats-total">
-          <span>TEMPS TOTAL</span>
-          <span id="total-time">${Math.round(payload.computed.totalMinutes)} min</span>
-        </div>
-      </div>
-      <div class="stats-body">
-        <!-- Section Distances -->
-        <div class="sheet-section">
-          <div class="stats-title">📏 Distances</div>
-          <div class="sheet-grid">
-            <div class="sheet-field">
-              <span class="sheet-field-label">Distance totale</span>
-              <div class="sheet-field-value" id="total-distance" style="font-weight: 700; color: #f59e0b;">${formatDistance(payload.trace.totalDistanceM)}</div>
-            </div>
-            <div class="sheet-field">
-              <span class="sheet-field-label">Points GPS</span>
-              <div class="sheet-field-value">${payload.trace.coordinates.length}</div>
-            </div>
-            <div class="sheet-field">
-              <span class="sheet-field-label">Segments</span>
-              <div class="sheet-field-value">${payload.computed.segmentDistancesM.length}</div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Section Temps -->
-        <div class="sheet-section">
-          <div class="stats-title">⏱️ Temps</div>
-          <div class="sheet-grid">
-            <div class="sheet-field">
-              <span class="sheet-field-label">Temps de trajet</span>
-              <div class="sheet-field-value" id="travel-time">${Math.round(payload.computed.travelMinutes)} min</div>
-            </div>
-            <div class="sheet-field">
-              <span class="sheet-field-label">Temps d'arrêts</span>
-              <div class="sheet-field-value" id="stop-time">${payload.computed.stopMinutes} min</div>
-            </div>
-            <div class="sheet-field">
-              <span class="sheet-field-label">Temps total</span>
-              <div class="sheet-field-value" style="font-weight: 700; color: #f59e0b;" id="stats-total-time">${Math.round(payload.computed.totalMinutes)} min</div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- Section Marqueurs -->
-        <div class="sheet-section" style="margin-bottom: 0; padding-bottom: 0; border-bottom: none;">
-          <div class="stats-title">📍 Marqueurs</div>
-          <div class="sheet-grid">
-            <div class="sheet-field">
-              <span class="sheet-field-label">Total marqueurs</span>
-              <div class="sheet-field-value" style="font-weight: 700; color: #667eea;">${payload.pois.length}</div>
-            </div>
-            <div class="sheet-field">
-              <span class="sheet-field-label">Avec action</span>
-              <div class="sheet-field-value">${payload.pois.filter(p => p.action).length}</div>
-            </div>
-            <div class="sheet-field">
-              <span class="sheet-field-label">Risque élevé</span>
-              <div class="sheet-field-value" style="color: ${payload.pois.filter(p => p.risk === 'high').length > 0 ? '#ef4444' : '#22c55e'};">${payload.pois.filter(p => p.risk === 'high').length}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
     
-    <div class="pois-section">
-      <h2>Points d'intérêt (${payload.pois.length})</h2>
+    
+    <section class="pois-section">
+      <div class="pois-header">
+        <h2>📍 Points d'intérêt</h2>
+        <div class="pois-count" id="pois-count">${payload.pois.length} POI${payload.pois.length > 1 ? 's' : ''}</div>
+      </div>
+      <div class="pois-body">
       ${payload.pois.length === 0 ? `
         <div class="empty-state">
           <p>Aucun marqueur sur ce parcours</p>
@@ -1254,7 +1191,8 @@ export function generateInteractiveReportHTML(
           </tbody>
         </table>
       `}
-    </div>
+      </div>
+    </section>
   </div>
   
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -1493,17 +1431,6 @@ export function generateInteractiveReportHTML(
       });
       
       const totalMin = travelMin + stopMin;
-      
-      // Update DOM - Stats section
-      document.getElementById('travel-time').textContent = Math.round(travelMin) + ' min';
-      document.getElementById('stop-time').textContent = stopMin + ' min';
-      document.getElementById('total-time').textContent = Math.round(totalMin) + ' min';
-      
-      // Update stats section total time
-      const statsTotalTime = document.getElementById('stats-total-time');
-      if (statsTotalTime) {
-        statsTotalTime.textContent = Math.round(totalMin) + ' min';
-      }
       
       // Update project sheet total time
       const sheetTotal = document.getElementById('sheet-total-time');
