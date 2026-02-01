@@ -61,6 +61,8 @@ interface InteractiveReportViewerProps {
   markers: RouteMarker[];
   projectName: string;
   projectCity?: string;
+  questConfig?: Record<string, unknown>;
+  poisCount?: number;
 }
 
 // Speed defaults per transport mode
@@ -77,6 +79,8 @@ export function InteractiveReportViewer({
   markers,
   projectName,
   projectCity,
+  questConfig,
+  poisCount,
 }: InteractiveReportViewerProps) {
   // Config state
   const [transportMode, setTransportMode] = useState<ReportConfig['transportMode']>('walking');
@@ -116,12 +120,17 @@ export function InteractiveReportViewer({
   // Build payload with current config
   const buildPayload = useCallback((): ReportPayload => {
     return buildReportPayload(
-      { hotel_name: projectName, city: projectCity },
+      { 
+        hotel_name: projectName, 
+        city: projectCity,
+        quest_config: questConfig as any,
+        pois_count: poisCount,
+      },
       trace,
       markers,
       { transportMode, speedKmh, playersCount }
     );
-  }, [projectName, projectCity, trace, markers, transportMode, speedKmh, playersCount]);
+  }, [projectName, projectCity, questConfig, poisCount, trace, markers, transportMode, speedKmh, playersCount]);
 
   // Helper to create Blob URL and manage cleanup
   const createBlobUrl = (content: string, type: string): string => {

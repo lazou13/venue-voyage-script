@@ -1206,6 +1206,8 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
           markers={markers}
           projectName={project?.hotel_name || 'Parcours'}
           projectCity={project?.city}
+          questConfig={project?.quest_config as Record<string, unknown>}
+          poisCount={markers.length}
         />
       )}
     </div>
