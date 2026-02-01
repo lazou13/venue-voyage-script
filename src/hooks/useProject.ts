@@ -79,6 +79,26 @@ export function useProject(projectId: string | undefined) {
     enabled: !!projectId,
   });
 
+  // Determine if project is route_recon for conditional query
+  const projectType = projectQuery.data?.quest_config?.project_type;
+  const isRouteRecon = projectType === 'route_recon';
+
+  // Route traces query - only enabled for route_recon projects
+  const tracesQuery = useQuery({
+    queryKey: ['route_traces', projectId],
+    queryFn: async () => {
+      if (!projectId) return [];
+      const { data, error } = await supabase
+        .from('route_traces')
+        .select('id, geojson, distance_meters, created_at')
+        .eq('project_id', projectId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!projectId && isRouteRecon,
+  });
+
   const updateProject = useMutation({
     mutationFn: async (updates: Partial<Project>) => {
       if (!projectId) throw new Error('No project ID');
@@ -155,16 +175,38 @@ export function useProject(projectId: string | undefined) {
       errors.push('Mode de jeu requis');
     }
 
-    // Blocking errors
-    if (!project?.map_url) {
-      errors.push('Aucune carte uploadée');
+    // Conditional blocking errors based on project type
+    const validationProjectType = project?.quest_config?.project_type;
+    const validationIsRouteRecon = validationProjectType === 'route_recon';
+
+    if (!validationIsRouteRecon) {
+      // Standard projects: require map, min POIs, forbidden zones
+      if (!project?.map_url) {
+        errors.push('Aucune carte uploadée');
+      }
+      if (pois.length < 10) {
+        errors.push(`Étapes insuffisantes: ${pois.length}/10 minimum`);
+      }
+      if (forbiddenZones.length === 0) {
+        errors.push('Zones interdites non définies');
+      }
+    } else {
+      // Route recon projects: validate on trace presence
+      // Don't push errors while loading to avoid flicker
+      if (tracesQuery.isError) {
+        errors.push('Erreur chargement traces GPS');
+      } else if (!tracesQuery.isLoading) {
+        const traces = tracesQuery.data || [];
+        const hasValidTrace = traces.some(t => {
+          const coords = (t.geojson as any)?.coordinates || [];
+          return coords.length >= 2;
+        });
+        if (!hasValidTrace) {
+          errors.push('Aucune trace GPS valide (min 2 points)');
+        }
+      }
     }
-    if (pois.length < 10) {
-      errors.push(`Étapes insuffisantes: ${pois.length}/10 minimum`);
-    }
-    if (forbiddenZones.length === 0) {
-      errors.push('Zones interdites non définies');
-    }
+
     if (!project?.title_i18n?.fr) {
       errors.push('Titre (FR) obligatoire');
     }
