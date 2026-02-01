@@ -33,6 +33,7 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
   // Compute projectType early for useEffect dependency
   const projectType = project?.quest_config?.project_type || 'establishment';
   const isRouteRecon = projectType === 'route_recon';
+  const projectLoadedId = project?.id ?? null;
 
   // Fetch trace + markers for route_recon projects
   useEffect(() => {
@@ -51,7 +52,8 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
           .from('route_traces')
           .select('*')
           .eq('project_id', projectId)
-          .order('created_at', { ascending: false });
+          .order('created_at', { ascending: false })
+          .limit(20);
 
         if (tracesError) throw tracesError;
         
@@ -121,7 +123,7 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
     return () => {
       isMounted = false;
     };
-  }, [projectId, isRouteRecon, project]);
+  }, [projectId, isRouteRecon, projectLoadedId]);
   // ============= End Route Recon fetch =============
 
   const validation = validate();
