@@ -464,16 +464,130 @@ export function generateInteractiveReportHTML(
     .poi-photo-link:hover { text-decoration: underline; }
     .empty-state { padding: 40px; text-align: center; color: #999; }
     
-    /* Meta bar */
-    .meta-bar { margin-bottom: 16px; }
-    .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-    .meta-card { background: white; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .meta-title { font-size: 0.7rem; text-transform: uppercase; font-weight: 700; color: #667eea; margin-bottom: 8px; letter-spacing: 0.5px; }
-    .meta-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; padding: 3px 0; border-bottom: 1px solid #f5f5f5; }
+    /* Meta bar - Redesigned */
+    .meta-bar { 
+      background: white;
+      border-radius: 16px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    .meta-bar-header {
+      background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+      color: white;
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .meta-bar-header h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .meta-bar-header .meta-distance {
+      background: rgba(255,255,255,0.2);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .meta-bar-body { padding: 20px 24px; }
+    .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .meta-card { 
+      background: #f8f9fa;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px; 
+      padding: 16px;
+    }
+    .meta-title { 
+      font-size: 0.7rem; 
+      text-transform: uppercase; 
+      font-weight: 700; 
+      color: #0891b2; 
+      margin-bottom: 12px; 
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .meta-row { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      font-size: 0.85rem; 
+      padding: 6px 0; 
+      border-bottom: 1px solid #e5e7eb;
+    }
     .meta-row:last-child { border-bottom: none; }
-    .meta-row span { color: #888; }
-    .meta-row strong { color: #333; font-weight: 600; }
-    .meta-row code { font-family: 'SF Mono', Monaco, monospace; font-size: 0.7rem; background: #f0f0f0; padding: 2px 5px; border-radius: 3px; color: #666; }
+    .meta-row span { color: #6b7280; font-weight: 500; }
+    .meta-row strong { color: #1f2937; font-weight: 600; }
+    .meta-row code { 
+      font-family: 'SF Mono', Monaco, monospace; 
+      font-size: 0.75rem; 
+      background: #e5e7eb; 
+      padding: 3px 8px; 
+      border-radius: 4px; 
+      color: #4b5563;
+    }
+    
+    /* Summary Stats - Redesigned */
+    .summary-section {
+      background: white;
+      border-radius: 16px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    .summary-header {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: white;
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .summary-header h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .summary-header .summary-total {
+      background: rgba(255,255,255,0.2);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 1.1rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .summary-header .summary-total span { font-size: 0.75rem; opacity: 0.9; font-weight: 500; }
+    .summary-body { padding: 20px 24px; }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px;
+    }
+    .stat-card {
+      background: #f8f9fa;
+      padding: 16px;
+      border-radius: 12px;
+      text-align: center;
+      border: 1px solid #e5e7eb;
+    }
+    .stat-card.highlight { 
+      background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); 
+      border-color: #667eea40;
+    }
+    .stat-label { font-size: 0.7rem; color: #6b7280; text-transform: uppercase; font-weight: 600; letter-spacing: 0.3px; }
+    .stat-value { font-size: 1.4rem; font-weight: 700; margin-top: 6px; color: #1f2937; }
     
     /* Project Sheet - Redesigned */
     .project-sheet { 
@@ -646,14 +760,27 @@ export function generateInteractiveReportHTML(
       .container { padding: 0; max-width: none; }
       header { background: #1a1a2e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .export-buttons, .config-panel { display: none !important; }
-      .meta-bar { margin-bottom: 10px; }
-      .meta-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-      .meta-card { padding: 8px 10px; box-shadow: none; border: 1px solid #ddd; }
+      /* Meta bar print */
+      .meta-bar { margin-bottom: 10px; box-shadow: none; }
+      .meta-bar-header { background: #0891b2 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 10px 16px; }
+      .meta-bar-body { padding: 12px 16px; }
+      .meta-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+      .meta-card { padding: 10px; border: 1px solid #ddd; background: #f8f9fa !important; }
+      /* Summary print */
+      .summary-section { margin-bottom: 10px; box-shadow: none; }
+      .summary-header { background: #d97706 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 10px 16px; }
+      .summary-body { padding: 12px 16px; }
+      .stat-card { background: #f8f9fa !important; }
+      .stat-card.highlight { background: #667eea15 !important; }
+      /* Project sheet print */
+      .project-sheet { box-shadow: none; }
+      .project-sheet-header { background: #667eea !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 10px 16px; }
+      .project-sheet-body { padding: 12px 16px; }
+      /* Map */
       .map-section { break-inside: avoid; }
       #map { height: 300px; }
-      .summary { break-inside: avoid; }
-      .stat-card.total { background: #667eea !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .pois-section { break-inside: avoid; overflow: visible; }
+      /* POI table */
+      .pois-section { break-inside: avoid; overflow: visible; box-shadow: none; }
       table { font-size: 0.65rem; min-width: auto; }
       th, td { padding: 4px 3px; }
       .poi-input, .poi-select, .poi-textarea { border: none; padding: 0; font-size: 0.65rem; background: transparent; }
@@ -665,7 +792,15 @@ export function generateInteractiveReportHTML(
       .config-panel { flex-direction: column; gap: 12px; }
       .config-group { width: 100%; }
       .config-group select, .config-group input { width: 100%; }
+      /* Meta bar mobile */
+      .meta-bar-header { flex-direction: column; gap: 10px; padding: 14px 16px; }
+      .meta-bar-body { padding: 14px 16px; }
       .meta-grid { grid-template-columns: 1fr; }
+      /* Summary mobile */
+      .summary-header { flex-direction: column; gap: 10px; padding: 14px 16px; }
+      .summary-body { padding: 14px 16px; }
+      .summary { grid-template-columns: repeat(2, 1fr); }
+      /* Map */
       #map { height: 300px; }
       .pois-section { padding: 12px; }
     }
@@ -877,27 +1012,33 @@ export function generateInteractiveReportHTML(
     </section>
     
     <section id="meta-bar" class="meta-bar">
-      <div class="meta-grid">
-        <div class="meta-card">
-          <div class="meta-title">Parcours</div>
-          <div class="meta-row"><span>Trace</span><strong id="meta-trace-name">—</strong></div>
-          <div class="meta-row"><span>ID</span><code id="meta-trace-id">—</code></div>
-          <div class="meta-row"><span>Points</span><strong id="meta-points">0</strong></div>
-          <div class="meta-row"><span>Marqueurs</span><strong id="meta-markers">0</strong></div>
-        </div>
-        <div class="meta-card">
-          <div class="meta-title">Timing</div>
-          <div class="meta-row"><span>Début</span><strong id="meta-start">—</strong></div>
-          <div class="meta-row"><span>Fin</span><strong id="meta-end">—</strong></div>
-          <div class="meta-row"><span>Trajet</span><strong id="meta-travel">—</strong></div>
-          <div class="meta-row"><span>Arrêts</span><strong id="meta-stops">—</strong></div>
-          <div class="meta-row"><span>Total</span><strong id="meta-total">—</strong></div>
-        </div>
-        <div class="meta-card">
-          <div class="meta-title">Config</div>
-          <div class="meta-row"><span>Transport</span><strong id="meta-transport">—</strong></div>
-          <div class="meta-row"><span>Vitesse</span><strong><span id="meta-speed">—</span> km/h</strong></div>
-          <div class="meta-row"><span>Joueurs</span><strong id="meta-players">—</strong></div>
+      <div class="meta-bar-header">
+        <h3>📍 Infos Parcours</h3>
+        <div class="meta-distance" id="meta-distance">${formatDistance(payload.trace.totalDistanceM)}</div>
+      </div>
+      <div class="meta-bar-body">
+        <div class="meta-grid">
+          <div class="meta-card">
+            <div class="meta-title">🗺️ Trace</div>
+            <div class="meta-row"><span>Nom</span><strong id="meta-trace-name">—</strong></div>
+            <div class="meta-row"><span>ID</span><code id="meta-trace-id">—</code></div>
+            <div class="meta-row"><span>Points GPS</span><strong id="meta-points">0</strong></div>
+            <div class="meta-row"><span>Marqueurs</span><strong id="meta-markers">0</strong></div>
+          </div>
+          <div class="meta-card">
+            <div class="meta-title">⏱️ Timing</div>
+            <div class="meta-row"><span>Début</span><strong id="meta-start">—</strong></div>
+            <div class="meta-row"><span>Fin</span><strong id="meta-end">—</strong></div>
+            <div class="meta-row"><span>Trajet</span><strong id="meta-travel">—</strong></div>
+            <div class="meta-row"><span>Arrêts</span><strong id="meta-stops">—</strong></div>
+            <div class="meta-row"><span>Total</span><strong id="meta-total">—</strong></div>
+          </div>
+          <div class="meta-card">
+            <div class="meta-title">⚙️ Configuration</div>
+            <div class="meta-row"><span>Transport</span><strong id="meta-transport">—</strong></div>
+            <div class="meta-row"><span>Vitesse</span><strong><span id="meta-speed">—</span> km/h</strong></div>
+            <div class="meta-row"><span>Joueurs</span><strong id="meta-players">—</strong></div>
+          </div>
         </div>
       </div>
     </section>
@@ -912,24 +1053,35 @@ export function generateInteractiveReportHTML(
       </div>
     </div>
     
-    <div class="summary">
-      <div class="stat-card">
-        <div class="stat-label">Distance totale</div>
-        <div class="stat-value" id="total-distance">${formatDistance(payload.trace.totalDistanceM)}</div>
+    <section class="summary-section">
+      <div class="summary-header">
+        <h3>📊 Statistiques</h3>
+        <div class="summary-total">
+          <span>TEMPS TOTAL</span>
+          <span id="total-time">${Math.round(payload.computed.totalMinutes)} min</span>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Temps trajet</div>
-        <div class="stat-value" id="travel-time">${Math.round(payload.computed.travelMinutes)} min</div>
+      <div class="summary-body">
+        <div class="summary">
+          <div class="stat-card">
+            <div class="stat-label">Distance</div>
+            <div class="stat-value" id="total-distance">${formatDistance(payload.trace.totalDistanceM)}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Temps trajet</div>
+            <div class="stat-value" id="travel-time">${Math.round(payload.computed.travelMinutes)} min</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Temps arrêts</div>
+            <div class="stat-value" id="stop-time">${payload.computed.stopMinutes} min</div>
+          </div>
+          <div class="stat-card highlight">
+            <div class="stat-label">Marqueurs</div>
+            <div class="stat-value">${payload.pois.length}</div>
+          </div>
+        </div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Temps arrêts</div>
-        <div class="stat-value" id="stop-time">${payload.computed.stopMinutes} min</div>
-      </div>
-      <div class="stat-card total">
-        <div class="stat-label">Temps total</div>
-        <div class="stat-value" id="total-time">${Math.round(payload.computed.totalMinutes)} min</div>
-      </div>
-    </div>
+    </section>
     
     <div class="pois-section">
       <h2>Points d'intérêt (${payload.pois.length})</h2>
