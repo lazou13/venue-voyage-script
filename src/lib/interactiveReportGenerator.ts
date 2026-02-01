@@ -19,6 +19,15 @@ export interface ReportPOI {
   note: string | null;
   photoUrl: string | null;
   stopMinutes: number;
+  // Phase 2 fields
+  name: string;
+  functionType: 'passage' | 'pause_the' | 'briefing' | 'repas' | 'visite' | 'arret';
+  action: '' | 'enigme' | 'qr_code' | 'photo_requise' | 'defi';
+  validationType: '' | 'qr_code' | 'photo' | 'code' | 'manuel' | 'libre';
+  risk: 'low' | 'medium' | 'high';
+  wifi: 'good' | 'weak' | 'none';
+  hints: string;
+  notes: string;
 }
 
 export interface ReportConfig {
@@ -150,7 +159,7 @@ export function buildReportPayload(
     (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
   
-  // Build POIs with kind inference
+  // Build POIs with kind inference and Phase 2 fields
   const pois: ReportPOI[] = sortedMarkers.map((marker, index) => {
     const kind = inferMarkerKind(marker.note);
     return {
@@ -162,7 +171,16 @@ export function buildReportPayload(
       emoji: getMarkerEmoji(kind),
       note: marker.note,
       photoUrl: marker.photo_url,
-      stopMinutes: 0, // Default, editable in report
+      stopMinutes: 0,
+      // Phase 2 fields with defaults
+      name: '',
+      functionType: 'passage' as const,
+      action: '' as const,
+      validationType: '' as const,
+      risk: 'low' as const,
+      wifi: 'none' as const,
+      hints: marker.note || '',
+      notes: '',
     };
   });
   
@@ -336,23 +354,33 @@ export function generateInteractiveReportHTML(
       border-radius: 12px;
       padding: 20px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      overflow-x: auto;
     }
     .pois-section h2 { font-size: 1.1rem; margin-bottom: 16px; color: #333; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
-    th { font-size: 0.75rem; text-transform: uppercase; color: #666; font-weight: 600; }
-    td { font-size: 0.9rem; }
-    .poi-emoji { font-size: 1.2rem; }
-    .poi-note { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .poi-photo-link { color: #3498db; text-decoration: none; }
-    .poi-photo-link:hover { text-decoration: underline; }
-    select.poi-kind, input.poi-stop {
-      padding: 6px 10px;
+    table { width: 100%; border-collapse: collapse; min-width: 1200px; }
+    th, td { padding: 8px 6px; text-align: left; border-bottom: 1px solid #eee; vertical-align: top; }
+    th { font-size: 0.65rem; text-transform: uppercase; color: #666; font-weight: 600; white-space: nowrap; }
+    td { font-size: 0.8rem; }
+    .poi-input, .poi-select, .poi-textarea {
+      padding: 4px 6px;
       border: 1px solid #ddd;
       border-radius: 4px;
-      font-size: 0.85rem;
+      font-size: 0.8rem;
+      width: 100%;
+      box-sizing: border-box;
     }
-    input.poi-stop { width: 60px; text-align: center; }
+    .poi-input:focus, .poi-select:focus, .poi-textarea:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 2px rgba(102,126,234,0.2);
+    }
+    .poi-input.name { min-width: 80px; }
+    .poi-input.stop { width: 50px; text-align: center; }
+    .poi-input.gps { width: 100px; background: #f5f5f5; color: #666; font-size: 0.7rem; }
+    .poi-select { min-width: 70px; }
+    .poi-textarea { min-height: 40px; resize: vertical; font-family: inherit; }
+    .poi-photo-link { color: #3498db; text-decoration: none; font-size: 0.85rem; }
+    .poi-photo-link:hover { text-decoration: underline; }
     .empty-state { padding: 40px; text-align: center; color: #999; }
     
     /* Print styles */
@@ -365,9 +393,11 @@ export function generateInteractiveReportHTML(
       #map { height: 300px; }
       .summary { break-inside: avoid; }
       .stat-card.total { background: #667eea !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .pois-section { break-inside: avoid; }
-      table { font-size: 0.8rem; }
-      th, td { padding: 8px; }
+      .pois-section { break-inside: avoid; overflow: visible; }
+      table { font-size: 0.65rem; min-width: auto; }
+      th, td { padding: 4px 3px; }
+      .poi-input, .poi-select, .poi-textarea { border: none; padding: 0; font-size: 0.65rem; background: transparent; }
+      .poi-textarea { min-height: auto; }
     }
     
     @media (max-width: 768px) {
@@ -376,8 +406,7 @@ export function generateInteractiveReportHTML(
       .config-group { width: 100%; }
       .config-group select, .config-group input { width: 100%; }
       #map { height: 300px; }
-      table { font-size: 0.8rem; }
-      th, td { padding: 8px; }
+      .pois-section { padding: 12px; }
     }
   </style>
 </head>
@@ -390,6 +419,8 @@ export function generateInteractiveReportHTML(
       </div>
       <div class="export-buttons no-print">
         <button class="btn-pdf" onclick="window.print()">🖨️ PDF</button>
+        <button class="btn-json" onclick="exportJSON()">📄 JSON</button>
+        <button class="btn-word" onclick="exportWord()">📝 Word</button>
       </div>
     </header>
     
@@ -452,31 +483,83 @@ export function generateInteractiveReportHTML(
           <thead>
             <tr>
               <th>#</th>
+              <th>Nom</th>
               <th>Type</th>
-              <th>Note</th>
-              <th>Arrêt (min)</th>
+              <th>Action</th>
+              <th>Validation</th>
+              <th>Durée</th>
+              <th>Risque</th>
+              <th>Wi-Fi</th>
+              <th>GPS</th>
+              <th>Indice(s)</th>
               <th>Photo</th>
+              <th>Notes</th>
             </tr>
           </thead>
           <tbody>
-            ${payload.pois.map((poi, idx) => `
+            ${payload.pois.map((poi) => `
               <tr data-poi-id="${escapeHtml(poi.id)}">
                 <td>${poi.order}</td>
                 <td>
-                  <span class="poi-emoji">${poi.emoji}</span>
-                  <select class="poi-kind" data-idx="${idx}" onchange="recalculate();">
-                    <option value="poi" ${poi.kind === 'poi' ? 'selected' : ''}>📍 POI</option>
-                    <option value="danger" ${poi.kind === 'danger' ? 'selected' : ''}>⚠️ Danger</option>
-                    <option value="mandatory_stop" ${poi.kind === 'mandatory_stop' ? 'selected' : ''}>⛔ Arrêt oblig.</option>
-                    <option value="departure" ${poi.kind === 'departure' ? 'selected' : ''}>🚩 Départ</option>
+                  <input type="text" class="poi-input name" data-poi-id="${escapeHtml(poi.id)}" data-field="name" value="${escapeHtml(poi.name)}" placeholder="POI #${poi.order}">
+                </td>
+                <td>
+                  <select class="poi-select" data-poi-id="${escapeHtml(poi.id)}" data-field="functionType">
+                    <option value="passage" ${poi.functionType === 'passage' ? 'selected' : ''}>Passage</option>
+                    <option value="pause_the" ${poi.functionType === 'pause_the' ? 'selected' : ''}>Pause thé</option>
+                    <option value="briefing" ${poi.functionType === 'briefing' ? 'selected' : ''}>Briefing</option>
+                    <option value="repas" ${poi.functionType === 'repas' ? 'selected' : ''}>Repas</option>
+                    <option value="visite" ${poi.functionType === 'visite' ? 'selected' : ''}>Visite</option>
+                    <option value="arret" ${poi.functionType === 'arret' ? 'selected' : ''}>Arrêt</option>
                   </select>
                 </td>
-                <td class="poi-note" title="${escapeHtml(poi.note || '')}">${escapeHtml(poi.note || '-')}</td>
                 <td>
-                  <input type="number" class="poi-stop" data-idx="${idx}" value="${poi.stopMinutes}" min="0" max="120" onchange="recalculate();">
+                  <select class="poi-select" data-poi-id="${escapeHtml(poi.id)}" data-field="action">
+                    <option value="" ${poi.action === '' ? 'selected' : ''}>—</option>
+                    <option value="enigme" ${poi.action === 'enigme' ? 'selected' : ''}>Énigme</option>
+                    <option value="qr_code" ${poi.action === 'qr_code' ? 'selected' : ''}>QR Code</option>
+                    <option value="photo_requise" ${poi.action === 'photo_requise' ? 'selected' : ''}>Photo</option>
+                    <option value="defi" ${poi.action === 'defi' ? 'selected' : ''}>Défi</option>
+                  </select>
                 </td>
                 <td>
-                  ${poi.photoUrl ? `<a href="${escapeHtml(poi.photoUrl)}" target="_blank" class="poi-photo-link">📷 Voir</a>` : '-'}
+                  <select class="poi-select" data-poi-id="${escapeHtml(poi.id)}" data-field="validationType">
+                    <option value="" ${poi.validationType === '' ? 'selected' : ''}>—</option>
+                    <option value="qr_code" ${poi.validationType === 'qr_code' ? 'selected' : ''}>QR Code</option>
+                    <option value="photo" ${poi.validationType === 'photo' ? 'selected' : ''}>Photo</option>
+                    <option value="code" ${poi.validationType === 'code' ? 'selected' : ''}>Code</option>
+                    <option value="manuel" ${poi.validationType === 'manuel' ? 'selected' : ''}>Manuel</option>
+                    <option value="libre" ${poi.validationType === 'libre' ? 'selected' : ''}>Libre</option>
+                  </select>
+                </td>
+                <td>
+                  <input type="number" class="poi-input stop" data-poi-id="${escapeHtml(poi.id)}" data-field="stopMinutes" value="${poi.stopMinutes}" min="0" max="120">
+                </td>
+                <td>
+                  <select class="poi-select" data-poi-id="${escapeHtml(poi.id)}" data-field="risk">
+                    <option value="low" ${poi.risk === 'low' ? 'selected' : ''}>Faible</option>
+                    <option value="medium" ${poi.risk === 'medium' ? 'selected' : ''}>Moyen</option>
+                    <option value="high" ${poi.risk === 'high' ? 'selected' : ''}>Élevé</option>
+                  </select>
+                </td>
+                <td>
+                  <select class="poi-select" data-poi-id="${escapeHtml(poi.id)}" data-field="wifi">
+                    <option value="none" ${poi.wifi === 'none' ? 'selected' : ''}>Aucun</option>
+                    <option value="weak" ${poi.wifi === 'weak' ? 'selected' : ''}>Faible</option>
+                    <option value="good" ${poi.wifi === 'good' ? 'selected' : ''}>Bon</option>
+                  </select>
+                </td>
+                <td>
+                  <input type="text" class="poi-input gps" data-poi-id="${escapeHtml(poi.id)}" data-field="gps" value="${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}" readonly>
+                </td>
+                <td>
+                  <textarea class="poi-textarea" data-poi-id="${escapeHtml(poi.id)}" data-field="hints" rows="2">${escapeHtml(poi.hints)}</textarea>
+                </td>
+                <td>
+                  ${poi.photoUrl ? `<a href="${escapeHtml(poi.photoUrl)}" target="_blank" class="poi-photo-link">📷</a>` : '—'}
+                </td>
+                <td>
+                  <textarea class="poi-textarea" data-poi-id="${escapeHtml(poi.id)}" data-field="notes" rows="2">${escapeHtml(poi.notes)}</textarea>
                 </td>
               </tr>
             `).join('')}
@@ -491,33 +574,244 @@ export function generateInteractiveReportHTML(
     // Safely injected data
     const REPORT_DATA = ${safeJson};
     const AUTO_PRINT = ${autoPrint};
+    const STORAGE_KEY = 'interactive_report:' + REPORT_DATA.trace.id;
     
     // Speed defaults per mode
     const SPEED_DEFAULTS = { walking: 5, scooter: 15, car: 30 };
     
+    // Internal state (mutable, persisted to localStorage)
+    const STATE = {
+      config: {
+        transportMode: REPORT_DATA.config.transportMode,
+        speedKmh: REPORT_DATA.config.speedKmh,
+        playersCount: REPORT_DATA.config.playersCount
+      },
+      pois: REPORT_DATA.pois.map(p => ({
+        id: p.id,
+        order: p.order,
+        lat: p.lat,
+        lng: p.lng,
+        name: p.name || '',
+        functionType: p.functionType || 'passage',
+        action: p.action || '',
+        validationType: p.validationType || '',
+        stopMinutes: p.stopMinutes || 0,
+        risk: p.risk || 'low',
+        wifi: p.wifi || 'none',
+        hints: p.hints || '',
+        notes: p.notes || '',
+        photoUrl: p.photoUrl || null
+      })),
+      computed: {
+        totalDistanceM: REPORT_DATA.trace.totalDistanceM,
+        travelMinutes: REPORT_DATA.computed.travelMinutes,
+        stopMinutes: REPORT_DATA.computed.stopMinutes,
+        totalMinutes: REPORT_DATA.computed.totalMinutes
+      }
+    };
+    
+    // Load from localStorage
+    function loadState() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (!saved) return;
+        const parsed = JSON.parse(saved);
+        // Merge config
+        if (parsed.config) {
+          Object.assign(STATE.config, parsed.config);
+        }
+        // Merge POIs by id
+        if (parsed.pois && Array.isArray(parsed.pois)) {
+          const savedMap = {};
+          parsed.pois.forEach(p => { savedMap[p.id] = p; });
+          STATE.pois.forEach((poi, idx) => {
+            if (savedMap[poi.id]) {
+              Object.assign(STATE.pois[idx], savedMap[poi.id]);
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to load state:', e);
+      }
+    }
+    
+    // Save to localStorage
+    function saveState() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(STATE));
+      } catch (e) {
+        console.warn('Failed to save state:', e);
+      }
+    }
+    
+    // Apply state to DOM
+    function applyStateToDOM() {
+      // Config
+      document.getElementById('transport').value = STATE.config.transportMode;
+      document.getElementById('speed').value = STATE.config.speedKmh;
+      document.getElementById('players').value = STATE.config.playersCount;
+      
+      // POIs
+      STATE.pois.forEach(poi => {
+        const row = document.querySelector('tr[data-poi-id="' + poi.id + '"]');
+        if (!row) return;
+        const inputs = row.querySelectorAll('[data-field]');
+        inputs.forEach(el => {
+          const field = el.dataset.field;
+          if (field === 'gps') return; // readonly
+          if (el.tagName === 'SELECT') {
+            el.value = poi[field] || '';
+          } else if (el.tagName === 'TEXTAREA') {
+            el.value = poi[field] || '';
+          } else if (el.tagName === 'INPUT') {
+            el.value = poi[field] || '';
+          }
+        });
+      });
+    }
+    
     // Update speed when transport mode changes
     function updateSpeed() {
       const mode = document.getElementById('transport').value;
-      document.getElementById('speed').value = SPEED_DEFAULTS[mode] || 5;
+      const speed = SPEED_DEFAULTS[mode] || 5;
+      document.getElementById('speed').value = speed;
+      STATE.config.transportMode = mode;
+      STATE.config.speedKmh = speed;
+      saveState();
+      recalculate();
     }
     
     // Recalculate times based on current config
     function recalculate() {
       const speed = parseFloat(document.getElementById('speed').value) || 5;
-      const distanceKm = REPORT_DATA.trace.totalDistanceM / 1000;
+      const distanceKm = STATE.computed.totalDistanceM / 1000;
       const travelMin = (distanceKm / speed) * 60;
       
-      // Sum stop times from inputs
+      // Sum stop times from STATE
       let stopMin = 0;
-      document.querySelectorAll('.poi-stop').forEach(input => {
-        stopMin += parseInt(input.value) || 0;
+      STATE.pois.forEach(poi => {
+        stopMin += parseInt(poi.stopMinutes) || 0;
       });
       
       const totalMin = travelMin + stopMin;
       
+      // Update DOM
       document.getElementById('travel-time').textContent = Math.round(travelMin) + ' min';
       document.getElementById('stop-time').textContent = stopMin + ' min';
       document.getElementById('total-time').textContent = Math.round(totalMin) + ' min';
+      
+      // Update STATE
+      STATE.config.speedKmh = speed;
+      STATE.computed.travelMinutes = travelMin;
+      STATE.computed.stopMinutes = stopMin;
+      STATE.computed.totalMinutes = totalMin;
+      saveState();
+    }
+    
+    // Event delegation for POI field changes
+    document.addEventListener('input', function(e) {
+      const target = e.target;
+      const poiId = target.dataset && target.dataset.poiId;
+      const field = target.dataset && target.dataset.field;
+      if (!poiId || !field) return;
+      
+      const poi = STATE.pois.find(p => p.id === poiId);
+      if (!poi) return;
+      
+      if (field === 'stopMinutes') {
+        poi[field] = parseInt(target.value) || 0;
+        recalculate();
+      } else {
+        poi[field] = target.value;
+        saveState();
+      }
+    });
+    
+    // Speed input change
+    document.getElementById('speed').addEventListener('input', function() {
+      recalculate();
+    });
+    
+    // Players input change
+    document.getElementById('players').addEventListener('input', function() {
+      STATE.config.playersCount = parseInt(this.value) || 1;
+      saveState();
+    });
+    
+    // Export JSON (with edits)
+    function exportJSON() {
+      const exportData = {
+        project: REPORT_DATA.project,
+        trace: REPORT_DATA.trace,
+        config: STATE.config,
+        pois: STATE.pois,
+        computed: STATE.computed,
+        exportedAt: new Date().toISOString()
+      };
+      const json = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'rapport-' + REPORT_DATA.trace.id.slice(0, 8) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    
+    // Export Word (with edits)
+    function exportWord() {
+      const projectName = REPORT_DATA.project.name || 'Rapport';
+      const projectCity = REPORT_DATA.project.city || '';
+      const formatDistance = m => m >= 1000 ? (m / 1000).toFixed(2) + ' km' : Math.round(m) + ' m';
+      
+      const html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Rapport - ' + projectName + '</title>' +
+        '<style>body{font-family:Arial,sans-serif;font-size:10pt;padding:20px}' +
+        'h1{color:#1a1a2e;border-bottom:2px solid #667eea;padding-bottom:10px}' +
+        'h2{color:#333;margin-top:20px}.summary{background:#f5f5f5;padding:15px;margin:20px 0}' +
+        'table{width:100%;border-collapse:collapse;margin-top:16px;font-size:9pt}' +
+        'th,td{border:1px solid #ddd;padding:6px;text-align:left}' +
+        'th{background:#f0f0f0;font-weight:bold}</style></head><body>' +
+        '<h1>Rapport de Parcours</h1><p><strong>' + projectName + '</strong></p>' +
+        (projectCity ? '<p style="color:#666">📍 ' + projectCity + '</p>' : '') +
+        '<div class="summary"><h2>Résumé</h2>' +
+        '<p><strong>Distance:</strong> ' + formatDistance(STATE.computed.totalDistanceM) + '</p>' +
+        '<p><strong>Mode:</strong> ' + STATE.config.transportMode + ' @ ' + STATE.config.speedKmh + ' km/h</p>' +
+        '<p><strong>Temps trajet:</strong> ' + Math.round(STATE.computed.travelMinutes) + ' min</p>' +
+        '<p><strong>Temps arrêts:</strong> ' + STATE.computed.stopMinutes + ' min</p>' +
+        '<p><strong>Temps total:</strong> ' + Math.round(STATE.computed.totalMinutes) + ' min</p></div>' +
+        '<h2>Points d\\'intérêt (' + STATE.pois.length + ')</h2>' +
+        '<table><thead><tr><th>#</th><th>Nom</th><th>Type</th><th>Action</th><th>Validation</th>' +
+        '<th>Durée</th><th>Risque</th><th>Wi-Fi</th><th>GPS</th><th>Indice(s)</th><th>Notes</th></tr></thead><tbody>';
+      
+      let rows = '';
+      STATE.pois.forEach(poi => {
+        rows += '<tr><td>' + poi.order + '</td>' +
+          '<td>' + (poi.name || 'POI #' + poi.order) + '</td>' +
+          '<td>' + poi.functionType + '</td>' +
+          '<td>' + (poi.action || '—') + '</td>' +
+          '<td>' + (poi.validationType || '—') + '</td>' +
+          '<td>' + poi.stopMinutes + '</td>' +
+          '<td>' + poi.risk + '</td>' +
+          '<td>' + poi.wifi + '</td>' +
+          '<td>' + poi.lat.toFixed(5) + ', ' + poi.lng.toFixed(5) + '</td>' +
+          '<td>' + (poi.hints || '—') + '</td>' +
+          '<td>' + (poi.notes || '—') + '</td></tr>';
+      });
+      
+      const footer = '</tbody></table><p style="margin-top:30px;font-size:8pt;color:#999">' +
+        'Généré le ' + new Date().toLocaleDateString('fr-FR') + '</p></body></html>';
+      
+      const blob = new Blob([html + rows + footer], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'rapport-' + REPORT_DATA.trace.id.slice(0, 8) + '.doc';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
     
     // Initialize map
@@ -578,7 +872,10 @@ export function generateInteractiveReportHTML(
     }
     
     // Init on load
+    loadState();
+    applyStateToDOM();
     initMap();
+    recalculate();
     
     // Auto print if requested
     if (AUTO_PRINT) {
@@ -643,20 +940,32 @@ export function generateWordExportHTML(payload: ReportPayload): string {
       <thead>
         <tr>
           <th>#</th>
+          <th>Nom</th>
           <th>Type</th>
-          <th>Coordonnées</th>
-          <th>Note</th>
-          <th>Arrêt (min)</th>
+          <th>Action</th>
+          <th>Validation</th>
+          <th>Durée</th>
+          <th>Risque</th>
+          <th>Wi-Fi</th>
+          <th>GPS</th>
+          <th>Indice(s)</th>
+          <th>Notes</th>
         </tr>
       </thead>
       <tbody>
         ${payload.pois.map(poi => `
           <tr>
             <td>${poi.order}</td>
-            <td>${poi.emoji} ${poi.kind}</td>
+            <td>${escapeHtml(poi.name || 'POI #' + poi.order)}</td>
+            <td>${poi.functionType}</td>
+            <td>${poi.action || '—'}</td>
+            <td>${poi.validationType || '—'}</td>
+            <td>${poi.stopMinutes} min</td>
+            <td>${poi.risk}</td>
+            <td>${poi.wifi}</td>
             <td>${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}</td>
-            <td>${escapeHtml(poi.note || '-')}</td>
-            <td>${poi.stopMinutes}</td>
+            <td>${escapeHtml(poi.hints || '—')}</td>
+            <td>${escapeHtml(poi.notes || '—')}</td>
           </tr>
         `).join('')}
       </tbody>
