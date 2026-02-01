@@ -10,6 +10,7 @@ import JSZip from 'jszip';
 import { useProject } from '@/hooks/useProject';
 import { useRouteRecorder, exportTraceAsGeoJSON, buildMarkersCSV, buildReconBriefMarkdown, RouteTrace, RouteMarker, RecordingMode, RecordingStatus } from '@/hooks/useRouteRecorder';
 import { RouteGuidanceView } from './RouteGuidanceView';
+import { GuidanceErrorBoundary } from '@/components/GuidanceErrorBoundary';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -1164,16 +1165,23 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
         </DialogContent>
       </Dialog>
       
-      {/* Guidance View */}
+      {/* Guidance View with ErrorBoundary */}
       {guidanceTrace && (
-        <RouteGuidanceView
-          trace={guidanceTrace}
-          markers={guidanceMarkers}
+        <GuidanceErrorBoundary
           onClose={() => {
             setGuidanceTrace(null);
             setGuidanceMarkers([]);
           }}
-        />
+        >
+          <RouteGuidanceView
+            trace={guidanceTrace}
+            markers={guidanceMarkers}
+            onClose={() => {
+              setGuidanceTrace(null);
+              setGuidanceMarkers([]);
+            }}
+          />
+        </GuidanceErrorBoundary>
       )}
     </div>
   );

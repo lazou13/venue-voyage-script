@@ -17,5 +17,10 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
+    // Force single React instance to avoid "r is not a function" Context errors
+    dedupe: ["react", "react-dom", "react/jsx-runtime"],
+  },
+  optimizeDeps: {
+    include: ["react", "react-dom", "react-leaflet", "@react-leaflet/core", "leaflet"],
   },
 }));
