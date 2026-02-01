@@ -1,3 +1,4 @@
+// Route Guidance View - react-leaflet v4.2.1 (compatible with React 18)
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { X, Navigation, AlertTriangle, Footprints, Bike, ChevronUp, ChevronDown, PartyPopper, ArrowRight, MapPin } from 'lucide-react';
 import { MapContainer, TileLayer, Polyline, CircleMarker, Marker, Popup, useMap } from 'react-leaflet';
@@ -83,45 +84,173 @@ function createMarkerIcon(kind: MarkerKind, isPulsing: boolean = false): L.DivIc
   });
 }
 
-// Unified map controller component - handles bounds and centering safely
-function MapController({ 
-  coords, 
-  userPosition, 
-  shouldCenter 
-}: { 
-  coords: [number, number][]; 
-  userPosition: Coord | null; 
-  shouldCenter: boolean;
+// Internal component that runs inside MapContainer
+function MapInternals({
+  polylineCoords,
+  progressPolyline,
+  isOffTrack,
+  markersWithKind,
+  nextCriticalMarker,
+  isMarkerClose,
+  userPosition,
+  userAccuracy,
+  followUser,
+}: {
+  polylineCoords: [number, number][];
+  progressPolyline: { completedCoords: [number, number][]; remainingCoords: [number, number][] };
+  isOffTrack: boolean;
+  markersWithKind: MarkerWithKind[];
+  nextCriticalMarker: (MarkerWithKind & { distanceFromUser: number }) | null;
+  isMarkerClose: boolean;
+  userPosition: Coord | null;
+  userAccuracy: number | null;
+  followUser: boolean;
 }) {
   const map = useMap();
   const hasFittedBounds = useRef(false);
-  
+
   // Fit bounds on initial mount only
   useEffect(() => {
-    if (!map || coords.length === 0 || hasFittedBounds.current) return;
-    
+    if (!map || polylineCoords.length === 0 || hasFittedBounds.current) return;
+
     try {
-      const latLngs = coords.map(c => [c[1], c[0]] as [number, number]);
+      const latLngs = polylineCoords.map(c => [c[1], c[0]] as [number, number]);
       const bounds = L.latLngBounds(latLngs);
       map.fitBounds(bounds, { padding: [50, 50] });
       hasFittedBounds.current = true;
     } catch (err) {
-      console.warn('MapController: fitBounds error', err);
+      console.warn('MapInternals: fitBounds error', err);
     }
-  }, [map, coords]);
-  
+  }, [map, polylineCoords]);
+
   // Center on user when following
   useEffect(() => {
-    if (!map || !userPosition || !shouldCenter) return;
-    
+    if (!map || !userPosition || !followUser) return;
+
     try {
       map.setView([userPosition.lat, userPosition.lng], map.getZoom());
     } catch (err) {
-      console.warn('MapController: setView error', err);
+      console.warn('MapInternals: setView error', err);
     }
-  }, [map, userPosition, shouldCenter]);
-  
-  return null;
+  }, [map, userPosition, followUser]);
+
+  return (
+    <>
+      {/* Full route background (light gray) */}
+      <Polyline
+        positions={polylineCoords.map(c => [c[1], c[0]] as L.LatLngTuple)}
+        color={COLORS.traceTotal}
+        weight={6}
+        opacity={0.6}
+        lineCap="round"
+        lineJoin="round"
+      />
+      
+      {/* Remaining route */}
+      {progressPolyline.remainingCoords.length > 1 && (
+        <Polyline
+          positions={progressPolyline.remainingCoords.map(c => [c[1], c[0]] as L.LatLngTuple)}
+          color={isOffTrack ? '#9ca3af' : COLORS.traceActive}
+          weight={isOffTrack ? 4 : 7}
+          opacity={isOffTrack ? 0.4 : 0.8}
+          lineCap="round"
+          lineJoin="round"
+        />
+      )}
+      
+      {/* Completed route (green) */}
+      {progressPolyline.completedCoords.length > 1 && (
+        <Polyline
+          positions={progressPolyline.completedCoords.map(c => [c[1], c[0]] as L.LatLngTuple)}
+          color={COLORS.traceCompleted}
+          weight={7}
+          opacity={1}
+          lineCap="round"
+          lineJoin="round"
+        />
+      )}
+      
+      {/* Departure marker */}
+      {polylineCoords.length > 0 && (
+        <CircleMarker
+          center={[polylineCoords[0][1], polylineCoords[0][0]]}
+          radius={12}
+          fillColor={COLORS.departure}
+          fillOpacity={1}
+          color="white"
+          weight={3}
+        />
+      )}
+      
+      {/* Arrival marker */}
+      {polylineCoords.length > 1 && (
+        <CircleMarker
+          center={[polylineCoords[polylineCoords.length - 1][1], polylineCoords[polylineCoords.length - 1][0]]}
+          radius={12}
+          fillColor={COLORS.arrival}
+          fillOpacity={1}
+          color="white"
+          weight={3}
+        />
+      )}
+      
+      {/* Other markers */}
+      {markersWithKind.map(marker => {
+        const isPulsing = nextCriticalMarker?.id === marker.id && isMarkerClose;
+        return (
+          <Marker
+            key={marker.id}
+            position={[marker.lat, marker.lng]}
+            icon={createMarkerIcon(marker.kind, isPulsing)}
+          >
+            <Popup>
+              <div className="text-sm p-1">
+                <strong className="block mb-1">{getMarkerLabel(marker.kind)}</strong>
+                {marker.note && <p className="text-muted-foreground">{marker.note}</p>}
+              </div>
+            </Popup>
+          </Marker>
+        );
+      })}
+      
+      {/* User accuracy circle */}
+      {userPosition && userAccuracy && (
+        <CircleMarker
+          center={[userPosition.lat, userPosition.lng]}
+          radius={Math.min(60, userAccuracy)}
+          fillColor={COLORS.userHalo}
+          fillOpacity={0.3}
+          color={COLORS.userPosition}
+          weight={1}
+          opacity={0.3}
+        />
+      )}
+      
+      {/* User position with pulsing effect */}
+      {userPosition && (
+        <>
+          <CircleMarker
+            center={[userPosition.lat, userPosition.lng]}
+            radius={18}
+            fillColor={isOffTrack ? COLORS.danger : COLORS.userPosition}
+            fillOpacity={0.15}
+            color={isOffTrack ? COLORS.danger : COLORS.userPosition}
+            weight={2}
+            opacity={0.4}
+            className="animate-pulse"
+          />
+          <CircleMarker
+            center={[userPosition.lat, userPosition.lng]}
+            radius={8}
+            fillColor={isOffTrack ? COLORS.danger : COLORS.userPosition}
+            fillOpacity={1}
+            color="white"
+            weight={3}
+          />
+        </>
+      )}
+    </>
+  );
 }
 
 interface MarkerWithKind extends RouteMarker {
@@ -355,127 +484,17 @@ export function RouteGuidanceView({ trace, markers, onClose }: RouteGuidanceView
             url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           />
           
-          <MapController 
-            coords={polylineCoords} 
-            userPosition={userPosition} 
-            shouldCenter={followUser} 
+          <MapInternals
+            polylineCoords={polylineCoords}
+            progressPolyline={progressPolyline}
+            isOffTrack={isOffTrack}
+            markersWithKind={markersWithKind}
+            nextCriticalMarker={nextCriticalMarker}
+            isMarkerClose={isMarkerClose}
+            userPosition={userPosition}
+            userAccuracy={userAccuracy}
+            followUser={followUser}
           />
-          
-          {/* Full route background (light gray) */}
-          <Polyline
-            positions={polylineCoords.map(c => [c[1], c[0]] as L.LatLngTuple)}
-            color={COLORS.traceTotal}
-            weight={6}
-            opacity={0.6}
-            lineCap="round"
-            lineJoin="round"
-          />
-          
-          {/* Remaining route (light gray, slightly visible) */}
-          {progressPolyline.remainingCoords.length > 1 && (
-            <Polyline
-              positions={progressPolyline.remainingCoords.map(c => [c[1], c[0]] as L.LatLngTuple)}
-              color={isOffTrack ? '#9ca3af' : COLORS.traceActive}
-              weight={isOffTrack ? 4 : 7}
-              opacity={isOffTrack ? 0.4 : 0.8}
-              lineCap="round"
-              lineJoin="round"
-            />
-          )}
-          
-          {/* Completed route (green) */}
-          {progressPolyline.completedCoords.length > 1 && (
-            <Polyline
-              positions={progressPolyline.completedCoords.map(c => [c[1], c[0]] as L.LatLngTuple)}
-              color={COLORS.traceCompleted}
-              weight={7}
-              opacity={1}
-              lineCap="round"
-              lineJoin="round"
-            />
-          )}
-          
-          {/* Departure marker */}
-          {polylineCoords.length > 0 && (
-            <CircleMarker
-              center={[polylineCoords[0][1], polylineCoords[0][0]]}
-              radius={12}
-              fillColor={COLORS.departure}
-              fillOpacity={1}
-              color="white"
-              weight={3}
-            />
-          )}
-          
-          {/* Arrival marker */}
-          {polylineCoords.length > 1 && (
-            <CircleMarker
-              center={[polylineCoords[polylineCoords.length - 1][1], polylineCoords[polylineCoords.length - 1][0]]}
-              radius={12}
-              fillColor={COLORS.arrival}
-              fillOpacity={1}
-              color="white"
-              weight={3}
-            />
-          )}
-          
-          {/* Other markers */}
-          {markersWithKind.map(marker => {
-            const isPulsing = nextCriticalMarker?.id === marker.id && isMarkerClose;
-            return (
-              <Marker
-                key={marker.id}
-                position={[marker.lat, marker.lng]}
-                icon={createMarkerIcon(marker.kind, isPulsing)}
-              >
-                <Popup>
-                  <div className="text-sm p-1">
-                    <strong className="block mb-1">{getMarkerLabel(marker.kind)}</strong>
-                    {marker.note && <p className="text-muted-foreground">{marker.note}</p>}
-                  </div>
-                </Popup>
-              </Marker>
-            );
-          })}
-          
-          {/* User accuracy circle */}
-          {userPosition && userAccuracy && (
-            <CircleMarker
-              center={[userPosition.lat, userPosition.lng]}
-              radius={Math.min(60, userAccuracy)}
-              fillColor={COLORS.userHalo}
-              fillOpacity={0.3}
-              color={COLORS.userPosition}
-              weight={1}
-              opacity={0.3}
-            />
-          )}
-          
-          {/* User position with pulsing effect */}
-          {userPosition && (
-            <>
-              {/* Outer pulse ring */}
-              <CircleMarker
-                center={[userPosition.lat, userPosition.lng]}
-                radius={18}
-                fillColor={isOffTrack ? COLORS.danger : COLORS.userPosition}
-                fillOpacity={0.15}
-                color={isOffTrack ? COLORS.danger : COLORS.userPosition}
-                weight={2}
-                opacity={0.4}
-                className="animate-pulse"
-              />
-              {/* Inner dot */}
-              <CircleMarker
-                center={[userPosition.lat, userPosition.lng]}
-                radius={8}
-                fillColor={isOffTrack ? COLORS.danger : COLORS.userPosition}
-                fillOpacity={1}
-                color="white"
-                weight={3}
-              />
-            </>
-          )}
         </MapContainer>
       </div>
       
