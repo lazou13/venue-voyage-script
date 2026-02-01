@@ -475,58 +475,170 @@ export function generateInteractiveReportHTML(
     .meta-row strong { color: #333; font-weight: 600; }
     .meta-row code { font-family: 'SF Mono', Monaco, monospace; font-size: 0.7rem; background: #f0f0f0; padding: 2px 5px; border-radius: 3px; color: #666; }
     
-    /* Project Sheet */
+    /* Project Sheet - Redesigned */
     .project-sheet { 
-      background: linear-gradient(135deg, #667eea08 0%, #764ba208 100%);
-      border: 1px solid #667eea30;
-      border-radius: 12px; 
-      padding: 20px; 
-      margin-bottom: 16px;
+      background: white;
+      border-radius: 16px; 
+      padding: 0; 
+      margin-bottom: 20px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      overflow: hidden;
     }
-    .project-sheet-title { 
-      font-size: 0.8rem; 
-      text-transform: uppercase; 
-      font-weight: 700; 
-      color: #667eea; 
-      margin-bottom: 16px;
-      letter-spacing: 0.5px;
+    .project-sheet-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .project-sheet-header h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin: 0;
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .project-sheet-title::before { content: '📋'; }
+    .project-sheet-total {
+      background: rgba(255,255,255,0.2);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 1.2rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .project-sheet-total span { font-size: 0.75rem; opacity: 0.9; font-weight: 500; }
+    .project-sheet-body { padding: 20px 24px; }
+    .sheet-section { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #eee; }
+    .sheet-section:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+    .sheet-section-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      color: #667eea;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
     .sheet-grid { 
       display: grid; 
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
-      gap: 12px 24px; 
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
+      gap: 10px 20px; 
     }
-    .sheet-item { 
+    .sheet-field { 
       display: flex; 
-      justify-content: space-between; 
-      align-items: flex-start;
-      padding: 6px 0; 
-      border-bottom: 1px solid #e5e5e570;
-      font-size: 0.85rem;
+      flex-direction: column;
+      gap: 4px;
     }
-    .sheet-item:last-child { border-bottom: none; }
-    .sheet-label { color: #666; font-weight: 500; }
-    .sheet-value { 
+    .sheet-field-label { 
+      font-size: 0.7rem; 
+      color: #888; 
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .sheet-field-value { 
+      font-size: 0.9rem;
       color: #333; 
-      font-weight: 600; 
-      text-align: right;
-      max-width: 60%;
+      font-weight: 600;
+      padding: 8px 12px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      border: 1px solid #e5e5e5;
+      min-height: 38px;
+      display: flex;
+      align-items: center;
     }
-    .sheet-value.yes { color: #22c55e; }
-    .sheet-value.no { color: #999; }
+    .sheet-field-value.editable {
+      background: white;
+      cursor: text;
+    }
+    .sheet-field-value.yes { color: #22c55e; background: #22c55e10; border-color: #22c55e40; }
+    .sheet-field-value.no { color: #94a3b8; background: #f8f9fa; }
+    .sheet-input, .sheet-select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      background: white;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .sheet-input:focus, .sheet-select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102,126,234,0.15);
+    }
+    .sheet-checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; }
+    .sheet-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: #f8f9fa;
+      border: 1px solid #e5e5e5;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .sheet-checkbox:hover { border-color: #667eea; }
+    .sheet-checkbox.active { background: #667eea15; border-color: #667eea; color: #667eea; font-weight: 600; }
+    .sheet-checkbox input { display: none; }
     .sheet-badge {
       display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
+      padding: 4px 10px;
+      border-radius: 6px;
       font-size: 0.75rem;
       font-weight: 600;
       background: #667eea20;
       color: #667eea;
     }
+    .sheet-toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background: #e5e5e5;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .sheet-toggle.active { background: #22c55e; }
+    .sheet-toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .sheet-toggle.active::after { transform: translateX(20px); }
+    .sheet-inline { display: flex; align-items: center; gap: 8px; }
+    .sheet-number {
+      width: 60px;
+      text-align: center;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .sheet-number:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102,126,234,0.15);
+    }
+    .sheet-suffix { font-size: 0.8rem; color: #666; }
     
     /* Print styles */
     @media print {
@@ -593,22 +705,174 @@ export function generateInteractiveReportHTML(
     </div>
     
     <section class="project-sheet">
-      <div class="project-sheet-title">Fiche Projet</div>
-      <div class="sheet-grid">
-        <div class="sheet-item"><span class="sheet-label">Nom du projet</span><span class="sheet-value">${projectName}</span></div>
-        <div class="sheet-item"><span class="sheet-label">Type de projet</span><span class="sheet-value"><span class="sheet-badge">${escapeHtml(payload.project.projectType || '—')}</span></span></div>
-        <div class="sheet-item"><span class="sheet-label">Mode de jeu</span><span class="sheet-value">${escapeHtml(payload.project.playMode || '—')}</span></div>
-        <div class="sheet-item"><span class="sheet-label">Type de quête</span><span class="sheet-value">${escapeHtml(payload.project.questType || '—')}</span></div>
-        <div class="sheet-item"><span class="sheet-label">Public cible</span><span class="sheet-value">${(payload.project.targetAudience || []).join(', ') || '—'}</span></div>
-        <div class="sheet-item"><span class="sheet-label">Langues disponibles</span><span class="sheet-value">${(payload.project.languages || []).join(', ') || '—'}</span></div>
-        <div class="sheet-item"><span class="sheet-label">Objectif principal</span><span class="sheet-value">${escapeHtml(payload.project.objective || '—')}</span></div>
-        <div class="sheet-item"><span class="sheet-label">QR autorisé</span><span class="sheet-value ${payload.project.decisions?.qrAllowed ? 'yes' : 'no'}">${payload.project.decisions?.qrAllowed ? 'Oui' : 'Non'}</span></div>
-        <div class="sheet-item"><span class="sheet-label">Validation photo</span><span class="sheet-value ${payload.project.decisions?.photoAllowed ? 'yes' : 'no'}">${payload.project.decisions?.photoAllowed ? 'Oui' : 'Non'}</span></div>
-        <div class="sheet-item"><span class="sheet-label">Staff impliqué</span><span class="sheet-value ${payload.project.decisions?.staffInvolved ? 'yes' : 'no'}">${payload.project.decisions?.staffInvolved ? 'Oui' : 'Non'}</span></div>
-        <div class="sheet-item"><span class="sheet-label">Storytelling</span><span class="sheet-value ${payload.project.storytelling?.enabled ? 'yes' : 'no'}">${payload.project.storytelling?.enabled ? (payload.project.storytelling.hasAvatar ? 'Oui, avec avatar' : 'Oui') : 'Non'}</span></div>
-        <div class="sheet-item"><span class="sheet-label">Nombre d'étapes</span><span class="sheet-value">${payload.project.stepsCount || payload.pois.length}</span></div>
-        <div class="sheet-item"><span class="sheet-label">Difficulté estimée</span><span class="sheet-value">${payload.project.difficulty ? payload.project.difficulty + ' / 5' : '—'}</span></div>
-        <div class="sheet-item"><span class="sheet-label">Durée estimée</span><span class="sheet-value">${payload.project.durationMin ? payload.project.durationMin + ' min' : '—'}</span></div>
+      <div class="project-sheet-header">
+        <h2>📋 Fiche Projet</h2>
+        <div class="project-sheet-total">
+          <span>TEMPS TOTAL</span>
+          <span id="sheet-total-time">${Math.round(payload.computed.totalMinutes)} min</span>
+        </div>
+      </div>
+      <div class="project-sheet-body">
+        <!-- Section 1: Identité -->
+        <div class="sheet-section">
+          <div class="sheet-section-title">🎯 Identité du Projet</div>
+          <div class="sheet-grid">
+            <div class="sheet-field">
+              <span class="sheet-field-label">Nom du projet</span>
+              <input type="text" class="sheet-input" id="sheet-project-name" data-sheet-field="projectName" value="${escapeHtml(projectName)}">
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Type de projet</span>
+              <select class="sheet-select" id="sheet-project-type" data-sheet-field="projectType">
+                <option value="" ${!payload.project.projectType ? 'selected' : ''}>—</option>
+                <option value="establishment" ${payload.project.projectType === 'establishment' ? 'selected' : ''}>Établissement</option>
+                <option value="tourist_spot" ${payload.project.projectType === 'tourist_spot' ? 'selected' : ''}>Site Touristique</option>
+                <option value="route_recon" ${payload.project.projectType === 'route_recon' ? 'selected' : ''}>Reconnaissance Parcours</option>
+              </select>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Mode de jeu</span>
+              <select class="sheet-select" id="sheet-play-mode" data-sheet-field="playMode">
+                <option value="" ${!payload.project.playMode ? 'selected' : ''}>—</option>
+                <option value="solo" ${payload.project.playMode === 'solo' ? 'selected' : ''}>Solo</option>
+                <option value="team" ${payload.project.playMode === 'team' ? 'selected' : ''}>Équipes</option>
+                <option value="one_vs_one" ${payload.project.playMode === 'one_vs_one' ? 'selected' : ''}>1 vs 1</option>
+                <option value="multi_solo" ${payload.project.playMode === 'multi_solo' ? 'selected' : ''}>Multi-joueurs</option>
+              </select>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Type de quête</span>
+              <select class="sheet-select" id="sheet-quest-type" data-sheet-field="questType">
+                <option value="" ${!payload.project.questType ? 'selected' : ''}>—</option>
+                <option value="exploration" ${payload.project.questType === 'exploration' ? 'selected' : ''}>Exploration</option>
+                <option value="sequential" ${payload.project.questType === 'sequential' ? 'selected' : ''}>Séquentiel</option>
+                <option value="timed_race" ${payload.project.questType === 'timed_race' ? 'selected' : ''}>Course chronométrée</option>
+                <option value="collaborative" ${payload.project.questType === 'collaborative' ? 'selected' : ''}>Collaboratif</option>
+                <option value="team_competition" ${payload.project.questType === 'team_competition' ? 'selected' : ''}>Compétition équipes</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Section 2: Audience & Langues -->
+        <div class="sheet-section">
+          <div class="sheet-section-title">👥 Public & Langues</div>
+          <div class="sheet-grid">
+            <div class="sheet-field" style="grid-column: span 2;">
+              <span class="sheet-field-label">Public cible</span>
+              <div class="sheet-checkbox-group" id="sheet-audience-group">
+                <label class="sheet-checkbox ${(payload.project.targetAudience || []).includes('family') ? 'active' : ''}" data-value="family">
+                  <input type="checkbox" ${(payload.project.targetAudience || []).includes('family') ? 'checked' : ''}> 👨‍👩‍👧 Famille
+                </label>
+                <label class="sheet-checkbox ${(payload.project.targetAudience || []).includes('couples') ? 'active' : ''}" data-value="couples">
+                  <input type="checkbox" ${(payload.project.targetAudience || []).includes('couples') ? 'checked' : ''}> 💑 Couples
+                </label>
+                <label class="sheet-checkbox ${(payload.project.targetAudience || []).includes('friends') ? 'active' : ''}" data-value="friends">
+                  <input type="checkbox" ${(payload.project.targetAudience || []).includes('friends') ? 'checked' : ''}> 👯 Amis
+                </label>
+                <label class="sheet-checkbox ${(payload.project.targetAudience || []).includes('corporate') ? 'active' : ''}" data-value="corporate">
+                  <input type="checkbox" ${(payload.project.targetAudience || []).includes('corporate') ? 'checked' : ''}> 💼 Corporate
+                </label>
+                <label class="sheet-checkbox ${(payload.project.targetAudience || []).includes('teens') ? 'active' : ''}" data-value="teens">
+                  <input type="checkbox" ${(payload.project.targetAudience || []).includes('teens') ? 'checked' : ''}> 🎮 Ados
+                </label>
+                <label class="sheet-checkbox ${(payload.project.targetAudience || []).includes('kids') ? 'active' : ''}" data-value="kids">
+                  <input type="checkbox" ${(payload.project.targetAudience || []).includes('kids') ? 'checked' : ''}> 🧒 Enfants
+                </label>
+                <label class="sheet-checkbox ${(payload.project.targetAudience || []).includes('seniors') ? 'active' : ''}" data-value="seniors">
+                  <input type="checkbox" ${(payload.project.targetAudience || []).includes('seniors') ? 'checked' : ''}> 👴 Seniors
+                </label>
+              </div>
+            </div>
+            <div class="sheet-field" style="grid-column: span 2;">
+              <span class="sheet-field-label">Langues disponibles</span>
+              <div class="sheet-checkbox-group" id="sheet-languages-group">
+                <label class="sheet-checkbox ${(payload.project.languages || []).includes('fr') ? 'active' : ''}" data-value="fr">
+                  <input type="checkbox" ${(payload.project.languages || []).includes('fr') ? 'checked' : ''}> 🇫🇷 Français
+                </label>
+                <label class="sheet-checkbox ${(payload.project.languages || []).includes('en') ? 'active' : ''}" data-value="en">
+                  <input type="checkbox" ${(payload.project.languages || []).includes('en') ? 'checked' : ''}> 🇬🇧 Anglais
+                </label>
+                <label class="sheet-checkbox ${(payload.project.languages || []).includes('ar') ? 'active' : ''}" data-value="ar">
+                  <input type="checkbox" ${(payload.project.languages || []).includes('ar') ? 'checked' : ''}> 🇸🇦 Arabe
+                </label>
+                <label class="sheet-checkbox ${(payload.project.languages || []).includes('es') ? 'active' : ''}" data-value="es">
+                  <input type="checkbox" ${(payload.project.languages || []).includes('es') ? 'checked' : ''}> 🇪🇸 Espagnol
+                </label>
+                <label class="sheet-checkbox ${(payload.project.languages || []).includes('ary') ? 'active' : ''}" data-value="ary">
+                  <input type="checkbox" ${(payload.project.languages || []).includes('ary') ? 'checked' : ''}> 🇲🇦 Darija
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Section 3: Paramètres -->
+        <div class="sheet-section">
+          <div class="sheet-section-title">⚙️ Paramètres du Jeu</div>
+          <div class="sheet-grid">
+            <div class="sheet-field">
+              <span class="sheet-field-label">Objectif principal</span>
+              <input type="text" class="sheet-input" id="sheet-objective" data-sheet-field="objective" value="${escapeHtml(payload.project.objective || '')}">
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Nombre d'étapes</span>
+              <div class="sheet-inline">
+                <input type="number" class="sheet-number" id="sheet-steps" data-sheet-field="stepsCount" value="${payload.project.stepsCount || payload.pois.length}" min="1" max="50">
+                <span class="sheet-suffix">étapes</span>
+              </div>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Difficulté estimée</span>
+              <div class="sheet-inline">
+                <input type="number" class="sheet-number" id="sheet-difficulty" data-sheet-field="difficulty" value="${payload.project.difficulty || 3}" min="1" max="5">
+                <span class="sheet-suffix">/ 5</span>
+              </div>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Durée estimée</span>
+              <div class="sheet-inline">
+                <input type="number" class="sheet-number" id="sheet-duration" data-sheet-field="durationMin" value="${payload.project.durationMin || Math.round(payload.computed.totalMinutes)}" min="1" max="300">
+                <span class="sheet-suffix">min</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Section 4: Options & Validations -->
+        <div class="sheet-section">
+          <div class="sheet-section-title">✅ Options & Validations</div>
+          <div class="sheet-grid">
+            <div class="sheet-field">
+              <span class="sheet-field-label">QR autorisé</span>
+              <div class="sheet-inline">
+                <div class="sheet-toggle ${payload.project.decisions?.qrAllowed ? 'active' : ''}" id="sheet-qr" data-sheet-toggle="qrAllowed"></div>
+                <span id="sheet-qr-label">${payload.project.decisions?.qrAllowed ? 'Oui' : 'Non'}</span>
+              </div>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Validation photo</span>
+              <div class="sheet-inline">
+                <div class="sheet-toggle ${payload.project.decisions?.photoAllowed ? 'active' : ''}" id="sheet-photo" data-sheet-toggle="photoAllowed"></div>
+                <span id="sheet-photo-label">${payload.project.decisions?.photoAllowed ? 'Oui' : 'Non'}</span>
+              </div>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Staff impliqué</span>
+              <div class="sheet-inline">
+                <div class="sheet-toggle ${payload.project.decisions?.staffInvolved ? 'active' : ''}" id="sheet-staff" data-sheet-toggle="staffInvolved"></div>
+                <span id="sheet-staff-label">${payload.project.decisions?.staffInvolved ? 'Oui' : 'Non'}</span>
+              </div>
+            </div>
+            <div class="sheet-field">
+              <span class="sheet-field-label">Storytelling</span>
+              <div class="sheet-inline">
+                <div class="sheet-toggle ${payload.project.storytelling?.enabled ? 'active' : ''}" id="sheet-storytelling" data-sheet-toggle="storytellingEnabled"></div>
+                <span id="sheet-storytelling-label">${payload.project.storytelling?.enabled ? (payload.project.storytelling.hasAvatar ? 'Avec avatar' : 'Activé') : 'Non'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
     
@@ -802,6 +1066,23 @@ export function generateInteractiveReportHTML(
         travelMinutes: REPORT_DATA.computed.travelMinutes,
         stopMinutes: REPORT_DATA.computed.stopMinutes,
         totalMinutes: REPORT_DATA.computed.totalMinutes
+      },
+      // Project sheet state
+      project: {
+        projectName: REPORT_DATA.project.name || '',
+        projectType: REPORT_DATA.project.projectType || '',
+        playMode: REPORT_DATA.project.playMode || '',
+        questType: REPORT_DATA.project.questType || '',
+        targetAudience: REPORT_DATA.project.targetAudience || [],
+        languages: REPORT_DATA.project.languages || [],
+        objective: REPORT_DATA.project.objective || '',
+        stepsCount: REPORT_DATA.project.stepsCount || REPORT_DATA.pois.length,
+        difficulty: REPORT_DATA.project.difficulty || 3,
+        durationMin: REPORT_DATA.project.durationMin || Math.round(REPORT_DATA.computed.totalMinutes),
+        qrAllowed: REPORT_DATA.project.decisions?.qrAllowed || false,
+        photoAllowed: REPORT_DATA.project.decisions?.photoAllowed || false,
+        staffInvolved: REPORT_DATA.project.decisions?.staffInvolved || false,
+        storytellingEnabled: REPORT_DATA.project.storytelling?.enabled || false
       }
     };
     
@@ -824,6 +1105,10 @@ export function generateInteractiveReportHTML(
               Object.assign(STATE.pois[idx], savedMap[poi.id]);
             }
           });
+        }
+        // Merge project sheet state
+        if (parsed.project) {
+          Object.assign(STATE.project, parsed.project);
         }
       } catch (e) {
         console.warn('Failed to load state:', e);
@@ -863,6 +1148,59 @@ export function generateInteractiveReportHTML(
           }
         });
       });
+      
+      // Apply project sheet state
+      applyProjectSheetToDOM();
+    }
+    
+    // Apply project sheet state to DOM
+    function applyProjectSheetToDOM() {
+      // Text inputs and selects
+      const sheetInputs = document.querySelectorAll('[data-sheet-field]');
+      sheetInputs.forEach(el => {
+        const field = el.dataset.sheetField;
+        if (STATE.project[field] !== undefined) {
+          el.value = STATE.project[field];
+        }
+      });
+      
+      // Checkbox groups (audience)
+      const audienceGroup = document.getElementById('sheet-audience-group');
+      if (audienceGroup) {
+        audienceGroup.querySelectorAll('.sheet-checkbox').forEach(label => {
+          const val = label.dataset.value;
+          const isActive = STATE.project.targetAudience.includes(val);
+          label.classList.toggle('active', isActive);
+          label.querySelector('input').checked = isActive;
+        });
+      }
+      
+      // Checkbox groups (languages)
+      const langGroup = document.getElementById('sheet-languages-group');
+      if (langGroup) {
+        langGroup.querySelectorAll('.sheet-checkbox').forEach(label => {
+          const val = label.dataset.value;
+          const isActive = STATE.project.languages.includes(val);
+          label.classList.toggle('active', isActive);
+          label.querySelector('input').checked = isActive;
+        });
+      }
+      
+      // Toggles
+      const toggles = ['qr', 'photo', 'staff', 'storytelling'];
+      toggles.forEach(key => {
+        const toggle = document.getElementById('sheet-' + key);
+        const label = document.getElementById('sheet-' + key + '-label');
+        const stateKey = key === 'qr' ? 'qrAllowed' : 
+                         key === 'photo' ? 'photoAllowed' : 
+                         key === 'staff' ? 'staffInvolved' : 'storytellingEnabled';
+        if (toggle) {
+          toggle.classList.toggle('active', STATE.project[stateKey]);
+          if (label) {
+            label.textContent = STATE.project[stateKey] ? 'Oui' : 'Non';
+          }
+        }
+      });
     }
     
     // Update speed when transport mode changes
@@ -894,6 +1232,12 @@ export function generateInteractiveReportHTML(
       document.getElementById('travel-time').textContent = Math.round(travelMin) + ' min';
       document.getElementById('stop-time').textContent = stopMin + ' min';
       document.getElementById('total-time').textContent = Math.round(totalMin) + ' min';
+      
+      // Update project sheet total time
+      const sheetTotal = document.getElementById('sheet-total-time');
+      if (sheetTotal) {
+        sheetTotal.textContent = Math.round(totalMin) + ' min';
+      }
       
       // Update STATE
       STATE.config.speedKmh = speed;
@@ -966,6 +1310,70 @@ export function generateInteractiveReportHTML(
     document.addEventListener('input', function(e) { handleFieldUpdate(e.target); });
     document.addEventListener('change', function(e) { handleFieldUpdate(e.target); });
     
+    // Project sheet field handlers
+    document.querySelectorAll('[data-sheet-field]').forEach(el => {
+      el.addEventListener('input', function() {
+        const field = this.dataset.sheetField;
+        if (['stepsCount', 'difficulty', 'durationMin'].includes(field)) {
+          STATE.project[field] = parseInt(this.value) || 0;
+        } else {
+          STATE.project[field] = this.value;
+        }
+        saveState();
+      });
+      el.addEventListener('change', function() {
+        const field = this.dataset.sheetField;
+        if (['stepsCount', 'difficulty', 'durationMin'].includes(field)) {
+          STATE.project[field] = parseInt(this.value) || 0;
+        } else {
+          STATE.project[field] = this.value;
+        }
+        saveState();
+      });
+    });
+    
+    // Checkbox groups (audience + languages)
+    ['sheet-audience-group', 'sheet-languages-group'].forEach(groupId => {
+      const group = document.getElementById(groupId);
+      if (!group) return;
+      group.querySelectorAll('.sheet-checkbox').forEach(label => {
+        label.addEventListener('click', function(e) {
+          e.preventDefault();
+          const val = this.dataset.value;
+          const stateKey = groupId === 'sheet-audience-group' ? 'targetAudience' : 'languages';
+          const arr = STATE.project[stateKey];
+          const idx = arr.indexOf(val);
+          if (idx >= 0) {
+            arr.splice(idx, 1);
+            this.classList.remove('active');
+            this.querySelector('input').checked = false;
+          } else {
+            arr.push(val);
+            this.classList.add('active');
+            this.querySelector('input').checked = true;
+          }
+          saveState();
+        });
+      });
+    });
+    
+    // Toggle handlers
+    document.querySelectorAll('[data-sheet-toggle]').forEach(toggle => {
+      toggle.addEventListener('click', function() {
+        const key = this.dataset.sheetToggle;
+        STATE.project[key] = !STATE.project[key];
+        this.classList.toggle('active', STATE.project[key]);
+        const labelEl = document.getElementById('sheet-' + 
+          (key === 'qrAllowed' ? 'qr' : 
+           key === 'photoAllowed' ? 'photo' : 
+           key === 'staffInvolved' ? 'staff' : 'storytelling') + '-label');
+        if (labelEl) {
+          labelEl.textContent = STATE.project[key] ? 'Oui' : 'Non';
+        }
+        saveState();
+      });
+    });
+    
     // Speed input change
     document.getElementById('speed').addEventListener('input', function() {
       recalculate();
@@ -981,7 +1389,7 @@ export function generateInteractiveReportHTML(
     // Export JSON (with edits)
     function exportJSON() {
       const exportData = {
-        project: REPORT_DATA.project,
+        project: Object.assign({}, REPORT_DATA.project, STATE.project),
         trace: REPORT_DATA.trace,
         config: STATE.config,
         pois: STATE.pois,
