@@ -1,57 +1,83 @@
 
-# Patch Minimal : OutputsStep.tsx
+
+# Plan: Créer un Rapport Interactif Fictif Standalone
 
 ## Objectif
-Corriger les dépendances useEffect instables et optimiser la query traces.
+Créer un fichier HTML autonome dans `public/` qui affiche un exemple complet du rapport interactif avec :
+- Carte Leaflet avec 5 points de trace
+- 3 marqueurs POI (danger, arrêt obligatoire, POI standard)
+- Panneau de configuration (transport, vitesse, joueurs)
+- Calculs de temps en temps réel
+- Bouton d'export PDF (print)
 
-## Modifications (3 changements)
+## Données fictives
 
-### 1. Ajouter clé stable (après L36)
-```typescript
-// Après ligne 36:
-const isRouteRecon = projectType === 'route_recon';
+### Trace (5 points - Marrakech Médina)
+```
+Coordonnées [lng, lat]:
+1. [-7.9898, 31.6295] - Place Jemaa el-Fna
+2. [-7.9880, 31.6280] - Rue des Souks
+3. [-7.9860, 31.6270] - Fontaine historique
+4. [-7.9845, 31.6255] - Riad Ben Youssef
+5. [-7.9830, 31.6240] - Bab Agnaou
 
-// Ajouter:
-const projectLoadedId = project?.id ?? null;
+Distance totale: ~850m
 ```
 
-### 2. Ajouter .limit(20) à la query (L54)
-```typescript
-// Ligne 54 actuelle:
-.order('created_at', { ascending: false });
+### Marqueurs (3 POIs)
+| # | Type | Coordonnées | Note |
+|---|------|-------------|------|
+| 1 | departure | 31.6295, -7.9898 | Point de départ - Place Jemaa el-Fna |
+| 2 | danger | 31.6270, -7.9860 | Danger: Circulation dense, traversée difficile |
+| 3 | mandatory_stop | 31.6240, -7.9830 | Stop: Photo obligatoire devant Bab Agnaou |
 
-// Devient:
-.order('created_at', { ascending: false })
-.limit(20);
-```
+## Fichier à créer
 
-### 3. Modifier dépendances useEffect (L124)
-```typescript
-// Ligne 124 actuelle:
-}, [projectId, isRouteRecon, project]);
+### `public/exemple-rapport-interactif.html`
+- Fichier HTML autonome (~400 lignes)
+- Reprend le template exact de `generateInteractiveReportHTML()`
+- Données fictives injectées en dur
+- Accessible directement via `/exemple-rapport-interactif.html`
 
-// Devient:
-}, [projectId, isRouteRecon, projectLoadedId]);
-```
+## Fonctionnalités du rapport exemple
 
-## Justification
+1. **En-tête**
+   - Titre: "Parcours Découverte Médina"
+   - Ville: Marrakech, Maroc
+   - Bouton PDF (lance window.print())
 
-| Changement | Raison |
-|------------|--------|
-| `projectLoadedId` | Clé stable (string ou null) au lieu de référence objet. L'effet se déclenche uniquement quand project.id change (null → chargé). |
-| `.limit(20)` | Évite de charger des centaines de traces. On cherche la plus récente valide, 20 suffit. |
-| Deps array | Élimine les re-renders inutiles causés par nouvelles références `project`. |
+2. **Panneau de configuration**
+   - Transport: Marche/Scooter/Voiture
+   - Vitesse: ajustable (km/h)
+   - Joueurs: nombre
 
-## Comportement après patch
+3. **Carte Leaflet**
+   - Tuiles OpenStreetMap
+   - Polyline bleue reliant les 5 points
+   - Marqueur vert au départ
+   - Marqueur rouge à l'arrivée
+   - 3 popups POI avec emojis
 
-1. **Refresh direct** : project = null → projectLoadedId = null → effect skip
-2. **Project charge** : projectLoadedId passe de null à "b06ba6b7-..." → effect run
-3. **Re-render sans changement** : projectLoadedId stable → effect skip (pas de boucle)
+4. **Statistiques**
+   - Distance: 850m
+   - Temps trajet: ~10 min (marche 5km/h)
+   - Temps arrêts: 5 min
+   - Temps total: 15 min
 
-## Tests à exécuter
+5. **Tableau POIs**
+   - 3 lignes avec type modifiable
+   - Temps d'arrêt éditable
+   - Recalcul en temps réel
 
-1. `/intake/b06ba6b7-0b2c-45c2-b955-3783c1611df1` → Exports → Rapport → vérifie trace chargée
-2. Cliquer "Ouvrir le Rapport Interactif" → carte Leaflet visible
-3. Projet sans traces → empty state
-4. Projet establishment → pas d'onglet Rapport
-5. Network tab: 1 seul fetch traces (pas de boucle)
+## Accès après création
+
+URL directe: `https://id-preview--e131f396-539f-4ffb-9d93-c4a26474fc14.lovable.app/exemple-rapport-interactif.html`
+
+## Tests à effectuer après création
+
+1. Ouvrir l'URL et vérifier que la carte Leaflet s'affiche
+2. Changer le mode de transport -> vitesse mise à jour
+3. Modifier les temps d'arrêt -> temps total recalculé
+4. Cliquer sur les marqueurs -> popups visibles
+5. Cliquer PDF -> dialogue d'impression
+
