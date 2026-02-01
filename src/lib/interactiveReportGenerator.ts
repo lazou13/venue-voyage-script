@@ -40,6 +40,26 @@ export interface ReportPayload {
   project: {
     name: string;
     city?: string;
+    // Quest config data for project sheet
+    projectType?: string;
+    playMode?: string;
+    questType?: string;
+    targetAudience?: string[];
+    languages?: string[];
+    objective?: string;
+    storytelling?: {
+      enabled: boolean;
+      hasAvatar?: boolean;
+    };
+    decisions?: {
+      qrAllowed?: boolean;
+      photoAllowed?: boolean;
+      staffInvolved?: boolean;
+      staffCount?: number;
+    };
+    stepsCount?: number;
+    difficulty?: number;
+    durationMin?: number;
   };
   trace: {
     id: string;
@@ -138,11 +158,39 @@ function getDefaultSpeed(mode: ReportConfig['transportMode']): number {
 
 // ============= Build Payload =============
 
+// Project input with optional quest_config
+interface ProjectInput {
+  hotel_name: string;
+  city?: string;
+  quest_config?: {
+    project_type?: string;
+    play_mode?: string;
+    questType?: string;
+    targetAudience?: string | string[];
+    languages?: string[];
+    core?: {
+      objective_business?: string[];
+      duration_min?: number;
+      difficulty?: number;
+    };
+    storytelling?: {
+      enabled?: boolean;
+      narrator?: { avatar_id?: string | null };
+    };
+    decisions_validated?: {
+      qr_allowed?: boolean;
+      photo_challenges_allowed?: boolean;
+      staff_involved?: boolean;
+    };
+  };
+  pois_count?: number;
+}
+
 /**
  * Build the report payload from project, trace, and markers data
  */
 export function buildReportPayload(
-  project: { hotel_name: string; city?: string },
+  project: ProjectInput,
   trace: RouteTraceInput,
   markers: RouteMarkerInput[],
   config?: Partial<ReportConfig>
@@ -198,10 +246,40 @@ export function buildReportPayload(
   const stopMinutes = pois.reduce((sum, poi) => sum + poi.stopMinutes, 0);
   const totalMinutes = travelMinutes + stopMinutes;
   
+  // Extract quest config data
+  const qc = project.quest_config || {};
+  const core = qc.core || {};
+  const decisions = qc.decisions_validated || {};
+  const storytelling = qc.storytelling || {};
+  
+  // Normalize target audience to array
+  const targetAudience = Array.isArray(qc.targetAudience) 
+    ? qc.targetAudience 
+    : (qc.targetAudience ? [qc.targetAudience] : []);
+  
   return {
     project: {
       name: project.hotel_name,
       city: project.city,
+      // Quest config data
+      projectType: qc.project_type,
+      playMode: qc.play_mode,
+      questType: qc.questType,
+      targetAudience,
+      languages: qc.languages,
+      objective: core.objective_business?.[0],
+      storytelling: {
+        enabled: storytelling.enabled || false,
+        hasAvatar: !!(storytelling.narrator?.avatar_id),
+      },
+      decisions: {
+        qrAllowed: decisions.qr_allowed,
+        photoAllowed: decisions.photo_challenges_allowed,
+        staffInvolved: decisions.staff_involved,
+      },
+      stepsCount: project.pois_count || pois.length,
+      difficulty: core.difficulty,
+      durationMin: core.duration_min,
     },
     trace: {
       id: trace.id,
@@ -397,6 +475,59 @@ export function generateInteractiveReportHTML(
     .meta-row strong { color: #333; font-weight: 600; }
     .meta-row code { font-family: 'SF Mono', Monaco, monospace; font-size: 0.7rem; background: #f0f0f0; padding: 2px 5px; border-radius: 3px; color: #666; }
     
+    /* Project Sheet */
+    .project-sheet { 
+      background: linear-gradient(135deg, #667eea08 0%, #764ba208 100%);
+      border: 1px solid #667eea30;
+      border-radius: 12px; 
+      padding: 20px; 
+      margin-bottom: 16px;
+    }
+    .project-sheet-title { 
+      font-size: 0.8rem; 
+      text-transform: uppercase; 
+      font-weight: 700; 
+      color: #667eea; 
+      margin-bottom: 16px;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .project-sheet-title::before { content: '📋'; }
+    .sheet-grid { 
+      display: grid; 
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+      gap: 12px 24px; 
+    }
+    .sheet-item { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: flex-start;
+      padding: 6px 0; 
+      border-bottom: 1px solid #e5e5e570;
+      font-size: 0.85rem;
+    }
+    .sheet-item:last-child { border-bottom: none; }
+    .sheet-label { color: #666; font-weight: 500; }
+    .sheet-value { 
+      color: #333; 
+      font-weight: 600; 
+      text-align: right;
+      max-width: 60%;
+    }
+    .sheet-value.yes { color: #22c55e; }
+    .sheet-value.no { color: #999; }
+    .sheet-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: #667eea20;
+      color: #667eea;
+    }
+    
     /* Print styles */
     @media print {
       body { background: white; }
@@ -460,6 +591,26 @@ export function generateInteractiveReportHTML(
         <input type="number" id="players" value="${payload.config.playersCount}" min="1" max="100">
       </div>
     </div>
+    
+    <section class="project-sheet">
+      <div class="project-sheet-title">Fiche Projet</div>
+      <div class="sheet-grid">
+        <div class="sheet-item"><span class="sheet-label">Nom du projet</span><span class="sheet-value">${projectName}</span></div>
+        <div class="sheet-item"><span class="sheet-label">Type de projet</span><span class="sheet-value"><span class="sheet-badge">${escapeHtml(payload.project.projectType || '—')}</span></span></div>
+        <div class="sheet-item"><span class="sheet-label">Mode de jeu</span><span class="sheet-value">${escapeHtml(payload.project.playMode || '—')}</span></div>
+        <div class="sheet-item"><span class="sheet-label">Type de quête</span><span class="sheet-value">${escapeHtml(payload.project.questType || '—')}</span></div>
+        <div class="sheet-item"><span class="sheet-label">Public cible</span><span class="sheet-value">${(payload.project.targetAudience || []).join(', ') || '—'}</span></div>
+        <div class="sheet-item"><span class="sheet-label">Langues disponibles</span><span class="sheet-value">${(payload.project.languages || []).join(', ') || '—'}</span></div>
+        <div class="sheet-item"><span class="sheet-label">Objectif principal</span><span class="sheet-value">${escapeHtml(payload.project.objective || '—')}</span></div>
+        <div class="sheet-item"><span class="sheet-label">QR autorisé</span><span class="sheet-value ${payload.project.decisions?.qrAllowed ? 'yes' : 'no'}">${payload.project.decisions?.qrAllowed ? 'Oui' : 'Non'}</span></div>
+        <div class="sheet-item"><span class="sheet-label">Validation photo</span><span class="sheet-value ${payload.project.decisions?.photoAllowed ? 'yes' : 'no'}">${payload.project.decisions?.photoAllowed ? 'Oui' : 'Non'}</span></div>
+        <div class="sheet-item"><span class="sheet-label">Staff impliqué</span><span class="sheet-value ${payload.project.decisions?.staffInvolved ? 'yes' : 'no'}">${payload.project.decisions?.staffInvolved ? 'Oui' : 'Non'}</span></div>
+        <div class="sheet-item"><span class="sheet-label">Storytelling</span><span class="sheet-value ${payload.project.storytelling?.enabled ? 'yes' : 'no'}">${payload.project.storytelling?.enabled ? (payload.project.storytelling.hasAvatar ? 'Oui, avec avatar' : 'Oui') : 'Non'}</span></div>
+        <div class="sheet-item"><span class="sheet-label">Nombre d'étapes</span><span class="sheet-value">${payload.project.stepsCount || payload.pois.length}</span></div>
+        <div class="sheet-item"><span class="sheet-label">Difficulté estimée</span><span class="sheet-value">${payload.project.difficulty ? payload.project.difficulty + ' / 5' : '—'}</span></div>
+        <div class="sheet-item"><span class="sheet-label">Durée estimée</span><span class="sheet-value">${payload.project.durationMin ? payload.project.durationMin + ' min' : '—'}</span></div>
+      </div>
+    </section>
     
     <section id="meta-bar" class="meta-bar">
       <div class="meta-grid">

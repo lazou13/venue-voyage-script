@@ -353,6 +353,8 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
           markers={reportMarkers}
           projectName={project.hotel_name}
           projectCity={project.city}
+          questConfig={project.quest_config as Record<string, unknown>}
+          poisCount={pois.length}
         />
       )}
     </div>
