@@ -11,6 +11,7 @@ import { useProject } from '@/hooks/useProject';
 import { useRouteRecorder, exportTraceAsGeoJSON, buildMarkersCSV, buildReconBriefMarkdown, RouteTrace, RouteMarker, RecordingMode, RecordingStatus } from '@/hooks/useRouteRecorder';
 import { RouteGuidanceView } from './RouteGuidanceView';
 import { GuidanceErrorBoundary } from '@/components/GuidanceErrorBoundary';
+import { InteractiveReportViewer } from './InteractiveReportViewer';
 import { useFileUpload } from '@/hooks/useFileUpload';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -136,6 +137,9 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
   
   // Guidance view state
   const [guidanceTrace, setGuidanceTrace] = useState<RouteTrace | null>(null);
+  
+  // Interactive report dialog state
+  const [showReport, setShowReport] = useState(false);
   const [guidanceMarkers, setGuidanceMarkers] = useState<RouteMarker[]>([]);
 
   // Fetch markers for selected trace
@@ -833,6 +837,15 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                       <Package className="w-3 h-3" />
                       Pack (.zip)
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setShowReport(true)}
+                      disabled={!selectedTraceId || !selectedTrace || selectedTrace.geojson.coordinates.length < 2}
+                    >
+                      📊 Rapport
+                    </Button>
                   </div>
                 </div>
                 <div className="space-y-1">
@@ -1182,6 +1195,18 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
             }}
           />
         </GuidanceErrorBoundary>
+      )}
+      
+      {/* Interactive Report Dialog */}
+      {selectedTrace && (
+        <InteractiveReportViewer
+          open={showReport}
+          onOpenChange={setShowReport}
+          trace={selectedTrace}
+          markers={markers}
+          projectName={project?.hotel_name || 'Parcours'}
+          projectCity={project?.city}
+        />
       )}
     </div>
   );
