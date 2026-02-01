@@ -43,6 +43,7 @@ export interface ReportPayload {
   };
   trace: {
     id: string;
+    name?: string;
     coordinates: [number, number][]; // [lng, lat]
     totalDistanceM: number;
     startedAt: string | null;
@@ -61,6 +62,7 @@ export interface ReportPayload {
 // Route trace and marker types (matching useRouteRecorder)
 interface RouteTraceInput {
   id: string;
+  name?: string | null;
   geojson: LineString;
   distance_meters: number | null;
   started_at: string | null;
@@ -203,6 +205,7 @@ export function buildReportPayload(
     },
     trace: {
       id: trace.id,
+      name: trace.name || undefined,
       coordinates,
       totalDistanceM,
       startedAt: trace.started_at,
@@ -383,12 +386,26 @@ export function generateInteractiveReportHTML(
     .poi-photo-link:hover { text-decoration: underline; }
     .empty-state { padding: 40px; text-align: center; color: #999; }
     
+    /* Meta bar */
+    .meta-bar { margin-bottom: 16px; }
+    .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .meta-card { background: white; border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .meta-title { font-size: 0.7rem; text-transform: uppercase; font-weight: 700; color: #667eea; margin-bottom: 8px; letter-spacing: 0.5px; }
+    .meta-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; padding: 3px 0; border-bottom: 1px solid #f5f5f5; }
+    .meta-row:last-child { border-bottom: none; }
+    .meta-row span { color: #888; }
+    .meta-row strong { color: #333; font-weight: 600; }
+    .meta-row code { font-family: 'SF Mono', Monaco, monospace; font-size: 0.7rem; background: #f0f0f0; padding: 2px 5px; border-radius: 3px; color: #666; }
+    
     /* Print styles */
     @media print {
       body { background: white; }
       .container { padding: 0; max-width: none; }
       header { background: #1a1a2e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .export-buttons, .config-panel { display: none !important; }
+      .meta-bar { margin-bottom: 10px; }
+      .meta-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .meta-card { padding: 8px 10px; box-shadow: none; border: 1px solid #ddd; }
       .map-section { break-inside: avoid; }
       #map { height: 300px; }
       .summary { break-inside: avoid; }
@@ -405,6 +422,7 @@ export function generateInteractiveReportHTML(
       .config-panel { flex-direction: column; gap: 12px; }
       .config-group { width: 100%; }
       .config-group select, .config-group input { width: 100%; }
+      .meta-grid { grid-template-columns: 1fr; }
       #map { height: 300px; }
       .pois-section { padding: 12px; }
     }
@@ -442,6 +460,32 @@ export function generateInteractiveReportHTML(
         <input type="number" id="players" value="${payload.config.playersCount}" min="1" max="100">
       </div>
     </div>
+    
+    <section id="meta-bar" class="meta-bar">
+      <div class="meta-grid">
+        <div class="meta-card">
+          <div class="meta-title">Parcours</div>
+          <div class="meta-row"><span>Trace</span><strong id="meta-trace-name">—</strong></div>
+          <div class="meta-row"><span>ID</span><code id="meta-trace-id">—</code></div>
+          <div class="meta-row"><span>Points</span><strong id="meta-points">0</strong></div>
+          <div class="meta-row"><span>Marqueurs</span><strong id="meta-markers">0</strong></div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-title">Timing</div>
+          <div class="meta-row"><span>Début</span><strong id="meta-start">—</strong></div>
+          <div class="meta-row"><span>Fin</span><strong id="meta-end">—</strong></div>
+          <div class="meta-row"><span>Trajet</span><strong id="meta-travel">—</strong></div>
+          <div class="meta-row"><span>Arrêts</span><strong id="meta-stops">—</strong></div>
+          <div class="meta-row"><span>Total</span><strong id="meta-total">—</strong></div>
+        </div>
+        <div class="meta-card">
+          <div class="meta-title">Config</div>
+          <div class="meta-row"><span>Transport</span><strong id="meta-transport">—</strong></div>
+          <div class="meta-row"><span>Vitesse</span><strong><span id="meta-speed">—</span> km/h</strong></div>
+          <div class="meta-row"><span>Joueurs</span><strong id="meta-players">—</strong></div>
+        </div>
+      </div>
+    </section>
     
     <div class="map-section">
       <div id="map"></div>
@@ -706,6 +750,45 @@ export function generateInteractiveReportHTML(
       STATE.computed.stopMinutes = stopMin;
       STATE.computed.totalMinutes = totalMin;
       saveState();
+      updateHeaderMeta();
+    }
+    
+    // Format date helper
+    function formatDate(ts) {
+      if (!ts) return '—';
+      try {
+        const d = new Date(ts);
+        return d.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      } catch (e) { return '—'; }
+    }
+    
+    // Short ID helper
+    function shortId(id) {
+      return id ? id.slice(0, 8) : '—';
+    }
+    
+    // Transport mode labels
+    const TRANSPORT_LABELS = { walking: '🚶 Marche', scooter: '🛵 Scooter', car: '🚗 Voiture' };
+    
+    // Update header meta bar
+    function updateHeaderMeta() {
+      // Parcours
+      document.getElementById('meta-trace-name').textContent = REPORT_DATA.trace.name || 'Trace';
+      document.getElementById('meta-trace-id').textContent = shortId(REPORT_DATA.trace.id);
+      document.getElementById('meta-points').textContent = REPORT_DATA.trace.coordinates.length;
+      document.getElementById('meta-markers').textContent = STATE.pois.length;
+      
+      // Timing
+      document.getElementById('meta-start').textContent = formatDate(REPORT_DATA.trace.startedAt);
+      document.getElementById('meta-end').textContent = formatDate(REPORT_DATA.trace.endedAt);
+      document.getElementById('meta-travel').textContent = Math.round(STATE.computed.travelMinutes) + ' min';
+      document.getElementById('meta-stops').textContent = STATE.computed.stopMinutes + ' min';
+      document.getElementById('meta-total').textContent = Math.round(STATE.computed.totalMinutes) + ' min';
+      
+      // Config
+      document.getElementById('meta-transport').textContent = TRANSPORT_LABELS[STATE.config.transportMode] || STATE.config.transportMode;
+      document.getElementById('meta-speed').textContent = STATE.config.speedKmh;
+      document.getElementById('meta-players').textContent = STATE.config.playersCount;
     }
     
     // Shared handler for POI field updates (input, change, select)
@@ -741,6 +824,7 @@ export function generateInteractiveReportHTML(
     document.getElementById('players').addEventListener('input', function() {
       STATE.config.playersCount = parseInt(this.value) || 1;
       saveState();
+      updateHeaderMeta();
     });
     
     // Export JSON (with edits)
@@ -881,6 +965,7 @@ export function generateInteractiveReportHTML(
     applyStateToDOM();
     initMap();
     recalculate();
+    updateHeaderMeta();
     
     // Auto print if requested
     if (AUTO_PRINT) {
