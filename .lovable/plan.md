@@ -1,85 +1,105 @@
 
+# Correction du Guidage - "render2 is not a function"
 
-# Ajouter un bandeau "Mode Guidage disponible" proéminent
+## Diagnostic
 
-## Objectif
+L'erreur `TypeError: render2 is not a function` dans `updateContextConsumer` se produit quand vous cliquez sur "Lancer le Guidage". C'est un problème de compatibilité entre **react-leaflet v5** et le contexte React.
 
-Ajouter un bandeau bleu visible entre le titre "Mode Repérage" et les contrôles, avec un bouton "Lancer le Guidage" impossible à manquer.
+**Cause identifiée** : Les composants `FitBounds` et `CenterOnUser` utilisent `useMap()` qui nécessite d'être à l'intérieur d'un `MapContainer` déjà initialisé. Dans certaines conditions de rendu (notamment quand le composant est monté de façon asynchrone), le contexte de la carte n'est pas encore disponible.
 
-## Rendu visuel
+## Solution technique
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│ 🧭 Mode Repérage                                        │
-├─────────────────────────────────────────────────────────┤
-│ ┌─────────────────────────────────────────────────────┐ │
-│ │ 🧭 Mode Guidage disponible          [Lancer Guidage]│ │
-│ │    2 trace(s) prête(s)                              │ │
-│ └─────────────────────────────────────────────────────┘ │
-│                                                         │
-│ Mode: ○ 🚶 Marche  ○ 🛵 Scooter                         │
-│ ...                                                     │
-└─────────────────────────────────────────────────────────┘
-```
+### Fichier à modifier
+`src/components/intake/RouteGuidanceView.tsx`
 
-## Modification technique
+### Corrections à appliquer
 
-| Fichier | Changement |
-|---------|------------|
-| `src/components/intake/RouteReconStep.tsx` | Insérer bandeau bleu entre `CardHeader` (ligne 342) et `CardContent` (ligne 343) |
+1. **Utiliser le pattern `whenCreated` ou `ref`** pour s'assurer que la carte est prête avant d'utiliser `useMap()`
 
-## Code à ajouter (après ligne 342, avant CardContent)
+2. **Déplacer les hooks `useMap` dans des composants conditionnels** qui ne sont rendus que quand la carte est disponible
+
+3. **Ajouter une vérification de l'état de montage** pour éviter les erreurs de rendu
+
+### Code corrigé
 
 ```typescript
-{/* Bandeau Guidage proéminent */}
-{traces.filter(t => t.geojson.coordinates.length >= 2).length > 0 && (
-  <div className="mx-6 mb-2">
-    <div className="flex items-center gap-3 p-3 rounded-md bg-blue-50 border border-blue-200">
-      <Compass className="w-5 h-5 text-blue-600 flex-shrink-0" />
-      <div className="flex-1">
-        <p className="text-sm font-medium text-blue-900">Mode Guidage disponible</p>
-        <p className="text-xs text-blue-600">
-          {traces.filter(t => t.geojson.coordinates.length >= 2).length} trace(s) prête(s)
-        </p>
-      </div>
-      <Button 
-        variant="default" 
-        className="gap-2 bg-blue-600 hover:bg-blue-700"
-        onClick={async () => {
-          const validTraces = traces.filter(t => t.geojson.coordinates.length >= 2);
-          const trace = selectedTrace && selectedTrace.geojson.coordinates.length >= 2 
-            ? selectedTrace 
-            : validTraces[0];
-          
-          const { data: traceMarkers } = await supabase
-            .from('route_markers')
-            .select('*')
-            .eq('trace_id', trace.id)
-            .order('created_at', { ascending: true });
-          
-          setGuidanceMarkers((traceMarkers || []) as RouteMarker[]);
-          setGuidanceTrace(trace);
-        }}
-      >
-        <Compass className="w-4 h-4" />
-        Lancer le Guidage
-      </Button>
-    </div>
-  </div>
-)}
+// Option 1: Utiliser ref pour accéder à la carte
+const mapRef = useRef<L.Map | null>(null);
+
+<MapContainer
+  ref={mapRef}
+  center={defaultCenter}
+  zoom={16}
+  className="h-full w-full"
+  zoomControl={false}
+>
+  {/* Les composants FitBounds et CenterOnUser 
+      doivent être rendus APRÈS l'initialisation de la carte */}
+  <MapController 
+    coords={polylineCoords} 
+    userPosition={userPosition} 
+    followUser={followUser} 
+  />
+  ...
+</MapContainer>
+
+// Nouveau composant qui encapsule la logique
+function MapController({ coords, userPosition, followUser }) {
+  const map = useMap();
+  
+  // FitBounds logic
+  useEffect(() => {
+    if (coords.length > 0 && map) {
+      const latLngs = coords.map(c => [c[1], c[0]] as [number, number]);
+      const bounds = L.latLngBounds(latLngs);
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [map, coords]);
+  
+  // CenterOnUser logic
+  useEffect(() => {
+    if (userPosition && followUser && map) {
+      map.setView([userPosition.lat, userPosition.lng], map.getZoom());
+    }
+  }, [map, userPosition, followUser]);
+  
+  return null;
+}
 ```
 
-## Comportement
+4. **Ajouter un guard de sécurité** pour éviter le crash si le contexte n'est pas prêt :
 
-1. Le bandeau bleu n'apparaît **que si** au moins une trace a 2+ coordonnées
-2. Cliquer "Lancer le Guidage" ouvre directement le mode guidage avec :
-   - La trace sélectionnée (si elle a des coordonnées)
-   - Sinon la première trace valide
-3. Le bandeau reste visible en permanence en haut de la section
+```typescript
+function FitBounds({ coords }: { coords: [number, number][] }) {
+  const map = useMap();
+  
+  useEffect(() => {
+    if (!map || coords.length === 0) return; // Guard
+    
+    try {
+      const latLngs = coords.map(c => [c[1], c[0]] as [number, number]);
+      const bounds = L.latLngBounds(latLngs);
+      map.fitBounds(bounds, { padding: [50, 50] });
+    } catch (err) {
+      console.warn('FitBounds error:', err);
+    }
+  }, [map, coords]);
+  
+  return null;
+}
+```
+
+## Résumé des changements
+
+| Action | Détail |
+|--------|--------|
+| Fusion des composants | Combiner `FitBounds` et `CenterOnUser` en un seul `MapController` |
+| Guards de sécurité | Ajouter des vérifications `if (!map) return` |
+| Try/catch | Entourer les appels Leaflet d'un try/catch |
+| État de chargement | Afficher un indicateur pendant l'initialisation de la carte |
 
 ## Résultat attendu
 
-- Bandeau bleu impossible à rater en haut de la section "Mode Repérage"
-- Texte informatif "Mode Guidage disponible" + nombre de traces
-- Bouton bleu "Lancer le Guidage" qui ouvre immédiatement la carte
-
+- Le bouton "Lancer le Guidage" ouvrira la carte sans erreur
+- La carte se centrera automatiquement sur le parcours
+- La position GPS sera suivie en temps réel
