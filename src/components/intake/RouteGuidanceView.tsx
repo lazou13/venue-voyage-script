@@ -83,30 +83,43 @@ function createMarkerIcon(kind: MarkerKind, isPulsing: boolean = false): L.DivIc
   });
 }
 
-// Component to auto-fit map bounds
-function FitBounds({ coords }: { coords: [number, number][] }) {
+// Unified map controller component - handles bounds and centering safely
+function MapController({ 
+  coords, 
+  userPosition, 
+  shouldCenter 
+}: { 
+  coords: [number, number][]; 
+  userPosition: Coord | null; 
+  shouldCenter: boolean;
+}) {
   const map = useMap();
+  const hasFittedBounds = useRef(false);
   
+  // Fit bounds on initial mount only
   useEffect(() => {
-    if (coords.length > 0) {
+    if (!map || coords.length === 0 || hasFittedBounds.current) return;
+    
+    try {
       const latLngs = coords.map(c => [c[1], c[0]] as [number, number]);
       const bounds = L.latLngBounds(latLngs);
       map.fitBounds(bounds, { padding: [50, 50] });
+      hasFittedBounds.current = true;
+    } catch (err) {
+      console.warn('MapController: fitBounds error', err);
     }
   }, [map, coords]);
   
-  return null;
-}
-
-// Component to center on user position
-function CenterOnUser({ position, shouldCenter }: { position: Coord | null; shouldCenter: boolean }) {
-  const map = useMap();
-  
+  // Center on user when following
   useEffect(() => {
-    if (position && shouldCenter) {
-      map.setView([position.lat, position.lng], map.getZoom());
+    if (!map || !userPosition || !shouldCenter) return;
+    
+    try {
+      map.setView([userPosition.lat, userPosition.lng], map.getZoom());
+    } catch (err) {
+      console.warn('MapController: setView error', err);
     }
-  }, [map, position, shouldCenter]);
+  }, [map, userPosition, shouldCenter]);
   
   return null;
 }
@@ -342,8 +355,11 @@ export function RouteGuidanceView({ trace, markers, onClose }: RouteGuidanceView
             url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           />
           
-          <FitBounds coords={polylineCoords} />
-          <CenterOnUser position={userPosition} shouldCenter={followUser} />
+          <MapController 
+            coords={polylineCoords} 
+            userPosition={userPosition} 
+            shouldCenter={followUser} 
+          />
           
           {/* Full route background (light gray) */}
           <Polyline
