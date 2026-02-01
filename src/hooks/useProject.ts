@@ -92,7 +92,8 @@ export function useProject(projectId: string | undefined) {
         .from('route_traces')
         .select('id, geojson, distance_meters, created_at')
         .eq('project_id', projectId)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(20);
       if (error) throw error;
       return data || [];
     },
@@ -176,10 +177,7 @@ export function useProject(projectId: string | undefined) {
     }
 
     // Conditional blocking errors based on project type
-    const validationProjectType = project?.quest_config?.project_type;
-    const validationIsRouteRecon = validationProjectType === 'route_recon';
-
-    if (!validationIsRouteRecon) {
+    if (!isRouteRecon) {
       // Standard projects: require map, min POIs, forbidden zones
       if (!project?.map_url) {
         errors.push('Aucune carte uploadée');
