@@ -644,7 +644,7 @@ export function generateInteractiveReportHTML(
       }
     }
     
-    // Apply state to DOM
+    // Apply state to DOM - fix: handle 0 values properly
     function applyStateToDOM() {
       // Config
       document.getElementById('transport').value = STATE.config.transportMode;
@@ -659,12 +659,12 @@ export function generateInteractiveReportHTML(
         inputs.forEach(el => {
           const field = el.dataset.field;
           if (field === 'gps') return; // readonly
-          if (el.tagName === 'SELECT') {
-            el.value = poi[field] || '';
-          } else if (el.tagName === 'TEXTAREA') {
-            el.value = poi[field] || '';
-          } else if (el.tagName === 'INPUT') {
-            el.value = poi[field] || '';
+          const v = poi[field];
+          // Fix: 0 must display as "0", not ""
+          if (field === 'stopMinutes') {
+            el.value = (typeof v === 'number') ? String(v) : '0';
+          } else {
+            el.value = (v === null || v === undefined) ? '' : String(v);
           }
         });
       });
@@ -708,9 +708,8 @@ export function generateInteractiveReportHTML(
       saveState();
     }
     
-    // Event delegation for POI field changes
-    document.addEventListener('input', function(e) {
-      const target = e.target;
+    // Shared handler for POI field updates (input, change, select)
+    function handleFieldUpdate(target) {
       const poiId = target.dataset && target.dataset.poiId;
       const field = target.dataset && target.dataset.field;
       if (!poiId || !field) return;
@@ -719,13 +718,19 @@ export function generateInteractiveReportHTML(
       if (!poi) return;
       
       if (field === 'stopMinutes') {
-        poi[field] = parseInt(target.value) || 0;
+        const val = parseInt(target.value);
+        poi[field] = (isNaN(val) || val < 0) ? 0 : val;
+        saveState(); // save first (robust)
         recalculate();
       } else {
         poi[field] = target.value;
         saveState();
       }
-    });
+    }
+    
+    // Event delegation: both 'input' and 'change' for inputs, selects, textareas
+    document.addEventListener('input', function(e) { handleFieldUpdate(e.target); });
+    document.addEventListener('change', function(e) { handleFieldUpdate(e.target); });
     
     // Speed input change
     document.getElementById('speed').addEventListener('input', function() {
