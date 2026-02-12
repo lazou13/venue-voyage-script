@@ -1,13 +1,13 @@
 import { useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { Save, Rocket, Loader2, Home } from 'lucide-react';
-import { useAppConfig } from '@/hooks/useAppConfig';
+import { AppConfigProvider, useAppConfigContext } from '@/contexts/AppConfigContext';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 
-export default function AdminLayout() {
+function AdminLayoutInner() {
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -20,7 +20,7 @@ export default function AdminLayout() {
     error,
     saveDraft,
     publish,
-  } = useAppConfig();
+  } = useAppConfigContext();
 
   // Show error toast
   useEffect(() => {
@@ -111,5 +111,13 @@ export default function AdminLayout() {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function AdminLayout() {
+  return (
+    <AppConfigProvider>
+      <AdminLayoutInner />
+    </AppConfigProvider>
   );
 }

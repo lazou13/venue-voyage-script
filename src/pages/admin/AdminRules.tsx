@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Loader2, Plus, Pencil, Trash2, AlertTriangle, AlertCircle, Info } from 'lucide-react';
-import { useAppConfig } from '@/hooks/useAppConfig';
+import { useAppConfigContext } from '@/contexts/AppConfigContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -44,7 +44,7 @@ const DEFAULT_RULE: Omit<Rule, 'id'> = {
 };
 
 export default function AdminRules() {
-  const { draftPayload, isLoading, updateDraft } = useAppConfig();
+  const { draftPayload, isLoading, updateDraft } = useAppConfigContext();
   const { toast } = useToast();
   
   const [editingRule, setEditingRule] = useState<Rule | null>(null);

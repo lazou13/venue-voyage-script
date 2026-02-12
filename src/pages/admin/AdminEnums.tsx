@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react';
-import { useAppConfig } from '@/hooks/useAppConfig';
+import { useAppConfigContext } from '@/contexts/AppConfigContext';
 import { EnumEditor } from '@/components/admin/EnumEditor';
 import type { EnumItem, CapabilitiesPayload } from '@/hooks/useCapabilities';
 
@@ -69,7 +69,7 @@ const ENUM_DEFINITIONS: {
 ];
 
 export default function AdminEnums() {
-  const { draftPayload, isLoading, updateDraft } = useAppConfig();
+  const { draftPayload, isLoading, updateDraft } = useAppConfigContext();
 
   const handleEnumChange = (enumKey: keyof CapabilitiesPayload['enums'], items: EnumItem[]) => {
     updateDraft((prev) => ({

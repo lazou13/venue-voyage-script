@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Loader2, Plus, Pencil, Trash2, GripVertical, Hotel, Map, Route, Star } from 'lucide-react';
-import { useAppConfig } from '@/hooks/useAppConfig';
+import { useAppConfigContext } from '@/contexts/AppConfigContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -62,7 +62,7 @@ const DEFAULT_PRESET: Omit<Preset, 'id'> = {
 };
 
 export default function AdminPresets() {
-  const { draftPayload, isLoading, updateDraft } = useAppConfig();
+  const { draftPayload, isLoading, updateDraft } = useAppConfigContext();
   const { toast } = useToast();
   
   const [editingPreset, setEditingPreset] = useState<Preset | null>(null);

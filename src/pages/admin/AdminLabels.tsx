@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Loader2, Plus, Trash2, Globe } from 'lucide-react';
-import { useAppConfig } from '@/hooks/useAppConfig';
+import { useAppConfigContext } from '@/contexts/AppConfigContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -38,7 +38,7 @@ const LANGUAGE_NAMES: Record<string, string> = {
 };
 
 export default function AdminLabels() {
-  const { draftPayload, isLoading, updateDraft } = useAppConfig();
+  const { draftPayload, isLoading, updateDraft } = useAppConfigContext();
   const { toast } = useToast();
   
   const [newKey, setNewKey] = useState('');
