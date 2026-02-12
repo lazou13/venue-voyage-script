@@ -1,53 +1,50 @@
 
 
-## Plan : 3 corrections
+## Correction : Les modifications admin ne se sauvegardent pas
 
-### Probleme 1 : Mode de jeu - options codees en dur
+### Cause racine
 
-Dans `CoreStep.tsx` (ligne 345), les 4 modes de jeu sont codes en dur comme `['solo', 'team', 'one_vs_one', 'multi_solo']`. Au lieu de cela, il faut utiliser les labels dynamiques du hook `useCapabilities()` via `playModeLabels`, comme c'est deja fait pour les types de projet et les types de quete.
+Le hook `useAppConfig()` est instancie **deux fois separement** :
+- Dans `AdminLayout.tsx` (boutons Sauvegarder / Publier)
+- Dans `AdminEnums.tsx` (edition des valeurs)
 
-**Fichier** : `src/components/intake/CoreStep.tsx`
-- Remplacer le tableau statique `(['solo', 'team', ...] as PlayMode[]).map(...)` par `Object.entries(playModeLabels).map(...)` pour que tous les modes definis dans l'admin soient affiches dynamiquement (y compris "famille" s'il est ajoute).
+Chaque instance a son propre etat local. Quand on modifie un enum dans `AdminEnums`, l'instance de `AdminLayout` ne le detecte pas. Le bouton "Sauvegarder" reste desactive car `hasUnsavedChanges` est toujours `false` cote layout.
 
----
+### Solution : React Context partage
 
-### Probleme 2 : Textarea des segments - impossible de mettre un espace
+Creer un **AppConfigContext** qui encapsule une seule instance du hook et la partage entre le layout et toutes les sous-pages admin.
 
-Dans `RouteReconStep.tsx`, les textareas (segments, danger_points, etc.) appellent `handleArrayChange` a **chaque frappe**. Cette fonction split/trim/filter et sauvegarde immediatement en base. Il n'y a pas d'etat local ni de debounce, donc chaque caractere tape provoque un re-render avec la valeur DB, ce qui "mange" les espaces et deplace le curseur.
+### Fichiers modifies
 
-**Correction** : Appliquer le meme pattern que `CoreStep.tsx` - ajouter un etat local par champ textarea + un debounce de 500ms avant la sauvegarde.
+**1. Nouveau : `src/contexts/AppConfigContext.tsx`**
+- Creer un React Context + Provider qui appelle `useAppConfig()` une seule fois
+- Exporter un hook `useAppConfigContext()` pour consommer le contexte
 
-**Fichier** : `src/components/intake/RouteReconStep.tsx`
-- Ajouter des `useState` locaux pour `segments`, `danger_points`, `mandatory_stops`, `safety_brief`
-- Ajouter des `useEffect` pour synchroniser l'etat local quand les donnees serveur changent
-- Creer une fonction `handleDebouncedArrayChange` (identique a celle de CoreStep) avec un `useRef` pour le timer
-- Remplacer les `onChange` des textareas pour utiliser cette fonction debouncee
+**2. Modifier : `src/pages/admin/AdminLayout.tsx`**
+- Encapsuler le `<Outlet>` dans le `<AppConfigProvider>`
+- Remplacer l'appel direct `useAppConfig()` par `useAppConfigContext()`
 
----
+**3. Modifier : `src/pages/admin/AdminEnums.tsx`**
+- Remplacer `useAppConfig()` par `useAppConfigContext()`
 
-### Probleme 3 : Ajouter "Intermediaire" dans la logique de branchement
+**4. Modifier les autres pages admin** (`AdminPresets.tsx`, `AdminFields.tsx`, `AdminRules.tsx`, `AdminLabels.tsx`, `AdminPublish.tsx`)
+- Si elles utilisent `useAppConfig()`, les migrer vers `useAppConfigContext()` pour coherence
 
-L'utilisateur veut un concept d'**etape intermediaire** dans le branchement : un moment entre 2 etapes ou on donne une direction, on fait une pause, ou on raconte une transition narrative.
+### Schema de la solution
 
-**Fichier** : `src/types/intake.ts`
-- Ajouter `'intermediate'` comme valeur possible dans `BranchingLogic.onSuccess` (documentation par commentaire)
+```text
+AdminLayout
+  |-- AppConfigProvider  (une seule instance de useAppConfig)
+  |     |
+  |     |-- Header (boutons Save/Publish via useAppConfigContext)
+  |     |-- Outlet
+  |           |-- AdminEnums (lecture/ecriture via useAppConfigContext)
+  |           |-- AdminFields (lecture/ecriture via useAppConfigContext)
+  |           |-- etc.
+```
 
-**Fichier** : `src/components/intake/RulesStep.tsx`
-- Ajouter `<option value="intermediate">Intermediaire (pause/direction)</option>` dans le select "En cas de succes"
-- Ajouter `<option value="intermediate">Intermediaire (pause/direction)</option>` dans le select "Si au-dessus"
-
-**Fichier** : `src/lib/outputGenerators.ts`
-- Mettre a jour la fonction `getBranchingSummary` pour afficher un symbole pour "intermediate" (ex: `⏸→intermediate`)
-
----
-
-### Resume des fichiers modifies
-
-| Fichier | Modification |
-|---|---|
-| `src/components/intake/CoreStep.tsx` | Modes de jeu dynamiques depuis capabilities |
-| `src/components/intake/RouteReconStep.tsx` | Debounce + etat local pour les textareas |
-| `src/components/intake/RulesStep.tsx` | Ajout option "Intermediaire" dans branchement |
-| `src/types/intake.ts` | Documentation de la valeur "intermediate" |
-| `src/lib/outputGenerators.ts` | Support "intermediate" dans les exports |
+### Resultat attendu
+- Les modifications dans n'importe quelle sous-page admin sont immediatement visibles par le header (badge "Modifications non sauvegardees" + bouton Sauvegarder actif)
+- Le bouton Sauvegarder fonctionne et persiste les changements en base
+- Le bouton Publier est accessible apres une sauvegarde reussie
 
