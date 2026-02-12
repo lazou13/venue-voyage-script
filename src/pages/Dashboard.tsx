@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Plus, MapPin, Calendar, Trash2, Sparkles, FolderOpen } from 'lucide-react';
@@ -5,13 +6,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { CreateProjectDialog } from '@/components/CreateProjectDialog';
 import type { Project } from '@/types/intake';
 import { cn } from '@/lib/utils';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-
+  const [dialogOpen, setDialogOpen] = useState(false);
   const { data: projects, isLoading } = useQuery({
     queryKey: ['projects'],
     queryFn: async () => {
@@ -21,26 +23,6 @@ export default function Dashboard() {
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as Project[];
-    },
-  });
-
-  const createProject = useMutation({
-    mutationFn: async () => {
-      const { data, error } = await supabase
-        .from('projects')
-        .insert({
-          hotel_name: 'Nouvel Hôtel',
-          city: 'Paris',
-          floors: 1,
-        })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
-      navigate(`/intake/${data.id}`);
     },
   });
 
@@ -81,8 +63,7 @@ export default function Dashboard() {
               </div>
             </div>
             <Button 
-              onClick={() => createProject.mutate()} 
-              disabled={createProject.isPending}
+              onClick={() => setDialogOpen(true)} 
               className="rounded-full gap-2 shadow-soft hover:shadow-medium transition-shadow"
             >
               <Plus className="w-4 h-4" />
@@ -103,7 +84,7 @@ export default function Dashboard() {
               Créez votre premier projet de chasse au trésor pour commencer l'aventure !
             </p>
             <Button 
-              onClick={() => createProject.mutate()} 
+              onClick={() => setDialogOpen(true)} 
               size="lg"
               className="rounded-full gap-2 shadow-soft hover:shadow-medium"
             >
@@ -173,6 +154,8 @@ export default function Dashboard() {
           </div>
         )}
       </main>
+
+      <CreateProjectDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </div>
   );
 }
