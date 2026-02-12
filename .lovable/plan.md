@@ -1,50 +1,54 @@
 
 
-## Correction : Les modifications admin ne se sauvegardent pas
+## Plan : Documentation en 2 volets
 
-### Cause racine
+### Volet 1 : Mode d'emploi dans l'admin (`/admin/docs`)
 
-Le hook `useAppConfig()` est instancie **deux fois separement** :
-- Dans `AdminLayout.tsx` (boutons Sauvegarder / Publier)
-- Dans `AdminEnums.tsx` (edition des valeurs)
+Page accessible depuis le panneau admin avec un onglet "Documentation" dans la sidebar. Contenu **fonctionnel uniquement** (pas de code source) :
 
-Chaque instance a son propre etat local. Quand on modifie un enum dans `AdminEnums`, l'instance de `AdminLayout` ne le detecte pas. Le bouton "Sauvegarder" reste desactive car `hasUnsavedChanges` est toujours `false` cote layout.
+- Guide utilisateur : Dashboard, Intake (6 onglets), modes de jeu, GPS
+- Guide admin : Enums, Prereglages, Champs, Regles, Labels, workflow brouillon/publier
+- FAQ et astuces
 
-### Solution : React Context partage
+**Fichiers :**
+- Creer `src/pages/admin/AdminDocs.tsx`
+- Modifier `src/components/admin/AdminSidebar.tsx` (ajouter lien Documentation)
+- Modifier `src/App.tsx` (ajouter route `/admin/docs`)
 
-Creer un **AppConfigContext** qui encapsule une seule instance du hook et la partage entre le layout et toutes les sous-pages admin.
+---
 
-### Fichiers modifies
+### Volet 2 : Dossier technique escrow (fichier telechargeable)
 
-**1. Nouveau : `src/contexts/AppConfigContext.tsx`**
-- Creer un React Context + Provider qui appelle `useAppConfig()` une seule fois
-- Exporter un hook `useAppConfigContext()` pour consommer le contexte
+Un bouton dans la page Documentation permet de **telecharger un fichier ZIP** contenant la documentation technique complete, sans le code source lui-meme. Le ZIP contiendra :
 
-**2. Modifier : `src/pages/admin/AdminLayout.tsx`**
-- Encapsuler le `<Outlet>` dans le `<AppConfigProvider>`
-- Remplacer l'appel direct `useAppConfig()` par `useAppConfigContext()`
+- `ARCHITECTURE.md` : stack technique, structure des dossiers, schemas de la base de donnees, diagrammes de flux
+- `HOOKS_AND_CONTEXT.md` : documentation de chaque hook (`useProject`, `usePOIs`, `useCapabilities`, `useAppConfig`, `useRouteRecorder`), leurs signatures, ce qu'ils font
+- `TYPES_REFERENCE.md` : tous les types TypeScript documentes (QuestConfig, StepConfig, POI, BranchingLogic, etc.)
+- `DATABASE_SCHEMA.md` : tables, colonnes, relations, politiques RLS
+- `API_AND_EDGE_FUNCTIONS.md` : endpoints, secrets, flux d'authentification
+- `DEPLOYMENT.md` : configuration, variables d'environnement, workflow de deploiement
 
-**3. Modifier : `src/pages/admin/AdminEnums.tsx`**
-- Remplacer `useAppConfig()` par `useAppConfigContext()`
+Le fichier est genere cote client avec la librairie `jszip` (deja installee) et telecharge en `.zip`. Le contenu est ecrit en Markdown statique dans un fichier dedie.
 
-**4. Modifier les autres pages admin** (`AdminPresets.tsx`, `AdminFields.tsx`, `AdminRules.tsx`, `AdminLabels.tsx`, `AdminPublish.tsx`)
-- Si elles utilisent `useAppConfig()`, les migrer vers `useAppConfigContext()` pour coherence
+**Fichiers :**
+- Creer `src/lib/escrowDocGenerator.ts` : contient tout le contenu Markdown et la fonction `generateEscrowZip()` qui produit un Blob ZIP
+- Modifier `src/pages/admin/AdminDocs.tsx` : ajouter un bouton "Telecharger le dossier technique (escrow)" qui appelle cette fonction
 
-### Schema de la solution
+---
 
-```text
-AdminLayout
-  |-- AppConfigProvider  (une seule instance de useAppConfig)
-  |     |
-  |     |-- Header (boutons Save/Publish via useAppConfigContext)
-  |     |-- Outlet
-  |           |-- AdminEnums (lecture/ecriture via useAppConfigContext)
-  |           |-- AdminFields (lecture/ecriture via useAppConfigContext)
-  |           |-- etc.
-```
+### Principe de securite escrow
 
-### Resultat attendu
-- Les modifications dans n'importe quelle sous-page admin sont immediatement visibles par le header (badge "Modifications non sauvegardees" + bouton Sauvegarder actif)
-- Le bouton Sauvegarder fonctionne et persiste les changements en base
-- Le bouton Publier est accessible apres une sauvegarde reussie
+- Le ZIP contient une **documentation descriptive** de l'architecture, des types et du fonctionnement
+- Il ne contient **aucun fichier source** (pas de .tsx, .ts, .css)
+- L'acheteur comprend comment l'application fonctionne et peut verifier sa valeur, mais ne peut pas la reproduire sans le code
+- Le code source reel ne sera transmis qu'a la finalisation de la vente
+
+### Resume des fichiers
+
+| Fichier | Action |
+|---|---|
+| `src/pages/admin/AdminDocs.tsx` | Creer - page doc + bouton telechargement |
+| `src/lib/escrowDocGenerator.ts` | Creer - generation du ZIP escrow |
+| `src/components/admin/AdminSidebar.tsx` | Modifier - ajouter lien Documentation |
+| `src/App.tsx` | Modifier - ajouter route `/admin/docs` |
 
