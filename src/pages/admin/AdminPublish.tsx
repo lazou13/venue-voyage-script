@@ -1,5 +1,5 @@
 import { Loader2, Rocket, RotateCcw, FileJson, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { useAppConfig } from '@/hooks/useAppConfig';
+import { useAppConfigContext } from '@/contexts/AppConfigContext';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,7 +32,7 @@ export default function AdminPublish() {
     saveDraft,
     publish,
     discardChanges,
-  } = useAppConfig();
+  } = useAppConfigContext();
 
   const handleSaveAndPublish = async () => {
     // Save draft first if there are unsaved changes

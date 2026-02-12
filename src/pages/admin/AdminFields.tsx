@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react';
-import { useAppConfig } from '@/hooks/useAppConfig';
+import { useAppConfigContext } from '@/contexts/AppConfigContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -45,7 +45,7 @@ const DEFAULT_SECTIONS: Record<string, { title: string; description: string }> =
 };
 
 export default function AdminFields() {
-  const { draftPayload, isLoading, updateDraft } = useAppConfig();
+  const { draftPayload, isLoading, updateDraft } = useAppConfigContext();
 
   const fieldsConfig: FieldsConfig = (draftPayload as any)?.fields || {};
   const controls = fieldsConfig.core?.controls || {};
