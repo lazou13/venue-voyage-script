@@ -1,82 +1,53 @@
 
-## Plan : Categories de projet configurables depuis l'admin
 
-### Objectif
-Rendre les types de projet (et leur label de nom associe) entierement parametrables depuis le back-office admin, puis utiliser ces donnees dans un dialogue de creation de projet.
+## Plan : 3 corrections
 
-### Ce qui existe deja
-- L'enum `project_types` est deja geree dans le back-office admin (page `/admin/enums`) avec des items `{id, label}`.
-- Les 3 types actuels : `establishment` (Etablissement), `tourist_spot` (Site Touristique), `route_recon` (Reconnaissance Parcours).
-- Le hook `useCapabilities()` fournit ces enums au front-end.
+### Probleme 1 : Mode de jeu - options codees en dur
 
-### Ce qui manque
-- Un champ supplementaire par type de projet pour definir le **label du nom** (ex: "Nom de l'hotel", "Nom du client", "Nom du lieu").
-- Un dialogue de creation de projet qui utilise ces donnees dynamiques.
-- L'edition inline du titre/ville dans le formulaire intake.
+Dans `CoreStep.tsx` (ligne 345), les 4 modes de jeu sont codes en dur comme `['solo', 'team', 'one_vs_one', 'multi_solo']`. Au lieu de cela, il faut utiliser les labels dynamiques du hook `useCapabilities()` via `playModeLabels`, comme c'est deja fait pour les types de projet et les types de quete.
+
+**Fichier** : `src/components/intake/CoreStep.tsx`
+- Remplacer le tableau statique `(['solo', 'team', ...] as PlayMode[]).map(...)` par `Object.entries(playModeLabels).map(...)` pour que tous les modes definis dans l'admin soient affiches dynamiquement (y compris "famille" s'il est ajoute).
 
 ---
 
-### Etape 1 : Enrichir la structure `EnumItem` pour les project_types
+### Probleme 2 : Textarea des segments - impossible de mettre un espace
 
-Ajouter un champ optionnel `name_label` a l'interface `EnumItem` dans `useCapabilities.ts`, utilise uniquement par `project_types` :
+Dans `RouteReconStep.tsx`, les textareas (segments, danger_points, etc.) appellent `handleArrayChange` a **chaque frappe**. Cette fonction split/trim/filter et sauvegarde immediatement en base. Il n'y a pas d'etat local ni de debounce, donc chaque caractere tape provoque un re-render avec la valeur DB, ce qui "mange" les espaces et deplace le curseur.
 
-```text
-EnumItem {
-  id: string       // ex: "establishment"
-  label: string    // ex: "Etablissement"  
-  name_label?: string  // ex: "Nom de l'hotel"
-}
-```
+**Correction** : Appliquer le meme pattern que `CoreStep.tsx` - ajouter un etat local par champ textarea + un debounce de 500ms avant la sauvegarde.
 
-Aucune migration DB necessaire : le champ JSONB `payload` accepte deja n'importe quelle structure.
+**Fichier** : `src/components/intake/RouteReconStep.tsx`
+- Ajouter des `useState` locaux pour `segments`, `danger_points`, `mandatory_stops`, `safety_brief`
+- Ajouter des `useEffect` pour synchroniser l'etat local quand les donnees serveur changent
+- Creer une fonction `handleDebouncedArrayChange` (identique a celle de CoreStep) avec un `useRef` pour le timer
+- Remplacer les `onChange` des textareas pour utiliser cette fonction debouncee
 
-### Etape 2 : Adapter l'EnumEditor pour project_types
+---
 
-Modifier `EnumEditor.tsx` pour accepter une prop optionnelle `extraField` (label + placeholder). Quand elle est presente, un champ supplementaire s'affiche par item pour saisir le `name_label`.
+### Probleme 3 : Ajouter "Intermediaire" dans la logique de branchement
 
-Dans `AdminEnums.tsx`, passer cette prop uniquement pour la definition `project_types`.
+L'utilisateur veut un concept d'**etape intermediaire** dans le branchement : un moment entre 2 etapes ou on donne une direction, on fait une pause, ou on raconte une transition narrative.
 
-### Etape 3 : Creer le composant `CreateProjectDialog.tsx`
+**Fichier** : `src/types/intake.ts`
+- Ajouter `'intermediate'` comme valeur possible dans `BranchingLogic.onSuccess` (documentation par commentaire)
 
-Nouveau fichier `src/components/CreateProjectDialog.tsx` :
-- Utilise `useCapabilities()` pour lire dynamiquement la liste des types de projet.
-- Affiche les types sous forme de cartes selectionnables (icone + label).
-- Champ "Nom" dont le placeholder s'adapte au `name_label` du type selectionne.
-- Champ "Ville / Lieu".
-- Bouton "Creer" qui insere dans `projects` avec `hotel_name`, `city`, et `quest_config: { project_type }`.
-- Redirige vers `/intake/:id`.
+**Fichier** : `src/components/intake/RulesStep.tsx`
+- Ajouter `<option value="intermediate">Intermediaire (pause/direction)</option>` dans le select "En cas de succes"
+- Ajouter `<option value="intermediate">Intermediaire (pause/direction)</option>` dans le select "Si au-dessus"
 
-### Etape 4 : Modifier Dashboard.tsx
-
-- Remplacer l'appel direct `createProject.mutate()` par l'ouverture du `CreateProjectDialog`.
-- Supprimer la mutation inline.
-
-### Etape 5 : Rendre le titre et la ville editables dans IntakeForm.tsx
-
-- Remplacer le `<h1>` statique par un `<input>` inline editable pour le nom du projet.
-- Ajouter un petit input pour la ville.
-- Sauvegarder en DB au blur (debounce).
-
-### Etape 6 : Mettre a jour le payload admin existant
-
-Ajouter les `name_label` aux 3 types existants dans la configuration publiee :
-- `establishment` → "Nom de l'etablissement"
-- `tourist_spot` → "Nom du site"  
-- `route_recon` → "Nom du parcours"
+**Fichier** : `src/lib/outputGenerators.ts`
+- Mettre a jour la fonction `getBranchingSummary` pour afficher un symbole pour "intermediate" (ex: `⏸→intermediate`)
 
 ---
 
 ### Resume des fichiers modifies
-| Fichier | Action |
-|---|---|
-| `src/hooks/useCapabilities.ts` | Ajouter `name_label?` a `EnumItem` |
-| `src/components/admin/EnumEditor.tsx` | Ajouter support champ extra par item |
-| `src/pages/admin/AdminEnums.tsx` | Passer `extraField` pour `project_types` |
-| `src/components/CreateProjectDialog.tsx` | **Nouveau** - dialogue de creation |
-| `src/pages/Dashboard.tsx` | Utiliser le dialogue au lieu de la mutation directe |
-| `src/pages/IntakeForm.tsx` | Titre et ville editables inline |
 
-### Comportement attendu
-1. **Admin** : dans Enums > Types de projet, chaque item a un champ "Label du nom" editable. On peut ajouter/supprimer des types librement.
-2. **Dashboard** : clic "Nouveau Projet" ouvre un dialogue avec les types disponibles (dynamiques), un champ nom adaptatif, et un champ ville.
-3. **Intake** : le titre et la ville sont editables directement dans le header.
+| Fichier | Modification |
+|---|---|
+| `src/components/intake/CoreStep.tsx` | Modes de jeu dynamiques depuis capabilities |
+| `src/components/intake/RouteReconStep.tsx` | Debounce + etat local pour les textareas |
+| `src/components/intake/RulesStep.tsx` | Ajout option "Intermediaire" dans branchement |
+| `src/types/intake.ts` | Documentation de la valeur "intermediate" |
+| `src/lib/outputGenerators.ts` | Support "intermediate" dans les exports |
+
