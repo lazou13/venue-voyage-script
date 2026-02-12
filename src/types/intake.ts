@@ -56,7 +56,7 @@ export interface ScoringConfig {
 
 // ============= Branching Logic =============
 export interface BranchingLogic {
-  onSuccess?: string; // UUID | 'next' | 'end'
+  onSuccess?: string; // UUID | 'next' | 'intermediate' | 'end'
   onFailure?: string; // UUID | 'retry' | 'end'
   scoreAbove?: number;
   scoreAboveTarget?: string;

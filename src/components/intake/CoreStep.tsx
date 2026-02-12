@@ -342,20 +342,20 @@ export function CoreStep({ projectId }: CoreStepProps) {
         description="Choisissez comment les joueurs participent"
       >
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-          {(['solo', 'team', 'one_vs_one', 'multi_solo'] as PlayMode[]).map((mode) => {
+        {Object.entries(playModeLabels).map(([mode, label]) => {
             const isSelected = playMode === mode;
             return (
               <button
                 key={mode}
                 type="button"
-                onClick={() => updateQuestConfig({ play_mode: mode })}
+                onClick={() => updateQuestConfig({ play_mode: mode as PlayMode })}
                 className={`flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all ${
                   isSelected 
                     ? 'border-primary bg-primary/10 text-primary' 
                     : 'border-border hover:border-primary/50 hover:bg-muted'
                 }`}
               >
-                <span className="font-medium text-sm">{playModeLabels[mode]}</span>
+                <span className="font-medium text-sm">{label}</span>
               </button>
             );
           })}
