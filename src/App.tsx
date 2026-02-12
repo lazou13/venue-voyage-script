@@ -16,6 +16,7 @@ import AdminFields from "./pages/admin/AdminFields";
 import AdminRules from "./pages/admin/AdminRules";
 import AdminLabels from "./pages/admin/AdminLabels";
 import AdminPublish from "./pages/admin/AdminPublish";
+import AdminDocs from "./pages/admin/AdminDocs";
 
 const queryClient = new QueryClient();
 
@@ -41,6 +42,7 @@ const App = () => (
             <Route path="rules" element={<AdminRules />} />
             <Route path="labels" element={<AdminLabels />} />
             <Route path="publish" element={<AdminPublish />} />
+            <Route path="docs" element={<AdminDocs />} />
           </Route>
           
           <Route path="*" element={<NotFound />} />
