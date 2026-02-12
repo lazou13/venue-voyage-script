@@ -176,9 +176,26 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
     );
   };
 
-  const handleArrayChange = (field: keyof RouteReconDetails, value: string) => {
-    const items = value.split('\n').map(s => s.trim()).filter(Boolean);
-    updateDetails({ [field]: items });
+  // Local state for debounced textarea fields
+  const [localSegments, setLocalSegments] = useState(details.segments?.join('\n') || '');
+  const [localDangerPoints, setLocalDangerPoints] = useState(details.danger_points?.join('\n') || '');
+  const [localMandatoryStops, setLocalMandatoryStops] = useState(details.mandatory_stops?.join('\n') || '');
+  const [localSafetyBrief, setLocalSafetyBrief] = useState(details.safety_brief?.join('\n') || '');
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Sync local state when server data changes
+  useEffect(() => { setLocalSegments(details.segments?.join('\n') || ''); }, [JSON.stringify(details.segments)]);
+  useEffect(() => { setLocalDangerPoints(details.danger_points?.join('\n') || ''); }, [JSON.stringify(details.danger_points)]);
+  useEffect(() => { setLocalMandatoryStops(details.mandatory_stops?.join('\n') || ''); }, [JSON.stringify(details.mandatory_stops)]);
+  useEffect(() => { setLocalSafetyBrief(details.safety_brief?.join('\n') || ''); }, [JSON.stringify(details.safety_brief)]);
+
+  const handleDebouncedArrayChange = (field: keyof RouteReconDetails, value: string, setLocal: (v: string) => void) => {
+    setLocal(value);
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      const items = value.split('\n').map(s => s.trim()).filter(Boolean);
+      updateDetails({ [field]: items });
+    }, 500);
   };
 
   const handleAddMarker = async () => {
@@ -984,8 +1001,8 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
         <div className="space-y-1.5">
           <Label className="text-sm">Segments</Label>
           <Textarea
-            value={(details.segments || []).join('\n')}
-            onChange={(e) => handleArrayChange('segments', e.target.value)}
+            value={localSegments}
+            onChange={(e) => handleDebouncedArrayChange('segments', e.target.value, setLocalSegments)}
             placeholder="Ex: Départ → Carrefour Nord (2km)&#10;Carrefour Nord → Col (5km)&#10;Col → Arrivée village (3km)"
             rows={5}
           />
@@ -1001,8 +1018,8 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
         <div className="space-y-1.5">
           <Label className="text-sm">Points dangereux</Label>
           <Textarea
-            value={(details.danger_points || []).join('\n')}
-            onChange={(e) => handleArrayChange('danger_points', e.target.value)}
+            value={localDangerPoints}
+            onChange={(e) => handleDebouncedArrayChange('danger_points', e.target.value, setLocalDangerPoints)}
             placeholder="Ex: Virage serré km 3&#10;Passage étroit km 7&#10;Traversée route principale km 12"
             rows={4}
           />
@@ -1018,8 +1035,8 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
         <div className="space-y-1.5">
           <Label className="text-sm">Arrêts</Label>
           <Textarea
-            value={(details.mandatory_stops || []).join('\n')}
-            onChange={(e) => handleArrayChange('mandatory_stops', e.target.value)}
+            value={localMandatoryStops}
+            onChange={(e) => handleDebouncedArrayChange('mandatory_stops', e.target.value, setLocalMandatoryStops)}
             placeholder="Ex: Point de ravitaillement km 5&#10;Check-point sécurité km 10&#10;Point photo km 15"
             rows={4}
           />
@@ -1035,8 +1052,8 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
         <div className="space-y-1.5">
           <Label className="text-sm">Consignes</Label>
           <Textarea
-            value={(details.safety_brief || []).join('\n')}
-            onChange={(e) => handleArrayChange('safety_brief', e.target.value)}
+            value={localSafetyBrief}
+            onChange={(e) => handleDebouncedArrayChange('safety_brief', e.target.value, setLocalSafetyBrief)}
             placeholder="Ex: Équipement obligatoire: casque, gilet&#10;Ne pas dépasser 30km/h en zone urbaine&#10;Signaler tout incident au 06..."
             rows={5}
           />

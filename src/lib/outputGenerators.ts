@@ -484,7 +484,9 @@ function getBranchingSummary(config: POI['step_config']): string {
   if (!config?.branching) return '-';
   const b = config.branching;
   const parts: string[] = [];
-  if (b.onSuccess && b.onSuccess !== 'next') parts.push(`✓→${b.onSuccess}`);
+  if (b.onSuccess && b.onSuccess !== 'next') {
+    parts.push(b.onSuccess === 'intermediate' ? `⏸→intermédiaire` : `✓→${b.onSuccess}`);
+  }
   if (b.onFailure && b.onFailure !== 'retry') parts.push(`✗→${b.onFailure}`);
   if (b.scoreAbove) parts.push(`>${b.scoreAbove}→${b.scoreAboveTarget || '?'}`);
   return parts.length > 0 ? parts.join(' ') : '-';

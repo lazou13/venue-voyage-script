@@ -159,6 +159,7 @@ export function RulesStep({ projectId }: RulesStepProps) {
               onChange={(e) => updateBranching({ onSuccess: e.target.value })}
             >
               <option value="next">Étape suivante</option>
+              <option value="intermediate">Intermédiaire (pause/direction)</option>
               <option value="end">Fin de quête</option>
             </select>
           </div>
@@ -198,6 +199,7 @@ export function RulesStep({ projectId }: RulesStepProps) {
             >
               <option value="">Par défaut</option>
               <option value="next">Suivante</option>
+              <option value="intermediate">Intermédiaire</option>
               <option value="end">Fin</option>
             </select>
           </div>
