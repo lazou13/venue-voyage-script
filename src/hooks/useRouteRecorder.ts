@@ -367,7 +367,15 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
         (error) => {
           console.error('Geolocation error:', error);
           
-          // Clear watch on error
+          // Timeout errors are non-fatal: the watchPosition will keep trying
+          // Only stop recording on permission denied or position unavailable
+          if (error.code === error.TIMEOUT) {
+            console.warn('GPS timeout - watchPosition will retry automatically');
+            // Don't change state, let it keep trying
+            return;
+          }
+          
+          // Clear watch on fatal errors only
           if (watchIdRef.current !== null) {
             navigator.geolocation.clearWatch(watchIdRef.current);
             watchIdRef.current = null;
@@ -381,9 +389,6 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
             case error.POSITION_UNAVAILABLE:
               message = 'Position GPS indisponible. Vérifiez que le GPS est activé.';
               break;
-            case error.TIMEOUT:
-              message = 'Délai GPS dépassé. Réessayez dans un endroit ouvert.';
-              break;
             default:
               message = error.message || 'Erreur GPS inconnue';
           }
@@ -396,8 +401,8 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
         },
         {
           enableHighAccuracy: true,
-          maximumAge: 3000,
-          timeout: 10000,
+          maximumAge: 5000,
+          timeout: 30000,
         }
       );
 
