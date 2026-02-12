@@ -18,12 +18,19 @@ import {
 } from '@/components/ui/alert-dialog';
 import type { EnumItem } from '@/hooks/useCapabilities';
 
+interface ExtraFieldDef {
+  key: string;
+  label: string;
+  placeholder: string;
+}
+
 interface EnumEditorProps {
   title: string;
   description?: string;
   items: EnumItem[];
   onChange: (items: EnumItem[]) => void;
   accentColor?: string;
+  extraField?: ExtraFieldDef;
 }
 
 const SNAKE_CASE_REGEX = /^[a-z][a-z0-9_]*$/;
@@ -33,7 +40,8 @@ export function EnumEditor({
   description, 
   items, 
   onChange,
-  accentColor = 'hsl(var(--primary))'
+  accentColor = 'hsl(var(--primary))',
+  extraField,
 }: EnumEditorProps) {
   const [newId, setNewId] = useState('');
   const [newLabel, setNewLabel] = useState('');
@@ -50,6 +58,8 @@ export function EnumEditor({
     return null;
   };
 
+  const [newExtraValue, setNewExtraValue] = useState('');
+
   const handleAddItem = () => {
     const error = validateId(newId);
     if (error) {
@@ -61,9 +71,14 @@ export function EnumEditor({
       return;
     }
 
-    onChange([...items, { id: newId, label: newLabel.trim() }]);
+    const newItem: EnumItem = { id: newId, label: newLabel.trim() };
+    if (extraField && newExtraValue.trim()) {
+      (newItem as any)[extraField.key] = newExtraValue.trim();
+    }
+    onChange([...items, newItem]);
     setNewId('');
     setNewLabel('');
+    setNewExtraValue('');
     setIdError(null);
   };
 
@@ -74,6 +89,13 @@ export function EnumEditor({
   const handleUpdateLabel = (id: string, newLabel: string) => {
     onChange(items.map(item => 
       item.id === id ? { ...item, label: newLabel } : item
+    ));
+  };
+
+  const handleUpdateExtra = (id: string, value: string) => {
+    if (!extraField) return;
+    onChange(items.map(item => 
+      item.id === id ? { ...item, [extraField.key]: value } : item
     ));
   };
 
@@ -114,7 +136,7 @@ export function EnumEditor({
             >
               <GripVertical className="w-4 h-4 text-muted-foreground/50 cursor-grab" />
               
-              <div className="flex-1 grid grid-cols-2 gap-2">
+              <div className={`flex-1 grid gap-2 ${extraField ? 'grid-cols-3' : 'grid-cols-2'}`}>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="font-mono text-xs">
                     {item.id}
@@ -126,6 +148,14 @@ export function EnumEditor({
                   className="h-8 text-sm"
                   placeholder="Label..."
                 />
+                {extraField && (
+                  <Input
+                    value={(item as any)[extraField.key] || ''}
+                    onChange={(e) => handleUpdateExtra(item.id, e.target.value)}
+                    className="h-8 text-sm"
+                    placeholder={extraField.placeholder}
+                  />
+                )}
               </div>
               
               <AlertDialog>
@@ -194,6 +224,15 @@ export function EnumEditor({
               className="flex-1 h-9 text-sm"
               onKeyDown={(e) => e.key === 'Enter' && handleAddItem()}
             />
+            {extraField && (
+              <Input
+                value={newExtraValue}
+                onChange={(e) => setNewExtraValue(e.target.value)}
+                placeholder={extraField.placeholder}
+                className="flex-1 h-9 text-sm"
+                onKeyDown={(e) => e.key === 'Enter' && handleAddItem()}
+              />
+            )}
             <Button 
               onClick={handleAddItem} 
               size="sm" 

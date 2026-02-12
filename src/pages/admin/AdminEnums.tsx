@@ -9,12 +9,14 @@ const ENUM_DEFINITIONS: {
   title: string;
   description: string;
   color: string;
+  extraField?: { key: string; label: string; placeholder: string };
 }[] = [
   { 
     key: 'project_types', 
     title: 'Types de projet', 
     description: 'establishment, tourist_spot, route_recon...',
-    color: 'hsl(262, 83%, 58%)' // Purple
+    color: 'hsl(262, 83%, 58%)',
+    extraField: { key: 'name_label', label: 'Label du nom', placeholder: 'ex: Nom de l\'hôtel' },
   },
   { 
     key: 'target_audiences', 
@@ -108,7 +110,7 @@ export default function AdminEnums() {
       </div>
 
       <div className="grid gap-4">
-        {ENUM_DEFINITIONS.map(({ key, title, description, color }) => {
+        {ENUM_DEFINITIONS.map(({ key, title, description, color, extraField }) => {
           const items = draftPayload.enums[key] || [];
           return (
             <EnumEditor
@@ -118,6 +120,7 @@ export default function AdminEnums() {
               items={items}
               onChange={(newItems) => handleEnumChange(key, newItems)}
               accentColor={color}
+              extraField={extraField}
             />
           );
         })}

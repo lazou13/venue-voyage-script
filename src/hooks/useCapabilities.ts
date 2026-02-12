@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 export interface EnumItem {
   id: string;
   label: string;
+  name_label?: string;
 }
 
 export interface DecisionItem {

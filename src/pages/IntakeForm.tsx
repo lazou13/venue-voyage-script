@@ -1,7 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, AlertCircle, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useProject } from '@/hooks/useProject';
@@ -15,6 +16,7 @@ import { RulesStep } from '@/components/intake/RulesStep';
 import { OutputsStep } from '@/components/intake/OutputsStep';
 import { ValidationPanel } from '@/components/intake/ValidationPanel';
 import { cn } from '@/lib/utils';
+import { useDebounce } from '@/hooks/useDebounce';
 import type { ProjectType } from '@/types/intake';
 
 // Core steps that are always visible
@@ -42,8 +44,37 @@ export default function IntakeForm() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('core');
 
-  const { project, isLoading, validate } = useProject(projectId);
+  const { project, isLoading, validate, updateProject } = useProject(projectId);
   const validation = validate();
+
+  // Editable name & city with debounced save
+  const [editName, setEditName] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const debouncedName = useDebounce(editName, 600);
+  const debouncedCity = useDebounce(editCity, 600);
+
+  // Sync local state from project
+  useEffect(() => {
+    if (project) {
+      setEditName(project.hotel_name || '');
+      setEditCity(project.city || '');
+    }
+  }, [project?.id]); // only on project load, not on every render
+
+  // Save on debounce
+  useEffect(() => {
+    if (!project || debouncedName === project.hotel_name) return;
+    if (debouncedName.trim()) {
+      updateProject.mutate({ hotel_name: debouncedName.trim() });
+    }
+  }, [debouncedName]);
+
+  useEffect(() => {
+    if (!project || debouncedCity === project.city) return;
+    if (debouncedCity.trim()) {
+      updateProject.mutate({ city: debouncedCity.trim() });
+    }
+  }, [debouncedCity]);
 
   // Get project type from quest_config
   const projectType: ProjectType = project?.quest_config?.project_type || 'establishment';
@@ -102,8 +133,18 @@ export default function IntakeForm() {
                 <ArrowLeft className="w-5 h-5" />
               </Button>
               <div className="min-w-0">
-                <h1 className="font-semibold text-foreground truncate">{project.hotel_name}</h1>
-                <p className="text-xs text-muted-foreground truncate">{project.city}</p>
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="font-semibold text-foreground truncate bg-transparent border-none outline-none w-full focus:ring-1 focus:ring-primary/30 rounded px-1 -ml-1"
+                  placeholder="Nom du projet..."
+                />
+                <input
+                  value={editCity}
+                  onChange={(e) => setEditCity(e.target.value)}
+                  className="text-xs text-muted-foreground truncate bg-transparent border-none outline-none w-full focus:ring-1 focus:ring-primary/30 rounded px-1 -ml-1"
+                  placeholder="Ville / Lieu..."
+                />
               </div>
             </div>
             <div className="flex items-center gap-2">
