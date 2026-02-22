@@ -278,6 +278,37 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     },
   });
 
+  // Update existing marker
+  const updateMarker = useMutation({
+    mutationFn: async ({ markerId, traceId, lat, lng, note, photoUrl, audioUrl }: {
+      markerId: string;
+      traceId: string;
+      lat: number;
+      lng: number;
+      note?: string | null;
+      photoUrl?: string | null;
+      audioUrl?: string | null;
+    }) => {
+      const { error } = await supabase
+        .from('route_markers')
+        .update({
+          lat,
+          lng,
+          note: note ?? null,
+          photo_url: photoUrl ?? null,
+          audio_url: audioUrl ?? null,
+        })
+        .eq('id', markerId);
+      if (error) throw error;
+      return traceId;
+    },
+    onSuccess: async (traceId) => {
+      queryClient.invalidateQueries({ queryKey: ['route-markers', traceId] });
+      await rebuildTraceGeojson(traceId);
+      toast({ title: 'Marqueur modifié' });
+    },
+  });
+
   // Delete trace
   const deleteTrace = useMutation({
     mutationFn: async (traceId: string) => {
@@ -604,6 +635,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     addMarkerAtLastCoord,
     deleteTrace,
     deleteMarker,
+    updateMarker,
     createManualTrace,
     rebuildTraceGeojson,
     retry,
