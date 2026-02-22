@@ -1,80 +1,27 @@
 
 
-## Plan : Road Book Client dans l'onglet Exports
+## Plan : Corriger le guidage qui ne s'affiche pas en plein ecran
 
-### Objectif
-Ajouter un onglet "Road Book" dans les exports qui genere un document destine aux clients (joueurs). C'est le guide qu'on remet aux participants avant ou pendant la quete : il contient l'histoire, les regles, le parcours etape par etape avec les indices, et les informations pratiques.
+### Probleme identifie
 
-### Contenu du Road Book Client
+Le bouton "Lancer le Guidage" fonctionne (les donnees se chargent, la carte s'affiche), mais la vue de guidage ne couvre pas tout l'ecran. Le header et les onglets restent visibles au-dessus de la carte.
 
-1. **Page de couverture** : Titre de la quete (i18n), lieu, theme, avatar narrateur (si storytelling actif), duree estimee, difficulte
-2. **Regles du jeu** : Mode de jeu (solo/equipe), scoring (points, penalites), nombre d'indices disponibles, conditions de victoire
-3. **L'histoire** : Synopsis de la quete (story_i18n) dans la langue principale, avec l'avatar narrateur
-4. **Le parcours** : Pour chaque etape/POI :
-   - Numero et nom
-   - Zone / lieu
-   - Type d'interaction (enigme, QCM, photo, etc.)
-   - Contenu texte (contentI18n) dans la langue principale
-   - Nombre d'indices disponibles
-   - Points a gagner
-5. **Informations pratiques** : Langues disponibles, zones interdites, consignes de securite (pour route_recon)
-6. **Bon jeu !** : Message de cloture
+**Cause technique** : La vue de guidage (`RouteGuidanceView`) utilise `position: fixed` pour occuper tout l'ecran. Mais elle est rendue a l'interieur d'un `TabsContent` qui a une animation CSS `animate-fade-in`. Cette animation utilise `transform: translateY(...)`, ce qui cree un nouveau contexte de positionnement en CSS. Resultat : le `fixed` ne se positionne plus par rapport a la fenetre, mais par rapport au conteneur anime.
 
-### Fichiers a modifier
+### Solution
 
-**1. `src/lib/outputGenerators.ts`**
-- Ajouter une fonction `generateRoadBook(data: OutputData): string`
-- Genere un Markdown structure et agreable a lire, oriente joueur (pas technique)
-- Utilise les donnees i18n (titre, histoire, contenu des etapes)
-- Inclut les regles de scoring, indices, et le parcours complet
-- Adapte selon le type de projet (establishment, tourist_spot, route_recon)
+Utiliser un **React Portal** pour rendre la vue de guidage directement dans `document.body`, en dehors de l'arborescence DOM du composant. Cela permet au `position: fixed` de fonctionner correctement, quelle que soit l'animation du parent.
 
-**2. `src/components/intake/OutputsStep.tsx`**
-- Ajouter un onglet "Road Book" dans le tableau `outputs`
-- Memes boutons que les autres exports (Copier, Telecharger .md)
-- Disponible pour tous les types de projet
-- Positionne apres "Compte-rendu" (ou apres "Prompt" pour route_recon)
+### Fichier a modifier
 
-### Exemple de rendu (extrait)
+**`src/components/intake/RouteReconStep.tsx`**
+- Importer `createPortal` depuis `react-dom`
+- Envelopper le bloc `{guidanceTrace && <GuidanceErrorBoundary>...<RouteGuidanceView>...</GuidanceErrorBoundary>}` dans un `createPortal(..., document.body)`
+- Le reste du composant ne change pas
 
-```text
-# Quest : Le Mystere du Riad Perdu
-## Hotel & Spa Marrakech
+### Impact
 
-Duree estimee : 45 min | Difficulte : 3/5 | Mode : Equipes
-
----
-
-## Votre mission
-
-Votre narrateur Youssef vous accueille...
-[story_i18n.fr]
-
----
-
-## Regles
-
-- Chaque etape rapporte 10 points
-- Utiliser un indice coute -2 points  
-- 3 indices max par etape
-- Temps limite : aucun
-
----
-
-## Parcours (12 etapes)
-
-### Etape 1 — Accueil Reception
-Zone : Hall d'entree
-[contenu de l'etape]
-Indices disponibles : 2 | Points : 10
-
-### Etape 2 — ...
-```
-
-### Resume des fichiers
-
-| Fichier | Action |
-|---|---|
-| `src/lib/outputGenerators.ts` | Modifier - ajouter `generateRoadBook()` |
-| `src/components/intake/OutputsStep.tsx` | Modifier - ajouter onglet Road Book |
+- Aucun changement visuel ni fonctionnel (memes boutons, memes donnees)
+- La carte de guidage s'affichera correctement en plein ecran
+- Le bouton X pour fermer continuera de fonctionner normalement
 
