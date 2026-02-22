@@ -220,6 +220,64 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     },
   });
 
+  // Delete individual marker
+  const deleteMarker = useMutation({
+    mutationFn: async ({ markerId, traceId }: { markerId: string; traceId: string }) => {
+      const { error } = await supabase
+        .from('route_markers')
+        .delete()
+        .eq('id', markerId);
+      if (error) throw error;
+      return traceId;
+    },
+    onSuccess: async (traceId) => {
+      queryClient.invalidateQueries({ queryKey: ['route-markers', traceId] });
+      // Rebuild trace geojson from remaining markers
+      await rebuildTraceGeojson(traceId);
+      toast({ title: 'Marqueur supprimé' });
+    },
+  });
+
+  // Rebuild trace geojson from its markers
+  const rebuildTraceGeojson = async (traceId: string) => {
+    const { data: remainingMarkers } = await supabase
+      .from('route_markers')
+      .select('lat, lng')
+      .eq('trace_id', traceId)
+      .order('created_at', { ascending: true });
+    
+    const coords = (remainingMarkers || []).map(m => [Number(m.lng), Number(m.lat)]);
+    const geojson: LineString = { type: 'LineString', coordinates: coords };
+    
+    await supabase
+      .from('route_traces')
+      .update({ geojson: JSON.parse(JSON.stringify(geojson)), distance_meters: 0 })
+      .eq('id', traceId);
+    
+    queryClient.invalidateQueries({ queryKey: ['route-traces', projectId] });
+  };
+
+  // Create manual trace
+  const createManualTrace = useMutation({
+    mutationFn: async () => {
+      if (!projectId) throw new Error('No project ID');
+      const { data, error } = await supabase
+        .from('route_traces')
+        .insert({
+          project_id: projectId,
+          name: 'Saisie manuelle',
+          geojson: { type: 'LineString', coordinates: [] },
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return { ...data, geojson: data.geojson as unknown as LineString } as RouteTrace;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['route-traces', projectId] });
+    },
+  });
+
   // Delete trace
   const deleteTrace = useMutation({
     mutationFn: async (traceId: string) => {
@@ -545,6 +603,9 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     addMarker,
     addMarkerAtLastCoord,
     deleteTrace,
+    deleteMarker,
+    createManualTrace,
+    rebuildTraceGeojson,
     retry,
   };
 }

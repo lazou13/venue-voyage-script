@@ -104,6 +104,9 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
     addMarker,
     addMarkerAtLastCoord,
     deleteTrace,
+    deleteMarker,
+    createManualTrace,
+    rebuildTraceGeojson,
     retry,
   } = useRouteRecorder(projectId, recordingMode);
 
@@ -157,6 +160,18 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
   // Photo lightbox state
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+
+  // Manual marker form state
+  const [manualFormOpen, setManualFormOpen] = useState(false);
+  const [manualLat, setManualLat] = useState('');
+  const [manualLng, setManualLng] = useState('');
+  const [manualNote, setManualNote] = useState('');
+  const [manualPhotoUrl, setManualPhotoUrl] = useState('');
+  const [isSavingManual, setIsSavingManual] = useState(false);
+  const manualPhotoRef = useRef<HTMLInputElement>(null);
+
+  // Delete marker confirm state
+  const [markerToDelete, setMarkerToDelete] = useState<{ id: string; traceId: string } | null>(null);
 
   // Fetch markers for selected trace
   const markersQuery = useTraceMarkers(selectedTraceId);
@@ -239,6 +254,48 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
     const url = await uploadFile(file, `route-markers/${projectId}`);
     if (url) {
       setUrl(url);
+    }
+  };
+
+  // Manual marker add handler
+  const handleAddManualMarker = async () => {
+    const lat = parseFloat(manualLat);
+    const lng = parseFloat(manualLng);
+    if (isNaN(lat) || lat < -90 || lat > 90 || isNaN(lng) || lng < -180 || lng > 180) {
+      toast({ title: 'Coordonnées invalides', description: 'Latitude: -90 à 90, Longitude: -180 à 180', variant: 'destructive' });
+      return;
+    }
+
+    setIsSavingManual(true);
+    try {
+      let traceId = selectedTraceId;
+      // Create manual trace if none selected
+      if (!traceId) {
+        const trace = await createManualTrace.mutateAsync();
+        traceId = trace.id;
+        setSelectedTraceId(traceId);
+      }
+
+      await addMarker.mutateAsync({
+        traceId,
+        lat,
+        lng,
+        note: manualNote || undefined,
+        photoUrl: manualPhotoUrl || undefined,
+      });
+
+      // Rebuild geojson
+      await rebuildTraceGeojson(traceId);
+
+      // Reset form but keep it open
+      setManualLat('');
+      setManualLng('');
+      setManualNote('');
+      setManualPhotoUrl('');
+    } catch (err) {
+      toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setIsSavingManual(false);
     }
   };
 
@@ -990,11 +1047,112 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                           )}
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                        title="Supprimer ce marqueur"
+                        onClick={() => setMarkerToDelete({ id: marker.id, traceId: marker.trace_id })}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* Manual Marker Entry Section */}
+            <div className="space-y-3 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-primary" />
+                  Saisie manuelle
+                </Label>
+                <Button
+                  variant={manualFormOpen ? "secondary" : "outline"}
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => setManualFormOpen(!manualFormOpen)}
+                >
+                  {manualFormOpen ? <X className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+                  {manualFormOpen ? 'Fermer' : 'Ajouter un point'}
+                </Button>
+              </div>
+              
+              {manualFormOpen && (
+                <div className="p-3 rounded-md border border-primary/30 bg-primary/5 space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">Latitude</Label>
+                      <Input
+                        type="number"
+                        step="0.000001"
+                        min={-90}
+                        max={90}
+                        placeholder="ex: 33.589886"
+                        value={manualLat}
+                        onChange={(e) => setManualLat(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Longitude</Label>
+                      <Input
+                        type="number"
+                        step="0.000001"
+                        min={-180}
+                        max={180}
+                        placeholder="ex: -7.603869"
+                        value={manualLng}
+                        onChange={(e) => setManualLng(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-xs">Note (optionnel)</Label>
+                    <Textarea
+                      placeholder="Description du point..."
+                      value={manualNote}
+                      onChange={(e) => setManualNote(e.target.value)}
+                      className="min-h-[50px] text-sm"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      ref={manualPhotoRef}
+                      onChange={(e) => handlePhotoUpload(e, setManualPhotoUrl)}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => manualPhotoRef.current?.click()}
+                      disabled={isUploading}
+                      className="gap-2"
+                    >
+                      <Camera className="w-4 h-4" />
+                      {isUploading ? 'Upload...' : 'Photo'}
+                    </Button>
+                    {manualPhotoUrl && (
+                      <img src={manualPhotoUrl} alt="Preview" className="h-10 w-10 object-cover rounded border" />
+                    )}
+                  </div>
+
+                  <Button
+                    onClick={handleAddManualMarker}
+                    disabled={isSavingManual || !manualLat || !manualLng}
+                    className="gap-2 w-full"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {isSavingManual ? 'Ajout...' : 'Ajouter le marqueur'}
+                  </Button>
+                </div>
+              )}
+            </div>
 
             {/* Photo Gallery */}
             {selectedTrace && (() => {
@@ -1401,6 +1559,30 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
           poisCount={markers.length}
         />
       )}
+      {/* Delete Marker Confirmation */}
+      <AlertDialog open={!!markerToDelete} onOpenChange={(open) => { if (!open) setMarkerToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce marqueur ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Le marqueur et sa photo seront supprimés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (markerToDelete) {
+                  await deleteMarker.mutateAsync({ markerId: markerToDelete.id, traceId: markerToDelete.traceId });
+                  setMarkerToDelete(null);
+                }
+              }}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
