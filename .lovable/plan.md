@@ -1,42 +1,35 @@
 
 
-## Plan : Marqueurs editables + sauvegarde auto manuelle
+## Plan : Temps total parametrable + Types POI supplementaires
 
-### Probleme
+### 1. Temps total editable en haut de la Fiche Projet
 
-1. Les marqueurs dans la liste ne sont pas cliquables — impossible de modifier la note, la photo ou les coordonnees d'un marqueur existant
-2. La saisie manuelle necessite de cliquer "Ajouter le marqueur" — pas d'auto-save
+Actuellement le "TEMPS TOTAL XX min" dans l'en-tete violet de la Fiche Projet est un texte auto-calcule. Le transformer en champ editable :
 
-### Solution
+**Fichier : `src/lib/interactiveReportGenerator.ts`**
 
-#### 1. Mutation `updateMarker` dans `src/hooks/useRouteRecorder.ts`
+- Remplacer le `<span id="sheet-total-time">` par un `<input>` editable dans le header de la Fiche Projet
+- Ajouter un champ `totalTimeOverride` dans le STATE pour permettre a l'utilisateur de forcer une valeur
+- Quand l'utilisateur modifie manuellement le temps total, il reste fixe (override). Sinon il se recalcule automatiquement
+- Sauvegarder l'override dans localStorage
+- Ajouter un petit bouton "reset" a cote pour revenir au calcul automatique
 
-Ajouter une mutation pour mettre a jour un marqueur existant :
-- Accepte `markerId`, `lat`, `lng`, `note`, `photoUrl`, `audioUrl`
-- Met a jour la ligne dans `route_markers`
-- Invalide le cache des marqueurs
-- Reconstruit le GeoJSON de la trace apres modification des coordonnees
+### 2. Ajouter les types POI manquants dans la colonne Action
 
-#### 2. Dialog d'edition dans `src/components/intake/RouteReconStep.tsx`
+Dans la colonne "Action" du tableau POI, ajouter les options demandees :
 
-Quand on clique sur un marqueur dans la liste :
-- Ouvrir un Dialog pre-rempli avec les donnees du marqueur (lat, lng, note, photo, audio)
-- Champs editables : latitude, longitude, note (textarea), photo (upload ou remplacement), audio (lecteur si existant)
-- Bouton "Enregistrer" pour sauvegarder les modifications
-- Bouton "Supprimer" (existant, deplace dans le dialog)
+**Fichier : `src/lib/interactiveReportGenerator.ts`**
 
-Les marqueurs dans la liste deviennent cliquables (curseur pointer, hover effect).
+Options actuelles : Enigme, QR Code, Photo, Defi
 
-#### 3. Auto-save de la saisie manuelle
+Nouvelles options a ajouter :
+- `objet_trouve` -> "Objet trouve" (chercher un objet cache)
+- `final` -> "Final" (etape finale du parcours)
 
-Modifier le formulaire de saisie manuelle pour sauvegarder automatiquement :
-- Des que lat + lng sont remplis ET qu'une photo est uploadee : auto-save
-- Bouton "Valider sans photo" renomme en "Ajouter" (reste present pour les cas sans photo)
-- Apres sauvegarde : formulaire se vide avec feedback visuel (check vert bref)
+La colonne Action aura donc : -, Enigme, QR Code, Photo, Defi, Objet trouve, Final
 
 ### Resume des changements
 
 | Fichier | Changement |
 |---------|------------|
-| `src/hooks/useRouteRecorder.ts` | Ajouter mutation `updateMarker` |
-| `src/components/intake/RouteReconStep.tsx` | Dialog edition marqueur + clic sur marqueur + auto-save manuel |
+| `src/lib/interactiveReportGenerator.ts` | Temps total editable avec override + options Action POI supplementaires |
