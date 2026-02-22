@@ -32,6 +32,7 @@ export interface RouteMarker {
   lng: number;
   note: string | null;
   photo_url: string | null;
+  audio_url: string | null;
   created_at: string;
 }
 
@@ -190,12 +191,13 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
 
   // Add marker
   const addMarker = useMutation({
-    mutationFn: async ({ traceId, lat, lng, note, photoUrl }: { 
+    mutationFn: async ({ traceId, lat, lng, note, photoUrl, audioUrl }: { 
       traceId: string; 
       lat: number; 
       lng: number; 
       note?: string; 
       photoUrl?: string;
+      audioUrl?: string;
     }) => {
       const { data, error } = await supabase
         .from('route_markers')
@@ -205,7 +207,8 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
           lng,
           note: note || null,
           photo_url: photoUrl || null,
-        })
+          audio_url: audioUrl || null,
+        } as any)
         .select()
         .single();
       if (error) throw error;
@@ -476,7 +479,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
   }, []);
 
   // Add marker at last known coord (quick marker)
-  const addMarkerAtLastCoord = useCallback(async (note?: string, photoUrl?: string) => {
+  const addMarkerAtLastCoord = useCallback(async (note?: string, photoUrl?: string, audioUrl?: string) => {
     const { currentTraceId, coords } = state;
     
     if (!currentTraceId) {
@@ -495,6 +498,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
       lng: lastCoord.lng,
       note: note || undefined,
       photoUrl: photoUrl || undefined,
+      audioUrl: audioUrl || undefined,
     });
   }, [state.currentTraceId, state.coords, addMarker]);
 

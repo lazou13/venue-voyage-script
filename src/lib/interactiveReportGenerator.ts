@@ -18,6 +18,7 @@ export interface ReportPOI {
   emoji: string;
   note: string | null;
   photoUrl: string | null;
+  audioUrl: string | null;
   stopMinutes: number;
   // Phase 2 fields
   name: string;
@@ -95,6 +96,7 @@ interface RouteMarkerInput {
   lng: number;
   note: string | null;
   photo_url: string | null;
+  audio_url?: string | null;
   created_at: string;
 }
 
@@ -221,6 +223,7 @@ export function buildReportPayload(
       emoji: getMarkerEmoji(kind),
       note: marker.note,
       photoUrl: marker.photo_url,
+      audioUrl: marker.audio_url || null,
       stopMinutes: 0,
       // Phase 2 fields with defaults
       name: '',
@@ -1281,7 +1284,9 @@ export function generateInteractiveReportHTML(
                   <textarea class="poi-textarea" data-poi-id="${escapeHtml(poi.id)}" data-field="hints" rows="2">${escapeHtml(poi.hints)}</textarea>
                 </td>
                 <td>
-                  ${poi.photoUrl ? `<img src="${escapeHtml(poi.photoUrl)}" alt="Photo POI ${poi.order}" class="poi-photo-thumb" onclick="openReportLightbox('${escapeHtml(poi.photoUrl)}', '${escapeHtml(poi.note || '')}', '${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}')" />` : '—'}
+                  ${poi.photoUrl ? `<img src="${escapeHtml(poi.photoUrl)}" alt="Photo POI ${poi.order}" class="poi-photo-thumb" onclick="openReportLightbox('${escapeHtml(poi.photoUrl)}', '${escapeHtml(poi.note || '')}', '${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}')" />` : ''}
+                  ${poi.audioUrl ? `<audio controls style="width:120px;height:28px;margin-top:4px;display:block;"><source src="${escapeHtml(poi.audioUrl)}" type="audio/webm" /></audio>` : ''}
+                  ${!poi.photoUrl && !poi.audioUrl ? '—' : ''}
                 </td>
                 <td>
                   <textarea class="poi-textarea" data-poi-id="${escapeHtml(poi.id)}" data-field="notes" rows="2">${escapeHtml(poi.notes)}</textarea>
@@ -2007,7 +2012,7 @@ export function generateWordExportHTML(payload: ReportPayload): string {
             <td>${poi.wifi}</td>
             <td>${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}</td>
             <td>${escapeHtml(poi.hints || '—')}</td>
-            <td>${escapeHtml(poi.notes || '—')}</td>
+            <td>${escapeHtml(poi.notes || '—')}${poi.audioUrl ? ' 🎤 <a href="' + escapeHtml(poi.audioUrl) + '">Audio</a>' : ''}</td>
           </tr>
         `).join('')}
       </tbody>

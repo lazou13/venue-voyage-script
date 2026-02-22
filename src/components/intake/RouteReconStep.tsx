@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Route, AlertTriangle, MapPin, Shield, Navigation, 
   Circle, Square, Plus, Download, Trash2, Clock, Ruler, MapPinned,
-  Zap, Camera, X, Check, Copy, Package, Flag, Compass
+  Zap, Camera, X, Check, Copy, Package, Flag, Compass, Mic, MicOff, Volume2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
@@ -14,6 +14,8 @@ import { RouteGuidanceView } from './RouteGuidanceView';
 import { GuidanceErrorBoundary } from '@/components/GuidanceErrorBoundary';
 import { InteractiveReportViewer } from './InteractiveReportViewer';
 import { useFileUpload } from '@/hooks/useFileUpload';
+import { useWakeLock } from '@/hooks/useWakeLock';
+import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { mapMarkerToPOI } from '@/lib/mapMarkerToPOI';
@@ -105,6 +107,12 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
     retry,
   } = useRouteRecorder(projectId, recordingMode);
 
+  // Wake lock - keep screen on during recording
+  useWakeLock(isRecording);
+
+  // Voice recorder
+  const voiceRecorder = useVoiceRecorder();
+
   // UI state
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const [markerDialogOpen, setMarkerDialogOpen] = useState(false);
@@ -118,8 +126,10 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
   const [quickMarkerOpen, setQuickMarkerOpen] = useState(false);
   const [quickMarkerNote, setQuickMarkerNote] = useState('');
   const [quickMarkerPhoto, setQuickMarkerPhoto] = useState('');
+  const [quickMarkerAudioUrl, setQuickMarkerAudioUrl] = useState('');
   const [quickMarkerNumber, setQuickMarkerNumber] = useState(1);
   const [isSavingQuickMarker, setIsSavingQuickMarker] = useState(false);
+  const [quickMarkerSaved, setQuickMarkerSaved] = useState(false);
   const quickMarkerFileRef = useRef<HTMLInputElement>(null);
   
   // Departure marker state
@@ -236,10 +246,13 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
   const handleQuickMarkerOpen = () => {
     setQuickMarkerNote('');
     setQuickMarkerPhoto('');
+    setQuickMarkerAudioUrl('');
+    setQuickMarkerSaved(false);
+    voiceRecorder.clearAudio();
     setQuickMarkerOpen(true);
   };
 
-  const handleQuickMarkerSave = async () => {
+  const handleQuickMarkerSave = async (photoUrl?: string, audioUrl?: string) => {
     if (!lastPosition) {
       toast({ title: 'Erreur', description: 'Aucune position GPS', variant: 'destructive' });
       return;
@@ -248,11 +261,19 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
     setIsSavingQuickMarker(true);
     try {
       const note = quickMarkerNote.trim() || `Marker ${quickMarkerNumber}`;
-      await addMarkerAtLastCoord(note, quickMarkerPhoto || undefined);
+      const finalPhoto = photoUrl || quickMarkerPhoto || undefined;
+      const finalAudio = audioUrl || quickMarkerAudioUrl || undefined;
+      await addMarkerAtLastCoord(note, finalPhoto, finalAudio);
       setQuickMarkerNumber(n => n + 1);
-      setQuickMarkerOpen(false);
-      setQuickMarkerNote('');
-      setQuickMarkerPhoto('');
+      setQuickMarkerSaved(true);
+      // Auto-close after brief success feedback
+      setTimeout(() => {
+        setQuickMarkerOpen(false);
+        setQuickMarkerNote('');
+        setQuickMarkerPhoto('');
+        setQuickMarkerAudioUrl('');
+        setQuickMarkerSaved(false);
+      }, 800);
     } catch (err) {
       toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
     } finally {
@@ -261,14 +282,41 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
   };
 
   const handleQuickMarkerCancel = () => {
+    if (voiceRecorder.isRecording) voiceRecorder.stopRecording();
     setQuickMarkerOpen(false);
     setQuickMarkerNote('');
     setQuickMarkerPhoto('');
+    setQuickMarkerAudioUrl('');
+    setQuickMarkerSaved(false);
   };
 
+  // Photo upload -> auto-save marker
   const handleQuickMarkerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    await handlePhotoUpload(e, setQuickMarkerPhoto);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = await uploadFile(file, `route-markers/${projectId}`);
+    if (url) {
+      setQuickMarkerPhoto(url);
+      // Auto-save after photo upload
+      await handleQuickMarkerSave(url);
+    }
   };
+
+  // Voice recording upload handler
+  const handleVoiceUpload = async (blob: Blob) => {
+    const file = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
+    const url = await uploadFile(file, `voice-notes/${projectId}`);
+    if (url) {
+      setQuickMarkerAudioUrl(url);
+    }
+  };
+
+  // Auto-upload when voice recording stops
+  useEffect(() => {
+    if (voiceRecorder.audioBlob) {
+      handleVoiceUpload(voiceRecorder.audioBlob);
+    }
+  }, [voiceRecorder.audioBlob]);
 
   const handleMarkerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     await handlePhotoUpload(e, setMarkerPhotoUrl);
@@ -563,72 +611,109 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
             {/* Quick marker inline drawer */}
             {isRecording && quickMarkerOpen && (
               <div className="p-3 rounded-md border border-primary/30 bg-primary/5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium">Marqueur rapide #{quickMarkerNumber}</p>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={handleQuickMarkerCancel}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-                
-                <Textarea
-                  placeholder="Note (optionnel)"
-                  value={quickMarkerNote}
-                  onChange={(e) => setQuickMarkerNote(e.target.value)}
-                  className="min-h-[60px] text-sm"
-                />
-                
-                <div className="flex items-center gap-2">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    ref={quickMarkerFileRef}
-                    onChange={handleQuickMarkerPhotoUpload}
-                    className="hidden"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => quickMarkerFileRef.current?.click()}
-                    disabled={isUploading}
-                    className="gap-2"
-                  >
-                    <Camera className="w-4 h-4" />
-                    {isUploading ? 'Upload...' : 'Prendre photo'}
-                  </Button>
-                  {quickMarkerPhoto && (
-                    <img 
-                      src={quickMarkerPhoto} 
-                      alt="Preview" 
-                      className="h-10 w-10 object-cover rounded border"
+                {quickMarkerSaved ? (
+                  <div className="flex items-center justify-center gap-2 py-4 text-green-600">
+                    <Check className="w-6 h-6" />
+                    <span className="font-medium">Marqueur sauvegardé !</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">Marqueur rapide #{quickMarkerNumber}</p>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={handleQuickMarkerCancel}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    
+                    <Textarea
+                      placeholder="Note (optionnel)"
+                      value={quickMarkerNote}
+                      onChange={(e) => setQuickMarkerNote(e.target.value)}
+                      className="min-h-[60px] text-sm"
                     />
-                  )}
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={handleQuickMarkerSave}
-                    disabled={isSavingQuickMarker}
-                    className="gap-2"
-                  >
-                    <Check className="w-4 h-4" />
-                    Enregistrer
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleQuickMarkerCancel}
-                  >
-                    Annuler
-                  </Button>
-                </div>
+                    
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        ref={quickMarkerFileRef}
+                        onChange={handleQuickMarkerPhotoUpload}
+                        className="hidden"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => quickMarkerFileRef.current?.click()}
+                        disabled={isUploading || isSavingQuickMarker}
+                        className="gap-2"
+                      >
+                        <Camera className="w-4 h-4" />
+                        {isUploading ? 'Upload...' : '📸 Photo (auto-save)'}
+                      </Button>
+
+                      {/* Voice recording button */}
+                      {voiceRecorder.isRecording ? (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={voiceRecorder.stopRecording}
+                          className="gap-2 animate-pulse"
+                        >
+                          <MicOff className="w-4 h-4" />
+                          {voiceRecorder.duration}s — Stop
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={voiceRecorder.startRecording}
+                          disabled={isUploading || isSavingQuickMarker}
+                          className="gap-2"
+                        >
+                          <Mic className="w-4 h-4" />
+                          🎤 Note vocale
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Preview row */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {quickMarkerPhoto && (
+                        <img 
+                          src={quickMarkerPhoto} 
+                          alt="Preview" 
+                          className="h-10 w-10 object-cover rounded border"
+                        />
+                      )}
+                      {quickMarkerAudioUrl && (
+                        <div className="flex items-center gap-1 text-xs text-green-600">
+                          <Volume2 className="w-3 h-3" />
+                          Audio enregistré
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Valider sans photo */}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleQuickMarkerSave()}
+                        disabled={isSavingQuickMarker || isUploading}
+                        className="gap-2"
+                      >
+                        <Check className="w-4 h-4" />
+                        Valider sans photo
+                      </Button>
+                    </div>
+                  </>
+                )}
               </div>
             )}
 
@@ -659,7 +744,7 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  💾 Sauvegarde auto: ON (15s)
+                  💾 Sauvegarde auto: ON (15s) • 🔒 Écran actif
                 </p>
               </>
             )}
@@ -880,23 +965,30 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                           {marker.lat.toFixed(5)}, {marker.lng.toFixed(5)}
                         </p>
                         {marker.note && <p className="truncate">{marker.note}</p>}
-                        {marker.photo_url && (
-                          <img 
-                            src={marker.photo_url} 
-                            alt="Marker" 
-                            className="mt-1 h-12 w-12 object-cover rounded cursor-pointer hover:ring-2 hover:ring-primary transition-shadow"
-                            onClick={() => {
-                              const photosWithIndex = markers
-                                .map((m, i) => ({ m, i }))
-                                .filter(({ m }) => m.photo_url);
-                              const photoIdx = photosWithIndex.findIndex(({ i }) => i === idx);
-                              if (photoIdx >= 0) {
-                                setLightboxIndex(photoIdx);
-                                setLightboxOpen(true);
-                              }
-                            }}
-                          />
-                        )}
+                        <div className="flex items-center gap-2 mt-1">
+                          {marker.photo_url && (
+                            <img 
+                              src={marker.photo_url} 
+                              alt="Marker" 
+                              className="h-12 w-12 object-cover rounded cursor-pointer hover:ring-2 hover:ring-primary transition-shadow"
+                              onClick={() => {
+                                const photosWithIndex = markers
+                                  .map((m, i) => ({ m, i }))
+                                  .filter(({ m }) => m.photo_url);
+                                const photoIdx = photosWithIndex.findIndex(({ i }) => i === idx);
+                                if (photoIdx >= 0) {
+                                  setLightboxIndex(photoIdx);
+                                  setLightboxOpen(true);
+                                }
+                              }}
+                            />
+                          )}
+                          {(marker as any).audio_url && (
+                            <audio controls className="h-8 max-w-[180px]">
+                              <source src={(marker as any).audio_url} type="audio/webm" />
+                            </audio>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}

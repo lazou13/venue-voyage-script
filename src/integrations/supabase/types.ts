@@ -238,6 +238,7 @@ export type Database = {
       }
       route_markers: {
         Row: {
+          audio_url: string | null
           created_at: string
           id: string
           lat: number
@@ -247,6 +248,7 @@ export type Database = {
           trace_id: string
         }
         Insert: {
+          audio_url?: string | null
           created_at?: string
           id?: string
           lat: number
@@ -256,6 +258,7 @@ export type Database = {
           trace_id: string
         }
         Update: {
+          audio_url?: string | null
           created_at?: string
           id?: string
           lat?: number
