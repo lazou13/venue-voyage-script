@@ -1,38 +1,84 @@
 
 
-## Plan : Corriger le declenchement premature de "Parcours termine"
+## Plan : Marqueur auto-save, note vocale et ecran toujours actif
 
-### Probleme
+### Changements demandes
 
-Le guidage affiche immediatement "Parcours termine" parce que la logique de completion se base uniquement sur le pourcentage de progression le long de la polyline (>= 95%). Quand l'utilisateur est loin du parcours (test depuis un bureau par exemple), sa position GPS est projetee sur le point le plus proche de la polyline, qui peut etre la fin du trace. Resultat : 95%+ de suite, et le message de felicitation apparait.
+1. **Marqueur auto-save** : Quand on clique "Marqueur rapide" et qu'on prend une photo, le marqueur s'enregistre directement sans bouton "Enregistrer". La note texte reste optionnelle et editable avant la photo.
+2. **Note vocale** : Ajouter la possibilite d'enregistrer une note audio via le micro, uploadee dans le storage puis attachee au marqueur.
+3. **Bouton REC** : Conserver le bouton REC tel quel (pas de demarrage automatique).
+4. **Ecran actif** : Utiliser l'API Wake Lock du navigateur pour empecher la tablette de mettre l'ecran en veille pendant l'enregistrement.
 
-### Solution
+---
 
-Ajouter des conditions supplementaires pour la completion :
+### Fichiers a modifier
 
-1. **L'utilisateur doit etre sur le trace** (pas "hors trace", c'est-a-dire a moins de 30m de la polyline)
-2. **L'utilisateur doit avoir progresse depuis le debut** : suivre une variable `maxProgressReached` qui ne s'incremente que quand l'utilisateur est on-track. Cela empeche un seul point GPS lointain de declencher la completion
-3. **Un delai minimum** de quelques secondes apres l'ouverture du guidage pour eviter les faux positifs au demarrage
+#### 1. `src/hooks/useWakeLock.ts` (nouveau)
 
-### Fichier a modifier
+Un hook simple qui :
+- Appelle `navigator.wakeLock.request('screen')` quand `active = true`
+- Relache le lock quand `active = false` ou au demontage
+- Gere silencieusement les navigateurs qui ne supportent pas l'API
 
-**`src/components/intake/RouteGuidanceView.tsx`**
+#### 2. `src/hooks/useVoiceRecorder.ts` (nouveau)
 
-Dans le composant `RouteGuidanceView` :
+Un hook pour enregistrer de l'audio via MediaRecorder :
+- `startRecording()` : demande le micro, demarre l'enregistrement
+- `stopRecording()` : arrete et retourne un `Blob` audio (webm)
+- Expose `isRecording`, `duration` (compteur en secondes)
+- Limite a 60 secondes max (auto-stop)
 
-- Ajouter un `useRef` pour tracker le timestamp d'ouverture (`mountTimeRef`)
-- Ajouter un `useState` pour le progres maximal valide (`validMaxProgress`)
-- Modifier le `useEffect` qui met a jour `validMaxProgress` : ne l'incrementer que si l'utilisateur est on-track (distance < 30m)
-- Modifier le calcul de `completionPercent` pour utiliser `validMaxProgress` au lieu du snap brut
-- Modifier la condition de completion (ligne ~362) pour exiger :
-  - `completionPercent >= 95`
-  - `!isOffTrack` (l'utilisateur est bien sur le trace)
-  - Au moins 10 secondes ecoulees depuis l'ouverture
-  - `validMaxProgress > totalDistance * 0.5` (l'utilisateur a parcouru au moins 50% du trace de maniere validee)
+#### 3. `src/components/intake/RouteReconStep.tsx`
 
-### Impact
+**Wake Lock** :
+- Importer `useWakeLock` et l'activer quand `isRecording` est vrai
 
-- Le "Parcours termine" ne s'affichera que si l'utilisateur a reellement parcouru le trace
-- Aucun impact sur l'affichage de la carte ou les autres fonctionnalites
-- La barre de progression continue de fonctionner normalement
+**Marqueur rapide - auto-save** :
+- Supprimer le bouton "Enregistrer" et le bouton "Annuler"
+- Quand l'utilisateur prend une photo : l'upload se fait, puis des que l'URL est obtenue le marqueur est sauvegarde automatiquement (avec la note texte si elle a ete remplie)
+- Si pas de photo : ajouter un petit bouton "Valider sans photo" pour sauvegarder juste avec la note
+- Feedback visuel : afficher brievement un check vert quand le marqueur est sauvegarde
+
+**Note vocale** :
+- Ajouter un bouton micro a cote du bouton photo dans le drawer du marqueur rapide
+- Quand on appuie : enregistrement audio demarre (bouton devient rouge avec compteur)
+- Quand on re-appuie : enregistrement s'arrete, le fichier audio est uploade dans le bucket `fieldwork` sous `voice-notes/{projectId}/`
+- L'URL audio est stockee dans le champ `note` du marqueur avec un prefixe special `[audio]url` pour le differencier du texte
+- Alternative : ajouter une colonne `audio_url` a la table `route_markers`
+
+#### 4. Migration SQL (nouveau)
+
+Ajouter la colonne `audio_url` a `route_markers` :
+
+```text
+ALTER TABLE route_markers ADD COLUMN audio_url text;
+```
+
+Cela permet de stocker la note vocale separement de la note texte.
+
+#### 5. `src/integrations/supabase/types.ts`
+
+Sera mis a jour automatiquement apres la migration.
+
+---
+
+### Details techniques
+
+**Wake Lock** :
+- L'API Wake Lock est supportee par Chrome, Edge, Safari 16.4+
+- Si non supportee, le hook ne fait rien (degradation gracieuse)
+- Le lock est automatiquement relache quand l'onglet perd le focus ; le hook le re-acquiert quand l'onglet revient au premier plan
+
+**Auto-save du marqueur** :
+- Le flux devient : clic "Marqueur rapide" > (optionnel: taper une note) > clic "Photo" > photo prise > upload > marqueur sauvegarde automatiquement > drawer se ferme avec toast de confirmation
+- Si l'utilisateur veut juste une note sans photo : bouton "Valider" minimal
+
+**Note vocale** :
+- Format : WebM/Opus (natif MediaRecorder)
+- Upload dans `fieldwork/voice-notes/{projectId}/{timestamp}.webm`
+- Affichage dans la liste des marqueurs : icone audio avec lecteur mini
+- Inclus dans le rapport interactif avec un player HTML5
+
+**Rapport interactif** :
+- Modifier `interactiveReportGenerator.ts` pour afficher un lecteur audio si `audio_url` est present sur un marqueur
 
