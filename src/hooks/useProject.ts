@@ -288,13 +288,7 @@ export function useProject(projectId: string | undefined) {
         }
       }
       
-      // QR code validation required
-      const hasQrMode = config.possible_validation_modes?.includes('qr_code') || config.validationMode === 'qr_code';
-      if (hasQrMode) {
-        if (!config.photoValidation?.qrExpectedValue) {
-          errors.push(`Étape ${stepNum}: valeur QR attendue requise (qr_code)`);
-        }
-      }
+      // QR code validation - value is optional now
       
       // Photo validation requirements
       const hasPhotoMode = config.possible_validation_modes?.includes('photo') || config.validationMode === 'photo';
@@ -303,9 +297,7 @@ export function useProject(projectId: string | undefined) {
         if (photoType === 'reference' && !config.photoValidation?.referenceUrl) {
           errors.push(`Étape ${stepNum}: URL référence photo requise`);
         }
-        if (photoType === 'qr_code' && !config.photoValidation?.qrExpectedValue) {
-          errors.push(`Étape ${stepNum}: valeur QR attendue requise (photo_validation)`);
-        }
+        // QR code value is optional
       }
       
       // Photo reference required validation

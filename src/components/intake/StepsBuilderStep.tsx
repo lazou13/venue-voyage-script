@@ -421,7 +421,7 @@ function StepConfigCard({
                 {config.photoValidation?.type === 'qr_code' && (
                   <div className="space-y-1.5">
                     <Label className="text-sm">
-                      Valeur QR attendue <span className="text-destructive">*</span>
+                      Valeur QR attendue
                     </Label>
                     <input
                       className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -452,7 +452,7 @@ function StepConfigCard({
             <div className="p-3 border rounded-lg bg-muted/30 space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-sm">
-                  Valeur QR Code attendue <span className="text-destructive">*</span>
+                  Valeur QR Code attendue
                 </Label>
                 <input
                   className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
