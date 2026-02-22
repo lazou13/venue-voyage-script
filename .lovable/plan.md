@@ -1,84 +1,57 @@
 
 
-## Plan : Marqueur auto-save, note vocale et ecran toujours actif
+## Plan : Ameliorer le Road Book
 
-### Changements demandes
+### 1. Remplacer le message narrateur par un resume
 
-1. **Marqueur auto-save** : Quand on clique "Marqueur rapide" et qu'on prend une photo, le marqueur s'enregistre directement sans bouton "Enregistrer". La note texte reste optionnelle et editable avant la photo.
-2. **Note vocale** : Ajouter la possibilite d'enregistrer une note audio via le micro, uploadee dans le storage puis attachee au marqueur.
-3. **Bouton REC** : Conserver le bouton REC tel quel (pas de demarrage automatique).
-4. **Ecran actif** : Utiliser l'API Wake Lock du navigateur pour empecher la tablette de mettre l'ecran en veille pendant l'enregistrement.
+Actuellement, le Road Book reprend le texte complet de `story_i18n.fr` (qui est le message de presentation video du guide Amine). A la place, generer un court resume (2-3 phrases) sur le meme ton aventurier, en utilisant le titre, le theme, la ville et le nombre d'etapes. Le texte original de la video n'apparaitra plus dans le Road Book.
 
----
+**Fichier : `src/lib/outputGenerators.ts`** (section `generateRoadBook`, lignes 844-849)
 
-### Fichiers a modifier
+Remplacer l'insertion de `story` par un resume genere automatiquement du style :
+"Partez a la decouverte de [ville] a travers un parcours de [N] etapes. Guidé par [narrateur], resolvez enigmes et defis pour accumuler un maximum de points. L'aventure commence maintenant !"
 
-#### 1. `src/hooks/useWakeLock.ts` (nouveau)
+### 2. Utiliser les points configures (pas le defaut de 10)
 
-Un hook simple qui :
-- Appelle `navigator.wakeLock.request('screen')` quand `active = true`
-- Relache le lock quand `active = false` ou au demontage
-- Gere silencieusement les navigateurs qui ne supportent pas l'API
+Le probleme vient de `DUPLICATED_POI_DEFAULT_CONFIG` dans `mapMarkerToPOI.ts` qui force `points: 10` dans chaque step_config. Le Road Book utilise `stepScoring.points ?? pointsPerStep` - donc si le step a 10 en dur, il affiche 10 meme si le quest-level scoring est a 100.
 
-#### 2. `src/hooks/useVoiceRecorder.ts` (nouveau)
+**Fichier : `src/lib/outputGenerators.ts`** (ligne 952)
 
-Un hook pour enregistrer de l'audio via MediaRecorder :
-- `startRecording()` : demande le micro, demarre l'enregistrement
-- `stopRecording()` : arrete et retourne un `Blob` audio (webm)
-- Expose `isRecording`, `duration` (compteur en secondes)
-- Limite a 60 secondes max (auto-stop)
+Modifier la logique pour prioriser le scoring quest-level quand le step scoring est le defaut (10) :
+- Utiliser `pointsPerStep` (scoring global) comme reference principale
+- Ne prendre le step scoring que s'il a ete explicitement personnalise
 
-#### 3. `src/components/intake/RouteReconStep.tsx`
+### 3. Decrire le genre d'enigme pour chaque etape
 
-**Wake Lock** :
-- Importer `useWakeLock` et l'activer quand `isRecording` est vrai
+Actuellement chaque etape affiche juste "Enigme". Ajouter une description du type d'activite basee sur les validation modes et step types configures.
 
-**Marqueur rapide - auto-save** :
-- Supprimer le bouton "Enregistrer" et le bouton "Annuler"
-- Quand l'utilisateur prend une photo : l'upload se fait, puis des que l'URL est obtenue le marqueur est sauvegarde automatiquement (avec la note texte si elle a ete remplie)
-- Si pas de photo : ajouter un petit bouton "Valider sans photo" pour sauvegarder juste avec la note
-- Feedback visuel : afficher brievement un check vert quand le marqueur est sauvegarde
+**Fichier : `src/lib/outputGenerators.ts`** (section parcours, lignes 947-966)
 
-**Note vocale** :
-- Ajouter un bouton micro a cote du bouton photo dans le drawer du marqueur rapide
-- Quand on appuie : enregistrement audio demarre (bouton devient rouge avec compteur)
-- Quand on re-appuie : enregistrement s'arrete, le fichier audio est uploade dans le bucket `fieldwork` sous `voice-notes/{projectId}/`
-- L'URL audio est stockee dans le champ `note` du marqueur avec un prefixe special `[audio]url` pour le differencier du texte
-- Alternative : ajouter une colonne `audio_url` a la table `route_markers`
+Pour chaque etape, generer une description lisible comme :
+- QR Code -> "Trouvez et scannez le QR Code cache"
+- Photo -> "Prenez une photo du lieu indique"  
+- Code -> "Trouvez le code secret"
+- Terrain -> "Defi terrain sur place"
+- Manuel -> "Resolvez l'enigme et validez avec le guide"
+- Enigme + QR -> "Resolvez l'enigme puis scannez le QR Code"
 
-#### 4. Migration SQL (nouveau)
+### 4. Ajouter une carte interactive avec les etapes
 
-Ajouter la colonne `audio_url` a `route_markers` :
+Ajouter un composant carte Leaflet dans l'onglet Road Book, au-dessus du textarea, affichant les marqueurs du parcours avec des labels "Etape 1", "Etape 2", etc.
 
-```text
-ALTER TABLE route_markers ADD COLUMN audio_url text;
-```
+**Fichier : `src/components/intake/OutputsStep.tsx`**
 
-Cela permet de stocker la note vocale separement de la note texte.
+- Reutiliser les donnees `reportMarkers` deja chargees pour les projets route_recon
+- Ajouter un petit composant `MapContainer` Leaflet (hauteur ~250px) au-dessus du textarea
+- Chaque marqueur affiche un popup "Etape N - [nom du POI]"
+- La carte s'ajuste automatiquement pour afficher tous les marqueurs (fitBounds)
+- Si pas de marqueurs avec coordonnees, la carte n'apparait pas
 
-#### 5. `src/integrations/supabase/types.ts`
+### Resume des fichiers modifies
 
-Sera mis a jour automatiquement apres la migration.
-
----
-
-### Details techniques
-
-**Wake Lock** :
-- L'API Wake Lock est supportee par Chrome, Edge, Safari 16.4+
-- Si non supportee, le hook ne fait rien (degradation gracieuse)
-- Le lock est automatiquement relache quand l'onglet perd le focus ; le hook le re-acquiert quand l'onglet revient au premier plan
-
-**Auto-save du marqueur** :
-- Le flux devient : clic "Marqueur rapide" > (optionnel: taper une note) > clic "Photo" > photo prise > upload > marqueur sauvegarde automatiquement > drawer se ferme avec toast de confirmation
-- Si l'utilisateur veut juste une note sans photo : bouton "Valider" minimal
-
-**Note vocale** :
-- Format : WebM/Opus (natif MediaRecorder)
-- Upload dans `fieldwork/voice-notes/{projectId}/{timestamp}.webm`
-- Affichage dans la liste des marqueurs : icone audio avec lecteur mini
-- Inclus dans le rapport interactif avec un player HTML5
-
-**Rapport interactif** :
-- Modifier `interactiveReportGenerator.ts` pour afficher un lecteur audio si `audio_url` est present sur un marqueur
+| Fichier | Changement |
+|---------|------------|
+| `src/lib/outputGenerators.ts` | Resume au lieu du texte complet, points corrects, description type enigme |
+| `src/lib/mapMarkerToPOI.ts` | Retirer le scoring en dur (10 pts) pour heriter du scoring global |
+| `src/components/intake/OutputsStep.tsx` | Carte Leaflet dans l'onglet Road Book |
 
