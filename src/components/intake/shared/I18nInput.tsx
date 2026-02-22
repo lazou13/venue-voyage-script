@@ -3,7 +3,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
 import type { I18nText, SupportedLanguage } from '@/types/intake';
 import { LANGUAGE_LABELS } from '@/types/intake';
 
@@ -29,21 +31,27 @@ export function I18nInput({
   frRequired = true,
 }: I18nInputProps) {
   const [activeTab, setActiveTab] = useState<SupportedLanguage>('fr');
-  // Local state for fluid typing - one value per language
   const [localValue, setLocalValue] = useState<I18nText>(value);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [autoTranslated, setAutoTranslated] = useState<Set<SupportedLanguage>>(new Set());
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
-  // Sync local state when external value changes (e.g., after server response)
+
   useEffect(() => {
     setLocalValue(value);
   }, [value]);
-  
+
   const handleChange = (lang: SupportedLanguage, text: string) => {
-    // Update local state immediately for fluid typing
     const newValue = { ...localValue, [lang]: text };
     setLocalValue(newValue);
-    
-    // Debounce the onChange callback
+    // Remove auto-translated badge if user edits
+    if (autoTranslated.has(lang)) {
+      setAutoTranslated(prev => {
+        const next = new Set(prev);
+        next.delete(lang);
+        return next;
+      });
+    }
+
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
@@ -51,8 +59,7 @@ export function I18nInput({
       onChange(newValue);
     }, 500);
   };
-  
-  // Cleanup timer on unmount
+
   useEffect(() => {
     return () => {
       if (debounceTimerRef.current) {
@@ -60,6 +67,37 @@ export function I18nInput({
       }
     };
   }, []);
+
+  const handleTabClick = async (lang: SupportedLanguage) => {
+    setActiveTab(lang);
+
+    // Auto-translate if: not french, target empty, french filled
+    if (lang !== 'fr' && !localValue[lang] && localValue.fr?.trim()) {
+      setIsTranslating(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('translate', {
+          body: { text: localValue.fr, from: 'fr', to: lang },
+        });
+
+        if (error) throw error;
+        if (data?.translated) {
+          const newValue = { ...localValue, [lang]: data.translated };
+          setLocalValue(newValue);
+          onChange(newValue);
+          setAutoTranslated(prev => new Set(prev).add(lang));
+        }
+      } catch (e: any) {
+        console.error('Translation error:', e);
+        toast({
+          title: 'Erreur de traduction',
+          description: e?.message || 'Impossible de traduire automatiquement.',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsTranslating(false);
+      }
+    }
+  };
 
   const getMissingTranslations = (): SupportedLanguage[] => {
     return languages.filter((lang) => lang !== 'fr' && !localValue[lang]);
@@ -81,53 +119,70 @@ export function I18nInput({
           </Badge>
         )}
       </div>
-      
+
       {/* Language tabs */}
       <div className="flex gap-1 border-b">
         {languages.map((lang) => {
           const isEmpty = !localValue[lang];
           const isRequired = lang === 'fr' && frRequired;
-          
+
           return (
             <button
               key={lang}
               type="button"
-              onClick={() => setActiveTab(lang)}
-            className={`px-3 py-1.5 text-sm border-b-2 transition-colors ${
-              activeTab === lang
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {LANGUAGE_LABELS[lang]}
-            {isEmpty && !isRequired && (
-              <span className="ml-1 text-muted-foreground">○</span>
-            )}
-            {isEmpty && isRequired && (
-              <span className="ml-1 text-destructive">●</span>
-            )}
+              onClick={() => handleTabClick(lang)}
+              className={`px-3 py-1.5 text-sm border-b-2 transition-colors ${
+                activeTab === lang
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {LANGUAGE_LABELS[lang]}
+              {isEmpty && !isRequired && (
+                <span className="ml-1 text-muted-foreground">○</span>
+              )}
+              {isEmpty && isRequired && (
+                <span className="ml-1 text-destructive">●</span>
+              )}
             </button>
           );
         })}
       </div>
 
       {/* Input for active language */}
-      <div>
-        {multiline ? (
-          <Textarea
-            value={localValue[activeTab] || ''}
-            onChange={(e) => handleChange(activeTab, e.target.value)}
-            rows={rows}
-            placeholder={placeholder || `Contenu en ${LANGUAGE_LABELS[activeTab]}...`}
-            className={isFrEmpty && activeTab === 'fr' ? 'border-destructive' : ''}
-          />
+      <div className="relative">
+        {isTranslating ? (
+          <div className="flex items-center gap-2 p-4 rounded-md border border-border bg-muted/30 text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span className="text-sm">Traduction en cours...</span>
+          </div>
         ) : (
-          <Input
-            value={localValue[activeTab] || ''}
-            onChange={(e) => handleChange(activeTab, e.target.value)}
-            placeholder={placeholder || `Texte en ${LANGUAGE_LABELS[activeTab]}...`}
-            className={isFrEmpty && activeTab === 'fr' ? 'border-destructive' : ''}
-          />
+          <>
+            {multiline ? (
+              <Textarea
+                value={localValue[activeTab] || ''}
+                onChange={(e) => handleChange(activeTab, e.target.value)}
+                rows={rows}
+                placeholder={placeholder || `Contenu en ${LANGUAGE_LABELS[activeTab]}...`}
+                className={isFrEmpty && activeTab === 'fr' ? 'border-destructive' : ''}
+              />
+            ) : (
+              <Input
+                value={localValue[activeTab] || ''}
+                onChange={(e) => handleChange(activeTab, e.target.value)}
+                placeholder={placeholder || `Texte en ${LANGUAGE_LABELS[activeTab]}...`}
+                className={isFrEmpty && activeTab === 'fr' ? 'border-destructive' : ''}
+              />
+            )}
+            {autoTranslated.has(activeTab) && (
+              <div className="flex items-center gap-1 mt-1">
+                <Badge variant="secondary" className="text-xs gap-1">
+                  <Sparkles className="w-3 h-3" />
+                  Traduction auto — modifiable
+                </Badge>
+              </div>
+            )}
+          </>
         )}
         {isFrEmpty && activeTab === 'fr' && (
           <p className="text-xs text-destructive mt-1 flex items-center gap-1">
