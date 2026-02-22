@@ -1,35 +1,36 @@
 
 
-## Plan : Temps total parametrable + Types POI supplementaires
+## Plan : Temps trajet editable + Export HTML depuis le rapport
 
-### 1. Temps total editable en haut de la Fiche Projet
+### Probleme 1 : TEMPS TRAJET non modifiable
 
-Actuellement le "TEMPS TOTAL XX min" dans l'en-tete violet de la Fiche Projet est un texte auto-calcule. Le transformer en champ editable :
+Dans la section "Infos Parcours > Timing", les champs "Temps trajet" et "Temps arrets" sont des `<div>` en lecture seule. Il faut les rendre editables comme le temps total.
 
-**Fichier : `src/lib/interactiveReportGenerator.ts`**
+### Probleme 2 : Export HTML avec les modifications
 
-- Remplacer le `<span id="sheet-total-time">` par un `<input>` editable dans le header de la Fiche Projet
-- Ajouter un champ `totalTimeOverride` dans le STATE pour permettre a l'utilisateur de forcer une valeur
-- Quand l'utilisateur modifie manuellement le temps total, il reste fixe (override). Sinon il se recalcule automatiquement
-- Sauvegarder l'override dans localStorage
-- Ajouter un petit bouton "reset" a cote pour revenir au calcul automatique
+Actuellement le bouton "Telecharger HTML" est dans l'app React (avant d'ouvrir le rapport). Les modifications faites dans le rapport ouvert ne sont pas incluses. Il faut ajouter un bouton "Telecharger HTML" directement dans le rapport ouvert, qui exporte le HTML avec l'etat actuel (STATE) integre.
 
-### 2. Ajouter les types POI manquants dans la colonne Action
+### Changements dans `src/lib/interactiveReportGenerator.ts`
 
-Dans la colonne "Action" du tableau POI, ajouter les options demandees :
+#### 1. Rendre TEMPS TRAJET et TEMPS ARRETS editables
 
-**Fichier : `src/lib/interactiveReportGenerator.ts`**
+- Ligne ~1151 : Remplacer le `<div class="sheet-field-value" id="meta-travel">` par un `<input>` editable avec override (meme logique que le temps total)
+- Ligne ~1155 : Remplacer le `<div class="sheet-field-value" id="meta-stops">` par un `<input>` editable avec override
+- Ajouter `STATE._travelTimeOverride` et `STATE._stopTimeOverride` dans la logique
+- Quand l'utilisateur modifie manuellement ces champs, la valeur reste fixe
+- Ajouter des boutons reset pour revenir au calcul automatique
+- Mettre a jour `recalculate()` pour respecter ces overrides
+- Mettre a jour `applyStateToDOM()` pour restaurer les overrides
 
-Options actuelles : Enigme, QR Code, Photo, Defi
+#### 2. Bouton "Telecharger HTML" dans le rapport ouvert
 
-Nouvelles options a ajouter :
-- `objet_trouve` -> "Objet trouve" (chercher un objet cache)
-- `final` -> "Final" (etape finale du parcours)
+- Ajouter un bouton "HTML" dans la barre d'export du rapport (a cote de PDF, JSON, Word) — ligne ~908-912
+- La fonction `exportHTML()` reconstruit le HTML complet avec le STATE actuel injecte dans les donnees initiales, pour que le fichier telecharge contienne toutes les modifications
+- Le fichier est telecharge avec le nom `rapport-<nom_projet>.html`
 
-La colonne Action aura donc : -, Enigme, QR Code, Photo, Defi, Objet trouve, Final
-
-### Resume des changements
+### Resume
 
 | Fichier | Changement |
 |---------|------------|
-| `src/lib/interactiveReportGenerator.ts` | Temps total editable avec override + options Action POI supplementaires |
+| `src/lib/interactiveReportGenerator.ts` | Inputs editables pour temps trajet/arrets + bouton export HTML dans le rapport |
+
