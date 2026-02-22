@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { generateChecklist, generatePRD, generatePrompt, generateVisitReportMD, generateRoadBook } from '@/lib/outputGenerators';
 import { supabase } from '@/integrations/supabase/client';
 import { InteractiveReportViewer } from './InteractiveReportViewer';
+import { RoadBookMap } from './RoadBookMap';
 import type { LineString } from 'geojson';
 import type { RouteTrace, RouteMarker } from '@/hooks/useRouteRecorder';
 
@@ -367,6 +368,16 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
                   </div>
                 </CardHeader>
                 <CardContent>
+                  {/* Interactive map for route_recon projects */}
+                  {isRouteRecon && reportMarkers.length > 0 && (
+                    <RoadBookMap
+                      markers={reportMarkers.map((m, i) => ({
+                        lat: m.lat,
+                        lng: m.lng,
+                        name: pois[i]?.name || `Marqueur ${i + 1}`,
+                      }))}
+                    />
+                  )}
                   <textarea
                     className="w-full min-h-[60vh] text-sm bg-muted p-4 rounded-lg font-mono border border-border focus:outline-none focus:ring-2 focus:ring-ring resize-y"
                     value={currentRoadBook}

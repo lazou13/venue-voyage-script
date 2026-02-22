@@ -841,11 +841,19 @@ ${project.theme ? `| 🎭 Thème | ${project.theme} |` : ''}
 
 `;
 
-  // Story section
-  if (story || narratorLine) {
+  // Mission summary section (replaces raw story text which is for video presentation)
+  {
+    const narratorName = (() => {
+      const storytelling = questConfig.storytelling as { narrator?: { avatar_id?: string | null } } | undefined;
+      const avatar = avatars.find(a => a.id === storytelling?.narrator?.avatar_id);
+      return avatar?.name || 'votre guide';
+    })();
+    const themeStr = project.theme ? ` sur le thème "${project.theme}"` : '';
+    const summary = `Partez à la découverte de **${project.city}** à travers un parcours de **${pois.length} étapes**${themeStr}. Guidé par **${narratorName}**, résolvez énigmes et défis pour accumuler un maximum de points. L'aventure commence maintenant !`;
+    
     md += `## 📖 Votre mission\n\n`;
     if (narratorLine) md += `${narratorLine}\n\n`;
-    if (story) md += `${story}\n\n`;
+    md += `${summary}\n\n`;
     md += `---\n\n`;
   }
 
@@ -944,17 +952,55 @@ ${teamConfig.enabled && teamConfig.timeLimitMinutes ? `- Temps limite total pour
 
   md += `## 🗺 Parcours (${pois.length} étapes)\n\n`;
 
+  // Helper: describe enigma type based on validation mode and step type
+  const describeEnigma = (config: any): string => {
+    const validationMode = config.final_validation_mode || config.validationMode || config.possible_validation_modes?.[0];
+    const stepType = config.final_step_type || config.stepType || config.possible_step_types?.[0] || 'enigme';
+    
+    const descriptions: Record<string, string> = {
+      qr_code: '🔍 Trouvez et scannez le QR Code caché',
+      photo: '📸 Prenez une photo du lieu indiqué',
+      code: '🔐 Trouvez le code secret',
+      manual: '🤝 Résolvez l\'énigme et validez avec le guide',
+      free: '✅ Validation libre',
+    };
+    
+    const stepDescriptions: Record<string, string> = {
+      terrain: '🏃 Défi terrain sur place',
+      photo: '📸 Prenez une photo du lieu indiqué',
+      defi: '💪 Relevez le défi',
+      story: '📖 Découvrez l\'histoire',
+      mcq: '❓ Répondez au quiz',
+      memory: '🧠 Jeu de mémoire',
+      hangman: '🔤 Jeu du pendu',
+    };
+
+    // Step type takes priority for specific types
+    if (stepDescriptions[stepType] && stepType !== 'enigme' && stepType !== 'code' && stepType !== 'information') {
+      return stepDescriptions[stepType];
+    }
+    // Then validation mode
+    if (validationMode && descriptions[validationMode]) {
+      return descriptions[validationMode];
+    }
+    return '🧩 Résolvez l\'énigme';
+  };
+
   pois.forEach((poi, i) => {
     const config = poi.step_config || {};
-    const stepType = config.stepType || config.possible_step_types?.[0] || 'enigme';
+    const stepType = config.final_step_type || config.stepType || config.possible_step_types?.[0] || 'enigme';
     const typeLabel = interactionLabels[stepType] || stepType;
     const stepScoring = config.scoring || {};
-    const pts = stepScoring.points ?? pointsPerStep;
+    // Use quest-level points unless step has explicitly customized scoring (not the default 10)
+    const isDefaultStepScoring = !stepScoring.points || stepScoring.points === 10;
+    const pts = isDefaultStepScoring ? pointsPerStep : stepScoring.points;
     const hintsCount = config.hints?.length || 0;
     const content = config.contentI18n?.fr || '';
+    const enigmaDesc = describeEnigma(config);
 
     md += `### Étape ${i + 1} — ${poi.name}\n`;
-    md += `📍 *${poi.zone}* | ${typeLabel}\n\n`;
+    md += `📍 *${poi.zone}* | ${typeLabel}\n`;
+    md += `${enigmaDesc}\n\n`;
     
     if (content) {
       md += `${content}\n\n`;
