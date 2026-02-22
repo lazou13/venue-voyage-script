@@ -25,7 +25,7 @@ const CORE_STEPS = [
 ];
 
 // Type-specific steps
-const TYPE_STEPS: Record<ProjectType, { id: string; label: string; component: React.ComponentType<{ projectId: string }> }> = {
+const TYPE_STEPS: Record<ProjectType, { id: string; label: string; component: React.ComponentType<{ projectId: string; onNavigate?: (tab: string) => void }> }> = {
   establishment: { id: 'establishment', label: 'Établissement', component: EstablishmentStep },
   tourist_spot: { id: 'tourist_spot', label: 'Site Touristique', component: TouristSpotStep },
   route_recon: { id: 'route_recon', label: 'Parcours', component: RouteReconStep },
@@ -195,7 +195,7 @@ export default function IntakeForm() {
 
           {steps.map((step) => (
             <TabsContent key={step.id} value={step.id} className="animate-fade-in">
-              <step.component projectId={projectId!} />
+              <step.component projectId={projectId!} onNavigate={setActiveTab} />
             </TabsContent>
           ))}
         </Tabs>

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { Gamepad2, Globe, Users, Target, Clock, Gauge, Building2, MapPin, Route, CheckCircle2, Check } from 'lucide-react';
+import { Gamepad2, Globe, Users, Target, Clock, Gauge, Building2, MapPin, Route, CheckCircle2, Check, AlertTriangle } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
+import { useCrossTabStats } from '@/hooks/useCrossTabStats';
+import { CrossTabSummary } from './CrossTabSummary';
 import { useToast } from '@/hooks/use-toast';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { 
@@ -13,6 +15,7 @@ import {
 } from '@/lib/capabilitiesHelpers';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,10 +50,12 @@ import {
 
 interface CoreStepProps {
   projectId: string;
+  onNavigate?: (tab: string) => void;
 }
 
-export function CoreStep({ projectId }: CoreStepProps) {
-  const { project, updateProject } = useProject(projectId);
+export function CoreStep({ projectId, onNavigate }: CoreStepProps) {
+  const { project, pois, updateProject, traces } = useProject(projectId);
+  const stats = useCrossTabStats(project, pois, traces);
   const { toast } = useToast();
   const { capabilities } = useCapabilities();
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -164,6 +169,20 @@ export function CoreStep({ projectId }: CoreStepProps) {
 
   return (
     <div className="space-y-6">
+      <CrossTabSummary tab="core" stats={stats} onNavigate={onNavigate} />
+
+      {/* Coherence Alerts */}
+      {stats.coherenceAlerts.length > 0 && (
+        <div className="space-y-2">
+          {stats.coherenceAlerts.map((alert, i) => (
+            <Alert key={i} variant={alert.type === 'warning' ? 'destructive' : 'default'} className="py-2">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-sm">{alert.message}</AlertDescription>
+            </Alert>
+          ))}
+        </div>
+      )}
+
       {/* Project Type Selection */}
       <Card className="border-primary/20 bg-primary/5">
         <CardHeader className="pb-3">
@@ -233,14 +252,22 @@ export function CoreStep({ projectId }: CoreStepProps) {
       >
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label className="text-sm">Durée estimée (min)</Label>
+            <Label className="text-sm">
+              Durée estimée (min)
+              {!coreDetails.duration_min && stats.autoDurationMin > 0 && (
+                <span className="ml-1 text-xs text-muted-foreground">(auto)</span>
+              )}
+              {coreDetails.duration_min && (
+                <span className="ml-1 text-xs text-muted-foreground">(manuel)</span>
+              )}
+            </Label>
             <Input
               type="number"
               min={15}
               max={300}
               value={coreDetails.duration_min || ''}
               onChange={(e) => updateCoreDetails({ duration_min: parseInt(e.target.value) || undefined })}
-              placeholder="Ex: 60"
+              placeholder={stats.autoDurationMin > 0 ? `Auto: ${stats.autoDurationMin}` : 'Ex: 60'}
             />
           </div>
           <div className="space-y-1.5">

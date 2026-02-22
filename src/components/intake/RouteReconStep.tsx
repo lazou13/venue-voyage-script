@@ -7,6 +7,8 @@ import {
   Zap, Camera, X, Check, Copy, Package, Flag, Compass, Mic, MicOff, Volume2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useCrossTabStats } from '@/hooks/useCrossTabStats';
+import { CrossTabSummary } from './CrossTabSummary';
 import JSZip from 'jszip';
 import { useProject } from '@/hooks/useProject';
 import { useRouteRecorder, exportTraceAsGeoJSON, buildMarkersCSV, buildReconBriefMarkdown, RouteTrace, RouteMarker, RecordingMode, RecordingStatus } from '@/hooks/useRouteRecorder';
@@ -58,6 +60,7 @@ import type { Json } from '@/integrations/supabase/types';
 
 interface RouteReconStepProps {
   projectId: string;
+  onNavigate?: (tab: string) => void;
 }
 
 // Format seconds to mm:ss
@@ -75,8 +78,9 @@ function formatDistance(meters: number): string {
   return `${Math.round(meters)} m`;
 }
 
-export function RouteReconStep({ projectId }: RouteReconStepProps) {
-  const { project, updateProject } = useProject(projectId);
+export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
+  const { project, pois, updateProject, traces: projectTraces } = useProject(projectId);
+  const stats = useCrossTabStats(project, pois, projectTraces);
   const { toast } = useToast();
   const { uploadFile, isUploading } = useFileUpload();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -562,6 +566,7 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
 
   return (
     <div className="space-y-6">
+      <CrossTabSummary tab="parcours" stats={stats} onNavigate={onNavigate} />
       {/* Route Recording Section */}
       <Card className="border-primary/50 bg-primary/5">
         <CardHeader className="pb-3">

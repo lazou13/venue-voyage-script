@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, GripVertical, Camera, Wifi, Ban, MapPin, Sparkles } from 'lucide-react';
+import { useCrossTabStats } from '@/hooks/useCrossTabStats';
+import { CrossTabSummary } from './CrossTabSummary';
 import { useProject } from '@/hooks/useProject';
 import { usePOIs } from '@/hooks/usePOIs';
 import { useZones } from '@/hooks/useZones';
@@ -19,10 +21,12 @@ import { INTERACTION_LABELS, RISK_LABELS, WIFI_LABELS, STEP_TYPE_LABELS, VALIDAT
 
 interface FieldworkStepProps {
   projectId: string;
+  onNavigate?: (tab: string) => void;
 }
 
-export function FieldworkStep({ projectId }: FieldworkStepProps) {
-  const { pois, wifiZones, forbiddenZones } = useProject(projectId);
+export function FieldworkStep({ projectId, onNavigate }: FieldworkStepProps) {
+  const { project, pois, wifiZones, forbiddenZones, traces } = useProject(projectId);
+  const stats = useCrossTabStats(project, pois, traces);
   const { addPOI, updatePOI, deletePOI } = usePOIs(projectId);
   const {
     addWifiZone,
@@ -101,7 +105,7 @@ export function FieldworkStep({ projectId }: FieldworkStepProps) {
 
   return (
     <div className="space-y-6">
-      {/* POIs */}
+      <CrossTabSummary tab="terrain" stats={stats} onNavigate={onNavigate} />
       <Card className="overflow-hidden border-border/60 shadow-soft">
         <CardHeader className="flex flex-row items-center justify-between bg-muted/30 pb-4">
           <div className="flex items-center gap-3">
