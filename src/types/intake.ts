@@ -1,7 +1,7 @@
 // ============= Existing enums =============
 export type WifiStrength = 'ok' | 'weak' | 'dead';
 export type RiskLevel = 'low' | 'medium' | 'high';
-export type InteractionType = 'puzzle' | 'qr_scan' | 'photo' | 'hidden_object' | 'npc' | 'audio';
+export type InteractionType = 'puzzle' | 'qr_scan' | 'photo' | 'hidden_object' | 'npc' | 'audio' | 'storytelling' | 'video';
 export type DifficultyLevel = 'easy' | 'medium' | 'hard';
 
 // ============= New Quest Config enums =============
@@ -264,6 +264,8 @@ export const INTERACTION_LABELS: Record<InteractionType, string> = {
   hidden_object: 'Objet caché',
   npc: 'NPC',
   audio: 'Audio',
+  storytelling: 'Storytelling',
+  video: 'Vidéo de présentation',
 };
 
 export const RISK_LABELS: Record<RiskLevel, string> = {

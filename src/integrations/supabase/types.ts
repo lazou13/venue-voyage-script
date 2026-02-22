@@ -388,6 +388,8 @@ export type Database = {
         | "hidden_object"
         | "npc"
         | "audio"
+        | "storytelling"
+        | "video"
       risk_level: "low" | "medium" | "high"
       wifi_strength: "ok" | "weak" | "dead"
     }
@@ -526,6 +528,8 @@ export const Constants = {
         "hidden_object",
         "npc",
         "audio",
+        "storytelling",
+        "video",
       ],
       risk_level: ["low", "medium", "high"],
       wifi_strength: ["ok", "weak", "dead"],
