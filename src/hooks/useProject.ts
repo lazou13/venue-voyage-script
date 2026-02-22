@@ -345,6 +345,7 @@ export function useProject(projectId: string | undefined) {
     pois: poisQuery.data || [],
     wifiZones: wifiZonesQuery.data || [],
     forbiddenZones: forbiddenZonesQuery.data || [],
+    traces: tracesQuery.data || [],
     isLoading: projectQuery.isLoading,
     updateProject,
     validate,

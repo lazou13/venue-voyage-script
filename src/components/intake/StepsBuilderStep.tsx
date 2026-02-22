@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp, Settings2, Copy } from 'lucide-react';
+import { useCrossTabStats } from '@/hooks/useCrossTabStats';
+import { CrossTabSummary } from './CrossTabSummary';
 import { useProject } from '@/hooks/useProject';
 import { usePOIs, DEFAULT_STEP_CONFIG, DEFAULT_SCORING } from '@/hooks/usePOIs';
 import { useToast } from '@/hooks/use-toast';
@@ -34,6 +36,7 @@ import {
 
 interface StepsBuilderStepProps {
   projectId: string;
+  onNavigate?: (tab: string) => void;
 }
 
 // Helper to auto-reset photo reference fields when photo mode is removed
@@ -62,8 +65,9 @@ function getPhotoReferenceResetIfNeeded(
 // Store current step defaults (can be updated by presets)
 let currentStepDefaults: Partial<StepConfig> = { ...DEFAULT_STEP_CONFIG };
 
-export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
-  const { pois, project, updateProject } = useProject(projectId);
+export function StepsBuilderStep({ projectId, onNavigate }: StepsBuilderStepProps) {
+  const { pois, project, updateProject, traces } = useProject(projectId);
+  const stats = useCrossTabStats(project, pois, traces);
   const { updatePOI, duplicatePOI, applySelectiveDefaults } = usePOIs(projectId);
   const { toast } = useToast();
   const { capabilities } = useCapabilities();
@@ -183,6 +187,7 @@ export function StepsBuilderStep({ projectId }: StepsBuilderStepProps) {
 
   return (
     <div className="space-y-3">
+      <CrossTabSummary tab="etapes" stats={stats} onNavigate={onNavigate} />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
           <h3 className="font-semibold">Configuration des Étapes</h3>
