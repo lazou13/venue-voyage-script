@@ -103,6 +103,7 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
           lng: Number(m.lng),
           note: m.note,
           photo_url: m.photo_url,
+          audio_url: (m as any).audio_url || null,
           created_at: m.created_at,
         }));
 
