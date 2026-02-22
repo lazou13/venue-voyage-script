@@ -49,6 +49,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { OptionMatrix } from './shared/OptionMatrix';
+import { PhotoLightbox, type LightboxPhoto } from './shared/PhotoLightbox';
 import type { QuestConfig, RouteReconDetails, ProjectType } from '@/types/intake';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -142,6 +143,10 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
   // Interactive report dialog state
   const [showReport, setShowReport] = useState(false);
   const [guidanceMarkers, setGuidanceMarkers] = useState<RouteMarker[]>([]);
+  
+  // Photo lightbox state
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   // Fetch markers for selected trace
   const markersQuery = useTraceMarkers(selectedTraceId);
@@ -879,7 +884,17 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                           <img 
                             src={marker.photo_url} 
                             alt="Marker" 
-                            className="mt-1 h-12 w-12 object-cover rounded"
+                            className="mt-1 h-12 w-12 object-cover rounded cursor-pointer hover:ring-2 hover:ring-primary transition-shadow"
+                            onClick={() => {
+                              const photosWithIndex = markers
+                                .map((m, i) => ({ m, i }))
+                                .filter(({ m }) => m.photo_url);
+                              const photoIdx = photosWithIndex.findIndex(({ i }) => i === idx);
+                              if (photoIdx >= 0) {
+                                setLightboxIndex(photoIdx);
+                                setLightboxOpen(true);
+                              }
+                            }}
                           />
                         )}
                       </div>
@@ -888,6 +903,71 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                 </div>
               </div>
             )}
+
+            {/* Photo Gallery */}
+            {selectedTrace && (() => {
+              const photosForGallery: LightboxPhoto[] = markers
+                .filter(m => m.photo_url)
+                .map(m => ({
+                  url: m.photo_url!,
+                  note: m.note,
+                  lat: m.lat,
+                  lng: m.lng,
+                }));
+              
+              if (photosForGallery.length === 0) return null;
+              
+              return (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Camera className="w-4 h-4" />
+                    Galerie Photos ({photosForGallery.length})
+                  </Label>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {photosForGallery.map((photo, idx) => (
+                      <div
+                        key={idx}
+                        className="relative aspect-square rounded-lg overflow-hidden cursor-pointer group border hover:ring-2 hover:ring-primary transition-all"
+                        onClick={() => {
+                          setLightboxIndex(idx);
+                          setLightboxOpen(true);
+                        }}
+                      >
+                        <img
+                          src={photo.url}
+                          alt={photo.note || `Photo ${idx + 1}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        />
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
+                          <p className="text-[10px] text-white/80 flex items-center gap-0.5">
+                            <MapPin className="w-2.5 h-2.5" />
+                            {photo.lat?.toFixed(4)}, {photo.lng?.toFixed(4)}
+                          </p>
+                          {photo.note && (
+                            <p className="text-[10px] text-white truncate">{photo.note}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Lightbox */}
+            <PhotoLightbox
+              photos={markers
+                .filter(m => m.photo_url)
+                .map(m => ({
+                  url: m.photo_url!,
+                  note: m.note,
+                  lat: m.lat,
+                  lng: m.lng,
+                }))}
+              initialIndex={lightboxIndex}
+              open={lightboxOpen}
+              onClose={() => setLightboxOpen(false)}
+            />
 
             {/* Simple map placeholder */}
             {selectedTrace && selectedTrace.geojson.coordinates.length > 0 && (
