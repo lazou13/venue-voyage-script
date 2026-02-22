@@ -22,7 +22,7 @@ export interface ReportPOI {
   stopMinutes: number;
   // Phase 2 fields
   name: string;
-  functionType: 'passage' | 'pause_the' | 'briefing' | 'repas' | 'visite' | 'arret';
+  functionType: 'passage' | 'pause_the' | 'briefing' | 'repas' | 'visite' | 'arret' | 'qr_code' | 'photo' | 'objet_trouve' | 'final';
   action: '' | 'enigme' | 'qr_code' | 'photo_requise' | 'defi' | 'objet_trouve' | 'final';
   validationType: '' | 'qr_code' | 'photo' | 'code' | 'manuel' | 'libre';
   risk: 'low' | 'medium' | 'high';
@@ -909,6 +909,7 @@ export function generateInteractiveReportHTML(
         <button class="btn-pdf" onclick="window.print()">🖨️ PDF</button>
         <button class="btn-json" onclick="exportJSON()">📄 JSON</button>
         <button class="btn-word" onclick="exportWord()">📝 Word</button>
+        <button class="btn-html" onclick="exportHTML()">💾 HTML</button>
       </div>
     </header>
     
@@ -1148,11 +1149,19 @@ export function generateInteractiveReportHTML(
             </div>
             <div class="sheet-field">
               <span class="sheet-field-label">Temps trajet</span>
-              <div class="sheet-field-value" id="meta-travel">${Math.round(payload.computed.travelMinutes)} min</div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" class="sheet-number" style="width:70px;" id="meta-travel" value="${Math.round(payload.computed.travelMinutes)}" min="0" max="9999" oninput="onTravelTimeOverride(this.value)">
+                <span class="sheet-suffix">min</span>
+                <button id="meta-travel-reset" title="Recalculer automatiquement" onclick="resetTravelTimeOverride()" style="display:none;background:#e5e7eb;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:0.7rem;line-height:1;">↻</button>
+              </div>
             </div>
             <div class="sheet-field">
               <span class="sheet-field-label">Temps arrêts</span>
-              <div class="sheet-field-value" id="meta-stops">${payload.computed.stopMinutes} min</div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" class="sheet-number" style="width:70px;" id="meta-stops" value="${payload.computed.stopMinutes}" min="0" max="9999" oninput="onStopTimeOverride(this.value)">
+                <span class="sheet-suffix">min</span>
+                <button id="meta-stops-reset" title="Recalculer automatiquement" onclick="resetStopTimeOverride()" style="display:none;background:#e5e7eb;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:0.7rem;line-height:1;">↻</button>
+              </div>
             </div>
           </div>
         </div>
@@ -1241,6 +1250,10 @@ export function generateInteractiveReportHTML(
                     <option value="repas" ${poi.functionType === 'repas' ? 'selected' : ''}>Repas</option>
                     <option value="visite" ${poi.functionType === 'visite' ? 'selected' : ''}>Visite</option>
                     <option value="arret" ${poi.functionType === 'arret' ? 'selected' : ''}>Arrêt</option>
+                    <option value="qr_code" ${poi.functionType === 'qr_code' ? 'selected' : ''}>QR Code</option>
+                    <option value="photo" ${poi.functionType === 'photo' ? 'selected' : ''}>Photo</option>
+                    <option value="objet_trouve" ${poi.functionType === 'objet_trouve' ? 'selected' : ''}>Objet trouvé</option>
+                    <option value="final" ${poi.functionType === 'final' ? 'selected' : ''}>Final</option>
                   </select>
                 </td>
                 <td>
@@ -1451,6 +1464,10 @@ export function generateInteractiveReportHTML(
         if (parsed.meta) {
           Object.assign(STATE.meta, parsed.meta);
         }
+        // Restore overrides
+        if (parsed._totalTimeOverride !== undefined) STATE._totalTimeOverride = parsed._totalTimeOverride;
+        if (parsed._travelTimeOverride !== undefined) STATE._travelTimeOverride = parsed._travelTimeOverride;
+        if (parsed._stopTimeOverride !== undefined) STATE._stopTimeOverride = parsed._stopTimeOverride;
       } catch (e) {
         console.warn('Failed to load state:', e);
       }
@@ -1478,6 +1495,22 @@ export function generateInteractiveReportHTML(
         if (sheetInput) sheetInput.value = STATE._totalTimeOverride;
         const resetBtn = document.getElementById('sheet-total-time-reset');
         if (resetBtn) resetBtn.style.display = 'inline-flex';
+      }
+      
+      // Restore travel time override
+      if (STATE._travelTimeOverride !== undefined && STATE._travelTimeOverride !== null) {
+        const travelInput = document.getElementById('meta-travel');
+        if (travelInput) travelInput.value = STATE._travelTimeOverride;
+        const travelReset = document.getElementById('meta-travel-reset');
+        if (travelReset) travelReset.style.display = 'inline-flex';
+      }
+      
+      // Restore stop time override
+      if (STATE._stopTimeOverride !== undefined && STATE._stopTimeOverride !== null) {
+        const stopsInput = document.getElementById('meta-stops');
+        if (stopsInput) stopsInput.value = STATE._stopTimeOverride;
+        const stopsReset = document.getElementById('meta-stops-reset');
+        if (stopsReset) stopsReset.style.display = 'inline-flex';
       }
       
       // POIs
@@ -1603,18 +1636,55 @@ export function generateInteractiveReportHTML(
       document.getElementById('sheet-total-time-reset').style.display = 'none';
       recalculate();
     }
+    
+    // Travel time override management
+    function onTravelTimeOverride(val) {
+      const v = parseInt(val);
+      if (!isNaN(v) && v >= 0) {
+        STATE._travelTimeOverride = v;
+        document.getElementById('meta-travel-reset').style.display = 'inline-flex';
+        saveState();
+        recalculate();
+      }
+    }
+    function resetTravelTimeOverride() {
+      delete STATE._travelTimeOverride;
+      document.getElementById('meta-travel-reset').style.display = 'none';
+      recalculate();
+    }
+    
+    // Stop time override management
+    function onStopTimeOverride(val) {
+      const v = parseInt(val);
+      if (!isNaN(v) && v >= 0) {
+        STATE._stopTimeOverride = v;
+        document.getElementById('meta-stops-reset').style.display = 'inline-flex';
+        saveState();
+        recalculate();
+      }
+    }
+    function resetStopTimeOverride() {
+      delete STATE._stopTimeOverride;
+      document.getElementById('meta-stops-reset').style.display = 'none';
+      recalculate();
+    }
 
     // Recalculate times based on current config
     function recalculate() {
       const speed = parseFloat(document.getElementById('speed').value) || 5;
       const distanceKm = STATE.computed.totalDistanceM / 1000;
-      const travelMin = (distanceKm / speed) * 60;
+      const autoTravelMin = (distanceKm / speed) * 60;
       
       // Sum stop times from STATE
-      let stopMin = 0;
+      let autoStopMin = 0;
       STATE.pois.forEach(poi => {
-        stopMin += parseInt(poi.stopMinutes) || 0;
+        autoStopMin += parseInt(poi.stopMinutes) || 0;
       });
+      
+      const hasTravelOverride = STATE._travelTimeOverride !== undefined && STATE._travelTimeOverride !== null;
+      const hasStopOverride = STATE._stopTimeOverride !== undefined && STATE._stopTimeOverride !== null;
+      const travelMin = hasTravelOverride ? STATE._travelTimeOverride : autoTravelMin;
+      const stopMin = hasStopOverride ? STATE._stopTimeOverride : autoStopMin;
       
       const autoTotal = travelMin + stopMin;
       const hasOverride = STATE._totalTimeOverride !== undefined && STATE._totalTimeOverride !== null;
@@ -1631,13 +1701,18 @@ export function generateInteractiveReportHTML(
       
       // Update meta bar timing
       const metaTravel = document.getElementById('meta-travel');
-      if (metaTravel) {
-        metaTravel.textContent = Math.round(travelMin) + ' min';
+      if (metaTravel && !hasTravelOverride) {
+        metaTravel.value = Math.round(autoTravelMin);
       }
+      const travelResetBtn = document.getElementById('meta-travel-reset');
+      if (travelResetBtn) travelResetBtn.style.display = hasTravelOverride ? 'inline-flex' : 'none';
+      
       const metaStops = document.getElementById('meta-stops');
-      if (metaStops) {
-        metaStops.textContent = stopMin + ' min';
+      if (metaStops && !hasStopOverride) {
+        metaStops.value = autoStopMin;
       }
+      const stopsResetBtn = document.getElementById('meta-stops-reset');
+      if (stopsResetBtn) stopsResetBtn.style.display = hasStopOverride ? 'inline-flex' : 'none';
       
       // Update STATE
       STATE.config.speedKmh = speed;
@@ -1886,6 +1961,59 @@ export function generateInteractiveReportHTML(
       const a = document.createElement('a');
       a.href = url;
       a.download = 'rapport-' + REPORT_DATA.trace.id.slice(0, 8) + '.doc';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+    
+    // Export HTML (with current STATE baked in)
+    function exportHTML() {
+      // Clone REPORT_DATA and merge current STATE into it
+      const exportData = JSON.parse(JSON.stringify(REPORT_DATA));
+      // Merge project sheet edits
+      exportData.project.name = STATE.project.projectName || exportData.project.name;
+      exportData.project.projectType = STATE.project.projectType || exportData.project.projectType;
+      exportData.project.playMode = STATE.project.playMode || exportData.project.playMode;
+      exportData.project.questType = STATE.project.questType || exportData.project.questType;
+      exportData.project.targetAudience = STATE.project.targetAudience;
+      exportData.project.languages = STATE.project.languages;
+      exportData.project.objective = STATE.project.objective || exportData.project.objective;
+      exportData.project.stepsCount = STATE.project.stepsCount;
+      exportData.project.difficulty = STATE.project.difficulty;
+      exportData.project.durationMin = STATE.project.durationMin;
+      exportData.project.decisions = {
+        qrAllowed: STATE.project.qrAllowed,
+        photoAllowed: STATE.project.photoAllowed,
+        staffInvolved: STATE.project.staffInvolved
+      };
+      exportData.project.storytelling = { enabled: STATE.project.storytellingEnabled };
+      // Merge POIs
+      exportData.pois = STATE.pois;
+      // Merge config
+      exportData.config = STATE.config;
+      // Merge computed
+      exportData.computed = STATE.computed;
+      // Merge trace name
+      exportData.trace.name = STATE.meta.traceName;
+      
+      // Re-serialize as safe JSON
+      const safeJson = JSON.stringify(exportData).replace(/<\\/script>/gi, '<\\\\/script>');
+      
+      // Get current document HTML and replace the REPORT_DATA injection
+      const fullHtml = document.documentElement.outerHTML;
+      // Build a new HTML by replacing the data line
+      const dataRegex = /const REPORT_DATA = .+?;/;
+      const newHtml = '<!DOCTYPE html>\\n<html lang="fr">' + 
+        fullHtml.slice(fullHtml.indexOf('<head>'))
+          .replace(dataRegex, 'const REPORT_DATA = ' + safeJson + ';');
+      
+      const blob = new Blob([newHtml], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeName = (STATE.project.projectName || REPORT_DATA.project.name || 'rapport').replace(/\\s+/g, '_');
+      a.download = 'rapport-' + safeName + '.html';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
