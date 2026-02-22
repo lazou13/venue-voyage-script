@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Copy, Download, Check, AlertCircle, AlertTriangle, BarChart3, Loader2 } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Copy, Download, Check, AlertCircle, AlertTriangle, BarChart3, Loader2, RotateCcw, Pencil } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
 import { useAvatars } from '@/hooks/useAvatars';
 import { useToast } from '@/hooks/use-toast';
@@ -29,6 +29,7 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
+  const [roadBookContent, setRoadBookContent] = useState<string | null>(null);
 
   // Compute projectType early for useEffect dependency
   const projectType = project?.quest_config?.project_type || 'establishment';
@@ -126,6 +127,21 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
   }, [projectId, isRouteRecon, projectLoadedId]);
   // ============= End Route Recon fetch =============
 
+  // Road Book editable content - hooks must be before early returns
+  const roadBookData = useMemo(() => {
+    if (!project) return '';
+    return generateRoadBook({ project, pois, wifiZones, forbiddenZones, avatars });
+  }, [project, pois, wifiZones, forbiddenZones, avatars]);
+
+  useEffect(() => {
+    if (roadBookContent === null && roadBookData) {
+      setRoadBookContent(roadBookData);
+    }
+  }, [roadBookData, roadBookContent]);
+
+  const currentRoadBook = roadBookContent ?? roadBookData;
+  const isRoadBookModified = currentRoadBook !== roadBookData;
+
   const validation = validate();
 
   // Add avatar count warning (non-blocking)
@@ -206,13 +222,13 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
   const data = { project, pois, wifiZones, forbiddenZones, avatars };
   const isIntakeProject = projectType !== 'route_recon';
   
-  // Build outputs array - add Rapport tab for route_recon
+  // Build outputs array
   const outputs = [
     { id: 'checklist', label: 'Checklist', content: generateChecklist(data) },
     { id: 'prd', label: 'PRD', content: generatePRD(data) },
     { id: 'prompt', label: 'Prompt', content: generatePrompt(data) },
     ...(isIntakeProject ? [{ id: 'compte_rendu', label: 'Compte-rendu', content: generateVisitReportMD(data) }] : []),
-    { id: 'road_book', label: 'Road Book', content: generateRoadBook(data) },
+    { id: 'road_book', label: 'Road Book', content: currentRoadBook },
     ...(isRouteRecon ? [{ id: 'rapport', label: 'Rapport', content: '' }] : []),
   ];
   
@@ -301,6 +317,60 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
                       </Button>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            ) : output.id === 'road_book' ? (
+              /* Editable Road Book tab */
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between py-3">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Pencil className="w-4 h-4" />
+                    {output.label}
+                    {isRoadBookModified && (
+                      <Badge variant="outline" className="text-xs ml-2">Modifié</Badge>
+                    )}
+                  </CardTitle>
+                  <div className="flex gap-2">
+                    {isRoadBookModified && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setRoadBookContent(roadBookData)}
+                        title="Réinitialiser à la version générée"
+                      >
+                        <RotateCcw className="w-4 h-4 mr-1" />
+                        Reset
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => copyToClipboard(currentRoadBook, output.label)}
+                    >
+                      <Copy className="w-4 h-4 mr-1" />
+                      Copier
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        downloadFile(
+                          currentRoadBook,
+                          `RoadBook_${project.hotel_name.replace(/\s+/g, '_')}.md`
+                        )
+                      }
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      .md
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <textarea
+                    className="w-full min-h-[60vh] text-sm bg-muted p-4 rounded-lg font-mono border border-border focus:outline-none focus:ring-2 focus:ring-ring resize-y"
+                    value={currentRoadBook}
+                    onChange={(e) => setRoadBookContent(e.target.value)}
+                  />
                 </CardContent>
               </Card>
             ) : (
