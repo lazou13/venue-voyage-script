@@ -1,56 +1,80 @@
 
 
-## Plan : Traduction automatique par IA au clic sur un onglet langue
+## Plan : Road Book Client dans l'onglet Exports
 
 ### Objectif
-Quand l'utilisateur clique sur un onglet de langue (autre que le francais), si le champ est vide et que le texte francais existe, une traduction automatique est lancee via Lovable AI. Le resultat apparait directement dans le champ de la langue selectionnee.
+Ajouter un onglet "Road Book" dans les exports qui genere un document destine aux clients (joueurs). C'est le guide qu'on remet aux participants avant ou pendant la quete : il contient l'histoire, les regles, le parcours etape par etape avec les indices, et les informations pratiques.
 
-### Comment ca marche
+### Contenu du Road Book Client
 
-1. L'utilisateur remplit le texte en francais
-2. Il clique sur l'onglet "English" (ou autre langue)
-3. Si le champ est vide et que le francais est rempli :
-   - Un indicateur de chargement s'affiche ("Traduction en cours...")
-   - La traduction est generee automatiquement par l'IA
-   - Le texte traduit apparait dans le champ
-4. L'utilisateur peut modifier la traduction si necessaire
-
-### Fichiers a creer
-
-**1. `supabase/functions/translate/index.ts`**
-- Edge function qui appelle Lovable AI (Gemini Flash) pour traduire un texte
-- Parametres : `text` (texte source), `from` (langue source), `to` (langue cible)
-- Retourne le texte traduit, sans streaming (appel simple)
-- Gestion des erreurs 429/402
-
-**2. Aucun autre nouveau fichier**
+1. **Page de couverture** : Titre de la quete (i18n), lieu, theme, avatar narrateur (si storytelling actif), duree estimee, difficulte
+2. **Regles du jeu** : Mode de jeu (solo/equipe), scoring (points, penalites), nombre d'indices disponibles, conditions de victoire
+3. **L'histoire** : Synopsis de la quete (story_i18n) dans la langue principale, avec l'avatar narrateur
+4. **Le parcours** : Pour chaque etape/POI :
+   - Numero et nom
+   - Zone / lieu
+   - Type d'interaction (enigme, QCM, photo, etc.)
+   - Contenu texte (contentI18n) dans la langue principale
+   - Nombre d'indices disponibles
+   - Points a gagner
+5. **Informations pratiques** : Langues disponibles, zones interdites, consignes de securite (pour route_recon)
+6. **Bon jeu !** : Message de cloture
 
 ### Fichiers a modifier
 
-**1. `src/components/intake/shared/I18nInput.tsx`**
-- Ajouter un state `isTranslating` (boolean)
-- Modifier le `setActiveTab` : quand on clique sur une langue non-francaise, si le champ est vide et le francais est rempli, appeler la fonction `translate` via `supabase.functions.invoke`
-- Afficher un spinner/texte "Traduction en cours..." pendant le chargement
-- Remplir automatiquement le champ avec le resultat
-- Ajouter un petit badge ou indicateur visuel pour montrer que c'est une traduction auto (modifiable)
+**1. `src/lib/outputGenerators.ts`**
+- Ajouter une fonction `generateRoadBook(data: OutputData): string`
+- Genere un Markdown structure et agreable a lire, oriente joueur (pas technique)
+- Utilise les donnees i18n (titre, histoire, contenu des etapes)
+- Inclut les regles de scoring, indices, et le parcours complet
+- Adapte selon le type de projet (establishment, tourist_spot, route_recon)
 
-### Details techniques
+**2. `src/components/intake/OutputsStep.tsx`**
+- Ajouter un onglet "Road Book" dans le tableau `outputs`
+- Memes boutons que les autres exports (Copier, Telecharger .md)
+- Disponible pour tous les types de projet
+- Positionne apres "Compte-rendu" (ou apres "Prompt" pour route_recon)
 
-- Modele IA : `google/gemini-3-flash-preview` (rapide et economique pour la traduction)
-- La traduction n'est declenchee que si :
-  - La langue cible est differente du francais
-  - Le champ cible est vide
-  - Le texte francais n'est pas vide
-- Si la traduction echoue, le champ reste vide avec un toast d'erreur
-- L'utilisateur peut toujours modifier manuellement apres traduction
+### Exemple de rendu (extrait)
 
-### Mapping des langues pour le prompt
+```text
+# Quest : Le Mystere du Riad Perdu
+## Hotel & Spa Marrakech
 
-| Code | Langue pour le prompt |
-|------|----------------------|
-| `fr` | Francais |
-| `en` | English |
-| `ar` | Arabic (Modern Standard) |
-| `es` | Spanish |
-| `ary` | Moroccan Darija (Arabic dialect) |
+Duree estimee : 45 min | Difficulte : 3/5 | Mode : Equipes
+
+---
+
+## Votre mission
+
+Votre narrateur Youssef vous accueille...
+[story_i18n.fr]
+
+---
+
+## Regles
+
+- Chaque etape rapporte 10 points
+- Utiliser un indice coute -2 points  
+- 3 indices max par etape
+- Temps limite : aucun
+
+---
+
+## Parcours (12 etapes)
+
+### Etape 1 — Accueil Reception
+Zone : Hall d'entree
+[contenu de l'etape]
+Indices disponibles : 2 | Points : 10
+
+### Etape 2 — ...
+```
+
+### Resume des fichiers
+
+| Fichier | Action |
+|---|---|
+| `src/lib/outputGenerators.ts` | Modifier - ajouter `generateRoadBook()` |
+| `src/components/intake/OutputsStep.tsx` | Modifier - ajouter onglet Road Book |
 
