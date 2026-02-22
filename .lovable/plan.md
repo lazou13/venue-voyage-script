@@ -1,57 +1,65 @@
 
 
-## Plan : Ameliorer le Road Book
+## Plan : Saisie manuelle des marqueurs GPS
 
-### 1. Remplacer le message narrateur par un resume
+### Probleme
 
-Actuellement, le Road Book reprend le texte complet de `story_i18n.fr` (qui est le message de presentation video du guide Amine). A la place, generer un court resume (2-3 phrases) sur le meme ton aventurier, en utilisant le titre, le theme, la ville et le nombre d'etapes. Le texte original de la video n'apparaitra plus dans le Road Book.
+Les traces enregistrees automatiquement sont melangees et inutilisables. L'utilisateur a besoin d'un moyen de creer des marqueurs manuellement en entrant les coordonnees GPS et en ajoutant des photos.
 
-**Fichier : `src/lib/outputGenerators.ts`** (section `generateRoadBook`, lignes 844-849)
+### Solution
 
-Remplacer l'insertion de `story` par un resume genere automatiquement du style :
-"Partez a la decouverte de [ville] a travers un parcours de [N] etapes. Guidé par [narrateur], resolvez enigmes et defis pour accumuler un maximum de points. L'aventure commence maintenant !"
+Ajouter une section "Marqueurs manuels" dans l'onglet Parcours, permettant de :
+- Creer une trace "manuelle" dediee (ou reutiliser une existante)
+- Ajouter des marqueurs un par un avec latitude, longitude, note et photo
+- Modifier ou supprimer des marqueurs existants
 
-### 2. Utiliser les points configures (pas le defaut de 10)
+### Fichier a modifier
 
-Le probleme vient de `DUPLICATED_POI_DEFAULT_CONFIG` dans `mapMarkerToPOI.ts` qui force `points: 10` dans chaque step_config. Le Road Book utilise `stepScoring.points ?? pointsPerStep` - donc si le step a 10 en dur, il affiche 10 meme si le quest-level scoring est a 100.
+**`src/components/intake/RouteReconStep.tsx`**
 
-**Fichier : `src/lib/outputGenerators.ts`** (ligne 952)
+Ajouter une nouvelle section apres les traces enregistrees, avec :
 
-Modifier la logique pour prioriser le scoring quest-level quand le step scoring est le defaut (10) :
-- Utiliser `pointsPerStep` (scoring global) comme reference principale
-- Ne prendre le step scoring que s'il a ete explicitement personnalise
+1. **Bouton "Ajouter un point manuellement"** qui ouvre un formulaire inline avec :
+   - Champ Latitude (number, 6 decimales)
+   - Champ Longitude (number, 6 decimales)
+   - Champ Note (texte, optionnel)
+   - Bouton photo (upload vers le bucket fieldwork, comme les marqueurs rapides)
+   - Bouton "Ajouter" qui sauvegarde le marqueur
 
-### 3. Decrire le genre d'enigme pour chaque etape
+2. **Logique** :
+   - Si aucune trace n'existe, creer automatiquement une trace "manuelle" (nom = "Saisie manuelle") avec une geojson LineString vide
+   - Si une trace est selectionnee, ajouter le marqueur a cette trace et mettre a jour la geojson avec les coordonnees
+   - Apres ajout, mettre a jour la geojson de la trace pour inclure le nouveau point (pour que la validation fonctionne)
 
-Actuellement chaque etape affiche juste "Enigme". Ajouter une description du type d'activite basee sur les validation modes et step types configures.
+3. **Suppression de marqueurs individuels** : ajouter un bouton supprimer sur chaque marqueur dans la liste existante
 
-**Fichier : `src/lib/outputGenerators.ts`** (section parcours, lignes 947-966)
+**`src/hooks/useRouteRecorder.ts`**
 
-Pour chaque etape, generer une description lisible comme :
-- QR Code -> "Trouvez et scannez le QR Code cache"
-- Photo -> "Prenez une photo du lieu indique"  
-- Code -> "Trouvez le code secret"
-- Terrain -> "Defi terrain sur place"
-- Manuel -> "Resolvez l'enigme et validez avec le guide"
-- Enigme + QR -> "Resolvez l'enigme puis scannez le QR Code"
+- Ajouter une mutation `deleteMarker` pour supprimer un marqueur individuel de la base
+- Ajouter une mutation `updateMarker` pour modifier les coordonnees/note/photo d'un marqueur existant
+- Ajouter une mutation pour mettre a jour la geojson de la trace quand on ajoute un marqueur manuellement (recalculer les coordonnees a partir des marqueurs)
 
-### 4. Ajouter une carte interactive avec les etapes
+### Details techniques
 
-Ajouter un composant carte Leaflet dans l'onglet Road Book, au-dessus du textarea, affichant les marqueurs du parcours avec des labels "Etape 1", "Etape 2", etc.
+**Formulaire de saisie manuelle :**
+- Les champs lat/lng acceptent un nombre decimal (step="0.000001")
+- Validation : latitude entre -90 et 90, longitude entre -180 et 180
+- L'upload photo reutilise le hook `useFileUpload` existant
+- Apres ajout, le formulaire se vide mais reste ouvert pour ajouter le suivant
 
-**Fichier : `src/components/intake/OutputsStep.tsx`**
+**Mise a jour de la trace :**
+- Quand un marqueur est ajoute manuellement, la geojson de la trace est reconstruite avec toutes les coordonnees des marqueurs de cette trace (dans l'ordre de creation)
+- Cela garantit que la validation "min 2 points" fonctionne meme avec des marqueurs manuels
 
-- Reutiliser les donnees `reportMarkers` deja chargees pour les projets route_recon
-- Ajouter un petit composant `MapContainer` Leaflet (hauteur ~250px) au-dessus du textarea
-- Chaque marqueur affiche un popup "Etape N - [nom du POI]"
-- La carte s'ajuste automatiquement pour afficher tous les marqueurs (fitBounds)
-- Si pas de marqueurs avec coordonnees, la carte n'apparait pas
+**Suppression de marqueurs :**
+- Bouton poubelle sur chaque marqueur dans la liste
+- Confirmation via AlertDialog
+- Apres suppression, recalcul de la geojson de la trace
 
-### Resume des fichiers modifies
+### Resume des changements
 
 | Fichier | Changement |
 |---------|------------|
-| `src/lib/outputGenerators.ts` | Resume au lieu du texte complet, points corrects, description type enigme |
-| `src/lib/mapMarkerToPOI.ts` | Retirer le scoring en dur (10 pts) pour heriter du scoring global |
-| `src/components/intake/OutputsStep.tsx` | Carte Leaflet dans l'onglet Road Book |
+| `src/hooks/useRouteRecorder.ts` | Mutations deleteMarker, updateMarker, recalcul geojson |
+| `src/components/intake/RouteReconStep.tsx` | Section saisie manuelle + suppression marqueurs |
 
