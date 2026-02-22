@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { 
   Route, AlertTriangle, MapPin, Shield, Navigation, 
@@ -1196,7 +1197,7 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
       </Dialog>
       
       {/* Guidance View with ErrorBoundary */}
-      {guidanceTrace && (
+      {guidanceTrace && createPortal(
         <GuidanceErrorBoundary
           onClose={() => {
             setGuidanceTrace(null);
@@ -1211,7 +1212,8 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
               setGuidanceMarkers([]);
             }}
           />
-        </GuidanceErrorBoundary>
+        </GuidanceErrorBoundary>,
+        document.body
       )}
       
       {/* Interactive Report Dialog */}
