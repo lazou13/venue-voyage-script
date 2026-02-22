@@ -785,6 +785,163 @@ export function generateQuestExportJSON(data: OutputData): string {
   return jsonString;
 }
 
+/**
+ * Generate a client-facing Road Book (player guide) in Markdown.
+ * Contains story, rules, step-by-step walkthrough, and practical info.
+ */
+export function generateRoadBook(data: OutputData): string {
+  const { project, pois, forbiddenZones, avatars = [] } = data;
+  const questConfig = project.quest_config || {};
+  const core = questConfig.core || {};
+  const projectType = questConfig.project_type || 'establishment';
+  const scoring = questConfig.scoring || {};
+  const teamConfig = getTeamConfig(project.quest_config);
+  const storytelling = questConfig.storytelling;
+  const hintRules = questConfig.hintRules || {};
+
+  // Title
+  const questTitle = project.title_i18n?.fr || project.hotel_name;
+  const difficultyLabel = core.difficulty ? `${'⭐'.repeat(core.difficulty)}` : '-';
+  const durationLabel = core.duration_min ? `${core.duration_min} min` : '-';
+
+  // Play mode
+  let playMode = 'Solo';
+  if (teamConfig.enabled) {
+    playMode = teamConfig.competitionMode === 'timed' ? 'Équipes (contre-la-montre)' :
+               teamConfig.competitionMode === 'race' ? 'Équipes (course)' :
+               teamConfig.competitionMode === 'score' ? 'Équipes (score)' : 'Équipes';
+  } else if (questConfig.play_mode === 'one_vs_one') {
+    playMode = '1 contre 1';
+  }
+
+  // Narrator
+  let narratorLine = '';
+  if (storytelling?.enabled && storytelling.narrator?.avatar_id) {
+    const avatar = avatars.find(a => a.id === storytelling.narrator?.avatar_id);
+    if (avatar) {
+      narratorLine = `**Votre guide :** ${avatar.name}`;
+    }
+  }
+
+  // Story
+  const story = project.story_i18n?.fr || '';
+
+  // Build sections
+  let md = `# 🎯 ${questTitle}
+## ${project.hotel_name} — ${project.city}
+
+| | |
+|---|---|
+| ⏱ Durée estimée | ${durationLabel} |
+| 🎚 Difficulté | ${difficultyLabel} |
+| 👥 Mode | ${playMode} |
+${project.theme ? `| 🎭 Thème | ${project.theme} |` : ''}
+
+---
+
+`;
+
+  // Story section
+  if (story || narratorLine) {
+    md += `## 📖 Votre mission\n\n`;
+    if (narratorLine) md += `${narratorLine}\n\n`;
+    if (story) md += `${story}\n\n`;
+    md += `---\n\n`;
+  }
+
+  // Rules section
+  const pointsPerStep = scoring.points || 10;
+  const hintPenalty = scoring.hint_penalty || 2;
+  const failPenalty = scoring.fail_penalty || 5;
+  const maxHints = hintRules.maxHints || 3;
+  const timeLimit = scoring.time_limit_sec ? `${scoring.time_limit_sec} secondes par étape` : 'Aucune';
+
+  md += `## 📋 Règles du jeu
+
+- Chaque étape réussie rapporte **${pointsPerStep} points**
+- Utiliser un indice coûte **-${hintPenalty} points**
+- Échec d'une étape : **-${failPenalty} points**
+- Indices disponibles par étape : **${maxHints}**
+- Limite de temps : **${timeLimit}**
+`;
+
+  if (teamConfig.enabled) {
+    md += `- Nombre max d'équipes : **${teamConfig.maxTeams || '-'}**\n`;
+    md += `- Joueurs par équipe : **${teamConfig.maxPlayersPerTeam || '-'}**\n`;
+    if (teamConfig.timeLimitMinutes) {
+      md += `- Temps limite total : **${teamConfig.timeLimitMinutes} min**\n`;
+    }
+  }
+
+  md += `\n---\n\n`;
+
+  // Course section
+  const interactionLabels: Record<string, string> = {
+    story: '📖 Histoire', information: 'ℹ️ Information', mcq: '❓ QCM',
+    enigme: '🧩 Énigme', code: '🔐 Code secret', hangman: '🔤 Pendu',
+    memory: '🧠 Mémoire', gps: '📍 GPS', photo: '📸 Photo',
+    terrain: '🏃 Terrain', defi: '💪 Défi',
+  };
+
+  md += `## 🗺 Parcours (${pois.length} étapes)\n\n`;
+
+  pois.forEach((poi, i) => {
+    const config = poi.step_config || {};
+    const stepType = config.stepType || config.possible_step_types?.[0] || 'enigme';
+    const typeLabel = interactionLabels[stepType] || stepType;
+    const stepScoring = config.scoring || {};
+    const pts = stepScoring.points ?? pointsPerStep;
+    const hintsCount = config.hints?.length || 0;
+    const content = config.contentI18n?.fr || '';
+
+    md += `### Étape ${i + 1} — ${poi.name}\n`;
+    md += `📍 *${poi.zone}* | ${typeLabel}\n\n`;
+    
+    if (content) {
+      md += `${content}\n\n`;
+    }
+
+    md += `> 🏆 ${pts} points`;
+    if (hintsCount > 0) md += ` • 💡 ${hintsCount} indice${hintsCount > 1 ? 's' : ''} disponible${hintsCount > 1 ? 's' : ''}`;
+    md += `\n\n`;
+  });
+
+  md += `---\n\n`;
+
+  // Practical info
+  md += `## ℹ️ Informations pratiques\n\n`;
+
+  // Languages
+  const langs = (core.languages || questConfig.languages || ['fr']);
+  if (langs.length > 1) {
+    md += `**Langues disponibles :** ${langs.map(l => LANGUAGE_LABELS[l] || l).join(', ')}\n\n`;
+  }
+
+  // Forbidden zones
+  if (forbiddenZones.length > 0) {
+    md += `**⚠️ Zones interdites :**\n`;
+    forbiddenZones.forEach(fz => {
+      md += `- ${fz.zone}${fz.reason ? ` — ${fz.reason}` : ''}\n`;
+    });
+    md += `\n`;
+  }
+
+  // Route recon safety
+  if (projectType === 'route_recon' && questConfig.route_recon_details?.safety_brief) {
+    const safety = questConfig.route_recon_details.safety_brief;
+    if (safety.length > 0) {
+      md += `**🦺 Consignes de sécurité :**\n`;
+      safety.forEach((s: string) => { md += `- ${s}\n`; });
+      md += `\n`;
+    }
+  }
+
+  md += `---\n\n`;
+  md += `## 🎉 Bon jeu !\n\nQue la meilleure équipe gagne ! Restez fair-play, amusez-vous, et n'oubliez pas : l'important c'est de participer… mais gagner c'est encore mieux 😄\n`;
+
+  return md;
+}
+
 export function generatePrompt(data: OutputData): string {
   const { project, pois, wifiZones, forbiddenZones, avatars = [] } = data;
   const questConfig = project.quest_config || {};

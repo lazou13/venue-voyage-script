@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { generateChecklist, generatePRD, generatePrompt, generateVisitReportMD } from '@/lib/outputGenerators';
+import { generateChecklist, generatePRD, generatePrompt, generateVisitReportMD, generateRoadBook } from '@/lib/outputGenerators';
 import { supabase } from '@/integrations/supabase/client';
 import { InteractiveReportViewer } from './InteractiveReportViewer';
 import type { LineString } from 'geojson';
@@ -212,6 +212,7 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
     { id: 'prd', label: 'PRD', content: generatePRD(data) },
     { id: 'prompt', label: 'Prompt', content: generatePrompt(data) },
     ...(isIntakeProject ? [{ id: 'compte_rendu', label: 'Compte-rendu', content: generateVisitReportMD(data) }] : []),
+    { id: 'road_book', label: 'Road Book', content: generateRoadBook(data) },
     ...(isRouteRecon ? [{ id: 'rapport', label: 'Rapport', content: '' }] : []),
   ];
   
