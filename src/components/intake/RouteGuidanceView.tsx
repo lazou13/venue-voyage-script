@@ -301,6 +301,8 @@ export function RouteGuidanceView({ trace, markers, onClose }: RouteGuidanceView
   const [showCompletion, setShowCompletion] = useState(false);
   const [lastSegmentIndex, setLastSegmentIndex] = useState<number | null>(null);
   const watchIdRef = useRef<number | null>(null);
+  const mountTimeRef = useRef<number>(Date.now());
+  const [validMaxProgress, setValidMaxProgress] = useState(0);
   
   const polylineCoords = trace.geojson.coordinates as [number, number][];
   
@@ -338,11 +340,14 @@ export function RouteGuidanceView({ trace, markers, onClose }: RouteGuidanceView
     return computeProgressPolyline(polylineCoords, snapResult.progressMetersAlongLine);
   }, [polylineCoords, snapResult]);
   
+  // Off track status (moved before effects that depend on it)
+  const isOffTrack = snapResult ? snapResult.distanceToLineMeters > OFF_TRACK_THRESHOLD_METERS : false;
+
   // Calculate completion percentage
   const completionPercent = useMemo(() => {
-    if (!snapResult || totalDistance === 0) return 0;
-    return Math.min(100, Math.round((snapResult.progressMetersAlongLine / totalDistance) * 100));
-  }, [snapResult, totalDistance]);
+    if (totalDistance === 0) return 0;
+    return Math.min(100, Math.round((validMaxProgress / totalDistance) * 100));
+  }, [validMaxProgress, totalDistance]);
   
   // Detect segment changes and show toast
   useEffect(() => {
@@ -357,12 +362,21 @@ export function RouteGuidanceView({ trace, markers, onClose }: RouteGuidanceView
     }
   }, [snapResult?.nearestSegmentIndex, lastSegmentIndex]);
   
-  // Check for completion
+  // Update valid max progress only when on-track
   useEffect(() => {
-    if (completionPercent >= 95 && !showCompletion) {
+    if (!snapResult || isOffTrack) return;
+    setValidMaxProgress(prev => Math.max(prev, snapResult.progressMetersAlongLine));
+  }, [snapResult, isOffTrack]);
+  
+  // Check for completion with stricter conditions
+  useEffect(() => {
+    if (showCompletion) return;
+    const elapsedSeconds = (Date.now() - mountTimeRef.current) / 1000;
+    const hasEnoughProgress = validMaxProgress > totalDistance * 0.5;
+    if (completionPercent >= 95 && !isOffTrack && elapsedSeconds >= 10 && hasEnoughProgress) {
       setShowCompletion(true);
     }
-  }, [completionPercent, showCompletion]);
+  }, [completionPercent, showCompletion, isOffTrack, validMaxProgress, totalDistance]);
   
   // Find next critical marker (danger or stop)
   const nextCriticalMarker = useMemo(() => {
@@ -398,8 +412,7 @@ export function RouteGuidanceView({ trace, markers, onClose }: RouteGuidanceView
     return Math.max(0, totalDistance - snapResult.progressMetersAlongLine);
   }, [snapResult, totalDistance]);
   
-  // Off track status
-  const isOffTrack = snapResult ? snapResult.distanceToLineMeters > OFF_TRACK_THRESHOLD_METERS : false;
+  // (isOffTrack moved above, near snapResult)
   
   // Start watching position
   useEffect(() => {
