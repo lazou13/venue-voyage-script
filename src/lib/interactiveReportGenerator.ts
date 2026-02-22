@@ -2057,17 +2057,42 @@ export function generateInteractiveReportHTML(
         // Fit bounds
         map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
         
-        // Add markers
-        REPORT_DATA.pois.forEach(poi => {
-          const marker = L.marker([poi.lat, poi.lng]).addTo(map);
-          marker.bindPopup('<strong>' + poi.emoji + ' #' + poi.order + '</strong><br>' + (poi.note || 'POI'));
+        // Add numbered POI markers with color coding
+        var totalPois = REPORT_DATA.pois.length;
+        REPORT_DATA.pois.forEach(function(poi, idx) {
+          var isFirst = idx === 0;
+          var isLast = idx === totalPois - 1 && totalPois > 1;
+          var color = isFirst ? '#10B981' : isLast ? '#EC4899' : '#8B5CF6';
+          var label = isFirst ? '🚩' : isLast ? '🏁' : '';
+          var num = poi.order;
+          
+          var icon = L.divIcon({
+            className: 'numbered-marker',
+            html: '<div style="' +
+              'background:' + color + ';' +
+              'color:#fff;' +
+              'width:28px;height:28px;' +
+              'border-radius:50%;' +
+              'display:flex;align-items:center;justify-content:center;' +
+              'font-weight:700;font-size:13px;' +
+              'border:2px solid #fff;' +
+              'box-shadow:0 2px 6px rgba(0,0,0,0.35);' +
+              '">' + num + '</div>',
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
+            popupAnchor: [0, -16]
+          });
+          
+          var marker = L.marker([poi.lat, poi.lng], { icon: icon }).addTo(map);
+          var popupLabel = isFirst ? '🚩 Départ' : isLast ? '🏁 Arrivée' : poi.emoji;
+          marker.bindPopup('<strong>' + popupLabel + ' #' + num + '</strong><br>' + (poi.note || 'POI'));
         });
         
-        // Add start/end markers
-        if (latLngs.length > 0) {
-          L.circleMarker(latLngs[0], { radius: 8, color: '#22c55e', fillColor: '#22c55e', fillOpacity: 1 })
+        // Add start/end trace markers (if no POIs or trace extends beyond POIs)
+        if (latLngs.length > 0 && totalPois === 0) {
+          L.circleMarker(latLngs[0], { radius: 8, color: '#10B981', fillColor: '#10B981', fillOpacity: 1 })
             .addTo(map).bindPopup('🚩 Départ');
-          L.circleMarker(latLngs[latLngs.length - 1], { radius: 8, color: '#ef4444', fillColor: '#ef4444', fillOpacity: 1 })
+          L.circleMarker(latLngs[latLngs.length - 1], { radius: 8, color: '#EC4899', fillColor: '#EC4899', fillOpacity: 1 })
             .addTo(map).bindPopup('🏁 Arrivée');
         }
       } catch (e) {
