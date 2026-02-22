@@ -105,6 +105,7 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
     addMarkerAtLastCoord,
     deleteTrace,
     deleteMarker,
+    updateMarker,
     createManualTrace,
     rebuildTraceGeojson,
     retry,
@@ -172,6 +173,19 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
 
   // Delete marker confirm state
   const [markerToDelete, setMarkerToDelete] = useState<{ id: string; traceId: string } | null>(null);
+
+  // Edit marker dialog state
+  const [editingMarker, setEditingMarker] = useState<RouteMarker | null>(null);
+  const [editLat, setEditLat] = useState('');
+  const [editLng, setEditLng] = useState('');
+  const [editNote, setEditNote] = useState('');
+  const [editPhotoUrl, setEditPhotoUrl] = useState('');
+  const [editAudioUrl, setEditAudioUrl] = useState('');
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const editPhotoRef = useRef<HTMLInputElement>(null);
+
+  // Auto-save feedback for manual form
+  const [manualSaved, setManualSaved] = useState(false);
 
   // Fetch markers for selected trace
   const markersQuery = useTraceMarkers(selectedTraceId);
@@ -257,6 +271,44 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
     }
   };
 
+  // Open edit dialog for a marker
+  const handleOpenEditMarker = (marker: RouteMarker) => {
+    setEditingMarker(marker);
+    setEditLat(String(marker.lat));
+    setEditLng(String(marker.lng));
+    setEditNote(marker.note || '');
+    setEditPhotoUrl(marker.photo_url || '');
+    setEditAudioUrl(marker.audio_url || '');
+  };
+
+  // Save edited marker
+  const handleSaveEditMarker = async () => {
+    if (!editingMarker) return;
+    const lat = parseFloat(editLat);
+    const lng = parseFloat(editLng);
+    if (isNaN(lat) || lat < -90 || lat > 90 || isNaN(lng) || lng < -180 || lng > 180) {
+      toast({ title: 'Coordonnées invalides', variant: 'destructive' });
+      return;
+    }
+    setIsSavingEdit(true);
+    try {
+      await updateMarker.mutateAsync({
+        markerId: editingMarker.id,
+        traceId: editingMarker.trace_id,
+        lat,
+        lng,
+        note: editNote || null,
+        photoUrl: editPhotoUrl || null,
+        audioUrl: editAudioUrl || null,
+      });
+      setEditingMarker(null);
+    } catch (err) {
+      toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   // Manual marker add handler
   const handleAddManualMarker = async () => {
     const lat = parseFloat(manualLat);
@@ -292,10 +344,55 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
       setManualLng('');
       setManualNote('');
       setManualPhotoUrl('');
+      // Show saved feedback
+      setManualSaved(true);
+      setTimeout(() => setManualSaved(false), 1200);
     } catch (err) {
       toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
     } finally {
       setIsSavingManual(false);
+    }
+  };
+
+  // Auto-save manual marker when photo is uploaded (if lat/lng filled)
+  const handleManualPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = await uploadFile(file, `route-markers/${projectId}`);
+    if (url) {
+      setManualPhotoUrl(url);
+      // Auto-save if coordinates are filled
+      const lat = parseFloat(manualLat);
+      const lng = parseFloat(manualLng);
+      if (!isNaN(lat) && lat >= -90 && lat <= 90 && !isNaN(lng) && lng >= -180 && lng <= 180) {
+        setIsSavingManual(true);
+        try {
+          let traceId = selectedTraceId;
+          if (!traceId) {
+            const trace = await createManualTrace.mutateAsync();
+            traceId = trace.id;
+            setSelectedTraceId(traceId);
+          }
+          await addMarker.mutateAsync({
+            traceId,
+            lat,
+            lng,
+            note: manualNote || undefined,
+            photoUrl: url,
+          });
+          await rebuildTraceGeojson(traceId);
+          setManualLat('');
+          setManualLng('');
+          setManualNote('');
+          setManualPhotoUrl('');
+          setManualSaved(true);
+          setTimeout(() => setManualSaved(false), 1200);
+        } catch (err) {
+          toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
+        } finally {
+          setIsSavingManual(false);
+        }
+      }
     }
   };
 
@@ -1015,7 +1112,11 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                 </div>
                 <div className="space-y-1">
                   {markers.map((marker, idx) => (
-                    <div key={marker.id} className="flex items-start gap-2 p-2 rounded bg-muted/30 text-sm">
+                    <div 
+                      key={marker.id} 
+                      className="flex items-start gap-2 p-2 rounded bg-muted/30 text-sm cursor-pointer hover:bg-muted/60 transition-colors"
+                      onClick={() => handleOpenEditMarker(marker)}
+                    >
                       <Badge variant="outline" className="shrink-0">{idx + 1}</Badge>
                       <div className="min-w-0 flex-1">
                         <p className="text-xs text-muted-foreground">
@@ -1028,7 +1129,8 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                               src={marker.photo_url} 
                               alt="Marker" 
                               className="h-12 w-12 object-cover rounded cursor-pointer hover:ring-2 hover:ring-primary transition-shadow"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 const photosWithIndex = markers
                                   .map((m, i) => ({ m, i }))
                                   .filter(({ m }) => m.photo_url);
@@ -1040,9 +1142,9 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                               }}
                             />
                           )}
-                          {(marker as any).audio_url && (
-                            <audio controls className="h-8 max-w-[180px]">
-                              <source src={(marker as any).audio_url} type="audio/webm" />
+                          {marker.audio_url && (
+                            <audio controls className="h-8 max-w-[180px]" onClick={(e) => e.stopPropagation()}>
+                              <source src={marker.audio_url} type="audio/webm" />
                             </audio>
                           )}
                         </div>
@@ -1052,7 +1154,10 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                         size="icon"
                         className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
                         title="Supprimer ce marqueur"
-                        onClick={() => setMarkerToDelete({ id: marker.id, traceId: marker.trace_id })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMarkerToDelete({ id: marker.id, traceId: marker.trace_id });
+                        }}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </Button>
@@ -1124,32 +1229,39 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
                       type="file"
                       accept="image/*"
                       ref={manualPhotoRef}
-                      onChange={(e) => handlePhotoUpload(e, setManualPhotoUrl)}
+                      onChange={handleManualPhotoUpload}
                       className="hidden"
                     />
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => manualPhotoRef.current?.click()}
-                      disabled={isUploading}
+                      disabled={isUploading || isSavingManual}
                       className="gap-2"
                     >
                       <Camera className="w-4 h-4" />
-                      {isUploading ? 'Upload...' : 'Photo'}
+                      {isUploading ? 'Upload...' : '📸 Photo (auto-save)'}
                     </Button>
                     {manualPhotoUrl && (
                       <img src={manualPhotoUrl} alt="Preview" className="h-10 w-10 object-cover rounded border" />
                     )}
                   </div>
 
-                  <Button
-                    onClick={handleAddManualMarker}
-                    disabled={isSavingManual || !manualLat || !manualLng}
-                    className="gap-2 w-full"
-                  >
-                    <Plus className="w-4 h-4" />
-                    {isSavingManual ? 'Ajout...' : 'Ajouter le marqueur'}
-                  </Button>
+                  {manualSaved ? (
+                    <div className="flex items-center justify-center gap-2 py-2 text-green-600">
+                      <Check className="w-5 h-5" />
+                      <span className="text-sm font-medium">Marqueur ajouté !</span>
+                    </div>
+                  ) : (
+                    <Button
+                      onClick={handleAddManualMarker}
+                      disabled={isSavingManual || !manualLat || !manualLng}
+                      className="gap-2 w-full"
+                    >
+                      <Plus className="w-4 h-4" />
+                      {isSavingManual ? 'Ajout...' : 'Ajouter'}
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -1583,6 +1695,112 @@ export function RouteReconStep({ projectId }: RouteReconStepProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Marker Dialog */}
+      <Dialog open={!!editingMarker} onOpenChange={(open) => { if (!open) setEditingMarker(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Modifier le marqueur</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Latitude</Label>
+                <Input
+                  type="number"
+                  step="0.000001"
+                  min={-90}
+                  max={90}
+                  value={editLat}
+                  onChange={(e) => setEditLat(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Longitude</Label>
+                <Input
+                  type="number"
+                  step="0.000001"
+                  min={-180}
+                  max={180}
+                  value={editLng}
+                  onChange={(e) => setEditLng(e.target.value)}
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Note</Label>
+              <Textarea
+                placeholder="Description du point..."
+                value={editNote}
+                onChange={(e) => setEditNote(e.target.value)}
+                className="min-h-[60px] text-sm"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="file"
+                accept="image/*"
+                ref={editPhotoRef}
+                onChange={(e) => handlePhotoUpload(e, setEditPhotoUrl)}
+                className="hidden"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => editPhotoRef.current?.click()}
+                disabled={isUploading}
+                className="gap-2"
+              >
+                <Camera className="w-4 h-4" />
+                {isUploading ? 'Upload...' : editPhotoUrl ? 'Changer photo' : 'Ajouter photo'}
+              </Button>
+              {editPhotoUrl && (
+                <div className="relative">
+                  <img src={editPhotoUrl} alt="Preview" className="h-12 w-12 object-cover rounded border" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground"
+                    onClick={() => setEditPhotoUrl('')}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            {editAudioUrl && (
+              <div className="space-y-1">
+                <Label className="text-xs">Note vocale</Label>
+                <audio controls className="w-full h-8">
+                  <source src={editAudioUrl} type="audio/webm" />
+                </audio>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                if (editingMarker) {
+                  setMarkerToDelete({ id: editingMarker.id, traceId: editingMarker.trace_id });
+                  setEditingMarker(null);
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4 mr-1" />
+              Supprimer
+            </Button>
+            <div className="flex-1" />
+            <Button variant="outline" onClick={() => setEditingMarker(null)}>
+              Annuler
+            </Button>
+            <Button onClick={handleSaveEditMarker} disabled={isSavingEdit}>
+              {isSavingEdit ? 'Enregistrement...' : 'Enregistrer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
