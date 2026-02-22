@@ -496,20 +496,120 @@ export function generateInteractiveReportHTML(
     .poi-input.gps { width: 105px; background: #f8f9fa; color: #6b7280; font-size: 0.75rem; font-family: 'SF Mono', Monaco, monospace; }
     .poi-select { min-width: 75px; }
     .poi-textarea { min-height: 45px; resize: vertical; font-family: inherit; }
-    .poi-photo-link { 
-      display: inline-flex;
+    .poi-photo-thumb { 
+      width: 48px;
+      height: 48px;
+      object-fit: cover;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      border: 1px solid #e5e7eb;
+    }
+    .poi-photo-thumb:hover { transform: scale(1.1); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+    
+    /* Photo Gallery */
+    .photo-gallery { 
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .photo-gallery-header {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+      color: white;
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .photo-gallery-header h2 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .photo-gallery-body { padding: 20px; }
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+    }
+    .photo-card {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      border: 1px solid #e5e7eb;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .photo-card:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.15); }
+    .photo-card img { width: 100%; height: 100%; object-fit: cover; }
+    .photo-card-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%);
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding: 8px;
+    }
+    .photo-card-gps { font-size: 0.65rem; color: rgba(255,255,255,0.7); font-family: 'SF Mono', Monaco, monospace; }
+    .photo-card-note { font-size: 0.75rem; color: white; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    
+    /* Lightbox */
+    .report-lightbox {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      background: rgba(0,0,0,0.95);
+      flex-direction: column;
       align-items: center;
       justify-content: center;
-      width: 32px;
-      height: 32px;
-      background: #dbeafe;
-      border-radius: 6px;
-      color: #3b82f6;
-      text-decoration: none;
-      font-size: 1rem;
-      transition: background 0.2s;
     }
-    .poi-photo-link:hover { background: #bfdbfe; }
+    .report-lightbox.active { display: flex; }
+    .report-lightbox-close {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      font-size: 1.5rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .report-lightbox-close:hover { background: rgba(255,255,255,0.3); }
+    .report-lightbox-download {
+      position: absolute;
+      top: 16px;
+      right: 68px;
+      background: rgba(255,255,255,0.2);
+      border: none;
+      color: white;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      font-size: 1.2rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+    }
+    .report-lightbox-download:hover { background: rgba(255,255,255,0.3); }
+    .report-lightbox img { max-width: 90vw; max-height: 80vh; object-fit: contain; border-radius: 8px; }
+    .report-lightbox-info { color: white; text-align: center; margin-top: 12px; font-size: 0.85rem; }
+    .report-lightbox-gps { color: rgba(255,255,255,0.6); font-size: 0.75rem; margin-top: 4px; }
     .empty-state { padding: 40px; text-align: center; color: #999; }
     
     /* Meta bar - Redesigned */
@@ -1181,7 +1281,7 @@ export function generateInteractiveReportHTML(
                   <textarea class="poi-textarea" data-poi-id="${escapeHtml(poi.id)}" data-field="hints" rows="2">${escapeHtml(poi.hints)}</textarea>
                 </td>
                 <td>
-                  ${poi.photoUrl ? `<a href="${escapeHtml(poi.photoUrl)}" target="_blank" class="poi-photo-link">📷</a>` : '—'}
+                  ${poi.photoUrl ? `<img src="${escapeHtml(poi.photoUrl)}" alt="Photo POI ${poi.order}" class="poi-photo-thumb" onclick="openReportLightbox('${escapeHtml(poi.photoUrl)}', '${escapeHtml(poi.note || '')}', '${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}')" />` : '—'}
                 </td>
                 <td>
                   <textarea class="poi-textarea" data-poi-id="${escapeHtml(poi.id)}" data-field="notes" rows="2">${escapeHtml(poi.notes)}</textarea>
@@ -1193,8 +1293,62 @@ export function generateInteractiveReportHTML(
       `}
       </div>
     </section>
+
+    <!-- Photo Gallery Section -->
+    ${(() => {
+      const photoPois = payload.pois.filter(p => p.photoUrl);
+      if (photoPois.length === 0) return '';
+      return `
+    <section class="photo-gallery">
+      <div class="photo-gallery-header">
+        <h2>📸 Galerie Photos</h2>
+        <span style="background:rgba(255,255,255,0.2);padding:6px 14px;border-radius:8px;font-weight:700;">${photoPois.length} photo(s)</span>
+      </div>
+      <div class="photo-gallery-body">
+        <div class="photo-grid">
+          ${photoPois.map(poi => `
+            <div class="photo-card" onclick="openReportLightbox('${escapeHtml(poi.photoUrl!)}', '${escapeHtml(poi.note || '')}', '${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}')">
+              <img src="${escapeHtml(poi.photoUrl!)}" alt="Photo POI ${poi.order}" loading="lazy" />
+              <div class="photo-card-overlay">
+                <span class="photo-card-gps">📍 ${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}</span>
+                ${poi.note ? `<span class="photo-card-note">${escapeHtml(poi.note)}</span>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </section>`;
+    })()}
+  </div>
+
+  <!-- Lightbox overlay -->
+  <div class="report-lightbox" id="reportLightbox">
+    <a class="report-lightbox-download" id="lightboxDownload" href="#" download title="Télécharger">⬇</a>
+    <button class="report-lightbox-close" onclick="closeReportLightbox()">✕</button>
+    <img id="lightboxImg" src="" alt="Photo" />
+    <div class="report-lightbox-info" id="lightboxNote"></div>
+    <div class="report-lightbox-gps" id="lightboxGps"></div>
   </div>
   
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    // Lightbox functions
+    function openReportLightbox(url, note, gps) {
+      const lb = document.getElementById('reportLightbox');
+      document.getElementById('lightboxImg').src = url;
+      document.getElementById('lightboxNote').textContent = note || '';
+      document.getElementById('lightboxGps').textContent = gps ? '📍 ' + gps : '';
+      document.getElementById('lightboxDownload').href = url;
+      lb.classList.add('active');
+      document.body.style.overflow = 'hidden';
+      lb.onclick = function(e) { if (e.target === lb) closeReportLightbox(); };
+    }
+    function closeReportLightbox() {
+      document.getElementById('reportLightbox').classList.remove('active');
+      document.body.style.overflow = '';
+    }
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeReportLightbox(); });
+  </script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script>
     // Safely injected data
