@@ -1,27 +1,38 @@
 
 
-## Plan : Corriger le guidage qui ne s'affiche pas en plein ecran
+## Plan : Corriger le declenchement premature de "Parcours termine"
 
-### Probleme identifie
+### Probleme
 
-Le bouton "Lancer le Guidage" fonctionne (les donnees se chargent, la carte s'affiche), mais la vue de guidage ne couvre pas tout l'ecran. Le header et les onglets restent visibles au-dessus de la carte.
-
-**Cause technique** : La vue de guidage (`RouteGuidanceView`) utilise `position: fixed` pour occuper tout l'ecran. Mais elle est rendue a l'interieur d'un `TabsContent` qui a une animation CSS `animate-fade-in`. Cette animation utilise `transform: translateY(...)`, ce qui cree un nouveau contexte de positionnement en CSS. Resultat : le `fixed` ne se positionne plus par rapport a la fenetre, mais par rapport au conteneur anime.
+Le guidage affiche immediatement "Parcours termine" parce que la logique de completion se base uniquement sur le pourcentage de progression le long de la polyline (>= 95%). Quand l'utilisateur est loin du parcours (test depuis un bureau par exemple), sa position GPS est projetee sur le point le plus proche de la polyline, qui peut etre la fin du trace. Resultat : 95%+ de suite, et le message de felicitation apparait.
 
 ### Solution
 
-Utiliser un **React Portal** pour rendre la vue de guidage directement dans `document.body`, en dehors de l'arborescence DOM du composant. Cela permet au `position: fixed` de fonctionner correctement, quelle que soit l'animation du parent.
+Ajouter des conditions supplementaires pour la completion :
+
+1. **L'utilisateur doit etre sur le trace** (pas "hors trace", c'est-a-dire a moins de 30m de la polyline)
+2. **L'utilisateur doit avoir progresse depuis le debut** : suivre une variable `maxProgressReached` qui ne s'incremente que quand l'utilisateur est on-track. Cela empeche un seul point GPS lointain de declencher la completion
+3. **Un delai minimum** de quelques secondes apres l'ouverture du guidage pour eviter les faux positifs au demarrage
 
 ### Fichier a modifier
 
-**`src/components/intake/RouteReconStep.tsx`**
-- Importer `createPortal` depuis `react-dom`
-- Envelopper le bloc `{guidanceTrace && <GuidanceErrorBoundary>...<RouteGuidanceView>...</GuidanceErrorBoundary>}` dans un `createPortal(..., document.body)`
-- Le reste du composant ne change pas
+**`src/components/intake/RouteGuidanceView.tsx`**
+
+Dans le composant `RouteGuidanceView` :
+
+- Ajouter un `useRef` pour tracker le timestamp d'ouverture (`mountTimeRef`)
+- Ajouter un `useState` pour le progres maximal valide (`validMaxProgress`)
+- Modifier le `useEffect` qui met a jour `validMaxProgress` : ne l'incrementer que si l'utilisateur est on-track (distance < 30m)
+- Modifier le calcul de `completionPercent` pour utiliser `validMaxProgress` au lieu du snap brut
+- Modifier la condition de completion (ligne ~362) pour exiger :
+  - `completionPercent >= 95`
+  - `!isOffTrack` (l'utilisateur est bien sur le trace)
+  - Au moins 10 secondes ecoulees depuis l'ouverture
+  - `validMaxProgress > totalDistance * 0.5` (l'utilisateur a parcouru au moins 50% du trace de maniere validee)
 
 ### Impact
 
-- Aucun changement visuel ni fonctionnel (memes boutons, memes donnees)
-- La carte de guidage s'affichera correctement en plein ecran
-- Le bouton X pour fermer continuera de fonctionner normalement
+- Le "Parcours termine" ne s'affichera que si l'utilisateur a reellement parcouru le trace
+- Aucun impact sur l'affichage de la carte ou les autres fonctionnalites
+- La barre de progression continue de fonctionner normalement
 
