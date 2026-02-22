@@ -855,22 +855,81 @@ ${project.theme ? `| 🎭 Thème | ${project.theme} |` : ''}
   const failPenalty = scoring.fail_penalty || 5;
   const maxHints = hintRules.maxHints || 3;
   const timeLimit = scoring.time_limit_sec ? `${scoring.time_limit_sec} secondes par étape` : 'Aucune';
+  const branchingPresets = questConfig.branchingPresets || {};
 
   md += `## 📋 Règles du jeu
 
+### Objectif
+Résolvez toutes les étapes du parcours pour accumuler un maximum de points. Le parcours se compose de ${pois.length} étapes avec différents types de défis.
+
+### Scoring
 - Chaque étape réussie rapporte **${pointsPerStep} points**
 - Utiliser un indice coûte **-${hintPenalty} points**
 - Échec d'une étape : **-${failPenalty} points**
-- Indices disponibles par étape : **${maxHints}**
-- Limite de temps : **${timeLimit}**
+${scoring.time_bonus ? `- Bonus de rapidité : **+${scoring.time_bonus} points**` : ''}
+
+### Indices
+- Vous disposez de **${maxHints} indices maximum** par étape
+- Les indices sont dévoilés progressivement (du plus vague au plus précis)
+${hintRules.autoRevealAfterSec ? `- Un indice se dévoile automatiquement après **${hintRules.autoRevealAfterSec} secondes** d'inactivité` : ''}
+
+### Temps
+- Limite de temps par étape : **${timeLimit}**
+${teamConfig.enabled && teamConfig.timeLimitMinutes ? `- Temps limite total pour la quête : **${teamConfig.timeLimitMinutes} minutes**` : ''}
+
+### En cas d'échec
+- ${branchingPresets.onFailure === 'skip' ? 'L\'étape est ignorée et vous passez à la suivante' : branchingPresets.onFailure === 'game_over' ? 'La partie est terminée' : 'Vous pouvez réessayer l\'étape'}
 `;
 
   if (teamConfig.enabled) {
-    md += `- Nombre max d'équipes : **${teamConfig.maxTeams || '-'}**\n`;
-    md += `- Joueurs par équipe : **${teamConfig.maxPlayersPerTeam || '-'}**\n`;
-    if (teamConfig.timeLimitMinutes) {
-      md += `- Temps limite total : **${teamConfig.timeLimitMinutes} min**\n`;
+    md += `
+### Mode équipe
+- Nombre max d'équipes : **${teamConfig.maxTeams || '-'}**
+- Joueurs par équipe : **${teamConfig.maxPlayersPerTeam || '-'}**
+- Mode : **${teamConfig.competitionMode === 'race' ? 'Course — première équipe à finir gagne' : teamConfig.competitionMode === 'score' ? 'Score — l\'équipe avec le plus de points gagne' : teamConfig.competitionMode === 'timed' ? 'Contre-la-montre — meilleur temps gagne' : 'Compétition'}**
+`;
+  }
+
+  md += `\n---\n\n`;
+
+  // Safety section (always present)
+  md += `## 🦺 Consignes de sécurité
+
+- Restez attentifs à votre environnement en permanence
+- Ne courez pas dans les escaliers et les couloirs
+- Respectez les autres clients / visiteurs / passants
+- Ne touchez pas aux équipements qui ne font pas partie du jeu
+- En cas de problème, contactez immédiatement un membre du staff
+`;
+
+  if (forbiddenZones.length > 0) {
+    md += `\n**⛔ Zones interdites — Ne pas y accéder :**\n`;
+    forbiddenZones.forEach(fz => {
+      md += `- **${fz.zone}**${fz.reason ? ` — ${fz.reason}` : ''}\n`;
+    });
+  }
+
+  // Route recon specific safety
+  if (projectType === 'route_recon') {
+    md += `\n**🚶 Sécurité en extérieur :**\n`;
+    md += `- Restez sur les trottoirs et passages piétons\n`;
+    md += `- Faites attention à la circulation\n`;
+    md += `- Hydratez-vous régulièrement\n`;
+    md += `- En cas de forte chaleur, restez à l'ombre quand possible\n`;
+    if (questConfig.route_recon_details?.safety_brief) {
+      const safety = questConfig.route_recon_details.safety_brief;
+      if (safety.length > 0) {
+        md += `\n**Consignes spécifiques :**\n`;
+        safety.forEach((s: string) => { md += `- ${s}\n`; });
+      }
     }
+  }
+
+  if (projectType === 'establishment') {
+    md += `\n**🏨 Règles de l'établissement :**\n`;
+    md += `- Respectez le calme dans les zones communes\n`;
+    md += `- N'entrez pas dans les chambres ou espaces privés\n`;
+    md += `- Signalez tout dommage accidentel au personnel\n`;
   }
 
   md += `\n---\n\n`;
@@ -915,25 +974,6 @@ ${project.theme ? `| 🎭 Thème | ${project.theme} |` : ''}
   const langs = (core.languages || questConfig.languages || ['fr']);
   if (langs.length > 1) {
     md += `**Langues disponibles :** ${langs.map(l => LANGUAGE_LABELS[l] || l).join(', ')}\n\n`;
-  }
-
-  // Forbidden zones
-  if (forbiddenZones.length > 0) {
-    md += `**⚠️ Zones interdites :**\n`;
-    forbiddenZones.forEach(fz => {
-      md += `- ${fz.zone}${fz.reason ? ` — ${fz.reason}` : ''}\n`;
-    });
-    md += `\n`;
-  }
-
-  // Route recon safety
-  if (projectType === 'route_recon' && questConfig.route_recon_details?.safety_brief) {
-    const safety = questConfig.route_recon_details.safety_brief;
-    if (safety.length > 0) {
-      md += `**🦺 Consignes de sécurité :**\n`;
-      safety.forEach((s: string) => { md += `- ${s}\n`; });
-      md += `\n`;
-    }
   }
 
   md += `---\n\n`;
