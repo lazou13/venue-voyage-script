@@ -23,7 +23,7 @@ export interface ReportPOI {
   // Phase 2 fields
   name: string;
   functionType: 'passage' | 'pause_the' | 'briefing' | 'repas' | 'visite' | 'arret';
-  action: '' | 'enigme' | 'qr_code' | 'photo_requise' | 'defi';
+  action: '' | 'enigme' | 'qr_code' | 'photo_requise' | 'defi' | 'objet_trouve' | 'final';
   validationType: '' | 'qr_code' | 'photo' | 'code' | 'manuel' | 'libre';
   risk: 'low' | 'medium' | 'high';
   wifi: 'good' | 'weak' | 'none';
@@ -936,7 +936,9 @@ export function generateInteractiveReportHTML(
         <h2>📋 Fiche Projet</h2>
         <div class="project-sheet-total">
           <span>TEMPS TOTAL</span>
-          <span id="sheet-total-time">${Math.round(payload.computed.totalMinutes)} min</span>
+          <input type="number" id="sheet-total-time-input" value="${Math.round(payload.computed.totalMinutes)}" min="0" max="9999" style="width:60px;text-align:center;background:rgba(255,255,255,0.2);border:1px solid rgba(255,255,255,0.4);border-radius:6px;color:white;font-size:1.1rem;font-weight:700;padding:4px 6px;" oninput="onTotalTimeOverride(this.value)">
+          <span style="font-size:0.9rem;">min</span>
+          <button id="sheet-total-time-reset" title="Recalculer automatiquement" onclick="resetTotalTimeOverride()" style="display:none;background:rgba(255,255,255,0.25);border:none;border-radius:50%;width:24px;height:24px;color:white;cursor:pointer;font-size:0.75rem;line-height:1;">↻</button>
         </div>
       </div>
       <div class="project-sheet-body">
@@ -1248,6 +1250,8 @@ export function generateInteractiveReportHTML(
                     <option value="qr_code" ${poi.action === 'qr_code' ? 'selected' : ''}>QR Code</option>
                     <option value="photo_requise" ${poi.action === 'photo_requise' ? 'selected' : ''}>Photo</option>
                     <option value="defi" ${poi.action === 'defi' ? 'selected' : ''}>Défi</option>
+                    <option value="objet_trouve" ${poi.action === 'objet_trouve' ? 'selected' : ''}>Objet trouvé</option>
+                    <option value="final" ${poi.action === 'final' ? 'selected' : ''}>Final</option>
                   </select>
                 </td>
                 <td>
@@ -1468,6 +1472,14 @@ export function generateInteractiveReportHTML(
       document.getElementById('speed').value = STATE.config.speedKmh;
       document.getElementById('players').value = STATE.config.playersCount;
       
+      // Restore total time override
+      if (STATE._totalTimeOverride !== undefined && STATE._totalTimeOverride !== null) {
+        const sheetInput = document.getElementById('sheet-total-time-input');
+        if (sheetInput) sheetInput.value = STATE._totalTimeOverride;
+        const resetBtn = document.getElementById('sheet-total-time-reset');
+        if (resetBtn) resetBtn.style.display = 'inline-flex';
+      }
+      
       // POIs
       STATE.pois.forEach(poi => {
         const row = document.querySelector('tr[data-poi-id="' + poi.id + '"]');
@@ -1577,6 +1589,21 @@ export function generateInteractiveReportHTML(
       recalculate();
     }
     
+    // Total time override management
+    function onTotalTimeOverride(val) {
+      const v = parseInt(val);
+      if (!isNaN(v) && v >= 0) {
+        STATE._totalTimeOverride = v;
+        document.getElementById('sheet-total-time-reset').style.display = 'inline-flex';
+        saveState();
+      }
+    }
+    function resetTotalTimeOverride() {
+      delete STATE._totalTimeOverride;
+      document.getElementById('sheet-total-time-reset').style.display = 'none';
+      recalculate();
+    }
+
     // Recalculate times based on current config
     function recalculate() {
       const speed = parseFloat(document.getElementById('speed').value) || 5;
@@ -1589,13 +1616,18 @@ export function generateInteractiveReportHTML(
         stopMin += parseInt(poi.stopMinutes) || 0;
       });
       
-      const totalMin = travelMin + stopMin;
+      const autoTotal = travelMin + stopMin;
+      const hasOverride = STATE._totalTimeOverride !== undefined && STATE._totalTimeOverride !== null;
+      const totalMin = hasOverride ? STATE._totalTimeOverride : autoTotal;
       
-      // Update project sheet total time
-      const sheetTotal = document.getElementById('sheet-total-time');
-      if (sheetTotal) {
-        sheetTotal.textContent = Math.round(totalMin) + ' min';
+      // Update project sheet total time input
+      const sheetInput = document.getElementById('sheet-total-time-input');
+      if (sheetInput && !hasOverride) {
+        sheetInput.value = Math.round(autoTotal);
       }
+      // Show/hide reset button
+      const resetBtn = document.getElementById('sheet-total-time-reset');
+      if (resetBtn) resetBtn.style.display = hasOverride ? 'inline-flex' : 'none';
       
       // Update meta bar timing
       const metaTravel = document.getElementById('meta-travel');
