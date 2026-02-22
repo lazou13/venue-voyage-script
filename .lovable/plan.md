@@ -1,54 +1,56 @@
 
 
-## Plan : Documentation en 2 volets
+## Plan : Traduction automatique par IA au clic sur un onglet langue
 
-### Volet 1 : Mode d'emploi dans l'admin (`/admin/docs`)
+### Objectif
+Quand l'utilisateur clique sur un onglet de langue (autre que le francais), si le champ est vide et que le texte francais existe, une traduction automatique est lancee via Lovable AI. Le resultat apparait directement dans le champ de la langue selectionnee.
 
-Page accessible depuis le panneau admin avec un onglet "Documentation" dans la sidebar. Contenu **fonctionnel uniquement** (pas de code source) :
+### Comment ca marche
 
-- Guide utilisateur : Dashboard, Intake (6 onglets), modes de jeu, GPS
-- Guide admin : Enums, Prereglages, Champs, Regles, Labels, workflow brouillon/publier
-- FAQ et astuces
+1. L'utilisateur remplit le texte en francais
+2. Il clique sur l'onglet "English" (ou autre langue)
+3. Si le champ est vide et que le francais est rempli :
+   - Un indicateur de chargement s'affiche ("Traduction en cours...")
+   - La traduction est generee automatiquement par l'IA
+   - Le texte traduit apparait dans le champ
+4. L'utilisateur peut modifier la traduction si necessaire
 
-**Fichiers :**
-- Creer `src/pages/admin/AdminDocs.tsx`
-- Modifier `src/components/admin/AdminSidebar.tsx` (ajouter lien Documentation)
-- Modifier `src/App.tsx` (ajouter route `/admin/docs`)
+### Fichiers a creer
 
----
+**1. `supabase/functions/translate/index.ts`**
+- Edge function qui appelle Lovable AI (Gemini Flash) pour traduire un texte
+- Parametres : `text` (texte source), `from` (langue source), `to` (langue cible)
+- Retourne le texte traduit, sans streaming (appel simple)
+- Gestion des erreurs 429/402
 
-### Volet 2 : Dossier technique escrow (fichier telechargeable)
+**2. Aucun autre nouveau fichier**
 
-Un bouton dans la page Documentation permet de **telecharger un fichier ZIP** contenant la documentation technique complete, sans le code source lui-meme. Le ZIP contiendra :
+### Fichiers a modifier
 
-- `ARCHITECTURE.md` : stack technique, structure des dossiers, schemas de la base de donnees, diagrammes de flux
-- `HOOKS_AND_CONTEXT.md` : documentation de chaque hook (`useProject`, `usePOIs`, `useCapabilities`, `useAppConfig`, `useRouteRecorder`), leurs signatures, ce qu'ils font
-- `TYPES_REFERENCE.md` : tous les types TypeScript documentes (QuestConfig, StepConfig, POI, BranchingLogic, etc.)
-- `DATABASE_SCHEMA.md` : tables, colonnes, relations, politiques RLS
-- `API_AND_EDGE_FUNCTIONS.md` : endpoints, secrets, flux d'authentification
-- `DEPLOYMENT.md` : configuration, variables d'environnement, workflow de deploiement
+**1. `src/components/intake/shared/I18nInput.tsx`**
+- Ajouter un state `isTranslating` (boolean)
+- Modifier le `setActiveTab` : quand on clique sur une langue non-francaise, si le champ est vide et le francais est rempli, appeler la fonction `translate` via `supabase.functions.invoke`
+- Afficher un spinner/texte "Traduction en cours..." pendant le chargement
+- Remplir automatiquement le champ avec le resultat
+- Ajouter un petit badge ou indicateur visuel pour montrer que c'est une traduction auto (modifiable)
 
-Le fichier est genere cote client avec la librairie `jszip` (deja installee) et telecharge en `.zip`. Le contenu est ecrit en Markdown statique dans un fichier dedie.
+### Details techniques
 
-**Fichiers :**
-- Creer `src/lib/escrowDocGenerator.ts` : contient tout le contenu Markdown et la fonction `generateEscrowZip()` qui produit un Blob ZIP
-- Modifier `src/pages/admin/AdminDocs.tsx` : ajouter un bouton "Telecharger le dossier technique (escrow)" qui appelle cette fonction
+- Modele IA : `google/gemini-3-flash-preview` (rapide et economique pour la traduction)
+- La traduction n'est declenchee que si :
+  - La langue cible est differente du francais
+  - Le champ cible est vide
+  - Le texte francais n'est pas vide
+- Si la traduction echoue, le champ reste vide avec un toast d'erreur
+- L'utilisateur peut toujours modifier manuellement apres traduction
 
----
+### Mapping des langues pour le prompt
 
-### Principe de securite escrow
-
-- Le ZIP contient une **documentation descriptive** de l'architecture, des types et du fonctionnement
-- Il ne contient **aucun fichier source** (pas de .tsx, .ts, .css)
-- L'acheteur comprend comment l'application fonctionne et peut verifier sa valeur, mais ne peut pas la reproduire sans le code
-- Le code source reel ne sera transmis qu'a la finalisation de la vente
-
-### Resume des fichiers
-
-| Fichier | Action |
-|---|---|
-| `src/pages/admin/AdminDocs.tsx` | Creer - page doc + bouton telechargement |
-| `src/lib/escrowDocGenerator.ts` | Creer - generation du ZIP escrow |
-| `src/components/admin/AdminSidebar.tsx` | Modifier - ajouter lien Documentation |
-| `src/App.tsx` | Modifier - ajouter route `/admin/docs` |
+| Code | Langue pour le prompt |
+|------|----------------------|
+| `fr` | Francais |
+| `en` | English |
+| `ar` | Arabic (Modern Standard) |
+| `es` | Spanish |
+| `ary` | Moroccan Darija (Arabic dialect) |
 
