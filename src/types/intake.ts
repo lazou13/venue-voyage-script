@@ -7,14 +7,16 @@ export type DifficultyLevel = 'easy' | 'medium' | 'hard';
 // ============= New Quest Config enums =============
 export type QuestType = 'exploration' | 'sequential' | 'timed_race' | 'collaborative' | 'team_competition';
 // GPS removed from StepType - use terrain for outdoor activities
-export type StepType = 'story' | 'information' | 'mcq' | 'enigme' | 'code' | 'hangman' | 'memory' | 'photo' | 'terrain' | 'defi';
+export type StepType = 'story' | 'information' | 'mcq' | 'enigme' | 'code' | 'hangman' | 'memory' | 'photo' | 'terrain' | 'defi' | 'transition' | 'qr_code' | 'info_qr' | 'countdown';
 // GPS removed from ValidationMode - use manual for GPS-like validation
-export type ValidationMode = 'qr_code' | 'photo' | 'code' | 'manual' | 'free';
+export type ValidationMode = 'qr_code' | 'photo' | 'code' | 'manual' | 'free' | 'validation_chain';
 export type PhotoValidationType = 'free' | 'reference' | 'qr_code';
 export type CompetitionMode = 'race' | 'score' | 'timed';
 // Extended target audiences
 export type TargetAudience = 'family' | 'couples' | 'corporate' | 'teens' | 'seniors' | 'kids' | 'friends';
 export type SupportedLanguage = 'fr' | 'en' | 'ar' | 'es' | 'ary';
+// Transport mode
+export type TransportMode = 'walking' | 'cycling' | 'bus' | 'car' | 'boat' | 'mixed';
 // New play mode enum
 export type PlayMode = 'solo' | 'team' | 'one_vs_one' | 'multi_solo';
 
@@ -167,6 +169,8 @@ export interface QuestConfig {
   // Client decisions checklist
   decisions_validated?: DecisionsValidated;
   decisions_notes?: string;
+  // Transport mode
+  transport_mode?: TransportMode;
 }
 
 // ============= Step Config (stored in pois.step_config) =============
@@ -305,6 +309,10 @@ export const STEP_TYPE_LABELS: Record<StepType, string> = {
   photo: 'Photo',
   terrain: 'Terrain',
   defi: 'Défi',
+  transition: 'Transition',
+  qr_code: 'QR Code',
+  info_qr: 'Info QR',
+  countdown: 'Compte à rebours',
 };
 
 export const VALIDATION_MODE_LABELS: Record<ValidationMode, string> = {
@@ -313,6 +321,7 @@ export const VALIDATION_MODE_LABELS: Record<ValidationMode, string> = {
   code: 'Code',
   manual: 'Manuel',
   free: 'Libre',
+  validation_chain: 'Chaîne de validation',
 };
 
 export const PHOTO_VALIDATION_LABELS: Record<PhotoValidationType, string> = {
@@ -356,6 +365,15 @@ export const PLAY_MODE_LABELS: Record<PlayMode, string> = {
   team: 'Équipes',
   one_vs_one: '1 vs 1',
   multi_solo: 'Multi-joueurs (classement)',
+};
+
+export const TRANSPORT_MODE_LABELS: Record<TransportMode, string> = {
+  walking: 'À pied',
+  cycling: 'Vélo',
+  bus: 'Bus',
+  car: 'Voiture',
+  boat: 'Bateau',
+  mixed: 'Mixte',
 };
 
 // ============= Avatar types =============
