@@ -34,6 +34,7 @@ export interface RouteMarker {
   photo_url: string | null;
   audio_url: string | null;
   created_at: string;
+  promoted: boolean;
 }
 
 export interface RouteTrace {
