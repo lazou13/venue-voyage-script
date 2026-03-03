@@ -16,7 +16,7 @@ function formatTime(seconds: number): string {
 export default function QuestPlay() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
-  const { loading, error, data, start, isStarted, isExpired, remainingSeconds } = usePlayInstance(token);
+  const { loading, error, data, start, isStarted, isExpired, remainingSeconds, getMediaUrls } = usePlayInstance(token);
   const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
 
   // Auto-call start on mount if we have a token (idempotent)
@@ -157,7 +157,7 @@ export default function QuestPlay() {
         {/* Main content */}
         <main className="flex-1 overflow-y-auto p-4">
           {selectedPoi ? (
-            <POIDetail poi={selectedPoi} />
+            <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} />
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
               <MapPin className="w-10 h-10" />
@@ -171,12 +171,53 @@ export default function QuestPlay() {
 }
 
 /* ─── POI Detail ─── */
-function POIDetail({ poi }: { poi: NonNullable<PlayData['pois'][number]> }) {
+function POIDetail({
+  poi,
+  getMediaUrls,
+}: {
+  poi: NonNullable<PlayData['pois'][number]>;
+  getMediaUrls: (ids: string[]) => Promise<Record<string, string>>;
+}) {
   const config = poi.step_config || {};
   const geo = config.geo as Record<string, unknown> | undefined;
-  const media = config.media as Record<string, string[]> | undefined;
+  const media = config.media as Record<string, unknown> | undefined;
   const contentI18n = config.contentI18n as Record<string, string> | undefined;
   const hints = config.hints as string[] | undefined;
+
+  const [urls, setUrls] = useState<Record<string, string>>({});
+  const [mediaLoading, setMediaLoading] = useState(false);
+
+  // Collect all media IDs for this POI
+  const allMediaIds = (() => {
+    if (!media) return [];
+    const ids: string[] = [];
+    if (typeof media.coverPhotoId === 'string') ids.push(media.coverPhotoId);
+    for (const key of ['photoIds', 'audioIds', 'videoIds']) {
+      const arr = media[key];
+      if (Array.isArray(arr)) ids.push(...arr.filter((id): id is string => typeof id === 'string'));
+    }
+    return [...new Set(ids)];
+  })();
+
+  // Fetch signed URLs when POI changes and has media
+  useEffect(() => {
+    if (allMediaIds.length === 0) return;
+    let cancelled = false;
+    setMediaLoading(true);
+    getMediaUrls(allMediaIds).then((result) => {
+      if (!cancelled) {
+        setUrls(result);
+        setMediaLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [poi.id]);
+
+  const photoIds = (media?.photoIds as string[] | undefined) || [];
+  const audioIds = (media?.audioIds as string[] | undefined) || [];
+  const videoIds = (media?.videoIds as string[] | undefined) || [];
+  const coverPhotoId = media?.coverPhotoId as string | undefined;
 
   return (
     <div className="max-w-2xl space-y-4">
@@ -187,6 +228,15 @@ function POIDetail({ poi }: { poi: NonNullable<PlayData['pois'][number]> }) {
           <Badge variant="outline">{poi.zone}</Badge>
         </div>
       </div>
+
+      {/* Cover photo */}
+      {coverPhotoId && urls[coverPhotoId] && (
+        <img
+          src={urls[coverPhotoId]}
+          alt={`Cover ${poi.name}`}
+          className="w-full rounded-lg max-h-64 object-cover"
+        />
+      )}
 
       {/* Content / story */}
       {contentI18n && Object.keys(contentI18n).length > 0 && (
@@ -214,30 +264,64 @@ function POIDetail({ poi }: { poi: NonNullable<PlayData['pois'][number]> }) {
         </Card>
       )}
 
-      {/* Media references (IDs only for V1) */}
-      {media && (
+      {/* Media */}
+      {media && allMediaIds.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-1">
-              <Eye className="w-4 h-4" /> Médias liés
+              <Eye className="w-4 h-4" /> Médias
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 text-xs">
-            {media.coverPhotoId && (
-              <p>📷 Cover: <code className="bg-muted px-1 rounded">{media.coverPhotoId}</code></p>
+          <CardContent className="space-y-3">
+            {mediaLoading && <p className="text-xs text-muted-foreground animate-pulse">Chargement médias…</p>}
+
+            {/* Photos */}
+            {photoIds.length > 0 && (
+              <div>
+                <p className="text-xs font-medium mb-1">📷 Photos ({photoIds.length})</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {photoIds.map((id) =>
+                    urls[id] ? (
+                      <img key={id} src={urls[id]} alt="Photo" className="rounded w-full h-24 object-cover" />
+                    ) : (
+                      <div key={id} className="rounded bg-muted h-24 flex items-center justify-center text-xs text-muted-foreground">…</div>
+                    )
+                  )}
+                </div>
+              </div>
             )}
-            {(media.photoIds as string[])?.length > 0 && (
-              <p>📷 Photos: {(media.photoIds as string[]).length} fichier(s)</p>
+
+            {/* Audio */}
+            {audioIds.length > 0 && (
+              <div>
+                <p className="text-xs font-medium mb-1">🔊 Audio ({audioIds.length})</p>
+                <div className="space-y-1">
+                  {audioIds.map((id) =>
+                    urls[id] ? (
+                      <audio key={id} controls src={urls[id]} className="w-full h-8" />
+                    ) : (
+                      <p key={id} className="text-xs text-muted-foreground">Chargement…</p>
+                    )
+                  )}
+                </div>
+              </div>
             )}
-            {(media.audioIds as string[])?.length > 0 && (
-              <p>🔊 Audio: {(media.audioIds as string[]).length} fichier(s)</p>
+
+            {/* Video */}
+            {videoIds.length > 0 && (
+              <div>
+                <p className="text-xs font-medium mb-1">🎬 Vidéo ({videoIds.length})</p>
+                <div className="space-y-2">
+                  {videoIds.map((id) =>
+                    urls[id] ? (
+                      <video key={id} controls src={urls[id]} className="w-full rounded max-h-48" />
+                    ) : (
+                      <p key={id} className="text-xs text-muted-foreground">Chargement…</p>
+                    )
+                  )}
+                </div>
+              </div>
             )}
-            {(media.videoIds as string[])?.length > 0 && (
-              <p>🎬 Vidéo: {(media.videoIds as string[]).length} fichier(s)</p>
-            )}
-            <p className="text-muted-foreground italic">
-              Les assets seront disponibles via endpoint sécurisé (prochain patch).
-            </p>
           </CardContent>
         </Card>
       )}
