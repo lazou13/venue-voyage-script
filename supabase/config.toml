@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.public-zones]
 verify_jwt = false
+
+[functions.public-buy-catalog]
+verify_jwt = false
