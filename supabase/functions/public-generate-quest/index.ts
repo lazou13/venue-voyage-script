@@ -43,32 +43,40 @@ async function generateQuestNarrative(
   if (!apiKey) { console.error("LOVABLE_API_KEY not set"); return null; }
 
   const poiList = pois.map((p, i) => `${i + 1}. poi_id="${p.id}", name="${p.name}" (${p.category})`).join("\n");
-  const prompt = `Tu es un guide touristique expert de la médina de Marrakech.
-Génère un narratif immersif en JSON pour un parcours thème="${theme}", audience="${audience}", difficulté=${difficulty}.
+
+  const systemPrompt = `Tu es un guide touristique expert de la médina de Marrakech.
+Tu réponds UNIQUEMENT en JSON valide. Aucune explication, aucun texte, aucun markdown en dehors du JSON.
+Respecte EXACTEMENT la structure demandée sans ajouter ni omettre de champ.`;
+
+  const userPrompt = `Génère un narratif immersif pour un parcours thème="${theme}", audience="${audience}", difficulté=${difficulty}.
 POIs dans l'ordre :
 ${poiList}
 
-Retourne UNIQUEMENT un JSON valide (sans markdown) avec cette structure exacte :
+Retourne UNIQUEMENT ce JSON :
 {
   "title": "string",
   "intro": "string (2-3 phrases)",
   "steps": [
-    { "poi_id": "uuid du POI", "transition": "string (phrase de transition)", "challenge": "string (défi/énigme)", "solution_hint": "string (indice)" }
+    { "poi_id": "uuid exact du POI", "transition": "string", "challenge": "string", "solution_hint": "string" }
   ],
   "outro": "string (1-2 phrases)"
 }
-Chaque step doit utiliser le poi_id exact fourni ci-dessus.`;
+Chaque step doit utiliser le poi_id exact fourni. Un step par POI.`;
 
   const MAX_ATTEMPTS = 2;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const res = await fetch("https://api.lovable.dev/v1/chat/completions", {
+      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [{ role: "user", content: prompt }],
+          model: "openai/gpt-5-mini",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
           temperature: 0.7,
+          max_tokens: 900,
         }),
       });
 
