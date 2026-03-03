@@ -270,6 +270,102 @@ export function usePOIs(projectId: string | undefined) {
     },
   });
 
+  // ─── Import from Medina library ───────────────────────────
+  const importFromMedina = useMutation({
+    mutationFn: async ({
+      medinaPoiId,
+      attachMedia,
+      selectedMediaIds,
+    }: {
+      medinaPoiId: string;
+      attachMedia: boolean;
+      selectedMediaIds?: string[];
+    }) => {
+      if (!projectId) throw new Error('No project ID');
+
+      // 1. Fetch medina POI
+      const { data: mpoi, error: mErr } = await supabase
+        .from('medina_pois')
+        .select('*')
+        .eq('id', medinaPoiId)
+        .single();
+      if (mErr || !mpoi) throw mErr ?? new Error('POI introuvable');
+
+      // 2. Get current max sort_order
+      const { data: existing } = await supabase
+        .from('pois')
+        .select('sort_order')
+        .eq('project_id', projectId)
+        .order('sort_order', { ascending: false })
+        .limit(1);
+      const nextOrder = (existing?.[0]?.sort_order ?? -1) + 1;
+
+      // 3. Build step_config with geo + optional media refs
+      const baseConfig = (mpoi.step_config ?? {}) as Record<string, unknown>;
+      const stepConfig: Record<string, unknown> = {
+        ...baseConfig,
+        geo: {
+          lat: mpoi.lat,
+          lng: mpoi.lng,
+          radius_m: mpoi.radius_m,
+          zone: mpoi.zone,
+          category: mpoi.category,
+        },
+      };
+
+      // 4. Attach media references if requested
+      if (attachMedia) {
+        let mediaQuery = supabase
+          .from('poi_media')
+          .select('id, media_type, storage_path, is_cover')
+          .eq('medina_poi_id', medinaPoiId);
+
+        if (selectedMediaIds && selectedMediaIds.length > 0) {
+          mediaQuery = mediaQuery.in('id', selectedMediaIds);
+        }
+
+        const { data: mediaRows } = await mediaQuery;
+
+        if (mediaRows && mediaRows.length > 0) {
+          const mediaRef: Record<string, unknown> = {
+            photoIds: [] as string[],
+            audioIds: [] as string[],
+            videoIds: [] as string[],
+          };
+          for (const row of mediaRows) {
+            if (row.media_type === 'photo') (mediaRef.photoIds as string[]).push(row.id);
+            else if (row.media_type === 'audio') (mediaRef.audioIds as string[]).push(row.id);
+            else if (row.media_type === 'video') (mediaRef.videoIds as string[]).push(row.id);
+            if (row.is_cover && row.media_type === 'photo') mediaRef.coverPhotoId = row.id;
+          }
+          stepConfig.media = mediaRef;
+        }
+      }
+
+      // 5. Insert into pois
+      const { data, error } = await supabase
+        .from('pois')
+        .insert({
+          project_id: projectId,
+          name: mpoi.name,
+          zone: mpoi.zone || '',
+          interaction: 'puzzle' as const,
+          risk: 'low' as const,
+          minutes_from_prev: 5,
+          sort_order: nextOrder,
+          step_config: stepConfig as unknown as Json,
+          library_poi_id: medinaPoiId,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pois', projectId] });
+    },
+  });
+
   return {
     addPOI,
     updatePOI,
@@ -278,5 +374,6 @@ export function usePOIs(projectId: string | undefined) {
     duplicatePOI,
     applyDefaultsToAll,
     applySelectiveDefaults,
+    importFromMedina,
   };
 }

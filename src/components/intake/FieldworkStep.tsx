@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, GripVertical, Camera, Wifi, Ban, MapPin, Sparkles } from 'lucide-react';
+import { Plus, Trash2, GripVertical, Camera, Wifi, Ban, MapPin, Sparkles, Library } from 'lucide-react';
 import { useCrossTabStats } from '@/hooks/useCrossTabStats';
 import { CrossTabSummary } from './CrossTabSummary';
 import { useProject } from '@/hooks/useProject';
@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { EnumCheckboxGroup } from './shared/EnumCheckboxGroup';
+import { MedinaPOIImporter } from './MedinaPOIImporter';
 import { cn } from '@/lib/utils';
 import type { POI, InteractionType, RiskLevel, WifiStrength, StepType, ValidationMode } from '@/types/intake';
 import { INTERACTION_LABELS, RISK_LABELS, WIFI_LABELS, STEP_TYPE_LABELS, VALIDATION_MODE_LABELS } from '@/types/intake';
@@ -27,7 +28,7 @@ interface FieldworkStepProps {
 export function FieldworkStep({ projectId, onNavigate }: FieldworkStepProps) {
   const { project, pois, wifiZones, forbiddenZones, traces } = useProject(projectId);
   const stats = useCrossTabStats(project, pois, traces);
-  const { addPOI, updatePOI, deletePOI } = usePOIs(projectId);
+  const { addPOI, updatePOI, deletePOI, importFromMedina } = usePOIs(projectId);
   const {
     addWifiZone,
     updateWifiZone,
@@ -41,6 +42,17 @@ export function FieldworkStep({ projectId, onNavigate }: FieldworkStepProps) {
   const [newWifiZone, setNewWifiZone] = useState('');
   const [newForbiddenZone, setNewForbiddenZone] = useState('');
   const [newForbiddenReason, setNewForbiddenReason] = useState('');
+  const [importerOpen, setImporterOpen] = useState(false);
+
+  const handleImportFromMedina = async (medinaPoiId: string, attachMedia: boolean, selectedMediaIds?: string[]) => {
+    try {
+      const data = await importFromMedina.mutateAsync({ medinaPoiId, attachMedia, selectedMediaIds });
+      setEditingId(data.id);
+      toast({ title: '📦 POI importé depuis la bibliothèque' });
+    } catch (err: any) {
+      toast({ title: 'Erreur import', description: err.message, variant: 'destructive' });
+    }
+  };
 
   const handleAddPOI = () => {
     addPOI.mutate(
@@ -133,15 +145,33 @@ export function FieldworkStep({ projectId, onNavigate }: FieldworkStepProps) {
               </div>
             </div>
           </div>
-          <Button 
-            onClick={handleAddPOI} 
-            disabled={addPOI.isPending}
-            className="rounded-full gap-2 shadow-soft"
-          >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Ajouter</span>
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setImporterOpen(true)}
+              className="rounded-full gap-2 shadow-soft"
+            >
+              <Library className="w-4 h-4" />
+              <span className="hidden sm:inline">Bibliothèque</span>
+            </Button>
+            <Button 
+              onClick={handleAddPOI} 
+              disabled={addPOI.isPending}
+              className="rounded-full gap-2 shadow-soft"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Ajouter</span>
+            </Button>
+          </div>
         </CardHeader>
+
+        {/* Medina POI Importer Dialog */}
+        <MedinaPOIImporter
+          open={importerOpen}
+          onOpenChange={setImporterOpen}
+          onImport={handleImportFromMedina}
+          isImporting={importFromMedina.isPending}
+        />
         <CardContent className="space-y-3 pt-4">
           {pois.length === 0 ? (
             <div className="text-center py-12 animate-fade-in">
