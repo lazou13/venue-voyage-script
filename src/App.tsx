@@ -21,6 +21,7 @@ import AdminMedinaPOIs from "./pages/admin/AdminMedinaPOIs";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminMedinaCustomBuilder from "./pages/admin/AdminMedinaCustomBuilder";
 import QuestPlay from "./pages/QuestPlay";
+import PublicExperienceBuilder from "./pages/PublicExperienceBuilder";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,7 @@ const App = () => (
             <Route path="medina-custom" element={<AdminMedinaCustomBuilder />} />
           </Route>
           
+          <Route path="/experience" element={<PublicExperienceBuilder />} />
           <Route path="/play" element={<QuestPlay />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
