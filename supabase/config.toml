@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.start-instance]
 verify_jwt = false
+
+[functions.get-media-urls]
+verify_jwt = false

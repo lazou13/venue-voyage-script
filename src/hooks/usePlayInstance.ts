@@ -33,6 +33,10 @@ export interface PlayData {
   pois: PlayPOI[];
 }
 
+// In-memory signed URL cache
+const urlCache = new Map<string, { url: string; expiresAt: number }>();
+const CACHE_TTL_MS = 12 * 60 * 1000; // 12 min (URLs expire in 15)
+
 export function usePlayInstance(accessToken: string | null) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,5 +91,47 @@ export function usePlayInstance(accessToken: string | null) {
     }
   }, [accessToken]);
 
-  return { loading, error, data, start, isStarted, isExpired, remainingSeconds };
+  /** Fetch signed URLs for a set of media IDs (cached). */
+  const getMediaUrls = useCallback(
+    async (mediaIds: string[]): Promise<Record<string, string>> => {
+      if (!accessToken || mediaIds.length === 0) return {};
+
+      const now = Date.now();
+      const result: Record<string, string> = {};
+      const needed: string[] = [];
+
+      for (const id of mediaIds) {
+        const cached = urlCache.get(id);
+        if (cached && cached.expiresAt > now) {
+          result[id] = cached.url;
+        } else {
+          needed.push(id);
+        }
+      }
+
+      if (needed.length === 0) return result;
+
+      try {
+        const { data: resp, error: fnErr } = await supabase.functions.invoke('get-media-urls', {
+          body: { access_token: accessToken, media_ids: needed },
+        });
+        if (fnErr) throw fnErr;
+        if (resp?.error) throw new Error(resp.error);
+
+        const urls = (resp?.urls || {}) as Record<string, string>;
+        const expiry = now + CACHE_TTL_MS;
+        for (const [id, url] of Object.entries(urls)) {
+          urlCache.set(id, { url, expiresAt: expiry });
+          result[id] = url;
+        }
+      } catch (e) {
+        console.error('getMediaUrls error:', e);
+      }
+
+      return result;
+    },
+    [accessToken]
+  );
+
+  return { loading, error, data, start, isStarted, isExpired, remainingSeconds, getMediaUrls };
 }
