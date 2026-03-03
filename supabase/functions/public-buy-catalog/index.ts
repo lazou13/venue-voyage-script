@@ -84,7 +84,10 @@ Deno.serve(async (req) => {
     }
 
     const catalog = (project as any).quest_config.catalog;
-    const experience_mode = catalog.mode || "visit";
+    // Source of truth for mode is quest_config.experience_mode
+    const experience_mode = (project as any).quest_config.experience_mode || catalog.mode || "visit";
+    const price = catalog.price ?? 0;
+    const currency = catalog.currency ?? "MAD";
 
     // Create order
     const { data: order, error: oErr } = await sb
@@ -96,6 +99,10 @@ Deno.serve(async (req) => {
         experience_mode,
         party_size,
         locale,
+        status: "pending",
+        payment_status: "stub",
+        amount_total: price,
+        currency,
       })
       .select("id")
       .single();

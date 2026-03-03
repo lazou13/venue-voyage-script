@@ -164,7 +164,9 @@ export type Database = {
       }
       orders: {
         Row: {
+          amount_total: number | null
           created_at: string
+          currency: string
           customer_email: string | null
           customer_name: string
           experience_mode: string
@@ -172,11 +174,15 @@ export type Database = {
           locale: string
           notes: string | null
           party_size: number
+          payment_status: string
           project_id: string
+          status: string
           updated_at: string
         }
         Insert: {
+          amount_total?: number | null
           created_at?: string
+          currency?: string
           customer_email?: string | null
           customer_name?: string
           experience_mode?: string
@@ -184,11 +190,15 @@ export type Database = {
           locale?: string
           notes?: string | null
           party_size?: number
+          payment_status?: string
           project_id: string
+          status?: string
           updated_at?: string
         }
         Update: {
+          amount_total?: number | null
           created_at?: string
+          currency?: string
           customer_email?: string | null
           customer_name?: string
           experience_mode?: string
@@ -196,7 +206,9 @@ export type Database = {
           locale?: string
           notes?: string | null
           party_size?: number
+          payment_status?: string
           project_id?: string
+          status?: string
           updated_at?: string
         }
         Relationships: [
