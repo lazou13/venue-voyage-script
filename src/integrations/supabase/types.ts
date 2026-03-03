@@ -162,6 +162,53 @@ export type Database = {
         }
         Relationships: []
       }
+      orders: {
+        Row: {
+          created_at: string
+          customer_email: string | null
+          customer_name: string
+          experience_mode: string
+          id: string
+          locale: string
+          notes: string | null
+          party_size: number
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string
+          experience_mode?: string
+          id?: string
+          locale?: string
+          notes?: string | null
+          party_size?: number
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string
+          experience_mode?: string
+          id?: string
+          locale?: string
+          notes?: string | null
+          party_size?: number
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       poi_media: {
         Row: {
           caption: string | null
@@ -349,6 +396,63 @@ export type Database = {
           visit_date?: string | null
         }
         Relationships: []
+      }
+      quest_instances: {
+        Row: {
+          access_token: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          order_id: string
+          project_id: string
+          score: Json
+          starts_at: string | null
+          status: string
+          ttl_minutes: number
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          order_id: string
+          project_id: string
+          score?: Json
+          starts_at?: string | null
+          status?: string
+          ttl_minutes?: number
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          order_id?: string
+          project_id?: string
+          score?: Json
+          starts_at?: string | null
+          status?: string
+          ttl_minutes?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quest_instances_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quest_instances_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       route_markers: {
         Row: {
