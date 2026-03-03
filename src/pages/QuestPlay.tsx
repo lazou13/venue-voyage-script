@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { usePlayInstance, type PlayData } from '@/hooks/usePlayInstance';
+import { usePlayInstance, type PlayData, getPriorityMediaIds } from '@/hooks/usePlayInstance';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Play, Clock, MapPin, AlertTriangle, Eye } from 'lucide-react';
+import { Play, Clock, MapPin, AlertTriangle, Eye, ChevronRight, List, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -16,13 +16,27 @@ function formatTime(seconds: number): string {
 export default function QuestPlay() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
-  const { loading, error, data, start, isStarted, isExpired, remainingSeconds, getMediaUrls } = usePlayInstance(token);
+  const { loading, error, data, start, isStarted, isExpired, remainingSeconds, getMediaUrls, coverUrls } = usePlayInstance(token);
   const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
+  const [visitedIds, setVisitedIds] = useState<Set<string>>(new Set());
+  const [mobileShowList, setMobileShowList] = useState(true);
 
   // Auto-call start on mount if we have a token (idempotent)
   useEffect(() => {
     if (token) start();
   }, [token, start]);
+
+  // Mark POI as visited when selected
+  useEffect(() => {
+    if (selectedPoiId) {
+      setVisitedIds((prev) => {
+        if (prev.has(selectedPoiId)) return prev;
+        const next = new Set(prev);
+        next.add(selectedPoiId);
+        return next;
+      });
+    }
+  }, [selectedPoiId]);
 
   if (!token) {
     return (
@@ -65,7 +79,16 @@ export default function QuestPlay() {
   const { instance, project, pois } = data;
   const title = project.title_i18n?.fr || project.title_i18n?.en || project.city || 'Quest';
   const experienceMode = ((instance as unknown) as Record<string, unknown>).experience_mode as string || 'game';
+  const isVisit = experienceMode === 'visit';
   const selectedPoi = pois.find((p) => p.id === selectedPoiId);
+
+  // Next recommended (first unvisited)
+  const nextUnvisited = pois.find((p) => !visitedIds.has(p.id));
+
+  const selectPoi = (id: string) => {
+    setSelectedPoiId(id);
+    setMobileShowList(false);
+  };
 
   // Not started yet → show start screen
   if (!isStarted) {
@@ -78,7 +101,7 @@ export default function QuestPlay() {
           </CardHeader>
           <CardContent className="space-y-4 text-center">
             <div className="flex justify-center gap-2">
-              {experienceMode && <Badge variant="outline">{experienceMode}</Badge>}
+              <Badge variant="outline">{isVisit ? 'Visite guidée' : 'Jeu'}</Badge>
               <Badge variant="outline">{instance.ttl_minutes} min</Badge>
               <Badge variant="outline">{pois.length} étapes</Badge>
             </div>
@@ -95,74 +118,109 @@ export default function QuestPlay() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Expiration banners */}
-      {isExpired && experienceMode === 'game' && (
+      {isExpired && !isVisit && (
         <div className="bg-destructive text-destructive-foreground px-4 py-2 text-center text-sm font-medium">
           ⏱ Expiré — progression verrouillée
         </div>
       )}
-      {isExpired && experienceMode === 'visit' && (
+      {isExpired && isVisit && (
         <div className="bg-accent text-accent-foreground px-4 py-2 text-center text-sm font-medium">
           ⏱ Expiré — lecture disponible
         </div>
       )}
 
+      {/* Game mode banner */}
+      {!isVisit && !isExpired && (
+        <div className="bg-muted px-4 py-1.5 text-center text-xs text-muted-foreground">
+          🎮 Mode jeu — Gameplay non activé (V1)
+        </div>
+      )}
+
       {/* Header */}
       <header className="border-b bg-card px-4 py-3 flex items-center justify-between">
-        <div>
-          <h1 className="font-semibold">{title}</h1>
-          <p className="text-xs text-muted-foreground">{project.city}</p>
-        </div>
-        {remainingSeconds !== null && !isExpired && (
-          <div className="flex items-center gap-2 text-sm font-mono">
-            <Clock className="w-4 h-4" />
-            <span className={remainingSeconds < 300 ? 'text-destructive font-bold' : ''}>{formatTime(remainingSeconds)}</span>
+        <div className="flex items-center gap-3">
+          {/* Mobile back button */}
+          {!mobileShowList && (
+            <button className="md:hidden" onClick={() => { setMobileShowList(true); setSelectedPoiId(null); }}>
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          )}
+          <div>
+            <h1 className="font-semibold">{title}</h1>
+            <p className="text-xs text-muted-foreground">
+              {project.city}
+              {isVisit && ` · ${visitedIds.size}/${pois.length} vus`}
+            </p>
           </div>
-        )}
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Visit: next recommended */}
+          {isVisit && nextUnvisited && !selectedPoi && (
+            <Button size="sm" variant="outline" onClick={() => selectPoi(nextUnvisited.id)} className="hidden md:flex">
+              <ChevronRight className="w-4 h-4 mr-1" /> Suivant
+            </Button>
+          )}
+          {remainingSeconds !== null && !isExpired && (
+            <div className="flex items-center gap-2 text-sm font-mono">
+              <Clock className="w-4 h-4" />
+              <span className={remainingSeconds < 300 ? 'text-destructive font-bold' : ''}>{formatTime(remainingSeconds)}</span>
+            </div>
+          )}
+        </div>
       </header>
 
+      {/* Desktop layout */}
       <div className="flex flex-1 overflow-hidden">
-        {/* POI list */}
+        {/* Desktop sidebar */}
         <aside className="w-64 border-r bg-card overflow-y-auto shrink-0 hidden md:block">
-          <nav className="p-2 space-y-1">
-            {pois.map((poi, i) => (
-              <button
-                key={poi.id}
-                onClick={() => setSelectedPoiId(poi.id)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                  selectedPoiId === poi.id ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
-                }`}
-              >
-                <span className="font-medium">{i + 1}. {poi.name}</span>
-                <span className="block text-xs opacity-70">{poi.zone} · {poi.interaction}</span>
-              </button>
-            ))}
-          </nav>
+          <POIList
+            pois={pois}
+            selectedPoiId={selectedPoiId}
+            visitedIds={visitedIds}
+            coverUrls={coverUrls}
+            isVisit={isVisit}
+            onSelect={selectPoi}
+          />
         </aside>
 
-        {/* Mobile POI list */}
-        <div className="md:hidden border-b bg-card overflow-x-auto flex gap-1 p-2 shrink-0">
-          {pois.map((poi, i) => (
-            <button
-              key={poi.id}
-              onClick={() => setSelectedPoiId(poi.id)}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                selectedPoiId === poi.id ? 'bg-primary text-primary-foreground' : 'bg-muted'
-              }`}
-            >
-              {i + 1}. {poi.name}
-            </button>
-          ))}
+        {/* Mobile: toggle list/detail */}
+        <div className="md:hidden flex-1 flex flex-col overflow-hidden">
+          {mobileShowList ? (
+            <div className="flex-1 overflow-y-auto">
+              {/* Visit: next recommended button */}
+              {isVisit && nextUnvisited && (
+                <div className="p-3 border-b">
+                  <Button size="sm" className="w-full" onClick={() => selectPoi(nextUnvisited.id)}>
+                    <ChevronRight className="w-4 h-4 mr-1" /> Suivant recommandé: {nextUnvisited.name}
+                  </Button>
+                </div>
+              )}
+              <POIList
+                pois={pois}
+                selectedPoiId={selectedPoiId}
+                visitedIds={visitedIds}
+                coverUrls={coverUrls}
+                isVisit={isVisit}
+                onSelect={selectPoi}
+              />
+            </div>
+          ) : (
+            <main className="flex-1 overflow-y-auto p-4">
+              {selectedPoi ? (
+                <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} isVisit={isVisit} />
+              ) : (
+                <EmptyState />
+              )}
+            </main>
+          )}
         </div>
 
-        {/* Main content */}
-        <main className="flex-1 overflow-y-auto p-4">
+        {/* Desktop main */}
+        <main className="flex-1 overflow-y-auto p-4 hidden md:block">
           {selectedPoi ? (
-            <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} />
+            <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} isVisit={isVisit} />
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
-              <MapPin className="w-10 h-10" />
-              <p>Sélectionnez une étape</p>
-            </div>
+            <EmptyState />
           )}
         </main>
       </div>
@@ -170,54 +228,113 @@ export default function QuestPlay() {
   );
 }
 
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-2">
+      <MapPin className="w-10 h-10" />
+      <p>Sélectionnez une étape</p>
+    </div>
+  );
+}
+
+/* ─── POI List ─── */
+function POIList({
+  pois, selectedPoiId, visitedIds, coverUrls, isVisit, onSelect,
+}: {
+  pois: PlayData['pois'];
+  selectedPoiId: string | null;
+  visitedIds: Set<string>;
+  coverUrls: Record<string, string>;
+  isVisit: boolean;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <nav className="p-2 space-y-1">
+      {pois.map((poi, i) => {
+        const media = poi.step_config?.media as Record<string, unknown> | undefined;
+        const coverId = typeof media?.coverPhotoId === 'string' ? media.coverPhotoId : null;
+        const coverUrl = coverId ? coverUrls[coverId] : null;
+        const visited = visitedIds.has(poi.id);
+
+        return (
+          <button
+            key={poi.id}
+            onClick={() => onSelect(poi.id)}
+            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2 ${
+              selectedPoiId === poi.id ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'
+            }`}
+          >
+            {/* Cover thumbnail */}
+            {coverUrl ? (
+              <img src={coverUrl} alt="" className="w-8 h-8 rounded object-cover shrink-0" />
+            ) : (
+              <div className="w-8 h-8 rounded bg-muted shrink-0 flex items-center justify-center text-xs text-muted-foreground">
+                {i + 1}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <span className="font-medium truncate block">{poi.name}</span>
+              <span className="block text-xs opacity-70 truncate">{poi.zone} · {poi.interaction}</span>
+            </div>
+            {isVisit && visited && (
+              <CheckCircle2 className="w-4 h-4 shrink-0 opacity-60" />
+            )}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 /* ─── POI Detail ─── */
 function POIDetail({
   poi,
   getMediaUrls,
+  isVisit,
 }: {
   poi: NonNullable<PlayData['pois'][number]>;
   getMediaUrls: (ids: string[]) => Promise<Record<string, string>>;
+  isVisit: boolean;
 }) {
   const config = poi.step_config || {};
   const geo = config.geo as Record<string, unknown> | undefined;
   const media = config.media as Record<string, unknown> | undefined;
   const contentI18n = config.contentI18n as Record<string, string> | undefined;
+  const storyI18n = config.story_i18n as Record<string, string> | undefined;
+  const metadataNote = (config as Record<string, unknown>).metadata as Record<string, unknown> | undefined;
   const hints = config.hints as string[] | undefined;
 
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [mediaLoading, setMediaLoading] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
-  // Collect all media IDs for this POI
-  const allMediaIds = (() => {
-    if (!media) return [];
-    const ids: string[] = [];
-    if (typeof media.coverPhotoId === 'string') ids.push(media.coverPhotoId);
-    for (const key of ['photoIds', 'audioIds', 'videoIds']) {
-      const arr = media[key];
-      if (Array.isArray(arr)) ids.push(...arr.filter((id): id is string => typeof id === 'string'));
-    }
-    return [...new Set(ids)];
-  })();
+  const { priority, remaining } = useMemo(() => getPriorityMediaIds(poi), [poi]);
+  const idsToLoad = showAll ? [...priority, ...remaining] : priority;
 
-  // Fetch signed URLs when POI changes and has media
+  // Fetch signed URLs (priority first, then all on demand)
   useEffect(() => {
-    if (allMediaIds.length === 0) return;
+    if (idsToLoad.length === 0) return;
     let cancelled = false;
     setMediaLoading(true);
-    getMediaUrls(allMediaIds).then((result) => {
+    getMediaUrls(idsToLoad).then((result) => {
       if (!cancelled) {
-        setUrls(result);
+        setUrls((prev) => ({ ...prev, ...result }));
         setMediaLoading(false);
       }
     });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [poi.id]);
+  }, [poi.id, showAll]);
 
   const photoIds = (media?.photoIds as string[] | undefined) || [];
   const audioIds = (media?.audioIds as string[] | undefined) || [];
   const videoIds = (media?.videoIds as string[] | undefined) || [];
   const coverPhotoId = media?.coverPhotoId as string | undefined;
+
+  // Visit mode: extract best text
+  const visitText = storyI18n?.fr || storyI18n?.en
+    || contentI18n?.fr || contentI18n?.en
+    || (typeof metadataNote?.note === 'string' ? metadataNote.note : null);
 
   return (
     <div className="max-w-2xl space-y-4">
@@ -238,8 +355,26 @@ function POIDetail({
         />
       )}
 
-      {/* Content / story */}
-      {contentI18n && Object.keys(contentI18n).length > 0 && (
+      {/* Visit mode: "À voir ici" */}
+      {isVisit && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">📍 À voir ici</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {visitText ? (
+              <p className="text-sm whitespace-pre-wrap">{visitText}</p>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                Aucun texte, ajoute une note dans la bibliothèque.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Content / story (non-visit or additional) */}
+      {!isVisit && contentI18n && Object.keys(contentI18n).length > 0 && (
         <Card>
           <CardContent className="p-4">
             <p className="text-sm whitespace-pre-wrap">
@@ -265,7 +400,7 @@ function POIDetail({
       )}
 
       {/* Media */}
-      {media && allMediaIds.length > 0 && (
+      {media && (priority.length + remaining.length) > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-1">
@@ -300,7 +435,9 @@ function POIDetail({
                     urls[id] ? (
                       <audio key={id} controls src={urls[id]} className="w-full h-8" />
                     ) : (
-                      <p key={id} className="text-xs text-muted-foreground">Chargement…</p>
+                      <p key={id} className="text-xs text-muted-foreground">
+                        {!showAll && remaining.includes(id) ? '—' : 'Chargement…'}
+                      </p>
                     )
                   )}
                 </div>
@@ -316,11 +453,20 @@ function POIDetail({
                     urls[id] ? (
                       <video key={id} controls src={urls[id]} className="w-full rounded max-h-48" />
                     ) : (
-                      <p key={id} className="text-xs text-muted-foreground">Chargement…</p>
+                      <p key={id} className="text-xs text-muted-foreground">
+                        {!showAll && remaining.includes(id) ? '—' : 'Chargement…'}
+                      </p>
                     )
                   )}
                 </div>
               </div>
+            )}
+
+            {/* Load all button */}
+            {!showAll && remaining.length > 0 && (
+              <Button size="sm" variant="outline" onClick={() => setShowAll(true)}>
+                +{remaining.length} médias restants — Charger tout
+              </Button>
             )}
           </CardContent>
         </Card>
@@ -341,7 +487,7 @@ function POIDetail({
       )}
 
       {/* Raw config fallback */}
-      {!contentI18n && !geo && !media && (
+      {!contentI18n && !storyI18n && !geo && !media && !isVisit && (
         <Card>
           <CardContent className="p-4">
             <pre className="text-xs overflow-auto max-h-40">
