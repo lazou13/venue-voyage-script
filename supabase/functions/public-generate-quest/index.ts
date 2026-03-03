@@ -17,6 +17,28 @@ function getCorsHeaders(req: Request) {
 
 const DURATION_TO_COUNT: Record<number, number> = { 60: 6, 90: 8, 120: 10 };
 
+// ── In-memory pricing cache (5 min TTL) ──
+let cachedPricing: { payload: PricingConfig; fetchedAt: number } | null = null;
+const PRICING_CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function getPricingConfig(db: any): Promise<{ config: PricingConfig; cacheStatus: "HIT" | "MISS" }> {
+  const now = Date.now();
+  if (cachedPricing && now - cachedPricing.fetchedAt < PRICING_CACHE_TTL_MS) {
+    return { config: cachedPricing.payload, cacheStatus: "HIT" };
+  }
+  const { data: row, error } = await db
+    .from("app_configs")
+    .select("payload")
+    .eq("key", "pricing")
+    .eq("status", "published")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !row) throw new Error("Pricing configuration unavailable");
+  cachedPricing = { payload: row.payload as PricingConfig, fetchedAt: now };
+  return { config: cachedPricing.payload, cacheStatus: "MISS" };
+}
+
 // ── Seeded PRNG (mulberry32) ──
 function seededRandom(seed: string): () => number {
   let h = 0;
@@ -80,8 +102,9 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let pricingCacheHeader = "";
   const json = (body: unknown, status = 200) =>
-    new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json", ...(pricingCacheHeader ? { "X-Pricing-Cache": pricingCacheHeader } : {}) } });
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -125,19 +148,17 @@ Deno.serve(async (req) => {
       return json({ error: "Rate limit: max 3 per email per hour" }, 429);
     }
 
-    // ── 4. Fetch pricing config ──
-    const { data: pricingRow, error: prErr } = await db
-      .from("app_configs")
-      .select("payload")
-      .eq("key", "pricing")
-      .eq("status", "published")
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (prErr || !pricingRow) {
+    // ── 4. Fetch pricing config (cached) ──
+    let pricingCacheStatus: "HIT" | "MISS";
+    let pricingConfig: PricingConfig;
+    try {
+      const result = await getPricingConfig(db);
+      pricingConfig = result.config;
+      pricingCacheStatus = result.cacheStatus;
+      pricingCacheHeader = pricingCacheStatus;
+    } catch {
       return json({ error: "Pricing configuration unavailable" }, 500);
     }
-    const pricingConfig = pricingRow.payload as PricingConfig;
 
     // ── 5. Calculate pricing ──
     const pricing = calculatePriceServer(
