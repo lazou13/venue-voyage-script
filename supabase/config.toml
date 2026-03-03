@@ -16,7 +16,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.generate-custom-quest]
-verify_jwt = false
+verify_jwt = true
 
 [functions.public-generate-quest]
 verify_jwt = false

@@ -1,10 +1,19 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+// ── CORS with optional allowlist ──
+function getCorsHeaders(req: Request) {
+  const allowedOrigin = Deno.env.get("PUBLIC_SITE_ORIGIN");
+  const requestOrigin = req.headers.get("Origin") ?? "*";
+  const origin = allowedOrigin
+    ? (requestOrigin === allowedOrigin ? allowedOrigin : allowedOrigin)
+    : "*";
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Vary": "Origin",
+  };
+}
 
 const DURATION_TO_COUNT: Record<number, number> = { 60: 6, 90: 8, 120: 10 };
 
@@ -32,7 +41,7 @@ function shuffle<T>(arr: T[], rng: () => number): T[] {
   return a;
 }
 
-// ── Pricing (same logic as src/lib/calculatePrice.ts) ──
+// ── Pricing ──
 interface PricingConfig {
   currency: string;
   base_prices: Record<string, number>;
@@ -65,6 +74,8 @@ function calculatePriceServer(
 
 // ── Main handler ──
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -85,19 +96,21 @@ Deno.serve(async (req) => {
     }
 
     // ── 2. Validate input ──
-    const customer_email = (body.customer_email ?? "").trim();
+    const customer_email = (body.customer_email ?? "").trim().slice(0, 120);
     if (!customer_email || !customer_email.includes("@")) {
       return json({ error: "customer_email required (valid email)" }, 400);
     }
-    const customer_name = (body.customer_name ?? "").trim() || customer_email.split("@")[0];
+    const customer_name = ((body.customer_name ?? "").trim() || customer_email.split("@")[0]).slice(0, 80);
     const experience_mode = body.experience_mode === "game" ? "game" : "visit";
     const duration_minutes = [60, 90, 120].includes(body.duration_minutes) ? body.duration_minutes : 60;
-    const zone = (body.zone ?? "").trim();
+    const zone = (body.zone ?? "").trim().slice(0, 100);
     if (!zone) return json({ error: "zone required" }, 400);
-    const categories: string[] = Array.isArray(body.categories) ? body.categories : [];
+    const categories: string[] = Array.isArray(body.categories) ? body.categories.slice(0, 10) : [];
+    if (categories.some((c: unknown) => typeof c !== "string")) return json({ error: "categories must be strings" }, 400);
     const pause: boolean = body.pause === true;
-    const add_ons: string[] = Array.isArray(body.add_ons) ? body.add_ons : [];
-    const locale: string = body.locale ?? "fr";
+    const add_ons: string[] = Array.isArray(body.add_ons) ? body.add_ons.slice(0, 10) : [];
+    if (add_ons.some((a: unknown) => typeof a !== "string")) return json({ error: "add_ons must be strings" }, 400);
+    const locale: string = (body.locale ?? "fr").slice(0, 5);
     const party_size: number = Math.max(1, Math.min(20, Number(body.party_size) || 2));
     const seed: string = body.seed ?? customer_email;
 
@@ -108,9 +121,6 @@ Deno.serve(async (req) => {
       .eq("customer_email", customer_email)
       .gte("created_at", new Date(Date.now() - 3600_000).toISOString());
     if (rlErr) throw rlErr;
-    if ((rlCount ?? 0) >= 3) {
-      return json({ error: "Rate limit: max 3 per email per hour" }, 429);
-    }
     if ((rlCount ?? 0) >= 3) {
       return json({ error: "Rate limit: max 3 per email per hour" }, 429);
     }
