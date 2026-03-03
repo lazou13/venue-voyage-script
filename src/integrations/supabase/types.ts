@@ -522,6 +522,7 @@ export type Database = {
           lng: number
           note: string | null
           photo_url: string | null
+          promoted: boolean
           trace_id: string
         }
         Insert: {
@@ -532,6 +533,7 @@ export type Database = {
           lng: number
           note?: string | null
           photo_url?: string | null
+          promoted?: boolean
           trace_id: string
         }
         Update: {
@@ -542,6 +544,7 @@ export type Database = {
           lng?: number
           note?: string | null
           photo_url?: string | null
+          promoted?: boolean
           trace_id?: string
         }
         Relationships: [
