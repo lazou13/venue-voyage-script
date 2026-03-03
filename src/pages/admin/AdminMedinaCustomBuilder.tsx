@@ -7,19 +7,15 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useMedinaPOIs } from '@/hooks/useMedinaPOIs';
-import { useOrders } from '@/hooks/useOrders';
-import { useQuestInstances } from '@/hooks/useQuestInstances';
 import { supabase } from '@/integrations/supabase/client';
 import { generateMedinaItinerary } from '@/lib/generateMedinaItinerary';
 import { toast } from 'sonner';
 import { Copy, Wand2, Loader2, ExternalLink, Check } from 'lucide-react';
-import type { Json } from '@/integrations/supabase/types';
 
 const DURATION_MAP: Record<number, number> = { 60: 6, 90: 8, 120: 10 };
 
 export default function AdminMedinaCustomBuilder() {
   const { pois: medinaPois, isLoading: loadingPois } = useMedinaPOIs();
-  const { createOrder } = useOrders();
 
   // Form state
   const [customerName, setCustomerName] = useState('');
@@ -68,92 +64,22 @@ export default function AdminMedinaCustomBuilder() {
 
     setCreating(true);
     try {
-      // 1. Create project
-      const { data: project, error: projErr } = await supabase
-        .from('projects')
-        .insert({
-          hotel_name: `Sur-mesure ${customerName}`,
-          city: 'Médina',
-          quest_config: { experience_mode: mode, project_type: 'medina_custom' } as unknown as Json,
-          target_duration_mins: duration,
-          title_i18n: { fr: `Parcours sur-mesure — ${customerName}` } as unknown as Json,
-        })
-        .select()
-        .single();
-      if (projErr || !project) throw projErr ?? new Error('Projet non créé');
-
-      // 2. Import POIs sequentially (preserves order via sort_order)
-      for (let i = 0; i < previewIds.length; i++) {
-        const medinaPoiId = previewIds[i];
-        // Fetch medina POI
-        const { data: mpoi } = await supabase.from('medina_pois').select('*').eq('id', medinaPoiId).single();
-        if (!mpoi) continue;
-
-        // Build step_config
-        const baseConfig = (mpoi.step_config ?? {}) as Record<string, unknown>;
-        const stepConfig: Record<string, unknown> = {
-          ...baseConfig,
-          geo: { lat: mpoi.lat, lng: mpoi.lng, radius_m: mpoi.radius_m, zone: mpoi.zone, category: mpoi.category },
-        };
-
-        // Attach media
-        const { data: mediaRows } = await supabase
-          .from('poi_media')
-          .select('id, media_type, is_cover')
-          .eq('medina_poi_id', medinaPoiId);
-        if (mediaRows && mediaRows.length > 0) {
-          const mediaRef: Record<string, unknown> = { photoIds: [] as string[], audioIds: [] as string[], videoIds: [] as string[] };
-          for (const row of mediaRows) {
-            if (row.media_type === 'photo') (mediaRef.photoIds as string[]).push(row.id);
-            else if (row.media_type === 'audio') (mediaRef.audioIds as string[]).push(row.id);
-            else if (row.media_type === 'video') (mediaRef.videoIds as string[]).push(row.id);
-            if (row.is_cover && row.media_type === 'photo') mediaRef.coverPhotoId = row.id;
-          }
-          stepConfig.media = mediaRef;
-        }
-
-        await supabase.from('pois').insert({
-          project_id: project.id,
-          name: mpoi.name,
-          zone: mpoi.zone || '',
-          interaction: 'puzzle' as const,
-          risk: 'low' as const,
-          minutes_from_prev: 5,
-          sort_order: i,
-          step_config: stepConfig as unknown as Json,
-          library_poi_id: medinaPoiId,
-        });
-      }
-
-      // 3. Create order
-      const { data: order, error: ordErr } = await supabase
-        .from('orders')
-        .insert({
-          project_id: project.id,
+      const { data, error } = await supabase.functions.invoke('generate-custom-quest', {
+        body: {
           customer_name: customerName,
-          customer_email: customerEmail || null,
+          customer_email: customerEmail || undefined,
           experience_mode: mode,
-          locale: 'fr',
-          party_size: 2,
-        })
-        .select()
-        .single();
-      if (ordErr || !order) throw ordErr ?? new Error('Commande non créée');
-
-      // 4. Create quest instance
-      const { data: instance, error: instErr } = await supabase
-        .from('quest_instances')
-        .insert({
-          order_id: order.id,
-          project_id: project.id,
+          duration_minutes: duration,
           ttl_minutes: 240,
-        })
-        .select()
-        .single();
-      if (instErr || !instance) throw instErr ?? new Error('Instance non créée');
+          medina_poi_ids: previewIds,
+        },
+      });
 
-      setResult({ token: instance.access_token, projectId: project.id });
-      toast.success('Quête sur-mesure créée !');
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setResult({ token: data.access_token, projectId: data.project_id });
+      toast.success('Quête sur-mesure créée (1 appel) !');
     } catch (err: any) {
       console.error(err);
       toast.error(err.message || 'Erreur lors de la création');
