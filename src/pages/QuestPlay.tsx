@@ -4,7 +4,7 @@ import { usePlayInstance, type PlayData, getPriorityMediaIds } from '@/hooks/use
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Play, Clock, MapPin, AlertTriangle, Eye, ChevronRight, List, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Play, Clock, MapPin, AlertTriangle, Eye, ChevronRight, List, ArrowLeft, CheckCircle2, Smartphone, MessageCircle } from 'lucide-react';
 
 function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -62,11 +62,25 @@ export default function QuestPlay() {
 
   if (error) {
     const isExpiredError = error === 'expired' || error === 'Instance expirée';
+    const isDeviceLocked = error === 'device_locked';
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="max-w-md w-full">
           <CardContent className="p-6 text-center">
-            {isExpiredError ? (
+            {isDeviceLocked ? (
+              <>
+                <Smartphone className="w-12 h-12 text-destructive mx-auto mb-4" />
+                <h1 className="text-xl font-bold mb-2">Appareil non autorisé</h1>
+                <p className="text-muted-foreground mb-4">
+                  Cette expérience est déjà utilisée sur un autre téléphone.
+                </p>
+                <Button variant="outline" size="sm" asChild>
+                  <a href="https://wa.me/212600000000?text=Bonjour%2C%20j%27ai%20un%20probl%C3%A8me%20d%27acc%C3%A8s%20%C3%A0%20mon%20exp%C3%A9rience" target="_blank" rel="noopener noreferrer">
+                    <MessageCircle className="w-4 h-4 mr-2" /> Assistance
+                  </a>
+                </Button>
+              </>
+            ) : isExpiredError ? (
               <>
                 <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h1 className="text-xl font-bold mb-2">Expérience expirée</h1>

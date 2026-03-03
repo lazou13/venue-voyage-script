@@ -84,6 +84,19 @@ export function getPriorityMediaIds(poi: PlayPOI): { priority: string[]; remaini
   return { priority: [...new Set(priority)], remaining: [...new Set(remaining)] };
 }
 
+/** Get or create a stable device ID in localStorage */
+function getOrCreateDeviceId(): string {
+  const KEY = 'qr_device_id';
+  let id = localStorage.getItem(KEY);
+  if (!id) {
+    id = typeof crypto?.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem(KEY, id);
+  }
+  return id;
+}
+
 export function usePlayInstance(accessToken: string | null) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -171,21 +184,24 @@ export function usePlayInstance(accessToken: string | null) {
     setLoading(true);
     setError(null);
     try {
+      const deviceId = getOrCreateDeviceId();
       const { data: result, error: fnErr } = await supabase.functions.invoke('start-instance', {
-        body: { access_token: accessToken },
+        body: { access_token: accessToken, device_id: deviceId },
       });
       if (fnErr) {
-        // Handle 410 Gone (expired instance) specifically (B9 fix)
         const status = (fnErr as any)?.status || (fnErr as any)?.context?.status;
         if (status === 410) {
           setError('expired');
+        } else if (status === 403) {
+          setError('device_locked');
         } else {
           throw fnErr;
         }
       } else if (result?.error) {
-        // Edge function returned an error in the body
         if (result.error === 'Instance expirée') {
           setError('expired');
+        } else if (result.error === 'Nombre maximum d\'appareils atteint') {
+          setError('device_locked');
         } else {
           setError(result.error);
         }
