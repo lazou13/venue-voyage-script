@@ -59,6 +59,7 @@ Deno.serve(async (req) => {
       duration_minutes = 60,
       ttl_minutes = 240,
       medina_poi_ids = [],
+      start_point,
     } = body as {
       customer_name: string;
       customer_email?: string;
@@ -66,6 +67,7 @@ Deno.serve(async (req) => {
       duration_minutes: number;
       ttl_minutes: number;
       medina_poi_ids: string[];
+      start_point?: { name: string; lat: number; lng: number };
     };
 
     if (!customer_name || medina_poi_ids.length === 0) {
@@ -76,12 +78,20 @@ Deno.serve(async (req) => {
     }
 
     // ── 3. Create project ──
+    const questConfig: Record<string, unknown> = {
+      experience_mode,
+      project_type: "medina_custom",
+    };
+    if (start_point) {
+      questConfig.start_point = start_point;
+    }
+
     const { data: project, error: projErr } = await admin
       .from("projects")
       .insert({
         hotel_name: `Sur-mesure ${customer_name}`,
         city: "Médina",
-        quest_config: { experience_mode, project_type: "medina_custom" },
+        quest_config: questConfig,
         target_duration_mins: duration_minutes,
         title_i18n: { fr: `Parcours sur-mesure — ${customer_name}` },
       })

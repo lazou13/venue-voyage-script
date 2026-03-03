@@ -8,9 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { useMedinaPOIs } from '@/hooks/useMedinaPOIs';
 import { supabase } from '@/integrations/supabase/client';
-import { generateMedinaItinerary } from '@/lib/generateMedinaItinerary';
+import { generateMedinaItinerary, type StartHub } from '@/lib/generateMedinaItinerary';
 import { toast } from 'sonner';
-import { Copy, Wand2, Loader2, ExternalLink, Check } from 'lucide-react';
+import { Copy, Wand2, Loader2, ExternalLink, Check, Navigation } from 'lucide-react';
+
+const HUB_THEMES = ['museums', 'architecture', 'artisan', 'family', 'exploration'] as const;
 
 const DURATION_MAP: Record<number, number> = { 60: 6, 90: 8, 120: 10 };
 
@@ -25,7 +27,8 @@ export default function AdminMedinaCustomBuilder() {
   const [zone, setZone] = useState('');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [pause, setPause] = useState(false);
-
+  const [hubTheme, setHubTheme] = useState('');
+  const [startHub, setStartHub] = useState<StartHub | null>(null);
   // Generated state
   const [previewIds, setPreviewIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
@@ -42,14 +45,31 @@ export default function AdminMedinaCustomBuilder() {
 
   const count = DURATION_MAP[duration] ?? 6;
 
-  function handleGenerate() {
+  async function handleGenerate() {
     if (!zone) { toast.error('Sélectionnez une zone'); return; }
+
+    // Lookup hub if theme selected
+    let hub: StartHub | null = null;
+    if (hubTheme) {
+      const found = medinaPois.find(
+        (p) => p.is_start_hub && p.is_active && p.hub_theme === hubTheme && p.lat != null && p.lng != null,
+      );
+      if (!found) {
+        toast.error(`Aucun point de départ configuré pour le thème "${hubTheme}".`);
+        return;
+      }
+      hub = { id: found.id, name: found.name, lat: found.lat!, lng: found.lng! };
+    }
+    setStartHub(hub);
+
     const ids = generateMedinaItinerary(medinaPois, {
       zone,
       categories: selectedCategories,
       pause,
       count,
       seed: customerEmail || String(Date.now()),
+      startLat: hub?.lat,
+      startLng: hub?.lng,
     });
     setPreviewIds(ids);
     setResult(null);
@@ -72,6 +92,8 @@ export default function AdminMedinaCustomBuilder() {
           duration_minutes: duration,
           ttl_minutes: 240,
           medina_poi_ids: previewIds,
+          hub_theme: hubTheme || undefined,
+          start_point: startHub ? { name: startHub.name, lat: startHub.lat, lng: startHub.lng } : undefined,
         },
       });
 
@@ -176,6 +198,19 @@ export default function AdminMedinaCustomBuilder() {
               <Label htmlFor="pause" className="cursor-pointer">Inclure une pause café/resto</Label>
             </div>
 
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1"><Navigation className="w-3.5 h-3.5" /> Thème / Hub de départ</Label>
+              <Select value={hubTheme} onValueChange={setHubTheme}>
+                <SelectTrigger><SelectValue placeholder="Aucun (départ libre)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Aucun (départ libre)</SelectItem>
+                  {HUB_THEMES.map(t => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <Button onClick={handleGenerate} disabled={loadingPois || !zone} className="w-full">
               <Wand2 className="w-4 h-4 mr-2" /> Générer l'itinéraire ({count} POIs)
             </Button>
@@ -192,6 +227,14 @@ export default function AdminMedinaCustomBuilder() {
               </p>
             ) : (
               <>
+                {startHub && (
+                  <div className="flex items-center gap-2 text-sm p-2 rounded bg-muted border border-border">
+                    <Navigation className="w-4 h-4 text-amber-500" />
+                    <span className="text-muted-foreground">Départ :</span>
+                    <span className="font-medium">{startHub.name}</span>
+                    <span className="text-xs text-muted-foreground">({startHub.lat.toFixed(4)}, {startHub.lng.toFixed(4)})</span>
+                  </div>
+                )}
                 <div className="space-y-1">
                   {previewPois.map((poi, idx) => (
                     <div key={poi!.id} className="flex items-center gap-2 text-sm py-1.5 px-2 rounded hover:bg-muted">
