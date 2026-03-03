@@ -603,6 +603,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cleanup_expired_data: { Args: never; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

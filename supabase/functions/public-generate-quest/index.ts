@@ -159,7 +159,9 @@ Deno.serve(async (req) => {
     const { data: allPois, error: poiErr } = await poiQuery;
     if (poiErr) throw poiErr;
     if (!allPois || allPois.length === 0) {
-      return json({ error: "No POIs found for this zone/categories" }, 404);
+      return json({ error: categories.length > 0
+        ? "No POIs found for this zone/categories combination"
+        : "No POIs found for this zone" }, 404);
     }
 
     const rng = seededRandom(seed);
