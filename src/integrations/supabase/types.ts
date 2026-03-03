@@ -117,6 +117,107 @@ export type Database = {
           },
         ]
       }
+      medina_pois: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          is_active: boolean
+          lat: number | null
+          lng: number | null
+          metadata: Json
+          name: string
+          radius_m: number
+          step_config: Json
+          updated_at: string
+          zone: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          lat?: number | null
+          lng?: number | null
+          metadata?: Json
+          name: string
+          radius_m?: number
+          step_config?: Json
+          updated_at?: string
+          zone?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          lat?: number | null
+          lng?: number | null
+          metadata?: Json
+          name?: string
+          radius_m?: number
+          step_config?: Json
+          updated_at?: string
+          zone?: string
+        }
+        Relationships: []
+      }
+      poi_media: {
+        Row: {
+          caption: string | null
+          created_at: string
+          duration_sec: number | null
+          id: string
+          is_cover: boolean
+          media_type: string
+          medina_poi_id: string
+          mime_type: string | null
+          role_tags: Json
+          size_bytes: number | null
+          sort_order: number
+          storage_bucket: string
+          storage_path: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          duration_sec?: number | null
+          id?: string
+          is_cover?: boolean
+          media_type: string
+          medina_poi_id: string
+          mime_type?: string | null
+          role_tags?: Json
+          size_bytes?: number | null
+          sort_order?: number
+          storage_bucket?: string
+          storage_path: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          duration_sec?: number | null
+          id?: string
+          is_cover?: boolean
+          media_type?: string
+          medina_poi_id?: string
+          mime_type?: string | null
+          role_tags?: Json
+          size_bytes?: number | null
+          sort_order?: number
+          storage_bucket?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "poi_media_medina_poi_id_fkey"
+            columns: ["medina_poi_id"]
+            isOneToOne: false
+            referencedRelation: "medina_pois"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pois: {
         Row: {
           created_at: string

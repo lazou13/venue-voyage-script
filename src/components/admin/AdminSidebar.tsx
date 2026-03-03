@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { List, Rocket, LayoutDashboard, Sliders, Settings2, ShieldCheck, Languages, BookOpen } from 'lucide-react';
+import { List, Rocket, LayoutDashboard, Sliders, Settings2, ShieldCheck, Languages, BookOpen, MapPin } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
@@ -15,6 +15,7 @@ const navItems = [
   { to: '/admin/labels', label: 'Labels', icon: Languages },
   { to: '/admin/publish', label: 'Publier', icon: Rocket },
   { to: '/admin/docs', label: 'Documentation', icon: BookOpen },
+  { to: '/admin/medina-pois', label: 'Bibliothèque Médina', icon: MapPin },
 ];
 
 export function AdminSidebar({ hasUnsavedChanges }: AdminSidebarProps) {
