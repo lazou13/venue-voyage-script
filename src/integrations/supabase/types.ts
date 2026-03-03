@@ -516,6 +516,42 @@ export type Database = {
           },
         ]
       }
+      quest_narratives_cache: {
+        Row: {
+          audience: string
+          created_at: string
+          difficulty: number
+          id: string
+          narrative: Json
+          narrative_version: string
+          poi_ids: Json
+          signature: string
+          theme: string
+        }
+        Insert: {
+          audience: string
+          created_at?: string
+          difficulty: number
+          id?: string
+          narrative: Json
+          narrative_version: string
+          poi_ids: Json
+          signature: string
+          theme: string
+        }
+        Update: {
+          audience?: string
+          created_at?: string
+          difficulty?: number
+          id?: string
+          narrative?: Json
+          narrative_version?: string
+          poi_ids?: Json
+          signature?: string
+          theme?: string
+        }
+        Relationships: []
+      }
       route_markers: {
         Row: {
           audio_url: string | null
