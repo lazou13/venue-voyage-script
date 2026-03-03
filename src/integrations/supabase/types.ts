@@ -172,6 +172,7 @@ export type Database = {
           experience_mode: string
           id: string
           locale: string
+          metadata: Json
           notes: string | null
           party_size: number
           payment_status: string
@@ -188,6 +189,7 @@ export type Database = {
           experience_mode?: string
           id?: string
           locale?: string
+          metadata?: Json
           notes?: string | null
           party_size?: number
           payment_status?: string
@@ -204,6 +206,7 @@ export type Database = {
           experience_mode?: string
           id?: string
           locale?: string
+          metadata?: Json
           notes?: string | null
           party_size?: number
           payment_status?: string

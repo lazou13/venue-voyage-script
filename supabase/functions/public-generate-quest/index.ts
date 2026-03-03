@@ -17,13 +17,45 @@ function getCorsHeaders(req: Request) {
 
 const DURATION_TO_COUNT: Record<number, number> = { 60: 6, 90: 8, 120: 10, 180: 12, 240: 15 };
 
-// ── In-memory pricing cache (5 min TTL) ──
-let cachedPricing: { payload: PricingConfig; fetchedAt: number } | null = null;
-const PRICING_CACHE_TTL_MS = 5 * 60 * 1000;
+// ── In-memory config caches (5 min TTL) ──
+interface CacheEntry<T> { payload: T; fetchedAt: number }
+let cachedPricing: CacheEntry<PricingConfig> | null = null;
+let cachedExpConfig: CacheEntry<ExperiencePageConfig> | null = null;
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
+// ── Types ──
+interface PricingConfig {
+  currency: string;
+  base_prices: Record<string, number>;
+  duration_multipliers: Record<string, number>;
+  party_thresholds: { min: number; max: number; supplement: number }[];
+  pause_supplement: number;
+  add_ons: { key: string; label_i18n: Record<string, string>; price: number }[];
+}
+
+interface GameFieldDef {
+  key: string;
+  enabled: boolean;
+  pricing?: { price_per_person: number };
+  title?: string;
+}
+
+interface ExperiencePageConfig {
+  game_builder?: {
+    enabled: boolean;
+    fields: GameFieldDef[];
+  };
+  per_person_pricing?: {
+    base_price_per_person_by_mode: Record<string, number>;
+    duration_multiplier: Record<string, number>;
+    addons: { key: string; price_per_person: number; enabled: boolean }[];
+  };
+}
+
+// ── Config fetchers ──
 async function getPricingConfig(db: any): Promise<{ config: PricingConfig; cacheStatus: "HIT" | "MISS" }> {
   const now = Date.now();
-  if (cachedPricing && now - cachedPricing.fetchedAt < PRICING_CACHE_TTL_MS) {
+  if (cachedPricing && now - cachedPricing.fetchedAt < CACHE_TTL_MS) {
     return { config: cachedPricing.payload, cacheStatus: "HIT" };
   }
   const { data: row, error } = await db
@@ -37,6 +69,24 @@ async function getPricingConfig(db: any): Promise<{ config: PricingConfig; cache
   if (error || !row) throw new Error("Pricing configuration unavailable");
   cachedPricing = { payload: row.payload as PricingConfig, fetchedAt: now };
   return { config: cachedPricing.payload, cacheStatus: "MISS" };
+}
+
+async function getExperienceConfig(db: any): Promise<ExperiencePageConfig | null> {
+  const now = Date.now();
+  if (cachedExpConfig && now - cachedExpConfig.fetchedAt < CACHE_TTL_MS) {
+    return cachedExpConfig.payload;
+  }
+  const { data: row } = await db
+    .from("app_configs")
+    .select("payload")
+    .eq("key", "experience_page_config")
+    .eq("status", "published")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!row) return null;
+  cachedExpConfig = { payload: row.payload as ExperiencePageConfig, fetchedAt: now };
+  return cachedExpConfig.payload;
 }
 
 // ── Seeded PRNG (mulberry32) ──
@@ -63,17 +113,46 @@ function shuffle<T>(arr: T[], rng: () => number): T[] {
   return a;
 }
 
-// ── Pricing ──
-interface PricingConfig {
-  currency: string;
-  base_prices: Record<string, number>;
-  duration_multipliers: Record<string, number>;
-  party_thresholds: { min: number; max: number; supplement: number }[];
-  pause_supplement: number;
-  add_ons: { key: string; label_i18n: Record<string, string>; price: number }[];
+// ── Per-person pricing calculation (new model) ──
+function calculatePerPersonPrice(
+  input: { experience_mode: string; duration_minutes: number; party_size: number; selected_addons: string[]; game_config?: Record<string, unknown> },
+  expConfig: ExperiencePageConfig,
+) {
+  const pp = expConfig.per_person_pricing!;
+  const basePrice = pp.base_price_per_person_by_mode[input.experience_mode] ?? 25;
+  const multiplier = pp.duration_multiplier[String(input.duration_minutes)] ?? 1;
+  const base_per_person = Math.round(basePrice * multiplier);
+
+  // Addons
+  const addons_detail: { key: string; price_per_person: number }[] = [];
+  for (const key of input.selected_addons) {
+    const a = pp.addons.find((x) => x.key === key && x.enabled);
+    if (a) addons_detail.push({ key: a.key, price_per_person: a.price_per_person });
+  }
+  const addons_per_person = addons_detail.reduce((s, a) => s + a.price_per_person, 0);
+
+  // Game builder field pricing
+  let game_addons_per_person = 0;
+  const game_addons_detail: { key: string; title: string; price_per_person: number }[] = [];
+  if (input.game_config && expConfig.game_builder?.enabled) {
+    for (const f of expConfig.game_builder.fields) {
+      if (!f.enabled || !f.pricing || f.pricing.price_per_person <= 0) continue;
+      const val = input.game_config[f.key];
+      if (val !== undefined && val !== null && val !== false && val !== "" && !(Array.isArray(val) && (val as unknown[]).length === 0)) {
+        game_addons_detail.push({ key: f.key, title: f.title ?? f.key, price_per_person: f.pricing.price_per_person });
+        game_addons_per_person += f.pricing.price_per_person;
+      }
+    }
+  }
+
+  const total_per_person = base_per_person + addons_per_person + game_addons_per_person;
+  const total = total_per_person * input.party_size;
+
+  return { base_per_person, addons_per_person, game_addons_per_person, total_per_person, total, addons_detail, game_addons_detail };
 }
 
-function calculatePriceServer(
+// ── Legacy pricing calculation ──
+function calculatePriceLegacy(
   input: { experience_mode: string; duration_minutes: number; party_size: number; pause: boolean; add_ons: string[]; locale: string },
   config: PricingConfig,
 ) {
@@ -102,9 +181,8 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  let pricingCacheHeader = "";
   const json = (body: unknown, status = 200) =>
-    new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json", ...(pricingCacheHeader ? { "X-Pricing-Cache": pricingCacheHeader } : {}) } });
+    new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -137,6 +215,15 @@ Deno.serve(async (req) => {
     const party_size: number = Math.max(1, Math.min(20, Number(body.party_size) || 2));
     const seed: string = body.seed ?? customer_email;
 
+    // Game config (only for game mode)
+    const game_config: Record<string, unknown> | null =
+      experience_mode === "game" && body.game_config && typeof body.game_config === "object" && !Array.isArray(body.game_config)
+        ? body.game_config
+        : null;
+
+    // Selected addons (new per-person model sends selected_addons)
+    const selected_addons: string[] = Array.isArray(body.selected_addons) ? body.selected_addons.slice(0, 10) : add_ons;
+
     // ── 3. Rate limit: 3 creations / email / hour ──
     const { count: rlCount, error: rlErr } = await db
       .from("orders")
@@ -148,25 +235,30 @@ Deno.serve(async (req) => {
       return json({ error: "Rate limit: max 3 per email per hour" }, 429);
     }
 
-    // ── 4. Fetch pricing config (cached) ──
-    let pricingCacheStatus: "HIT" | "MISS";
-    let pricingConfig: PricingConfig;
-    try {
-      const result = await getPricingConfig(db);
-      pricingConfig = result.config;
-      pricingCacheStatus = result.cacheStatus;
-      pricingCacheHeader = pricingCacheStatus;
-    } catch {
-      return json({ error: "Pricing configuration unavailable" }, 500);
+    // ── 4. Load configs ──
+    const expConfig = await getExperienceConfig(db);
+    const usePerPersonPricing = expConfig?.per_person_pricing != null;
+
+    let pricingResult: { total: number; currency: string; [k: string]: unknown };
+
+    if (usePerPersonPricing) {
+      // New per-person pricing model
+      const result = calculatePerPersonPrice(
+        { experience_mode, duration_minutes, party_size, selected_addons, game_config: game_config ?? undefined },
+        expConfig!,
+      );
+      pricingResult = { ...result, currency: (expConfig as any)?.global?.currency ?? "MAD" };
+    } else {
+      // Legacy pricing model
+      const { config: pricingConfig } = await getPricingConfig(db);
+      const result = calculatePriceLegacy(
+        { experience_mode, duration_minutes, party_size, pause, add_ons: selected_addons, locale },
+        pricingConfig,
+      );
+      pricingResult = result;
     }
 
-    // ── 5. Calculate pricing ──
-    const pricing = calculatePriceServer(
-      { experience_mode, duration_minutes, party_size, pause, add_ons, locale },
-      pricingConfig,
-    );
-
-    // ── 6. Select POIs server-side ──
+    // ── 5. Select POIs server-side ──
     const count = DURATION_TO_COUNT[duration_minutes] ?? 6;
 
     let poiQuery = db
@@ -192,7 +284,8 @@ Deno.serve(async (req) => {
     const nonFood = allPois.filter((p: any) => p.category !== "food_drink");
     const shuffled = shuffle(nonFood, rng);
 
-    const targetCount = pause && foodDrink.length > 0 ? count - 1 : count;
+    const hasPause = pause || selected_addons.includes("pause");
+    const targetCount = hasPause && foodDrink.length > 0 ? count - 1 : count;
     const selected: any[] = [];
     const remaining = [...shuffled];
 
@@ -203,7 +296,7 @@ Deno.serve(async (req) => {
       selected.push(remaining.splice(pickIdx, 1)[0]);
     }
 
-    if (pause && foodDrink.length > 0) {
+    if (hasPause && foodDrink.length > 0) {
       const pick = foodDrink[Math.floor(rng() * foodDrink.length)];
       const mid = Math.floor(selected.length / 2);
       selected.splice(mid, 0, pick);
@@ -212,7 +305,7 @@ Deno.serve(async (req) => {
     const finalPois = selected.slice(0, count);
     const medinaPoiIds = finalPois.map((p: any) => p.id);
 
-    // ── 7. Fetch all media for selected POIs in 1 query ──
+    // ── 6. Fetch all media for selected POIs in 1 query ──
     const { data: allMedia } = await db
       .from("poi_media")
       .select("id, medina_poi_id, media_type, is_cover")
@@ -225,13 +318,23 @@ Deno.serve(async (req) => {
       mediaByPoi.set(m.medina_poi_id, list);
     }
 
+    // ── 7. Build quest_config for project ──
+    const questConfig: Record<string, unknown> = {
+      experience_mode,
+      project_type: "medina_custom",
+      origin: "public_configurator",
+    };
+    if (game_config) {
+      questConfig.game_config = game_config;
+    }
+
     // ── 8. Create project ──
     const { data: project, error: projErr } = await db
       .from("projects")
       .insert({
         hotel_name: `Sur-mesure ${customer_name}`,
         city: "Médina",
-        quest_config: { experience_mode, project_type: "medina_custom", origin: "public_configurator" },
+        quest_config: questConfig,
         target_duration_mins: duration_minutes,
         title_i18n: { fr: `Parcours sur-mesure — ${customer_name}` },
       })
@@ -277,7 +380,16 @@ Deno.serve(async (req) => {
       if (poisErr) throw poisErr;
     }
 
-    // ── 10. Create order ──
+    // ── 10. Build order metadata ──
+    const orderMetadata: Record<string, unknown> = {};
+    if (game_config) {
+      orderMetadata.game_config = game_config;
+    }
+    if (selected_addons.length > 0) {
+      orderMetadata.selected_addons = selected_addons;
+    }
+
+    // ── 11. Create order ──
     const { data: order, error: ordErr } = await db
       .from("orders")
       .insert({
@@ -288,16 +400,17 @@ Deno.serve(async (req) => {
         locale,
         party_size,
         notes: add_ons.length > 0 ? JSON.stringify({ add_ons }) : null,
+        metadata: orderMetadata,
         status: "pending",
         payment_status: "stub",
-        amount_total: pricing.total,
-        currency: pricing.currency,
+        amount_total: pricingResult.total,
+        currency: pricingResult.currency,
       })
       .select("id")
       .single();
     if (ordErr || !order) throw ordErr ?? new Error("Order creation failed");
 
-    // ── 11. Create quest instance ──
+    // ── 12. Create quest instance ──
     const { data: instance, error: instErr } = await db
       .from("quest_instances")
       .insert({ order_id: order.id, project_id: project.id, ttl_minutes: 240 })
@@ -310,7 +423,7 @@ Deno.serve(async (req) => {
       instance_id: instance.id,
       access_token: instance.access_token,
       project_id: project.id,
-      pricing,
+      pricing: pricingResult,
     });
   } catch (err: any) {
     console.error("public-generate-quest error:", err);
