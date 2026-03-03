@@ -38,17 +38,39 @@ async function generateQuestNarrative(
   audience: string,
   difficulty: number,
   pois: { id: string; name: string; category: string }[],
+  durationMinutes: number,
 ): Promise<Record<string, unknown> | null> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) { console.error("LOVABLE_API_KEY not set"); return null; }
 
   const poiList = pois.map((p, i) => `${i + 1}. poi_id="${p.id}", name="${p.name}" (${p.category})`).join("\n");
 
+  let styleGuide: string;
+  if (durationMinutes <= 120) {
+    styleGuide = `Le parcours dure ${durationMinutes} minutes (court).
+- Transitions concises (2-3 phrases max).
+- Défis courts et dynamiques.
+- Contexte historique minimal, aller droit au but.`;
+  } else if (durationMinutes <= 180) {
+    styleGuide = `Le parcours dure ${durationMinutes} minutes (moyen).
+- Storytelling équilibré (3-4 phrases par transition).
+- Détails historiques modérés.
+- Ton engageant mais pas trop long.`;
+  } else {
+    styleGuide = `Le parcours dure ${durationMinutes} minutes (long/immersif).
+- Storytelling immersif (4-6 phrases par transition).
+- Contexte historique riche et atmosphère détaillée.
+- Descriptions sensorielles, anecdotes locales.`;
+  }
+
   const systemPrompt = `Tu es un guide touristique expert de la médina de Marrakech.
 Tu réponds UNIQUEMENT en JSON valide. Aucune explication, aucun texte, aucun markdown en dehors du JSON.
-Respecte EXACTEMENT la structure demandée sans ajouter ni omettre de champ.`;
+Respecte EXACTEMENT la structure demandée sans ajouter ni omettre de champ.
 
-  const userPrompt = `Génère un narratif immersif pour un parcours thème="${theme}", audience="${audience}", difficulté=${difficulty}.
+Style narratif à respecter :
+${styleGuide}`;
+
+  const userPrompt = `Génère un narratif immersif pour un parcours thème="${theme}", audience="${audience}", difficulté=${difficulty}, durée=${durationMinutes}min.
 POIs dans l'ordre :
 ${poiList}
 
@@ -558,7 +580,7 @@ Deno.serve(async (req) => {
     } else {
       // Generate narrative (never blocks main flow)
       const poiSummaries = finalPois.map((p: any) => ({ id: p.id, name: p.name, category: p.category }));
-      narrativeData = await generateQuestNarrative(selectedTheme, selectedAudience, difficultyVal, poiSummaries);
+      narrativeData = await generateQuestNarrative(selectedTheme, selectedAudience, difficultyVal, poiSummaries, duration_minutes);
 
       // Only cache valid LLM narratives, never null/fallback
       if (narrativeData) {
