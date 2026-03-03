@@ -90,7 +90,14 @@ Deno.serve(async (req) => {
       currentInstance = updated;
     }
 
-    // 4. Fetch project
+    // 4. Fetch order (for experience_mode)
+    const { data: order } = await supabaseAdmin
+      .from("orders")
+      .select("experience_mode, party_size, locale")
+      .eq("id", currentInstance.order_id)
+      .single();
+
+    // 5. Fetch project
     const { data: project, error: projErr } = await supabaseAdmin
       .from("projects")
       .select("id, title_i18n, quest_config, theme, city")
@@ -123,6 +130,9 @@ Deno.serve(async (req) => {
           expires_at: currentInstance.expires_at,
           ttl_minutes: currentInstance.ttl_minutes,
           score: currentInstance.score,
+          experience_mode: order?.experience_mode || 'game',
+          party_size: order?.party_size || 2,
+          locale: order?.locale || 'fr',
         },
         project,
         pois: pois || [],
