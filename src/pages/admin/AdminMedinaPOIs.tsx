@@ -18,6 +18,7 @@ import {
 import {
   Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink, MapPin, StickyNote, Navigation, CheckCircle, RotateCcw,
 } from 'lucide-react';
+import POIFeaturesSection, { type POIFeatures, emptyFeatures } from '@/components/admin/POIFeaturesSection';
 
 // ─── Role tags ──────────────────────────────────────────────
 const ROLE_TAG_OPTIONS = ['repere', 'detail', 'instruction', 'ambiance'] as const;
@@ -266,6 +267,11 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
       metadata: { ...prev.metadata, [key]: value },
     }));
 
+  // Features: init from metadata.features or empty
+  const meta = form.metadata as Record<string, unknown>;
+  const features: POIFeatures = { ...emptyFeatures, ...(meta?.features as Partial<POIFeatures> ?? {}) };
+  const setFeatures = (f: POIFeatures) => setMeta('features', f);
+
   const save = () => {
     if (form.is_start_hub && !form.hub_theme) return; // block save without theme
     const { id, created_at, updated_at, ...rest } = form;
@@ -405,6 +411,9 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
           onBlur={save}
         />
       </div>
+
+      {/* Features */}
+      <POIFeaturesSection features={features} onChange={setFeatures} onBlur={save} />
 
       <Separator />
 
