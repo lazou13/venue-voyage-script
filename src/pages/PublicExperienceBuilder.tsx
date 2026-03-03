@@ -68,9 +68,9 @@ export default function PublicExperienceBuilder() {
           .order("updated_at", { ascending: false })
           .limit(1)
           .single(),
-        fetch(`${supabaseUrl}/functions/v1/public-zones`, {
+        fetch(`${supabaseUrl}/functions/v1/public-zones?mode=zones`, {
           headers: { apikey: supabaseKey },
-        }).then((r) => r.json()).catch(() => ({})),
+        }).then((r) => r.ok ? r.json() : null).catch(() => null) as Promise<{ zones: string[] } | null>,
       ]);
 
       if (configRes.data?.payload) {
@@ -78,7 +78,7 @@ export default function PublicExperienceBuilder() {
       }
 
       if (zonesRes?.zones) {
-        setZones(zonesRes.zones as string[]);
+        setZones(zonesRes.zones);
       }
 
       setLoadingConfig(false);
@@ -90,9 +90,13 @@ export default function PublicExperienceBuilder() {
     if (!zone) { setCategories([]); return; }
     (async () => {
       const res = await fetch(
-        `${supabaseUrl}/functions/v1/public-zones?zone=${encodeURIComponent(zone)}`,
+        `${supabaseUrl}/functions/v1/public-zones?mode=categories&zone=${encodeURIComponent(zone)}`,
         { headers: { apikey: supabaseKey } },
       );
+      if (res.status === 429) {
+        setError("Trop de requêtes, réessayez dans quelques minutes.");
+        return;
+      }
       if (res.ok) {
         const json = await res.json();
         setCategories(json.categories ?? []);
