@@ -15,7 +15,7 @@ function getCorsHeaders(req: Request) {
   };
 }
 
-const DURATION_TO_COUNT: Record<number, number> = { 60: 6, 90: 8, 120: 10 };
+const DURATION_TO_COUNT: Record<number, number> = { 60: 6, 90: 8, 120: 10, 180: 12, 240: 15 };
 
 // ── In-memory pricing cache (5 min TTL) ──
 let cachedPricing: { payload: PricingConfig; fetchedAt: number } | null = null;
@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
     }
     const customer_name = ((body.customer_name ?? "").trim() || customer_email.split("@")[0]).slice(0, 80);
     const experience_mode = body.experience_mode === "game" ? "game" : "visit";
-    const duration_minutes = [60, 90, 120].includes(body.duration_minutes) ? body.duration_minutes : 60;
+    const duration_minutes = [60, 90, 120, 180, 240].includes(body.duration_minutes) ? body.duration_minutes : 120;
     const zone = (body.zone ?? "").trim().slice(0, 100);
     if (!zone) return json({ error: "zone required" }, 400);
     const categories: string[] = Array.isArray(body.categories) ? body.categories.slice(0, 10) : [];
