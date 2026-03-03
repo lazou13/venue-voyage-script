@@ -1,4 +1,70 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { encode as hexEncode } from "https://deno.land/std@0.224.0/encoding/hex.ts";
+
+const NARRATIVE_VERSION = "v1";
+
+// ── SHA-256 signature helper ──
+async function sha256(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return new TextDecoder().decode(hexEncode(new Uint8Array(hash)));
+}
+
+// ── Fallback minimal narrative ──
+function fallbackNarrative(theme: string, poiNames: string[]): Record<string, unknown> {
+  return {
+    version: NARRATIVE_VERSION,
+    theme,
+    title: `Parcours ${theme}`,
+    intro: `Découvrez ${poiNames.length} lieux remarquables de la médina.`,
+    steps: poiNames.map((name, i) => ({ order: i + 1, poi_name: name, text: `Étape ${i + 1} : ${name}` })),
+    outro: "Merci d'avoir exploré la médina !",
+  };
+}
+
+// ── Generate narrative via LLM (Lovable AI) ──
+async function generateQuestNarrative(
+  theme: string,
+  audience: string,
+  difficulty: number,
+  pois: { name: string; category: string }[],
+): Promise<Record<string, unknown>> {
+  try {
+    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!apiKey) throw new Error("LOVABLE_API_KEY not set");
+
+    const prompt = `Tu es un guide touristique expert de la médina de Marrakech.
+Génère un narratif immersif en JSON pour un parcours thème="${theme}", audience="${audience}", difficulté=${difficulty}.
+POIs dans l'ordre : ${pois.map((p, i) => `${i + 1}. ${p.name} (${p.category})`).join(", ")}.
+Retourne un JSON avec: title (string), intro (string 2-3 phrases), steps (array of {order, poi_name, text (2-3 phrases immersives)}), outro (string 1-2 phrases).
+Réponds UNIQUEMENT en JSON valide, sans markdown.`;
+
+    const res = await fetch("https://api.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7,
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`LLM ${res.status}: ${errText}`);
+    }
+    const result = await res.json();
+    const content = result.choices?.[0]?.message?.content ?? "";
+    // Try to parse JSON from response
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error("No JSON in LLM response");
+    const parsed = JSON.parse(jsonMatch[0]);
+    return { version: NARRATIVE_VERSION, theme, ...parsed };
+  } catch (err) {
+    console.error("generateQuestNarrative failed, using fallback:", err);
+    return fallbackNarrative(theme, pois.map((p) => p.name));
+  }
+}
 
 // ── CORS with optional allowlist ──
 function getCorsHeaders(req: Request) {
@@ -427,7 +493,55 @@ Deno.serve(async (req) => {
 
     const medinaPoiIds = finalPois.map((p: any) => p.id);
 
-    // ── 6. Fetch all media for selected POIs ──
+    // ── 6a. Narrative cache ──
+    const sortedPoiIds = [...medinaPoiIds].sort();
+    const selectedTheme = categories.length > 0 ? categories[0] : "general";
+    const selectedAudience = (body.audience ?? "couple").toString().slice(0, 30);
+    const difficultyVal = Math.max(1, Math.min(5, Number(body.difficulty) || 3));
+    const signatureRaw = `${NARRATIVE_VERSION}|${selectedTheme}|${selectedAudience}|${difficultyVal}|${sortedPoiIds.join(",")}`;
+    const signature = await sha256(signatureRaw);
+
+    let narrativeId: string | null = null;
+    let narrativeData: Record<string, unknown> | null = null;
+
+    // Check cache
+    const { data: cached } = await db
+      .from("quest_narratives_cache")
+      .select("id, narrative")
+      .eq("signature", signature)
+      .limit(1)
+      .maybeSingle();
+
+    if (cached) {
+      narrativeId = cached.id;
+      narrativeData = cached.narrative as Record<string, unknown>;
+    } else {
+      // Generate narrative (never blocks main flow)
+      const poiSummaries = finalPois.map((p: any) => ({ name: p.name, category: p.category }));
+      narrativeData = await generateQuestNarrative(selectedTheme, selectedAudience, difficultyVal, poiSummaries);
+
+      const { data: inserted, error: cacheErr } = await db
+        .from("quest_narratives_cache")
+        .insert({
+          signature,
+          narrative_version: NARRATIVE_VERSION,
+          theme: selectedTheme,
+          audience: selectedAudience,
+          difficulty: difficultyVal,
+          poi_ids: sortedPoiIds,
+          narrative: narrativeData,
+        })
+        .select("id")
+        .single();
+
+      if (cacheErr) {
+        console.error("Narrative cache insert failed (non-blocking):", cacheErr.message);
+      } else if (inserted) {
+        narrativeId = inserted.id;
+      }
+    }
+
+    // ── 6b. Fetch all media for selected POIs ──
     const { data: allMedia } = await db
       .from("poi_media")
       .select("id, medina_poi_id, media_type, is_cover")
@@ -541,7 +655,11 @@ Deno.serve(async (req) => {
       .single();
     if (ordErr || !order) throw ordErr ?? new Error("Order creation failed");
 
-    // ── 12. Create quest instance with device rules ──
+    // ── 12. Create quest instance with device rules + narrative ref ──
+    const instanceScore: Record<string, unknown> = {};
+    if (narrativeId) instanceScore.narrative_id = narrativeId;
+    if (signature) instanceScore.narrative_signature = signature;
+
     const { data: instance, error: instErr } = await db
       .from("quest_instances")
       .insert({
@@ -549,6 +667,7 @@ Deno.serve(async (req) => {
         project_id: project.id,
         ttl_minutes: 240,
         devices_allowed: pricingResult.devices_allowed,
+        score: instanceScore,
       })
       .select("id, access_token")
       .single();
@@ -560,6 +679,7 @@ Deno.serve(async (req) => {
       access_token: instance.access_token,
       project_id: project.id,
       pricing: pricingResult,
+      narrative_id: narrativeId,
     });
   } catch (err: any) {
     console.error("public-generate-quest error:", err);
