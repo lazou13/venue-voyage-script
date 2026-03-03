@@ -130,6 +130,7 @@ export type Database = {
           metadata: Json
           name: string
           radius_m: number
+          status: string
           step_config: Json
           updated_at: string
           zone: string
@@ -146,6 +147,7 @@ export type Database = {
           metadata?: Json
           name: string
           radius_m?: number
+          status?: string
           step_config?: Json
           updated_at?: string
           zone?: string
@@ -162,6 +164,7 @@ export type Database = {
           metadata?: Json
           name?: string
           radius_m?: number
+          status?: string
           step_config?: Json
           updated_at?: string
           zone?: string
