@@ -1,0 +1,1 @@
+ALTER TABLE public.route_markers ADD COLUMN IF NOT EXISTS promoted boolean NOT NULL DEFAULT false;
