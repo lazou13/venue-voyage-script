@@ -10,60 +10,92 @@ async function sha256(input: string): Promise<string> {
   return new TextDecoder().decode(hexEncode(new Uint8Array(hash)));
 }
 
-// ── Fallback minimal narrative ──
-function fallbackNarrative(theme: string, poiNames: string[]): Record<string, unknown> {
-  return {
-    version: NARRATIVE_VERSION,
-    theme,
-    title: `Parcours ${theme}`,
-    intro: `Découvrez ${poiNames.length} lieux remarquables de la médina.`,
-    steps: poiNames.map((name, i) => ({ order: i + 1, poi_name: name, text: `Étape ${i + 1} : ${name}` })),
-    outro: "Merci d'avoir exploré la médina !",
-  };
+// ── Validate narrative structure ──
+function validateNarrative(obj: unknown): obj is {
+  intro: string;
+  steps: { poi_id: string; transition: string; challenge: string; solution_hint: string }[];
+  outro: string;
+} {
+  if (!obj || typeof obj !== "object") return false;
+  const o = obj as Record<string, unknown>;
+  if (typeof o.intro !== "string" || !o.intro) return false;
+  if (typeof o.outro !== "string" || !o.outro) return false;
+  if (!Array.isArray(o.steps) || o.steps.length === 0) return false;
+  for (const s of o.steps) {
+    if (!s || typeof s !== "object") return false;
+    const st = s as Record<string, unknown>;
+    if (typeof st.poi_id !== "string" || !st.poi_id) return false;
+    if (typeof st.transition !== "string" || !st.transition) return false;
+    if (typeof st.challenge !== "string" || !st.challenge) return false;
+    if (typeof st.solution_hint !== "string" || !st.solution_hint) return false;
+  }
+  return true;
 }
 
-// ── Generate narrative via LLM (Lovable AI) ──
+// ── Generate narrative via LLM (Lovable AI) — returns null on failure ──
 async function generateQuestNarrative(
   theme: string,
   audience: string,
   difficulty: number,
-  pois: { name: string; category: string }[],
-): Promise<Record<string, unknown>> {
-  try {
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!apiKey) throw new Error("LOVABLE_API_KEY not set");
+  pois: { id: string; name: string; category: string }[],
+): Promise<Record<string, unknown> | null> {
+  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  if (!apiKey) { console.error("LOVABLE_API_KEY not set"); return null; }
 
-    const prompt = `Tu es un guide touristique expert de la médina de Marrakech.
+  const poiList = pois.map((p, i) => `${i + 1}. poi_id="${p.id}", name="${p.name}" (${p.category})`).join("\n");
+  const prompt = `Tu es un guide touristique expert de la médina de Marrakech.
 Génère un narratif immersif en JSON pour un parcours thème="${theme}", audience="${audience}", difficulté=${difficulty}.
-POIs dans l'ordre : ${pois.map((p, i) => `${i + 1}. ${p.name} (${p.category})`).join(", ")}.
-Retourne un JSON avec: title (string), intro (string 2-3 phrases), steps (array of {order, poi_name, text (2-3 phrases immersives)}), outro (string 1-2 phrases).
-Réponds UNIQUEMENT en JSON valide, sans markdown.`;
+POIs dans l'ordre :
+${poiList}
 
-    const res = await fetch("https://api.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.7,
-      }),
-    });
+Retourne UNIQUEMENT un JSON valide (sans markdown) avec cette structure exacte :
+{
+  "title": "string",
+  "intro": "string (2-3 phrases)",
+  "steps": [
+    { "poi_id": "uuid du POI", "transition": "string (phrase de transition)", "challenge": "string (défi/énigme)", "solution_hint": "string (indice)" }
+  ],
+  "outro": "string (1-2 phrases)"
+}
+Chaque step doit utiliser le poi_id exact fourni ci-dessus.`;
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`LLM ${res.status}: ${errText}`);
+  const MAX_ATTEMPTS = 2;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch("https://api.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.7,
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`LLM attempt ${attempt}/${MAX_ATTEMPTS} HTTP ${res.status}: ${errText}`);
+        continue;
+      }
+      const result = await res.json();
+      const content = result.choices?.[0]?.message?.content ?? "";
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.error(`LLM attempt ${attempt}/${MAX_ATTEMPTS}: no JSON found in response`);
+        continue;
+      }
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (!validateNarrative(parsed)) {
+        console.error(`LLM attempt ${attempt}/${MAX_ATTEMPTS}: narrative validation failed`, JSON.stringify(parsed).slice(0, 300));
+        continue;
+      }
+      return { version: NARRATIVE_VERSION, theme, ...parsed };
+    } catch (err) {
+      console.error(`LLM attempt ${attempt}/${MAX_ATTEMPTS} error:`, err);
     }
-    const result = await res.json();
-    const content = result.choices?.[0]?.message?.content ?? "";
-    // Try to parse JSON from response
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON in LLM response");
-    const parsed = JSON.parse(jsonMatch[0]);
-    return { version: NARRATIVE_VERSION, theme, ...parsed };
-  } catch (err) {
-    console.error("generateQuestNarrative failed, using fallback:", err);
-    return fallbackNarrative(theme, pois.map((p) => p.name));
   }
+  console.error("generateQuestNarrative: all attempts failed, returning null");
+  return null;
 }
 
 // ── CORS with optional allowlist ──
@@ -517,27 +549,30 @@ Deno.serve(async (req) => {
       narrativeData = cached.narrative as Record<string, unknown>;
     } else {
       // Generate narrative (never blocks main flow)
-      const poiSummaries = finalPois.map((p: any) => ({ name: p.name, category: p.category }));
+      const poiSummaries = finalPois.map((p: any) => ({ id: p.id, name: p.name, category: p.category }));
       narrativeData = await generateQuestNarrative(selectedTheme, selectedAudience, difficultyVal, poiSummaries);
 
-      const { data: inserted, error: cacheErr } = await db
-        .from("quest_narratives_cache")
-        .insert({
-          signature,
-          narrative_version: NARRATIVE_VERSION,
-          theme: selectedTheme,
-          audience: selectedAudience,
-          difficulty: difficultyVal,
-          poi_ids: sortedPoiIds,
-          narrative: narrativeData,
-        })
-        .select("id")
-        .single();
+      // Only cache valid LLM narratives, never null/fallback
+      if (narrativeData) {
+        const { data: inserted, error: cacheErr } = await db
+          .from("quest_narratives_cache")
+          .insert({
+            signature,
+            narrative_version: NARRATIVE_VERSION,
+            theme: selectedTheme,
+            audience: selectedAudience,
+            difficulty: difficultyVal,
+            poi_ids: sortedPoiIds,
+            narrative: narrativeData,
+          })
+          .select("id")
+          .single();
 
-      if (cacheErr) {
-        console.error("Narrative cache insert failed (non-blocking):", cacheErr.message);
-      } else if (inserted) {
-        narrativeId = inserted.id;
+        if (cacheErr) {
+          console.error("Narrative cache insert failed (non-blocking):", cacheErr.message);
+        } else if (inserted) {
+          narrativeId = inserted.id;
+        }
       }
     }
 
