@@ -90,38 +90,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    // R3 FIX: SQL-level slug lookup instead of LIMIT 100 + JS filter
-    const { data: project, error: pErr } = await sb
-      .from("projects")
-      .select("id, quest_config, title_i18n")
-      .eq("quest_config->'catalog'->>'is_public'" as any, "true")
-      .eq("quest_config->'catalog'->>'slug'" as any, slug)
-      .limit(1)
-      .maybeSingle();
+    // R3 FIX: Use RPC for reliable JSONB slug lookup
+    const { data: projects, error: pErr } = await sb
+      .rpc("find_catalog_project", { p_slug: slug });
 
     if (pErr) {
-      // Fallback: PostgREST may not support nested JSON operators via .eq()
-      // Use a raw RPC or manual filter approach
-      console.error("Direct filter failed, using fallback:", pErr.message);
-      
-      // Fallback: fetch with broader filter
-      const { data: allProjects, error: fallbackErr } = await sb
-        .from("projects")
-        .select("id, quest_config, title_i18n")
-        .limit(500);
-      if (fallbackErr) throw fallbackErr;
-
-      const found = (allProjects ?? []).find((p: any) => {
-        const cat = p.quest_config?.catalog;
-        return cat?.is_public === true && cat?.slug === slug;
-      });
-
-      if (!found) {
-        return json({ error: "Experience not found" }, 404, corsHeaders);
-      }
-
-      return await createOrderAndInstance(sb, found, customer_name, customer_email, locale, party_size, corsHeaders);
+      console.error("Catalog lookup failed:", pErr.message);
+      return json({ error: "Catalog lookup failed" }, 500, corsHeaders);
     }
+
+    const project = projects?.[0] ?? null;
 
     if (!project) {
       return json({ error: "Experience not found" }, 404, corsHeaders);

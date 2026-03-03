@@ -1,37 +1,70 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+// ── CORS with allowlist (B4 fix) ──
+function getCorsHeaders(req: Request) {
+  const allowedOrigin = Deno.env.get("PUBLIC_SITE_ORIGIN");
+  const requestOrigin = req.headers.get("Origin") ?? "*";
+  const origin = allowedOrigin
+    ? (requestOrigin === allowedOrigin ? allowedOrigin : allowedOrigin)
+    : "*";
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "Vary": "Origin",
+  };
+}
 
-const json = (body: unknown, status: number) =>
+// ── In-memory IP rate limit (120 req/IP/hour) ──
+const ipHits = new Map<string, { count: number; resetAt: number }>();
+const IP_RATE_LIMIT = 120;
+const RATE_WINDOW_MS = 3600_000;
+
+function checkIpRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = ipHits.get(ip);
+  if (!entry || now > entry.resetAt) {
+    ipHits.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= IP_RATE_LIMIT;
+}
+
+const json = (body: unknown, status: number, cors: Record<string, string>) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
+    headers: { ...cors, "Content-Type": "application/json" },
   });
 
 const MAX_MEDIA_IDS = 20;
 const SIGNED_URL_EXPIRY = 900; // 15 min
 
 Deno.serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // IP rate limit
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("cf-connecting-ip") || "unknown";
+  if (!checkIpRateLimit(ip)) {
+    return json({ error: "Too many requests" }, 429, corsHeaders);
   }
 
   try {
     const { access_token, media_ids } = await req.json();
 
-    // Validate inputs
     if (!access_token || typeof access_token !== "string" || !access_token.trim()) {
-      return json({ error: "access_token requis" }, 400);
+      return json({ error: "access_token requis" }, 400, corsHeaders);
     }
     if (!Array.isArray(media_ids) || media_ids.length === 0) {
-      return json({ error: "media_ids requis (array non vide)" }, 400);
+      return json({ error: "media_ids requis (array non vide)" }, 400, corsHeaders);
     }
     if (media_ids.length > MAX_MEDIA_IDS) {
-      return json({ error: `Maximum ${MAX_MEDIA_IDS} media_ids par requête` }, 400);
+      return json({ error: `Maximum ${MAX_MEDIA_IDS} media_ids par requête` }, 400, corsHeaders);
     }
 
     const supabaseAdmin = createClient(
@@ -49,10 +82,10 @@ Deno.serve(async (req) => {
 
     if (instErr) {
       console.error("DB error:", instErr);
-      return json({ error: "Erreur serveur" }, 500);
+      return json({ error: "Erreur serveur" }, 500, corsHeaders);
     }
     if (!instance) {
-      return json({ error: "Token invalide" }, 404);
+      return json({ error: "Token invalide" }, 404, corsHeaders);
     }
 
     // 2. Build allowlist from project POIs' step_config.media
@@ -63,7 +96,7 @@ Deno.serve(async (req) => {
 
     if (poisErr) {
       console.error("Error fetching pois:", poisErr);
-      return json({ error: "Erreur serveur" }, 500);
+      return json({ error: "Erreur serveur" }, 500, corsHeaders);
     }
 
     const allowedIds = new Set<string>();
@@ -86,7 +119,7 @@ Deno.serve(async (req) => {
     // 3. Check all requested ids are allowed
     const forbidden = media_ids.filter((id: string) => !allowedIds.has(id));
     if (forbidden.length > 0) {
-      return json({ error: "Media non autorisé", forbidden }, 403);
+      return json({ error: "Media non autorisé", forbidden }, 403, corsHeaders);
     }
 
     // 4. Fetch storage paths from poi_media
@@ -97,7 +130,7 @@ Deno.serve(async (req) => {
 
     if (mediaErr) {
       console.error("Error fetching poi_media:", mediaErr);
-      return json({ error: "Erreur serveur" }, 500);
+      return json({ error: "Erreur serveur" }, 500, corsHeaders);
     }
 
     // 5. Generate signed URLs
@@ -116,9 +149,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ urls, expires_in: SIGNED_URL_EXPIRY }, 200);
+    return json({ urls, expires_in: SIGNED_URL_EXPIRY }, 200, corsHeaders);
   } catch (e) {
     console.error("get-media-urls error:", e);
-    return json({ error: "Erreur inattendue" }, 500);
+    return json({ error: "Erreur inattendue" }, 500, corsHeaders);
   }
 });
