@@ -122,6 +122,36 @@ function shuffle<T>(arr: T[], rng: () => number): T[] {
   return a;
 }
 
+function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a2 = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a2), Math.sqrt(1 - a2));
+}
+
+function nearestNeighborSort(pois: any[], startLat: number, startLng: number): any[] {
+  const remaining = [...pois];
+  const sorted: any[] = [];
+  let curLat = startLat;
+  let curLng = startLng;
+  while (remaining.length > 0) {
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const p = remaining[i];
+      if (p.lat == null || p.lng == null) continue;
+      const d = haversineDistance(curLat, curLng, p.lat, p.lng);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    const picked = remaining.splice(bestIdx, 1)[0];
+    sorted.push(picked);
+    if (picked.lat != null && picked.lng != null) { curLat = picked.lat; curLng = picked.lng; }
+  }
+  return sorted;
+}
+
 // ── Group pricing calculation ──
 function calculateGroupPrice(
   input: { experience_mode: string; pause: boolean; add_ons: string[]; locale: string },
@@ -321,14 +351,38 @@ Deno.serve(async (req) => {
       pricingResult = result;
     }
 
-    // ── 5. Select POIs server-side ──
+    // ── 5. Lookup start hub for the zone ──
+    let startPoint: { name: string; lat: number; lng: number } | null = null;
+    {
+      // Try to find an active hub. Use zone-matching first; if categories imply a theme, use hub_theme.
+      const hubTheme = (body.hub_theme ?? "").trim().slice(0, 50) || null;
+      let hubQuery = db
+        .from("medina_pois")
+        .select("id, name, lat, lng")
+        .eq("is_start_hub", true)
+        .eq("is_active", true)
+        .not("lat", "is", null)
+        .not("lng", "is", null);
+      if (hubTheme) {
+        hubQuery = hubQuery.eq("hub_theme", hubTheme);
+      } else {
+        hubQuery = hubQuery.eq("zone", zone);
+      }
+      const { data: hubs } = await hubQuery.limit(1);
+      if (hubs && hubs.length > 0) {
+        startPoint = { name: hubs[0].name, lat: hubs[0].lat!, lng: hubs[0].lng! };
+      }
+    }
+
+    // ── 6. Select POIs server-side ──
     const count = DURATION_TO_COUNT[duration_minutes] ?? 6;
 
     let poiQuery = db
       .from("medina_pois")
       .select("*")
       .eq("zone", zone)
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .eq("is_start_hub", false);
     if (categories.length > 0) {
       poiQuery = poiQuery.in("category", categories);
     }
@@ -364,7 +418,13 @@ Deno.serve(async (req) => {
       selected.splice(mid, 0, pick);
     }
 
-    const finalPois = selected.slice(0, count);
+    let finalPois = selected.slice(0, count);
+
+    // Geo-sort from hub if available
+    if (startPoint) {
+      finalPois = nearestNeighborSort(finalPois, startPoint.lat, startPoint.lng);
+    }
+
     const medinaPoiIds = finalPois.map((p: any) => p.id);
 
     // ── 6. Fetch all media for selected POIs ──
@@ -388,6 +448,9 @@ Deno.serve(async (req) => {
     };
     if (game_config) {
       questConfig.game_config = game_config;
+    }
+    if (startPoint) {
+      questConfig.start_point = startPoint;
     }
 
     // ── 8. Create project ──
