@@ -1,0 +1,1 @@
+ALTER TABLE public.orders ADD COLUMN metadata jsonb NOT NULL DEFAULT '{}'::jsonb;
