@@ -412,6 +412,35 @@ export type Database = {
         }
         Relationships: []
       }
+      quest_instance_devices: {
+        Row: {
+          device_id: string
+          first_seen_at: string
+          id: string
+          quest_instance_id: string
+        }
+        Insert: {
+          device_id: string
+          first_seen_at?: string
+          id?: string
+          quest_instance_id: string
+        }
+        Update: {
+          device_id?: string
+          first_seen_at?: string
+          id?: string
+          quest_instance_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quest_instance_devices_quest_instance_id_fkey"
+            columns: ["quest_instance_id"]
+            isOneToOne: false
+            referencedRelation: "quest_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quest_instances: {
         Row: {
           access_token: string

@@ -105,19 +105,44 @@ Deno.serve(async (req) => {
       return json({ error: "Instance expirée" }, 410, corsHeaders);
     }
 
-    // 3. Device lock check
+    // 3. Multi-device check via quest_instance_devices table
     const devicesAllowed = instance.devices_allowed ?? 1;
-    const currentDeviceId = instance.device_id;
     const trimmedDeviceId = device_id.trim();
 
-    if (currentDeviceId && currentDeviceId !== trimmedDeviceId) {
-      // A different device is trying to access
-      if (instance.device_uses >= devicesAllowed) {
-        return json({ error: "Nombre maximum d'appareils atteint" }, 403, corsHeaders);
-      }
+    // Upsert this device (idempotent)
+    const { error: upsertErr } = await supabaseAdmin
+      .from("quest_instance_devices")
+      .upsert(
+        { quest_instance_id: instance.id, device_id: trimmedDeviceId },
+        { onConflict: "quest_instance_id,device_id" }
+      );
+    if (upsertErr) {
+      console.error("Device upsert error:", upsertErr);
+      return json({ error: "Erreur enregistrement appareil" }, 500, corsHeaders);
     }
 
-    // 4. Start if pending, always update device info
+    // Count distinct devices for this instance
+    const { count: deviceCount, error: countErr } = await supabaseAdmin
+      .from("quest_instance_devices")
+      .select("id", { count: "exact", head: true })
+      .eq("quest_instance_id", instance.id);
+
+    if (countErr) {
+      console.error("Device count error:", countErr);
+      return json({ error: "Erreur vérification appareils" }, 500, corsHeaders);
+    }
+
+    if ((deviceCount ?? 0) > devicesAllowed) {
+      // Too many devices — remove the one we just inserted and reject
+      await supabaseAdmin
+        .from("quest_instance_devices")
+        .delete()
+        .eq("quest_instance_id", instance.id)
+        .eq("device_id", trimmedDeviceId);
+      return json({ error: "Nombre maximum d'appareils atteint" }, 403, corsHeaders);
+    }
+
+    // 4. Start if pending
     let currentInstance = instance;
     const updatePayload: Record<string, unknown> = {};
 
@@ -129,20 +154,6 @@ Deno.serve(async (req) => {
       updatePayload.starts_at = startsAt;
       updatePayload.expires_at = expiresAt;
       updatePayload.status = "started";
-    }
-
-    // Register device (V1: store first device, count uses)
-    if (!currentDeviceId) {
-      // First device
-      updatePayload.device_id = trimmedDeviceId;
-      updatePayload.device_uses = 1;
-    } else if (currentDeviceId === trimmedDeviceId) {
-      // Same device, increment uses (idempotent access)
-      // No change needed
-    } else {
-      // New device allowed (device_uses < devicesAllowed)
-      updatePayload.device_id = trimmedDeviceId;
-      updatePayload.device_uses = (instance.device_uses ?? 0) + 1;
     }
 
     if (Object.keys(updatePayload).length > 0) {
