@@ -11,9 +11,43 @@ import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
 import {
-  Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink,
+  Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink, MapPin, StickyNote,
 } from 'lucide-react';
+
+// ─── Role tags ──────────────────────────────────────────────
+const ROLE_TAG_OPTIONS = ['repere', 'detail', 'instruction', 'ambiance'] as const;
+
+function RoleTagChips({
+  tags,
+  onChange,
+}: {
+  tags: string[];
+  onChange: (tags: string[]) => void;
+}) {
+  const toggle = (tag: string) => {
+    onChange(tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag]);
+  };
+  return (
+    <div className="flex flex-wrap gap-1">
+      {ROLE_TAG_OPTIONS.map((tag) => (
+        <button
+          key={tag}
+          type="button"
+          onClick={() => toggle(tag)}
+          className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${
+            tags.includes(tag)
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-muted text-muted-foreground border-border hover:bg-accent'
+          }`}
+        >
+          {tag}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 // ─── POI List ───────────────────────────────────────────────
 function POIListItem({
@@ -37,6 +71,7 @@ function POIListItem({
       <div className="font-medium truncate">{poi.name}</div>
       <div className="flex items-center gap-2 mt-0.5">
         <span className="text-xs opacity-70">{poi.category}</span>
+        {poi.zone && <span className="text-xs opacity-70">· {poi.zone}</span>}
         {!poi.is_active && (
           <Badge variant="outline" className="text-[10px] px-1 py-0">
             inactif
@@ -57,15 +92,16 @@ function MediaSection({
   mediaType: 'photo' | 'audio' | 'video';
   icon: React.ElementType;
 }) {
-  const { media, uploadMedia, setCover, removeMedia, getSignedUrl } = usePOIMedia(medinaPoiId);
+  const { media, uploadMedia, setCover, removeMedia, updateMedia, getSignedUrl } = usePOIMedia(medinaPoiId);
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const filtered = media.filter((m) => m.media_type === mediaType);
 
-  // Signed URL cache per render
+  // Signed URL cache: only auto-load for photos
   const [urls, setUrls] = useState<Record<string, string>>({});
 
-  const loadUrls = useCallback(async () => {
+  const loadPhotoUrls = useCallback(async () => {
+    if (mediaType !== 'photo') return; // Don't auto-sign audio/video
     const newUrls: Record<string, string> = {};
     for (const m of filtered) {
       if (!urls[m.id]) {
@@ -75,24 +111,42 @@ function MediaSection({
       }
     }
     if (Object.keys(newUrls).length) setUrls((prev) => ({ ...prev, ...newUrls }));
-  }, [filtered.map((m) => m.id).join(',')]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtered.map((m) => m.id).join(','), mediaType]);
 
-  useEffect(() => { loadUrls(); }, [loadUrls]);
+  useEffect(() => { loadPhotoUrls(); }, [loadPhotoUrls]);
 
-  const accept =
-    mediaType === 'photo' ? 'image/*' :
-    mediaType === 'audio' ? 'audio/*' : 'video/*';
+  // On-demand sign for audio/video
+  const handleOpen = async (m: POIMedia) => {
+    try {
+      const url = await getSignedUrl(m.storage_path);
+      window.open(url, '_blank');
+    } catch (err: any) {
+      toast({ title: 'Erreur', description: err.message, variant: 'destructive' });
+    }
+  };
+
+  const acceptMap: Record<string, string> = {
+    photo: '.jpg,.jpeg,.png,.webp',
+    audio: '.mp3,.m4a',
+    video: '.mp4',
+  };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     for (const file of files) {
       try {
         await uploadMedia.mutateAsync({ file, mediaType });
+        toast({ title: `${mediaType} ajouté` });
       } catch (err: any) {
         toast({ title: 'Erreur upload', description: err.message, variant: 'destructive' });
       }
     }
     if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const handleRoleTagChange = (m: POIMedia, newTags: string[]) => {
+    updateMedia.mutate({ id: m.id, role_tags: newTags });
   };
 
   return (
@@ -102,7 +156,7 @@ function MediaSection({
           {uploadMedia.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Upload className="w-4 h-4 mr-1" />}
           Ajouter
         </Button>
-        <input ref={inputRef} type="file" accept={accept} multiple className="hidden" onChange={handleUpload} />
+        <input ref={inputRef} type="file" accept={acceptMap[mediaType]} multiple className="hidden" onChange={handleUpload} />
         <span className="text-xs text-muted-foreground">{filtered.length} fichier(s)</span>
       </div>
 
@@ -111,51 +165,65 @@ function MediaSection({
       )}
 
       <div className="grid grid-cols-1 gap-2">
-        {filtered.map((m) => (
-          <div key={m.id} className="flex items-center gap-3 border rounded-lg p-2 bg-card">
-            {/* Thumbnail / link */}
-            {mediaType === 'photo' && urls[m.id] ? (
-              <img src={urls[m.id]} alt={m.caption ?? ''} className="w-16 h-16 object-cover rounded" />
-            ) : (
-              <div className="w-16 h-16 rounded bg-muted flex items-center justify-center">
-                <Icon className="w-6 h-6 text-muted-foreground" />
-              </div>
-            )}
-
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted-foreground truncate">{m.storage_path.split('/').pop()}</p>
-              {m.size_bytes && <p className="text-xs text-muted-foreground">{(m.size_bytes / 1024).toFixed(0)} Ko</p>}
-              {m.is_cover && <Badge variant="secondary" className="text-[10px] mt-1">Cover</Badge>}
-            </div>
-
-            <div className="flex flex-col gap-1">
-              {urls[m.id] && (
-                <Button size="icon" variant="ghost" className="h-7 w-7" asChild>
-                  <a href={urls[m.id]} target="_blank" rel="noreferrer"><ExternalLink className="w-3.5 h-3.5" /></a>
-                </Button>
+        {filtered.map((m) => {
+          const extra = (m.extra ?? {}) as Record<string, unknown>;
+          return (
+            <div key={m.id} className="flex items-start gap-3 border rounded-lg p-2 bg-card">
+              {/* Thumbnail / placeholder */}
+              {mediaType === 'photo' && urls[m.id] ? (
+                <img src={urls[m.id]} alt={m.caption ?? ''} className="w-16 h-16 object-cover rounded flex-shrink-0" />
+              ) : (
+                <div className="w-16 h-16 rounded bg-muted flex items-center justify-center flex-shrink-0">
+                  <Icon className="w-6 h-6 text-muted-foreground" />
+                </div>
               )}
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7"
-                title="Set cover"
-                disabled={m.is_cover || setCover.isPending}
-                onClick={() => setCover.mutate({ mediaId: m.id, mediaType })}
-              >
-                <Star className={`w-3.5 h-3.5 ${m.is_cover ? 'fill-yellow-500 text-yellow-500' : ''}`} />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-7 w-7 text-destructive"
-                disabled={removeMedia.isPending}
-                onClick={() => removeMedia.mutate(m)}
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
+
+              <div className="flex-1 min-w-0 space-y-1">
+                <p className="text-xs text-muted-foreground truncate">{m.storage_path.split('/').pop()}</p>
+                <div className="flex gap-2 text-[10px] text-muted-foreground">
+                  {m.size_bytes != null && <span>{(m.size_bytes / 1024).toFixed(0)} Ko</span>}
+                  {extra.width && extra.height && <span>{String(extra.width)}×{String(extra.height)}</span>}
+                  {(m.duration_sec ?? (extra.durationSec as number | undefined)) != null && (
+                    <span>{String(m.duration_sec ?? extra.durationSec)}s</span>
+                  )}
+                </div>
+                {m.is_cover && <Badge variant="secondary" className="text-[10px]">Cover</Badge>}
+                <RoleTagChips tags={m.role_tags ?? []} onChange={(tags) => handleRoleTagChange(m, tags)} />
+              </div>
+
+              <div className="flex flex-col gap-1 flex-shrink-0">
+                {mediaType === 'photo' && urls[m.id] ? (
+                  <Button size="icon" variant="ghost" className="h-7 w-7" asChild>
+                    <a href={urls[m.id]} target="_blank" rel="noreferrer"><ExternalLink className="w-3.5 h-3.5" /></a>
+                  </Button>
+                ) : mediaType !== 'photo' ? (
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => handleOpen(m)}>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </Button>
+                ) : null}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7"
+                  title="Set cover"
+                  disabled={m.is_cover || setCover.isPending}
+                  onClick={() => setCover.mutate({ mediaId: m.id, mediaType, currentRoleTags: m.role_tags })}
+                >
+                  <Star className={`w-3.5 h-3.5 ${m.is_cover ? 'fill-yellow-500 text-yellow-500' : ''}`} />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 text-destructive"
+                  disabled={removeMedia.isPending}
+                  onClick={() => removeMedia.mutate(m)}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -168,15 +236,56 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
   onDelete: (id: string) => void;
 }) {
   const [form, setForm] = useState(poi);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const { toast } = useToast();
   useEffect(() => setForm(poi), [poi.id]);
 
   const set = (field: keyof MedinaPOI, value: unknown) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
+  const setMeta = (key: string, value: unknown) =>
+    setForm((prev) => ({
+      ...prev,
+      metadata: { ...prev.metadata, [key]: value },
+    }));
+
   const save = () => {
     const { id, created_at, updated_at, ...rest } = form;
     onUpdate(poi.id, rest);
   };
+
+  const handleGeolocation = () => {
+    if (!navigator.geolocation) {
+      toast({ title: 'Géolocalisation non disponible', variant: 'destructive' });
+      return;
+    }
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setForm((prev) => ({
+          ...prev,
+          lat: parseFloat(pos.coords.latitude.toFixed(6)),
+          lng: parseFloat(pos.coords.longitude.toFixed(6)),
+        }));
+        setGeoLoading(false);
+        // Auto-save after setting
+        setTimeout(() => {
+          onUpdate(poi.id, {
+            lat: parseFloat(pos.coords.latitude.toFixed(6)),
+            lng: parseFloat(pos.coords.longitude.toFixed(6)),
+          });
+        }, 0);
+        toast({ title: 'Position capturée' });
+      },
+      (err) => {
+        setGeoLoading(false);
+        toast({ title: 'Erreur GPS', description: err.message, variant: 'destructive' });
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
+  const noteValue = (form.metadata as Record<string, unknown>)?.note as string ?? '';
 
   return (
     <div className="space-y-6">
@@ -202,6 +311,17 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
           <Label>Longitude</Label>
           <Input type="number" step="any" value={form.lng ?? ''} onChange={(e) => set('lng', e.target.value ? parseFloat(e.target.value) : null)} onBlur={save} />
         </div>
+        <div className="col-span-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGeolocation}
+            disabled={geoLoading}
+          >
+            {geoLoading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <MapPin className="w-4 h-4 mr-1" />}
+            Utiliser ma position
+          </Button>
+        </div>
         <div>
           <Label>Rayon (m)</Label>
           <Input type="number" value={form.radius_m} onChange={(e) => set('radius_m', parseInt(e.target.value) || 30)} onBlur={save} />
@@ -210,6 +330,20 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
           <Switch checked={form.is_active} onCheckedChange={(v) => { set('is_active', v); setTimeout(save, 0); }} />
           <Label>Actif</Label>
         </div>
+      </div>
+
+      {/* Note / memo */}
+      <div>
+        <Label className="flex items-center gap-1 mb-1">
+          <StickyNote className="w-3.5 h-3.5" /> Note
+        </Label>
+        <Textarea
+          value={noteValue}
+          placeholder="Mémo rapide sur ce POI..."
+          rows={2}
+          onChange={(e) => setMeta('note', e.target.value)}
+          onBlur={save}
+        />
       </div>
 
       <Separator />
