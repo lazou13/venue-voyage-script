@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Route, AlertTriangle, MapPin, Shield, Navigation, 
   Circle, Square, Plus, Download, Trash2, Clock, Ruler, MapPinned,
-  Zap, Camera, X, Check, Copy, Package, Flag, Compass, Mic, MicOff, Volume2
+  Zap, Camera, X, Check, Copy, Package, Flag, Compass, Mic, MicOff, Volume2, Library
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCrossTabStats } from '@/hooks/useCrossTabStats';
@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -190,6 +191,10 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
 
   // Auto-save feedback for manual form
   const [manualSaved, setManualSaved] = useState(false);
+
+  // Promotion state
+  const [selectedForPromotion, setSelectedForPromotion] = useState<Set<string>>(new Set());
+  const [isPromoting, setIsPromoting] = useState(false);
 
   // Fetch markers for selected trace
   const markersQuery = useTraceMarkers(selectedTraceId);
@@ -1011,6 +1016,43 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <Label className="text-sm font-medium">Marqueurs ({markers.length})</Label>
                   <div className="flex items-center gap-2 flex-wrap">
+                    {selectedForPromotion.size > 0 && (
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="gap-2"
+                        disabled={isPromoting}
+                        onClick={async () => {
+                          setIsPromoting(true);
+                          let successCount = 0;
+                          let errorCount = 0;
+                          for (const mid of Array.from(selectedForPromotion)) {
+                            try {
+                              const { error } = await supabase.functions.invoke('promote-marker-to-library', {
+                                body: { marker_id: mid },
+                              });
+                              if (error) throw error;
+                              successCount++;
+                            } catch {
+                              errorCount++;
+                            }
+                          }
+                          setIsPromoting(false);
+                          setSelectedForPromotion(new Set());
+                          // Refresh markers
+                          markersQuery.refetch();
+                          if (successCount > 0) {
+                            toast({ title: `${successCount} POI ajoutés à la bibliothèque` });
+                          }
+                          if (errorCount > 0) {
+                            toast({ title: `${errorCount} erreur(s)`, variant: 'destructive' });
+                          }
+                        }}
+                      >
+                        <Library className="w-3 h-3" />
+                        {isPromoting ? 'Envoi...' : `Envoyer vers bibliothèque (${selectedForPromotion.size})`}
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -1122,7 +1164,24 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                       className="flex items-start gap-2 p-2 rounded bg-muted/30 text-sm cursor-pointer hover:bg-muted/60 transition-colors"
                       onClick={() => handleOpenEditMarker(marker)}
                     >
+                      <Checkbox
+                        checked={selectedForPromotion.has(marker.id) || marker.promoted}
+                        disabled={marker.promoted}
+                        onClick={(e) => e.stopPropagation()}
+                        onCheckedChange={(checked) => {
+                          setSelectedForPromotion(prev => {
+                            const next = new Set(prev);
+                            if (checked) next.add(marker.id);
+                            else next.delete(marker.id);
+                            return next;
+                          });
+                        }}
+                        className="mt-0.5 shrink-0"
+                      />
                       <Badge variant="outline" className="shrink-0">{idx + 1}</Badge>
+                      {marker.promoted && (
+                        <Badge variant="secondary" className="shrink-0 text-xs">Bibliothèque</Badge>
+                      )}
                       <div className="min-w-0 flex-1">
                         <p className="text-xs text-muted-foreground">
                           {marker.lat.toFixed(5)}, {marker.lng.toFixed(5)}

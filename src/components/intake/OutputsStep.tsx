@@ -106,6 +106,7 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
           photo_url: m.photo_url,
           audio_url: (m as any).audio_url || null,
           created_at: m.created_at,
+          promoted: (m as any).promoted ?? false,
         }));
 
         setReportTrace(typedTrace);
