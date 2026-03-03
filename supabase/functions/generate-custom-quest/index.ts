@@ -103,8 +103,15 @@ Deno.serve(async (req) => {
     const { data: medinaPois, error: mpErr } = await admin
       .from("medina_pois")
       .select("*")
-      .in("id", medina_poi_ids);
+      .in("id", medina_poi_ids)
+      .eq("status", "validated");
     if (mpErr) throw mpErr;
+    if (!medinaPois || medinaPois.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Aucun POI validé disponible pour ce thème." }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     // Build id->poi map preserving requested order
     const poiMap = new Map((medinaPois ?? []).map((p: any) => [p.id, p]));

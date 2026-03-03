@@ -361,6 +361,7 @@ Deno.serve(async (req) => {
         .select("id, name, lat, lng")
         .eq("is_start_hub", true)
         .eq("is_active", true)
+        .eq("status", "validated")
         .not("lat", "is", null)
         .not("lng", "is", null);
       if (hubTheme) {
@@ -382,6 +383,7 @@ Deno.serve(async (req) => {
       .select("*")
       .eq("zone", zone)
       .eq("is_active", true)
+      .eq("status", "validated")
       .eq("is_start_hub", false);
     if (categories.length > 0) {
       poiQuery = poiQuery.in("category", categories);
@@ -389,9 +391,7 @@ Deno.serve(async (req) => {
     const { data: allPois, error: poiErr } = await poiQuery;
     if (poiErr) throw poiErr;
     if (!allPois || allPois.length === 0) {
-      return json({ error: categories.length > 0
-        ? "No POIs found for this zone/categories combination"
-        : "No POIs found for this zone" }, 404);
+      return json({ error: "Aucun POI validé disponible pour ce thème." }, 404);
     }
 
     const rng = seededRandom(seed);
