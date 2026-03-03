@@ -33,6 +33,14 @@ interface PricingConfig {
   add_ons: { key: string; label_i18n: Record<string, string>; price: number }[];
 }
 
+interface PricingModelDef {
+  pricing_model: "group" | "per_person";
+  group_price?: number;
+  party_size_max?: number;
+  devices_allowed?: number;
+  devices_allowed_rule?: "party_size";
+}
+
 interface GameFieldDef {
   key: string;
   enabled: boolean;
@@ -41,6 +49,7 @@ interface GameFieldDef {
 }
 
 interface ExperiencePageConfig {
+  pricing_models?: Record<string, PricingModelDef>;
   game_builder?: {
     enabled: boolean;
     fields: GameFieldDef[];
@@ -113,17 +122,46 @@ function shuffle<T>(arr: T[], rng: () => number): T[] {
   return a;
 }
 
+// ── Group pricing calculation ──
+function calculateGroupPrice(
+  input: { experience_mode: string; pause: boolean; add_ons: string[]; locale: string },
+  modelDef: PricingModelDef,
+  pricingConfig: PricingConfig,
+) {
+  const groupPrice = modelDef.group_price ?? 0;
+  const pause_supplement = input.pause ? pricingConfig.pause_supplement : 0;
+
+  const add_ons_detail: { key: string; price: number }[] = [];
+  for (const key of input.add_ons) {
+    const a = pricingConfig.add_ons.find((x) => x.key === key);
+    if (a) add_ons_detail.push({ key: a.key, price: a.price });
+  }
+  const add_ons_total = add_ons_detail.reduce((s, a) => s + a.price, 0);
+
+  return {
+    pricing_model: "group" as const,
+    base_price: groupPrice,
+    total: Math.round(groupPrice + pause_supplement + add_ons_total),
+    pause_supplement,
+    add_ons_total,
+    add_ons_detail,
+    devices_allowed: modelDef.devices_allowed ?? 1,
+    party_size_max: modelDef.party_size_max,
+    currency: pricingConfig.currency,
+  };
+}
+
 // ── Per-person pricing calculation (new model) ──
 function calculatePerPersonPrice(
   input: { experience_mode: string; duration_minutes: number; party_size: number; selected_addons: string[]; game_config?: Record<string, unknown> },
   expConfig: ExperiencePageConfig,
+  modelDef?: PricingModelDef,
 ) {
   const pp = expConfig.per_person_pricing!;
   const basePrice = pp.base_price_per_person_by_mode[input.experience_mode] ?? 25;
   const multiplier = pp.duration_multiplier[String(input.duration_minutes)] ?? 1;
   const base_per_person = Math.round(basePrice * multiplier);
 
-  // Addons
   const addons_detail: { key: string; price_per_person: number }[] = [];
   for (const key of input.selected_addons) {
     const a = pp.addons.find((x) => x.key === key && x.enabled);
@@ -131,7 +169,6 @@ function calculatePerPersonPrice(
   }
   const addons_per_person = addons_detail.reduce((s, a) => s + a.price_per_person, 0);
 
-  // Game builder field pricing
   let game_addons_per_person = 0;
   const game_addons_detail: { key: string; title: string; price_per_person: number }[] = [];
   if (input.game_config && expConfig.game_builder?.enabled) {
@@ -148,7 +185,22 @@ function calculatePerPersonPrice(
   const total_per_person = base_per_person + addons_per_person + game_addons_per_person;
   const total = total_per_person * input.party_size;
 
-  return { base_per_person, addons_per_person, game_addons_per_person, total_per_person, total, addons_detail, game_addons_detail };
+  const devices_allowed = modelDef?.devices_allowed_rule === "party_size"
+    ? input.party_size
+    : (modelDef?.devices_allowed ?? input.party_size);
+
+  return {
+    pricing_model: "per_person" as const,
+    base_per_person,
+    addons_per_person,
+    game_addons_per_person,
+    total_per_person,
+    total,
+    addons_detail,
+    game_addons_detail,
+    devices_allowed,
+    currency: "MAD",
+  };
 }
 
 // ── Legacy pricing calculation ──
@@ -170,7 +222,7 @@ function calculatePriceLegacy(
   const add_ons_total = add_ons_detail.reduce((s, a) => s + a.price, 0);
   const total = Math.round(base_price * duration_multiplier + party_supplement + pause_supplement + add_ons_total);
 
-  return { base_price, duration_multiplier, party_supplement, pause_supplement, add_ons_total, add_ons_detail, total, currency: config.currency };
+  return { pricing_model: "per_person" as const, base_price, duration_multiplier, party_supplement, pause_supplement, add_ons_total, add_ons_detail, total, currency: config.currency, devices_allowed: input.party_size };
 }
 
 // ── Main handler ──
@@ -215,13 +267,11 @@ Deno.serve(async (req) => {
     const party_size: number = Math.max(1, Math.min(20, Number(body.party_size) || 2));
     const seed: string = body.seed ?? customer_email;
 
-    // Game config (only for game mode)
     const game_config: Record<string, unknown> | null =
       experience_mode === "game" && body.game_config && typeof body.game_config === "object" && !Array.isArray(body.game_config)
         ? body.game_config
         : null;
 
-    // Selected addons (new per-person model sends selected_addons)
     const selected_addons: string[] = Array.isArray(body.selected_addons) ? body.selected_addons.slice(0, 10) : add_ons;
 
     // ── 3. Rate limit: 3 creations / email / hour ──
@@ -237,20 +287,33 @@ Deno.serve(async (req) => {
 
     // ── 4. Load configs ──
     const expConfig = await getExperienceConfig(db);
-    const usePerPersonPricing = expConfig?.per_person_pricing != null;
+    const { config: pricingConfig } = await getPricingConfig(db);
 
-    let pricingResult: { total: number; currency: string; [k: string]: unknown };
+    // Determine pricing model from config
+    const modelDef: PricingModelDef | undefined = expConfig?.pricing_models?.[experience_mode];
+    const pricingModel = modelDef?.pricing_model ?? "per_person";
 
-    if (usePerPersonPricing) {
-      // New per-person pricing model
+    let pricingResult: { total: number; currency: string; pricing_model: string; devices_allowed: number; party_size_max?: number; [k: string]: unknown };
+
+    if (pricingModel === "group" && modelDef) {
+      // Validate party_size against max
+      const maxParty = modelDef.party_size_max ?? 20;
+      if (party_size > maxParty) {
+        return json({ error: `party_size exceeds maximum (${maxParty}) for group pricing` }, 400);
+      }
+      pricingResult = calculateGroupPrice(
+        { experience_mode, pause, add_ons: selected_addons, locale },
+        modelDef,
+        pricingConfig,
+      );
+    } else if (expConfig?.per_person_pricing) {
       const result = calculatePerPersonPrice(
         { experience_mode, duration_minutes, party_size, selected_addons, game_config: game_config ?? undefined },
-        expConfig!,
+        expConfig,
+        modelDef,
       );
-      pricingResult = { ...result, currency: (expConfig as any)?.global?.currency ?? "MAD" };
+      pricingResult = { ...result, currency: pricingConfig.currency };
     } else {
-      // Legacy pricing model
-      const { config: pricingConfig } = await getPricingConfig(db);
       const result = calculatePriceLegacy(
         { experience_mode, duration_minutes, party_size, pause, add_ons: selected_addons, locale },
         pricingConfig,
@@ -279,7 +342,6 @@ Deno.serve(async (req) => {
 
     const rng = seededRandom(seed);
 
-    // Separate food_drink for pause
     const foodDrink = allPois.filter((p: any) => p.category === "food_drink");
     const nonFood = allPois.filter((p: any) => p.category !== "food_drink");
     const shuffled = shuffle(nonFood, rng);
@@ -305,7 +367,7 @@ Deno.serve(async (req) => {
     const finalPois = selected.slice(0, count);
     const medinaPoiIds = finalPois.map((p: any) => p.id);
 
-    // ── 6. Fetch all media for selected POIs in 1 query ──
+    // ── 6. Fetch all media for selected POIs ──
     const { data: allMedia } = await db
       .from("poi_media")
       .select("id, medina_poi_id, media_type, is_cover")
@@ -318,7 +380,7 @@ Deno.serve(async (req) => {
       mediaByPoi.set(m.medina_poi_id, list);
     }
 
-    // ── 7. Build quest_config for project ──
+    // ── 7. Build quest_config ──
     const questConfig: Record<string, unknown> = {
       experience_mode,
       project_type: "medina_custom",
@@ -381,7 +443,13 @@ Deno.serve(async (req) => {
     }
 
     // ── 10. Build order metadata ──
-    const orderMetadata: Record<string, unknown> = {};
+    const orderMetadata: Record<string, unknown> = {
+      pricing_model: pricingModel,
+      devices_allowed: pricingResult.devices_allowed,
+    };
+    if (pricingModel === "group") {
+      orderMetadata.party_size_max = pricingResult.party_size_max;
+    }
     if (game_config) {
       orderMetadata.game_config = game_config;
     }
@@ -410,10 +478,15 @@ Deno.serve(async (req) => {
       .single();
     if (ordErr || !order) throw ordErr ?? new Error("Order creation failed");
 
-    // ── 12. Create quest instance ──
+    // ── 12. Create quest instance with device rules ──
     const { data: instance, error: instErr } = await db
       .from("quest_instances")
-      .insert({ order_id: order.id, project_id: project.id, ttl_minutes: 240 })
+      .insert({
+        order_id: order.id,
+        project_id: project.id,
+        ttl_minutes: 240,
+        devices_allowed: pricingResult.devices_allowed,
+      })
       .select("id, access_token")
       .single();
     if (instErr || !instance) throw instErr ?? new Error("Instance creation failed");

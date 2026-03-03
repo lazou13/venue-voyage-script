@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronUp } from 'lucide-react';
+import { ChevronUp, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import type { PricingResult } from '@/lib/calculatePrice';
@@ -18,13 +18,17 @@ export function PricingBox({ pricing, labels, onSubmit, submitting, canSubmit, i
 
   if (!pricing) return null;
 
+  const isGroup = pricing.pricing_model === 'group';
+
   const breakdown = (
     <div className="space-y-2 text-sm">
       <div className="flex justify-between">
-        <span className="text-muted-foreground">Base</span>
+        <span className="text-muted-foreground">
+          {isGroup ? 'Prix groupe' : 'Base'}
+        </span>
         <span className="text-foreground">{pricing.base_price} {pricing.currency}</span>
       </div>
-      {pricing.duration_multiplier !== 1 && (
+      {!isGroup && pricing.duration_multiplier !== 1 && (
         <div className="flex justify-between">
           <span className="text-muted-foreground">×{pricing.duration_multiplier}</span>
           <span className="text-foreground">{Math.round(pricing.base_price * pricing.duration_multiplier)} {pricing.currency}</span>
@@ -48,6 +52,28 @@ export function PricingBox({ pricing, labels, onSubmit, submitting, canSubmit, i
           <span className="text-foreground">+{a.price} {pricing.currency}</span>
         </div>
       ))}
+
+      {/* Pricing model label */}
+      {pricing.price_label && (
+        <div className="text-xs text-muted-foreground italic">
+          {pricing.price_label}
+        </div>
+      )}
+
+      {/* Device info */}
+      {isGroup && pricing.devices_allowed === 1 && (
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+          <Smartphone className="w-3.5 h-3.5" />
+          <span>1 téléphone pour le groupe</span>
+        </div>
+      )}
+
+      {pricing.party_size_max && isGroup && (
+        <div className="text-xs text-muted-foreground">
+          Jusqu'à {pricing.party_size_max} participants
+        </div>
+      )}
+
       <div className="border-t border-border pt-2 flex justify-between font-bold text-base">
         <span>{labels.total_label}</span>
         <span className="text-primary">{pricing.total} {pricing.currency}</span>

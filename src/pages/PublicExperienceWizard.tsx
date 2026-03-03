@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { calculatePrice, type PricingConfig, type PricingResult } from '@/lib/calculatePrice';
+import { calculatePrice, type PricingConfig, type PricingResult, type PricingModelConfig } from '@/lib/calculatePrice';
 import { ExperienceHero } from '@/components/experience/ExperienceHero';
 import { WizardProgress } from '@/components/experience/WizardProgress';
 import { StepMode } from '@/components/experience/StepMode';
@@ -23,6 +23,7 @@ type PageConfig = {
   durations: { value: number; label: string; desc: string }[];
   labels: Record<string, string>;
   unavailable_message: string;
+  pricing_models?: Record<string, PricingModelConfig>;
 };
 
 const slideVariants = {
@@ -98,10 +99,14 @@ export default function PublicExperienceWizard() {
       .catch(() => {});
   }, [zone]);
 
+  const pricingModelConfig: PricingModelConfig | undefined = useMemo(() => {
+    return config?.pricing_models?.[mode];
+  }, [config, mode]);
+
   const pricing: PricingResult | null = useMemo(() => {
     if (!pricingConfig) return null;
-    return calculatePrice({ experience_mode: mode, duration_minutes: duration, party_size: partySize, pause, add_ons: addOns }, pricingConfig);
-  }, [pricingConfig, mode, duration, partySize, pause, addOns]);
+    return calculatePrice({ experience_mode: mode, duration_minutes: duration, party_size: partySize, pause, add_ons: addOns, pricing_model_config: pricingModelConfig }, pricingConfig);
+  }, [pricingConfig, mode, duration, partySize, pause, addOns, pricingModelConfig]);
 
   const emailError = useMemo(() => {
     if (!email) return null;
@@ -173,7 +178,7 @@ export default function PublicExperienceWizard() {
     <StepMode key="mode" modes={config.modes} durations={config.durations} selectedMode={mode} selectedDuration={duration} onMode={setMode} onDuration={setDuration} />,
     <StepZone key="zone" zones={zones} categories={categories} selectedZone={zone} selectedCategories={selectedCategories} onZone={setZone} onToggleCategory={(c) => setSelectedCategories(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])} labels={{ categories_title: labels.categories_title, categories_hint: labels.categories_hint }} />,
     <StepOptions key="options" pause={pause} onPause={setPause} addOns={addOns} onToggleAddOn={(k) => setAddOns(prev => prev.includes(k) ? prev.filter(x => x !== k) : [...prev, k])} pricingConfig={pricingConfig} labels={{ pause_label: labels.pause_label }} locale="fr" />,
-    <StepIdentity key="identity" email={email} name={name} partySize={partySize} honeypot={honeypot} onEmail={setEmail} onName={setName} onPartySize={setPartySize} onHoneypot={setHoneypot} labels={labels} emailError={step === 3 ? emailError : null} />,
+    <StepIdentity key="identity" email={email} name={name} partySize={partySize} honeypot={honeypot} onEmail={setEmail} onName={setName} onPartySize={setPartySize} onHoneypot={setHoneypot} labels={labels} emailError={step === 3 ? emailError : null} pricingModelConfig={pricingModelConfig} />,
   ];
 
   return (
