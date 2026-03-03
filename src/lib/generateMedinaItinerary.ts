@@ -24,6 +24,16 @@ export interface StartHub {
   lng: number;
 }
 
+export interface POIFeatures {
+  audience?: string[];
+  difficulty?: number;
+  walking_effort?: number;
+  architectural_value?: number;
+  historical_value?: number;
+  visual_impact?: number;
+  interaction_type?: string;
+}
+
 export interface MedinaPOILike {
   id: string;
   zone: string;
@@ -33,7 +43,7 @@ export interface MedinaPOILike {
   lng?: number | null;
   is_start_hub?: boolean;
   status?: string;
-  metadata?: { audience?: string[]; [k: string]: unknown } | null;
+  metadata?: { features?: POIFeatures; audience?: string[]; [k: string]: unknown } | null;
   /** Temporary scoring field set by generateMedinaItinerary */
   __score?: number;
 }
@@ -86,24 +96,47 @@ export function generateMedinaItinerary(
     pool = pool.filter((p) => categories.includes(p.category));
   }
 
-  // 3. Scoring V2: compute __score for each POI
+  // 3. Scoring V3: theme-specific scoring using metadata.features
   const hubLat = startLat;
   const hubLng = startLng;
   for (const poi of pool) {
-    let score = 1; // base
-    // Theme relevance: +5 if category matches selected theme, else +1 (already base)
-    if (selectedTheme && poi.category === selectedTheme) {
-      score += 4; // total 5
-    }
-    // Audience match: +3
-    if (selectedAudience && poi.metadata?.audience?.includes(selectedAudience)) {
-      score += 3;
-    }
-    // Distance penalty from hub (km * 0.5)
+    const f: POIFeatures = poi.metadata?.features ?? {};
+    const arch = f.architectural_value ?? 0;
+    const hist = f.historical_value ?? 0;
+    const vis = f.visual_impact ?? 0;
+    const diff = f.difficulty ?? 0;
+    const walk = f.walking_effort ?? 0;
+    const iType = f.interaction_type ?? '';
+    const aud = f.audience ?? poi.metadata?.audience ?? [];
+
+    let distKm = 0;
     if (hubLat != null && hubLng != null && poi.lat != null && poi.lng != null) {
-      const distKm = haversineDistance(hubLat, hubLng, poi.lat, poi.lng) / 1000;
-      score -= distKm * 0.5;
+      distKm = haversineDistance(hubLat, hubLng, poi.lat, poi.lng) / 1000;
     }
+
+    let score = 1; // base fallback
+
+    switch (selectedTheme) {
+      case 'architecture':
+        score = arch * 0.8 + vis * 0.6 + hist * 0.5 - walk * 0.3 - distKm * 0.5;
+        break;
+      case 'family':
+        score = vis * 0.7 + (aud.includes('family') ? 4 : 0) - diff * 0.6 - walk * 0.5 - distKm * 0.4;
+        break;
+      case 'museums':
+        score = hist * 0.9 + arch * 0.5 - distKm * 0.4;
+        break;
+      case 'exploration':
+        score = (iType === 'puzzle' ? 3 : 0) + diff * 0.5 - distKm * 0.3;
+        break;
+      default:
+        // V2 fallback: category match + audience + distance
+        if (selectedTheme && poi.category === selectedTheme) score += 4;
+        if (selectedAudience && aud.includes(selectedAudience)) score += 3;
+        score -= distKm * 0.5;
+        break;
+    }
+
     poi.__score = score;
   }
 
