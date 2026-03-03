@@ -11,6 +11,10 @@ export interface ItineraryParams {
   /** Optional hub coordinates to geo-sort from */
   startLat?: number;
   startLng?: number;
+  /** Scoring V2: primary theme for relevance boost */
+  selectedTheme?: string;
+  /** Scoring V2: target audience tag */
+  selectedAudience?: string;
 }
 
 export interface StartHub {
@@ -29,6 +33,9 @@ export interface MedinaPOILike {
   lng?: number | null;
   is_start_hub?: boolean;
   status?: string;
+  metadata?: { audience?: string[]; [k: string]: unknown } | null;
+  /** Temporary scoring field set by generateMedinaItinerary */
+  __score?: number;
 }
 
 /** Simple seeded PRNG (mulberry32) */
@@ -68,7 +75,7 @@ export function generateMedinaItinerary(
   allPois: MedinaPOILike[],
   params: ItineraryParams,
 ): string[] {
-  const { zone, categories, pause, count, seed, startLat, startLng } = params;
+  const { zone, categories, pause, count, seed, startLat, startLng, selectedTheme, selectedAudience } = params;
   const rng = seededRandom(seed ?? String(Date.now()));
 
   // 1. Filter by zone + active + validated + exclude hubs
@@ -79,14 +86,39 @@ export function generateMedinaItinerary(
     pool = pool.filter((p) => categories.includes(p.category));
   }
 
-  // 3. Separate food_drink for pause injection
+  // 3. Scoring V2: compute __score for each POI
+  const hubLat = startLat;
+  const hubLng = startLng;
+  for (const poi of pool) {
+    let score = 1; // base
+    // Theme relevance: +5 if category matches selected theme, else +1 (already base)
+    if (selectedTheme && poi.category === selectedTheme) {
+      score += 4; // total 5
+    }
+    // Audience match: +3
+    if (selectedAudience && poi.metadata?.audience?.includes(selectedAudience)) {
+      score += 3;
+    }
+    // Distance penalty from hub (km * 0.5)
+    if (hubLat != null && hubLng != null && poi.lat != null && poi.lng != null) {
+      const distKm = haversineDistance(hubLat, hubLng, poi.lat, poi.lng) / 1000;
+      score -= distKm * 0.5;
+    }
+    poi.__score = score;
+  }
+
+  // 4. Separate food_drink for pause injection
   const foodDrink = pool.filter((p) => p.category === 'food_drink');
   const nonFood = pool.filter((p) => p.category !== 'food_drink');
 
-  // 4. Shuffle non-food
-  const shuffled = shuffle(nonFood, rng);
+  // 5. Sort non-food by score descending (higher relevance first), then light shuffle within score tiers
+  const scored = [...nonFood].sort((a, b) => (b.__score ?? 0) - (a.__score ?? 0));
+  // Add small jitter to avoid fully deterministic ties while preserving score order
+  const jittered = scored.map((p, i) => ({ p, order: i + rng() * 0.5 }));
+  jittered.sort((a, b) => a.order - b.order);
+  const shuffled = jittered.map((x) => x.p);
 
-  // 5. Greedy diversity: no 2 consecutive same category + max 2 per category
+  // 6. Greedy diversity: no 2 consecutive same category + max 2 per category
   const result: MedinaPOILike[] = [];
   const remaining = [...shuffled];
   const catCount: Record<string, number> = {};
