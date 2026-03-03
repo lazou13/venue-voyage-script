@@ -15,6 +15,8 @@ export interface MedinaPOI {
   step_config: Record<string, unknown>;
   metadata: Record<string, unknown>;
   is_active: boolean;
+  is_start_hub: boolean;
+  hub_theme: string | null;
 }
 
 export type MedinaPOIInsert = Omit<MedinaPOI, 'id' | 'created_at' | 'updated_at'>;

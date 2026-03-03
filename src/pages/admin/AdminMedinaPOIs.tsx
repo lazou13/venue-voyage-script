@@ -13,7 +13,10 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink, MapPin, StickyNote,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink, MapPin, StickyNote, Navigation,
 } from 'lucide-react';
 
 // ─── Role tags ──────────────────────────────────────────────
@@ -69,9 +72,14 @@ function POIListItem({
       }`}
     >
       <div className="font-medium truncate">{poi.name}</div>
-      <div className="flex items-center gap-2 mt-0.5">
+      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
         <span className="text-xs opacity-70">{poi.category}</span>
         {poi.zone && <span className="text-xs opacity-70">· {poi.zone}</span>}
+        {poi.is_start_hub && (
+          <Badge className="text-[10px] px-1.5 py-0 bg-amber-500 text-white border-amber-500">
+            <Navigation className="w-2.5 h-2.5 mr-0.5" /> HUB
+          </Badge>
+        )}
         {!poi.is_active && (
           <Badge variant="outline" className="text-[10px] px-1 py-0">
             inactif
@@ -250,6 +258,7 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
     }));
 
   const save = () => {
+    if (form.is_start_hub && !form.hub_theme) return; // block save without theme
     const { id, created_at, updated_at, ...rest } = form;
     onUpdate(poi.id, rest);
   };
@@ -330,6 +339,48 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
           <Switch checked={form.is_active} onCheckedChange={(v) => { set('is_active', v); setTimeout(save, 0); }} />
           <Label>Actif</Label>
         </div>
+      </div>
+
+      {/* Start Hub */}
+      <div className="space-y-3 rounded-lg border border-border p-4">
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={form.is_start_hub}
+            disabled={form.lat == null || form.lng == null}
+            onCheckedChange={(v) => {
+              set('is_start_hub', v);
+              if (!v) set('hub_theme', null);
+              setTimeout(save, 0);
+            }}
+          />
+          <Label className="flex items-center gap-1">
+            <Navigation className="w-3.5 h-3.5" /> Hub de départ
+          </Label>
+        </div>
+        {(form.lat == null || form.lng == null) && (
+          <p className="text-xs text-muted-foreground italic">Un hub nécessite des coordonnées GPS.</p>
+        )}
+        {form.is_start_hub && (
+          <div>
+            <Label>Thème associé</Label>
+            <Select
+              value={form.hub_theme ?? ''}
+              onValueChange={(v) => { set('hub_theme', v); setTimeout(save, 0); }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Choisir un thème…" />
+              </SelectTrigger>
+              <SelectContent>
+                {['museums', 'architecture', 'artisan', 'family', 'exploration'].map((t) => (
+                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.is_start_hub && !form.hub_theme && (
+              <p className="text-xs text-destructive mt-1">Le thème est obligatoire pour un hub.</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Note / memo */}
