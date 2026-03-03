@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { List, Rocket, LayoutDashboard, Sliders, Settings2, ShieldCheck, Languages, BookOpen, MapPin, ShoppingCart, Wand2 } from 'lucide-react';
+import { List, Rocket, LayoutDashboard, Sliders, Settings2, ShieldCheck, Languages, BookOpen, MapPin, ShoppingCart, Wand2, Store } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
@@ -18,6 +18,7 @@ const navItems = [
   { to: '/admin/medina-pois', label: 'Bibliothèque Médina', icon: MapPin },
   { to: '/admin/medina-custom', label: 'Sur-mesure', icon: Wand2 },
   { to: '/admin/orders', label: 'Commandes', icon: ShoppingCart },
+  { to: '/admin/catalog', label: 'Catalogue', icon: Store },
 ];
 
 export function AdminSidebar({ hasUnsavedChanges }: AdminSidebarProps) {

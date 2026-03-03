@@ -22,6 +22,9 @@ import AdminOrders from "./pages/admin/AdminOrders";
 import AdminMedinaCustomBuilder from "./pages/admin/AdminMedinaCustomBuilder";
 import QuestPlay from "./pages/QuestPlay";
 import PublicExperienceBuilder from "./pages/PublicExperienceBuilder";
+import PublicExperiencesList from "./pages/PublicExperiencesList";
+import PublicExperienceDetail from "./pages/PublicExperienceDetail";
+import AdminCatalog from "./pages/admin/AdminCatalog";
 
 const queryClient = new QueryClient();
 
@@ -51,9 +54,12 @@ const App = () => (
             <Route path="medina-pois" element={<AdminMedinaPOIs />} />
             <Route path="orders" element={<AdminOrders />} />
             <Route path="medina-custom" element={<AdminMedinaCustomBuilder />} />
+            <Route path="catalog" element={<AdminCatalog />} />
           </Route>
           
           <Route path="/experience" element={<PublicExperienceBuilder />} />
+          <Route path="/experiences" element={<PublicExperiencesList />} />
+          <Route path="/experiences/:slug" element={<PublicExperienceDetail />} />
           <Route path="/play" element={<QuestPlay />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
