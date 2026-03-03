@@ -61,13 +61,24 @@ export default function QuestPlay() {
   }
 
   if (error) {
+    const isExpiredError = error === 'expired' || error === 'Instance expirée';
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="max-w-md w-full">
           <CardContent className="p-6 text-center">
-            <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
-            <h1 className="text-xl font-bold mb-2">Erreur</h1>
-            <p className="text-muted-foreground">{error}</p>
+            {isExpiredError ? (
+              <>
+                <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h1 className="text-xl font-bold mb-2">Expérience expirée</h1>
+                <p className="text-muted-foreground">Cette session a expiré. Merci d'avoir participé !</p>
+              </>
+            ) : (
+              <>
+                <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
+                <h1 className="text-xl font-bold mb-2">Erreur</h1>
+                <p className="text-muted-foreground">{error}</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

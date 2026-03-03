@@ -604,6 +604,14 @@ export type Database = {
     }
     Functions: {
       cleanup_expired_data: { Args: never; Returns: Json }
+      find_catalog_project: {
+        Args: { p_slug: string }
+        Returns: {
+          id: string
+          quest_config: Json
+          title_i18n: Json
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

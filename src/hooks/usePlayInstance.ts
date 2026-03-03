@@ -110,6 +110,11 @@ export function usePlayInstance(accessToken: string | null) {
     const tick = () => {
       const left = Math.max(0, Math.floor((new Date(data.instance.expires_at!).getTime() - Date.now()) / 1000));
       setRemainingSeconds(left);
+      // Stop interval when timer reaches 0 (B6 fix)
+      if (left <= 0 && timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     };
     tick();
     timerRef.current = setInterval(tick, 1000);
@@ -169,9 +174,21 @@ export function usePlayInstance(accessToken: string | null) {
       const { data: result, error: fnErr } = await supabase.functions.invoke('start-instance', {
         body: { access_token: accessToken },
       });
-      if (fnErr) throw fnErr;
-      if (result?.error) {
-        setError(result.error);
+      if (fnErr) {
+        // Handle 410 Gone (expired instance) specifically (B9 fix)
+        const status = (fnErr as any)?.status || (fnErr as any)?.context?.status;
+        if (status === 410) {
+          setError('expired');
+        } else {
+          throw fnErr;
+        }
+      } else if (result?.error) {
+        // Edge function returned an error in the body
+        if (result.error === 'Instance expirée') {
+          setError('expired');
+        } else {
+          setError(result.error);
+        }
       } else {
         setData(result as PlayData);
       }
