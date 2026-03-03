@@ -17,7 +17,7 @@ function getCorsHeaders(req: Request) {
 
 // ── In-memory IP rate limit (120 req/IP/hour) ──
 const ipHits = new Map<string, { count: number; resetAt: number }>();
-const IP_RATE_LIMIT = 120;
+const IP_RATE_LIMIT = 60;
 const RATE_WINDOW_MS = 3600_000;
 
 function checkIpRateLimit(ip: string): boolean {
