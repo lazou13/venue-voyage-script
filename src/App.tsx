@@ -25,6 +25,7 @@ import PublicExperienceBuilder from "./pages/PublicExperienceBuilder";
 import PublicExperiencesList from "./pages/PublicExperiencesList";
 import PublicExperienceDetail from "./pages/PublicExperienceDetail";
 import AdminCatalog from "./pages/admin/AdminCatalog";
+import AdminHealth from "./pages/admin/AdminHealth";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +56,7 @@ const App = () => (
             <Route path="orders" element={<AdminOrders />} />
             <Route path="medina-custom" element={<AdminMedinaCustomBuilder />} />
             <Route path="catalog" element={<AdminCatalog />} />
+            <Route path="health" element={<AdminHealth />} />
           </Route>
           
           <Route path="/experience" element={<PublicExperienceBuilder />} />
