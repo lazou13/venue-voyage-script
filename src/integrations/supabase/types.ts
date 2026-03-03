@@ -167,6 +167,7 @@ export type Database = {
           caption: string | null
           created_at: string
           duration_sec: number | null
+          extra: Json
           id: string
           is_cover: boolean
           media_type: string
@@ -182,6 +183,7 @@ export type Database = {
           caption?: string | null
           created_at?: string
           duration_sec?: number | null
+          extra?: Json
           id?: string
           is_cover?: boolean
           media_type: string
@@ -197,6 +199,7 @@ export type Database = {
           caption?: string | null
           created_at?: string
           duration_sec?: number | null
+          extra?: Json
           id?: string
           is_cover?: boolean
           media_type?: string
