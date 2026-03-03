@@ -416,6 +416,9 @@ export type Database = {
         Row: {
           access_token: string
           created_at: string
+          device_id: string | null
+          device_uses: number
+          devices_allowed: number
           expires_at: string | null
           id: string
           order_id: string
@@ -429,6 +432,9 @@ export type Database = {
         Insert: {
           access_token?: string
           created_at?: string
+          device_id?: string | null
+          device_uses?: number
+          devices_allowed?: number
           expires_at?: string | null
           id?: string
           order_id: string
@@ -442,6 +448,9 @@ export type Database = {
         Update: {
           access_token?: string
           created_at?: string
+          device_id?: string | null
+          device_uses?: number
+          devices_allowed?: number
           expires_at?: string | null
           id?: string
           order_id?: string
