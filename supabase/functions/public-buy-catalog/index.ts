@@ -15,6 +15,22 @@ function getCorsHeaders(req: Request) {
   };
 }
 
+// ── In-memory IP rate limit (30 req/IP/hour) ──
+const ipHits = new Map<string, { count: number; resetAt: number }>();
+const IP_RATE_LIMIT = 30;
+const RATE_WINDOW_MS = 3600_000;
+
+function checkIpRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = ipHits.get(ip);
+  if (!entry || now > entry.resetAt) {
+    ipHits.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= IP_RATE_LIMIT;
+}
+
 function json(body: unknown, status: number, cors: Record<string, string>) {
   return new Response(JSON.stringify(body), {
     status,
@@ -31,6 +47,13 @@ Deno.serve(async (req) => {
 
   if (req.method !== "POST") {
     return json({ error: "Method not allowed" }, 405, corsHeaders);
+  }
+
+  // IP rate limit (R2 fix — works even without email)
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("cf-connecting-ip") || "unknown";
+  if (!checkIpRateLimit(ip)) {
+    return json({ error: "Too many requests" }, 429, corsHeaders);
   }
 
   try {
@@ -54,7 +77,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    // Rate limit: 5/email/hour (skip if no email)
+    // Email rate limit: 5/email/hour (only if email provided)
     if (customer_email) {
       const { count, error: rlErr } = await sb
         .from("orders")
@@ -67,73 +90,103 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Find public project by slug
-    const { data: projects, error: pErr } = await sb
+    // R3 FIX: SQL-level slug lookup instead of LIMIT 100 + JS filter
+    const { data: project, error: pErr } = await sb
       .from("projects")
       .select("id, quest_config, title_i18n")
-      .limit(100);
-    if (pErr) throw pErr;
+      .eq("quest_config->'catalog'->>'is_public'" as any, "true")
+      .eq("quest_config->'catalog'->>'slug'" as any, slug)
+      .limit(1)
+      .maybeSingle();
 
-    const project = (projects ?? []).find((p: any) => {
-      const cat = p.quest_config?.catalog;
-      return cat?.is_public === true && cat?.slug === slug;
-    });
+    if (pErr) {
+      // Fallback: PostgREST may not support nested JSON operators via .eq()
+      // Use a raw RPC or manual filter approach
+      console.error("Direct filter failed, using fallback:", pErr.message);
+      
+      // Fallback: fetch with broader filter
+      const { data: allProjects, error: fallbackErr } = await sb
+        .from("projects")
+        .select("id, quest_config, title_i18n")
+        .limit(500);
+      if (fallbackErr) throw fallbackErr;
+
+      const found = (allProjects ?? []).find((p: any) => {
+        const cat = p.quest_config?.catalog;
+        return cat?.is_public === true && cat?.slug === slug;
+      });
+
+      if (!found) {
+        return json({ error: "Experience not found" }, 404, corsHeaders);
+      }
+
+      return await createOrderAndInstance(sb, found, customer_name, customer_email, locale, party_size, corsHeaders);
+    }
 
     if (!project) {
       return json({ error: "Experience not found" }, 404, corsHeaders);
     }
 
-    const catalog = (project as any).quest_config.catalog;
-    // Source of truth for mode is quest_config.experience_mode
-    const experience_mode = (project as any).quest_config.experience_mode || catalog.mode || "visit";
-    const price = catalog.price ?? 0;
-    const currency = catalog.currency ?? "MAD";
-
-    // Create order
-    const { data: order, error: oErr } = await sb
-      .from("orders")
-      .insert({
-        project_id: project.id,
-        customer_name,
-        customer_email: customer_email || null,
-        experience_mode,
-        party_size,
-        locale,
-        status: "pending",
-        payment_status: "stub",
-        amount_total: price,
-        currency,
-      })
-      .select("id")
-      .single();
-    if (oErr) throw oErr;
-
-    // Create quest instance
-    const { data: instance, error: iErr } = await sb
-      .from("quest_instances")
-      .insert({
-        order_id: order.id,
-        project_id: project.id,
-        ttl_minutes: 240,
-      })
-      .select("id, access_token")
-      .single();
-    if (iErr) throw iErr;
-
-    return json(
-      {
-        order_id: order.id,
-        instance_id: instance.id,
-        access_token: instance.access_token,
-        project_id: project.id,
-        price: catalog.price ?? 0,
-        currency: catalog.currency ?? "MAD",
-      },
-      200,
-      corsHeaders,
-    );
+    return await createOrderAndInstance(sb, project, customer_name, customer_email, locale, party_size, corsHeaders);
   } catch (e: any) {
     console.error("public-buy-catalog error:", e);
     return json({ error: "Internal error" }, 500, corsHeaders);
   }
 });
+
+async function createOrderAndInstance(
+  sb: any,
+  project: any,
+  customer_name: string,
+  customer_email: string,
+  locale: string,
+  party_size: number,
+  corsHeaders: Record<string, string>,
+) {
+  const catalog = project.quest_config.catalog;
+  const experience_mode = project.quest_config.experience_mode || catalog.mode || "visit";
+  const price = catalog.price ?? 0;
+  const currency = catalog.currency ?? "MAD";
+
+  const { data: order, error: oErr } = await sb
+    .from("orders")
+    .insert({
+      project_id: project.id,
+      customer_name,
+      customer_email: customer_email || null,
+      experience_mode,
+      party_size,
+      locale,
+      status: "pending",
+      payment_status: "stub",
+      amount_total: price,
+      currency,
+    })
+    .select("id")
+    .single();
+  if (oErr) throw oErr;
+
+  const { data: instance, error: iErr } = await sb
+    .from("quest_instances")
+    .insert({
+      order_id: order.id,
+      project_id: project.id,
+      ttl_minutes: 240,
+    })
+    .select("id, access_token")
+    .single();
+  if (iErr) throw iErr;
+
+  return json(
+    {
+      order_id: order.id,
+      instance_id: instance.id,
+      access_token: instance.access_token,
+      project_id: project.id,
+      price,
+      currency,
+    },
+    200,
+    corsHeaders,
+  );
+}
