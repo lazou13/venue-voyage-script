@@ -121,8 +121,10 @@ export type Database = {
         Row: {
           category: string
           created_at: string
+          hub_theme: string | null
           id: string
           is_active: boolean
+          is_start_hub: boolean
           lat: number | null
           lng: number | null
           metadata: Json
@@ -135,8 +137,10 @@ export type Database = {
         Insert: {
           category?: string
           created_at?: string
+          hub_theme?: string | null
           id?: string
           is_active?: boolean
+          is_start_hub?: boolean
           lat?: number | null
           lng?: number | null
           metadata?: Json
@@ -149,8 +153,10 @@ export type Database = {
         Update: {
           category?: string
           created_at?: string
+          hub_theme?: string | null
           id?: string
           is_active?: boolean
+          is_start_hub?: boolean
           lat?: number | null
           lng?: number | null
           metadata?: Json
