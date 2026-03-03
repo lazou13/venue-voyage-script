@@ -265,6 +265,10 @@ Deno.serve(async (req) => {
         locale,
         party_size,
         notes: add_ons.length > 0 ? JSON.stringify({ add_ons }) : null,
+        status: "pending",
+        payment_status: "stub",
+        amount_total: pricing.total,
+        currency: pricing.currency,
       })
       .select("id")
       .single();

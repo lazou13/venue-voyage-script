@@ -47,6 +47,7 @@ export default function PublicExperienceDetail() {
 
       if (match) {
         const cat = (match as any).quest_config.catalog;
+        const qc = (match as any).quest_config;
         setProject({
           id: match.id,
           title: (match.title_i18n as any)?.fr || match.hotel_name || "Sans titre",
@@ -54,7 +55,7 @@ export default function PublicExperienceDetail() {
           slug: cat.slug,
           price: cat.price ?? 0,
           currency: cat.currency ?? "MAD",
-          mode: cat.mode ?? "visit",
+          mode: qc.experience_mode || cat.mode || "visit",
           short_desc: cat.short_desc ?? "",
         });
       } else {

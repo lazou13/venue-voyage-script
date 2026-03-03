@@ -82,7 +82,9 @@ export default function AdminCatalog() {
       setSaving(null);
       return;
     }
-    const newQuestConfig = { ...project.quest_config, catalog };
+    // Sync catalog.mode with experience_mode (source of truth)
+    const syncedCatalog = { ...catalog, mode: catalog.mode || project.quest_config.experience_mode || "visit" };
+    const newQuestConfig = { ...project.quest_config, catalog: syncedCatalog, experience_mode: syncedCatalog.mode };
     const { error } = await supabase
       .from("projects")
       .update({ quest_config: newQuestConfig as any })

@@ -39,7 +39,7 @@ export default function PublicExperiencesList() {
             slug: cat.slug,
             price: cat.price ?? 0,
             currency: cat.currency ?? "MAD",
-            mode: cat.mode ?? "visit",
+            mode: qc?.experience_mode || cat.mode || "visit",
             short_desc: cat.short_desc ?? "",
           });
         }
