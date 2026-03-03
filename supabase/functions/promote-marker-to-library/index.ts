@@ -96,6 +96,7 @@ Deno.serve(async (req) => {
         category: "terrain",
         lat: marker.lat,
         lng: marker.lng,
+        status: "draft",
         metadata: {
           source_trace_id: marker.trace_id,
           source_marker_id: marker.id,
