@@ -17,6 +17,7 @@ import AdminRules from "./pages/admin/AdminRules";
 import AdminLabels from "./pages/admin/AdminLabels";
 import AdminPublish from "./pages/admin/AdminPublish";
 import AdminDocs from "./pages/admin/AdminDocs";
+import AdminMedinaPOIs from "./pages/admin/AdminMedinaPOIs";
 
 const queryClient = new QueryClient();
 
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="labels" element={<AdminLabels />} />
             <Route path="publish" element={<AdminPublish />} />
             <Route path="docs" element={<AdminDocs />} />
+            <Route path="medina-pois" element={<AdminMedinaPOIs />} />
           </Route>
           
           <Route path="*" element={<NotFound />} />
