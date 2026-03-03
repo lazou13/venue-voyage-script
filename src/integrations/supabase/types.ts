@@ -226,6 +226,7 @@ export type Database = {
           created_at: string
           id: string
           interaction: Database["public"]["Enums"]["interaction_type"]
+          library_poi_id: string | null
           minutes_from_prev: number | null
           name: string
           notes: string | null
@@ -240,6 +241,7 @@ export type Database = {
           created_at?: string
           id?: string
           interaction?: Database["public"]["Enums"]["interaction_type"]
+          library_poi_id?: string | null
           minutes_from_prev?: number | null
           name: string
           notes?: string | null
@@ -254,6 +256,7 @@ export type Database = {
           created_at?: string
           id?: string
           interaction?: Database["public"]["Enums"]["interaction_type"]
+          library_poi_id?: string | null
           minutes_from_prev?: number | null
           name?: string
           notes?: string | null
@@ -265,6 +268,13 @@ export type Database = {
           zone?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pois_library_poi_id_fkey"
+            columns: ["library_poi_id"]
+            isOneToOne: false
+            referencedRelation: "medina_pois"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pois_project_id_fkey"
             columns: ["project_id"]
