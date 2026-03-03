@@ -17,6 +17,7 @@ export interface MedinaPOI {
   is_active: boolean;
   is_start_hub: boolean;
   hub_theme: string | null;
+  status: string;
 }
 
 export type MedinaPOIInsert = Omit<MedinaPOI, 'id' | 'created_at' | 'updated_at'>;
@@ -34,7 +35,13 @@ export function useMedinaPOIs() {
         .select('*')
         .order('name');
       if (error) throw error;
-      return (data ?? []) as MedinaPOI[];
+      // Sort: draft first, then by name
+      const sorted = (data ?? []).sort((a: any, b: any) => {
+        if (a.status === 'draft' && b.status !== 'draft') return -1;
+        if (a.status !== 'draft' && b.status === 'draft') return 1;
+        return (a.name as string).localeCompare(b.name as string);
+      });
+      return sorted as MedinaPOI[];
     },
   });
 
