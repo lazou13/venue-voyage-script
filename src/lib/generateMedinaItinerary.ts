@@ -28,6 +28,7 @@ export interface MedinaPOILike {
   lat?: number | null;
   lng?: number | null;
   is_start_hub?: boolean;
+  status?: string;
 }
 
 /** Simple seeded PRNG (mulberry32) */
@@ -70,8 +71,8 @@ export function generateMedinaItinerary(
   const { zone, categories, pause, count, seed, startLat, startLng } = params;
   const rng = seededRandom(seed ?? String(Date.now()));
 
-  // 1. Filter by zone + active + exclude hubs
-  let pool = allPois.filter((p) => p.is_active && p.zone === zone && !('is_start_hub' in p && (p as any).is_start_hub));
+  // 1. Filter by zone + active + validated + exclude hubs
+  let pool = allPois.filter((p) => p.is_active && (p.status ?? 'validated') === 'validated' && p.zone === zone && !('is_start_hub' in p && (p as any).is_start_hub));
 
   // 2. Filter by categories if specified
   if (categories.length > 0) {
