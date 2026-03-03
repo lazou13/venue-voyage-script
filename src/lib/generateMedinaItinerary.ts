@@ -85,17 +85,33 @@ export function generateMedinaItinerary(
   // 4. Shuffle non-food
   const shuffled = shuffle(nonFood, rng);
 
-  // 5. Greedy diversity: no 2 same categories in a row
+  // 5. Greedy diversity: no 2 consecutive same category + max 2 per category
   const result: MedinaPOILike[] = [];
   const remaining = [...shuffled];
+  const catCount: Record<string, number> = {};
 
   const targetCount = pause && foodDrink.length > 0 ? count - 1 : count;
+  const MAX_PER_CAT = 2;
 
   while (result.length < targetCount && remaining.length > 0) {
     const lastCat = result.length > 0 ? result[result.length - 1].category : null;
-    const diverseIdx = remaining.findIndex((p) => p.category !== lastCat);
-    const pickIdx = diverseIdx >= 0 ? diverseIdx : 0;
-    result.push(remaining.splice(pickIdx, 1)[0]);
+
+    // Strict pass: different from last AND under max per category
+    let pickIdx = remaining.findIndex(
+      (p) => p.category !== lastCat && (catCount[p.category] ?? 0) < MAX_PER_CAT,
+    );
+
+    // Relaxed pass: just different from last (ignore max per category)
+    if (pickIdx < 0) {
+      pickIdx = remaining.findIndex((p) => p.category !== lastCat);
+    }
+
+    // Fallback: take anything
+    if (pickIdx < 0) pickIdx = 0;
+
+    const picked = remaining.splice(pickIdx, 1)[0];
+    catCount[picked.category] = (catCount[picked.category] ?? 0) + 1;
+    result.push(picked);
   }
 
   // 6. Inject food_drink at ~middle if pause requested
@@ -110,6 +126,19 @@ export function generateMedinaItinerary(
   // 7. Geo-sort from hub if start coords provided
   if (startLat != null && startLng != null) {
     final = nearestNeighborSort(final, startLat, startLng);
+  }
+
+  // 8. Post-sort diversity fix: swap consecutive same-category if possible
+  for (let i = 1; i < final.length; i++) {
+    if (final[i].category === final[i - 1].category) {
+      // Try to swap with next non-same
+      for (let j = i + 1; j < final.length; j++) {
+        if (final[j].category !== final[i].category) {
+          [final[i], final[j]] = [final[j], final[i]];
+          break;
+        }
+      }
+    }
   }
 
   return final.map((p) => p.id);
