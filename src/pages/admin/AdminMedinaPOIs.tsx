@@ -16,7 +16,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink, MapPin, StickyNote, Navigation,
+  Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink, MapPin, StickyNote, Navigation, CheckCircle, RotateCcw,
 } from 'lucide-react';
 
 // ─── Role tags ──────────────────────────────────────────────
@@ -75,6 +75,15 @@ function POIListItem({
       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
         <span className="text-xs opacity-70">{poi.category}</span>
         {poi.zone && <span className="text-xs opacity-70">· {poi.zone}</span>}
+        {poi.status === 'draft' ? (
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-muted text-muted-foreground border-border">
+            Draft
+          </Badge>
+        ) : (
+          <Badge className="text-[10px] px-1.5 py-0 bg-emerald-600 text-white border-emerald-600">
+            Validé
+          </Badge>
+        )}
         {poi.is_start_hub && (
           <Badge className="text-[10px] px-1.5 py-0 bg-amber-500 text-white border-amber-500">
             <Navigation className="w-2.5 h-2.5 mr-0.5" /> HUB
@@ -422,6 +431,39 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
 
       <Separator />
 
+      {/* Validation workflow */}
+      {(() => {
+        const canValidate = form.name.trim() !== '' && form.category.trim() !== '' && form.lat != null && form.lng != null;
+        const isDraft = form.status === 'draft';
+
+        return (
+          <div className="space-y-2">
+            {isDraft ? (
+              <>
+                <Button
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={!canValidate}
+                  onClick={() => { onUpdate(poi.id, { status: 'validated' }); }}
+                >
+                  <CheckCircle className="w-4 h-4 mr-1" /> Valider ce POI
+                </Button>
+                {!canValidate && (
+                  <p className="text-xs text-destructive">
+                    Nom, catégorie et coordonnées GPS requis pour valider.
+                  </p>
+                )}
+              </>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => { onUpdate(poi.id, { status: 'draft' }); }}>
+                <RotateCcw className="w-4 h-4 mr-1" /> Repasser en brouillon
+              </Button>
+            )}
+          </div>
+        );
+      })()}
+
+      <Separator />
+
       <Button variant="destructive" size="sm" onClick={() => onDelete(poi.id)}>
         <Trash2 className="w-4 h-4 mr-1" /> Supprimer ce POI
       </Button>
@@ -450,6 +492,11 @@ export default function AdminMedinaPOIs() {
   const handleUpdate = async (id: string, data: Partial<MedinaPOI>) => {
     try {
       await update.mutateAsync({ id, ...data });
+      if (data.status === 'validated') {
+        toast({ title: 'POI validé — utilisable dans le moteur.' });
+      } else if (data.status === 'draft') {
+        toast({ title: 'POI repassé en brouillon.' });
+      }
     } catch (err: any) {
       toast({ title: 'Erreur', description: err.message, variant: 'destructive' });
     }
