@@ -360,7 +360,8 @@ const ANALYSIS_TOOL = {
             score: { type: "number", description: "Potentiel Instagram 1-5" },
             best_angle: { type: "string", description: "Conseil de cadrage photo" },
             best_time: { type: "string", description: "Meilleure heure pour la photo" },
-            hashtags: { type: "array", items: { type: "string" }, description: "5-8 hashtags Instagram pertinents" }
+            hashtags: { type: "array", items: { type: "string" }, description: "5-8 hashtags Instagram pertinents" },
+            instagram_examples: { type: "array", items: { type: "string" }, description: "Descriptions de posts Instagram populaires pour ce lieu (ex: 'Vue panoramique depuis la terrasse avec thé à la menthe')" }
           },
           required: ["score", "best_angle", "best_time", "hashtags"],
           additionalProperties: false
