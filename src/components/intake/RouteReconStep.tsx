@@ -144,6 +144,11 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  
+  // Per-marker AI analysis state (for trace list)
+  const [markerAnalyses, setMarkerAnalyses] = useState<Record<string, any>>({});
+  const [analyzingMarkerId, setAnalyzingMarkerId] = useState<string | null>(null);
+  const [expandedAnalysisId, setExpandedAnalysisId] = useState<string | null>(null);
   const quickMarkerFileRef = useRef<HTMLInputElement>(null);
   const quickMarkerFileBrowseRef = useRef<HTMLInputElement>(null);
   
@@ -557,7 +562,127 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     }
   };
 
-  // Photo upload -> auto-save marker
+  // Trigger AI analysis for a specific marker in the trace list
+  const triggerMarkerAnalysis = async (marker: RouteMarker) => {
+    setAnalyzingMarkerId(marker.id);
+    try {
+      const { data: existingPois } = await supabase
+        .from('medina_pois')
+        .select('name, category, zone, lat, lng')
+        .eq('is_active', true)
+        .limit(100);
+
+      const nearbyMarkers = markers
+        .filter(m => {
+          const dlat = m.lat - marker.lat;
+          const dlng = m.lng - marker.lng;
+          const distApprox = Math.sqrt(dlat * dlat + dlng * dlng) * 111000;
+          return distApprox < 200 && m.note && m.id !== marker.id;
+        })
+        .slice(0, 10)
+        .map(m => ({ lat: m.lat, lng: m.lng, note: m.note, photo_url: m.photo_url, audio_url: m.audio_url }));
+
+      const { data, error } = await supabase.functions.invoke('analyze-marker', {
+        body: {
+          photo_url: marker.photo_url || undefined,
+          audio_url: marker.audio_url || undefined,
+          lat: marker.lat,
+          lng: marker.lng,
+          note: marker.note || undefined,
+          existing_pois: existingPois || [],
+          nearby_markers: nearbyMarkers,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setMarkerAnalyses(prev => ({ ...prev, [marker.id]: data.analysis }));
+      setExpandedAnalysisId(marker.id);
+    } catch (err) {
+      toast({ title: 'Erreur analyse IA', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setAnalyzingMarkerId(null);
+    }
+  };
+
+  // Analyze all markers in the selected trace
+  const triggerAnalyzeAll = async () => {
+    const toAnalyze = markers.filter(m => (m.photo_url || m.audio_url) && !markerAnalyses[m.id]);
+    if (toAnalyze.length === 0) {
+      toast({ title: 'Rien à analyser', description: 'Tous les marqueurs sont déjà analysés ou sans média' });
+      return;
+    }
+    for (const m of toAnalyze) {
+      await triggerMarkerAnalysis(m);
+    }
+    toast({ title: `${toAnalyze.length} marqueur(s) analysé(s)` });
+  };
+
+  // Approve marker analysis: merge into note
+  const handleApproveMarkerAnalysis = async (markerId: string) => {
+    const analysis = markerAnalyses[markerId];
+    const marker = markers.find(m => m.id === markerId);
+    if (!analysis || !marker) return;
+
+    const enrichedNote = [
+      `📍 ${analysis.location_guess}`,
+      `📂 ${analysis.category}${analysis.sub_category ? ` / ${analysis.sub_category}` : ''}`,
+      '',
+      '📖 Guide:',
+      analysis.guide_narration?.fr || '',
+      '',
+      '🏛️ Anecdote:',
+      analysis.historical_anecdote || '',
+      '',
+      '📚 Bibliothèque:',
+      analysis.summary_library || '',
+    ].join('\n');
+
+    try {
+      await updateMarker.mutateAsync({
+        markerId: marker.id,
+        traceId: marker.trace_id,
+        lat: marker.lat,
+        lng: marker.lng,
+        note: enrichedNote,
+        photoUrl: marker.photo_url || null,
+        audioUrl: marker.audio_url || null,
+      });
+      toast({ title: 'Analyse approuvée', description: 'Note enrichie par l\'IA' });
+      setExpandedAnalysisId(null);
+    } catch (err) {
+      toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
+    }
+  };
+
+  // Correct marker analysis: open edit dialog with pre-filled note
+  const handleCorrectMarkerAnalysis = (markerId: string) => {
+    const analysis = markerAnalyses[markerId];
+    const marker = markers.find(m => m.id === markerId);
+    if (!analysis || !marker) return;
+
+    const prefilled = [
+      `📍 ${analysis.location_guess}`,
+      `📂 ${analysis.category}${analysis.sub_category ? ` / ${analysis.sub_category}` : ''}`,
+      '',
+      '📖 Guide:',
+      analysis.guide_narration?.fr || '',
+      '',
+      '🏛️ Anecdote:',
+      analysis.historical_anecdote || '',
+      '',
+      '📚 Bibliothèque:',
+      analysis.summary_library || '',
+    ].join('\n');
+
+    setEditingMarker(marker);
+    setEditLat(String(marker.lat));
+    setEditLng(String(marker.lng));
+    setEditNote(prefilled);
+    setEditPhotoUrl(marker.photo_url || '');
+    setEditAudioUrl(marker.audio_url || '');
+  };
+
+
   const handleQuickMarkerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1401,76 +1526,234 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                     >
                       📊 Rapport
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      disabled={!!analyzingMarkerId}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        triggerAnalyzeAll();
+                      }}
+                    >
+                      🧠 {analyzingMarkerId ? 'Analyse...' : 'Analyser tous'}
+                    </Button>
                   </div>
                 </div>
                 <div className="space-y-1">
                   {markers.map((marker, idx) => (
-                    <div 
-                      key={marker.id} 
-                      className="flex items-start gap-2 p-2 rounded bg-muted/30 text-sm cursor-pointer hover:bg-muted/60 transition-colors"
-                      onClick={() => handleOpenEditMarker(marker)}
-                    >
-                      <Checkbox
-                        checked={selectedForPromotion.has(marker.id) || marker.promoted}
-                        disabled={marker.promoted}
-                        onClick={(e) => e.stopPropagation()}
-                        onCheckedChange={(checked) => {
-                          setSelectedForPromotion(prev => {
-                            const next = new Set(prev);
-                            if (checked) next.add(marker.id);
-                            else next.delete(marker.id);
-                            return next;
-                          });
-                        }}
-                        className="mt-0.5 shrink-0"
-                      />
-                      <Badge variant="outline" className="shrink-0">{idx + 1}</Badge>
-                      {marker.promoted && (
-                        <Badge variant="secondary" className="shrink-0 text-xs">Bibliothèque</Badge>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs text-muted-foreground">
-                          {marker.lat.toFixed(5)}, {marker.lng.toFixed(5)}
-                        </p>
-                        {marker.note && <p className="truncate">{marker.note}</p>}
-                        <div className="flex items-center gap-2 mt-1">
-                          {marker.photo_url && (
-                            <img 
-                              src={marker.photo_url} 
-                              alt="Marker" 
-                              className="h-12 w-12 object-cover rounded cursor-pointer hover:ring-2 hover:ring-primary transition-shadow"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const photosWithIndex = markers
-                                  .map((m, i) => ({ m, i }))
-                                  .filter(({ m }) => m.photo_url);
-                                const photoIdx = photosWithIndex.findIndex(({ i }) => i === idx);
-                                if (photoIdx >= 0) {
-                                  setLightboxIndex(photoIdx);
-                                  setLightboxOpen(true);
-                                }
-                              }}
-                            />
-                          )}
-                          {marker.audio_url && (
-                            <audio controls className="h-8 max-w-[180px]" onClick={(e) => e.stopPropagation()}>
-                              <source src={marker.audio_url} type="audio/webm" />
-                            </audio>
-                          )}
+                    <div key={marker.id} className="space-y-0">
+                      <div 
+                        className="flex items-start gap-2 p-2 rounded bg-muted/30 text-sm cursor-pointer hover:bg-muted/60 transition-colors"
+                        onClick={() => handleOpenEditMarker(marker)}
+                      >
+                        <Checkbox
+                          checked={selectedForPromotion.has(marker.id) || marker.promoted}
+                          disabled={marker.promoted}
+                          onClick={(e) => e.stopPropagation()}
+                          onCheckedChange={(checked) => {
+                            setSelectedForPromotion(prev => {
+                              const next = new Set(prev);
+                              if (checked) next.add(marker.id);
+                              else next.delete(marker.id);
+                              return next;
+                            });
+                          }}
+                          className="mt-0.5 shrink-0"
+                        />
+                        <Badge variant="outline" className="shrink-0">{idx + 1}</Badge>
+                        {marker.promoted && (
+                          <Badge variant="secondary" className="shrink-0 text-xs">Bibliothèque</Badge>
+                        )}
+                        {markerAnalyses[marker.id] && (
+                          <Badge variant="default" className="shrink-0 text-xs">🧠 Analysé</Badge>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-muted-foreground">
+                            {marker.lat.toFixed(5)}, {marker.lng.toFixed(5)}
+                          </p>
+                          {marker.note && <p className="truncate">{marker.note}</p>}
+                          <div className="flex items-center gap-2 mt-1">
+                            {marker.photo_url && (
+                              <img 
+                                src={marker.photo_url} 
+                                alt="Marker" 
+                                className="h-12 w-12 object-cover rounded cursor-pointer hover:ring-2 hover:ring-primary transition-shadow"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const photosWithIndex = markers
+                                    .map((m, i) => ({ m, i }))
+                                    .filter(({ m }) => m.photo_url);
+                                  const photoIdx = photosWithIndex.findIndex(({ i }) => i === idx);
+                                  if (photoIdx >= 0) {
+                                    setLightboxIndex(photoIdx);
+                                    setLightboxOpen(true);
+                                  }
+                                }}
+                              />
+                            )}
+                            {marker.audio_url && (
+                              <audio controls className="h-8 max-w-[180px]" onClick={(e) => e.stopPropagation()}>
+                                <source src={marker.audio_url} type="audio/webm" />
+                              </audio>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            title="Analyser avec l'IA"
+                            disabled={analyzingMarkerId === marker.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              triggerMarkerAnalysis(marker);
+                            }}
+                          >
+                            {analyzingMarkerId === marker.id ? (
+                              <span className="animate-spin text-xs">⏳</span>
+                            ) : (
+                              <span className="text-xs">🧠</span>
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            title="Supprimer ce marqueur"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMarkerToDelete({ id: marker.id, traceId: marker.trace_id });
+                            }}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
-                        title="Supprimer ce marqueur"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setMarkerToDelete({ id: marker.id, traceId: marker.trace_id });
-                        }}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
+
+                      {/* AI Analysis Panel */}
+                      {markerAnalyses[marker.id] && expandedAnalysisId === marker.id && (() => {
+                        const a = markerAnalyses[marker.id];
+                        return (
+                          <div className="ml-6 p-3 rounded-b-md border border-t-0 border-primary/20 bg-primary/5 text-sm space-y-2">
+                            <div className="flex items-center justify-between">
+                              <p className="font-medium text-primary">🧠 Compte-rendu IA</p>
+                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setExpandedAnalysisId(null)}>
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
+
+                            {a.location_guess && (
+                              <p><span className="font-medium">📍 Lieu :</span> {a.location_guess}</p>
+                            )}
+                            {a.category && (
+                              <p><span className="font-medium">📂 Catégorie :</span> {a.category}{a.sub_category ? ` / ${a.sub_category}` : ''}</p>
+                            )}
+                            {a.tags?.length > 0 && (
+                              <div className="flex flex-wrap gap-1">
+                                {a.tags.map((t: string) => <Badge key={t} variant="outline" className="text-xs">{t}</Badge>)}
+                              </div>
+                            )}
+                            {a.historical_anecdote && (
+                              <div>
+                                <p className="font-medium">🏛️ Anecdote :</p>
+                                <p className="text-muted-foreground">{a.historical_anecdote}</p>
+                              </div>
+                            )}
+                            {a.guide_narration?.fr && (
+                              <div>
+                                <p className="font-medium">📖 Guide :</p>
+                                <p className="text-muted-foreground">{a.guide_narration.fr}</p>
+                              </div>
+                            )}
+                            {a.nearby_restaurants?.length > 0 && (
+                              <div>
+                                <p className="font-medium">🍽️ Restaurants :</p>
+                                <ul className="list-disc list-inside text-muted-foreground">
+                                  {a.nearby_restaurants.map((r: any, i: number) => (
+                                    <li key={i}>{r.name} — {r.specialty} ({r.price_range})</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {a.instagram_spot && a.instagram_spot.score > 0 && (
+                              <div>
+                                <p className="font-medium">📸 Instagram ({a.instagram_spot.score}/5) :</p>
+                                <p className="text-muted-foreground">
+                                  {a.instagram_spot.best_angle && <>Angle : {a.instagram_spot.best_angle}<br/></>}
+                                  {a.instagram_spot.best_time && <>Heure : {a.instagram_spot.best_time}<br/></>}
+                                  {a.instagram_spot.hashtags?.length > 0 && a.instagram_spot.hashtags.join(' ')}
+                                </p>
+                              </div>
+                            )}
+                            {a.practical_tips && (
+                              <div>
+                                <p className="font-medium">💡 Conseils :</p>
+                                <p className="text-muted-foreground">
+                                  {a.practical_tips.best_time && <>Horaire : {a.practical_tips.best_time}<br/></>}
+                                  {a.practical_tips.photo_tip && <>Photo : {a.practical_tips.photo_tip}<br/></>}
+                                  {a.practical_tips.safety_note && <>Sécurité : {a.practical_tips.safety_note}</>}
+                                </p>
+                              </div>
+                            )}
+                            {a.audio_transcript && (
+                              <div>
+                                <p className="font-medium">🎙️ Transcription :</p>
+                                <p className="text-muted-foreground">{a.audio_transcript}</p>
+                              </div>
+                            )}
+                            {a.riddles?.length > 0 && (
+                              <div>
+                                <p className="font-medium">🧩 Énigmes :</p>
+                                {a.riddles.map((r: any, i: number) => (
+                                  <p key={i} className="text-muted-foreground">• [{r.type}] {r.question}</p>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="flex gap-2 pt-2 border-t border-border">
+                              <Button
+                                size="sm"
+                                className="gap-1"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleApproveMarkerAnalysis(marker.id);
+                                }}
+                              >
+                                <Check className="w-3 h-3" />
+                                Approuver
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCorrectMarkerAnalysis(marker.id);
+                                }}
+                              >
+                                ✏️ Corriger
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Show "Analysé" clickable badge to re-expand */}
+                      {markerAnalyses[marker.id] && expandedAnalysisId !== marker.id && (
+                        <div className="ml-6 px-3 py-1">
+                          <button
+                            className="text-xs text-primary hover:underline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedAnalysisId(marker.id);
+                            }}
+                          >
+                            🧠 Voir le compte-rendu IA
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
