@@ -7,11 +7,11 @@
 
 ### Edge Function `analyze-marker`
 - Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
-- Prompt système ~5000 tokens de connaissances encyclopédiques sur la médina de Marrakech
-- Tool calling pour sortie JSON structurée avec 13 champs d'analyse
+- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
+- Tool calling pour sortie JSON structurée avec 15 champs d'analyse
 - Gestion erreurs 429/402
 
-### Capacités (10 fonctions)
+### Capacités (15 fonctions)
 1. ✅ Identification lieu + catégorie + tags
 2. ✅ Restaurants proches (nom, spécialité, prix, avis)
 3. ✅ Anecdote historique
@@ -24,9 +24,17 @@
 10. ✅ Génération énigmes (QCM + énigme + défi terrain)
 11. ✅ Transcription audio enrichie + données structurées
 12. ✅ Détection doublons vs bibliothèque existante
+13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags)
+14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
+
+### Enrichissement des connaissances
+- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
+- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
+- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
 
 ### Intégration Frontend
 - Analyse automatique après chaque marqueur rapide sauvegardé
 - Panel IA dans le drawer avec résultats structurés
 - Bouton "Appliquer à la note" pour enrichir le marqueur
 - Bouton "Ignorer" pour fermer sans appliquer
+- Marqueurs proches du même projet envoyés comme contexte additionnel
