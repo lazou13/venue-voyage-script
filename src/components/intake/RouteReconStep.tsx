@@ -444,6 +444,18 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
         .eq('is_active', true)
         .limit(100);
 
+      // Fetch nearby markers from same project for context (Strategy A)
+      const nearbyMarkers = markers
+        .filter(m => {
+          if (!lastPosition) return false;
+          const dlat = m.lat - lastPosition.lat;
+          const dlng = m.lng - lastPosition.lng;
+          const distApprox = Math.sqrt(dlat * dlat + dlng * dlng) * 111000; // rough meters
+          return distApprox < 200 && m.note; // within 200m and has a note
+        })
+        .slice(0, 10)
+        .map(m => ({ lat: m.lat, lng: m.lng, note: m.note, photo_url: m.photo_url, audio_url: m.audio_url }));
+
       const { data, error } = await supabase.functions.invoke('analyze-marker', {
         body: {
           photo_url: photoUrl || undefined,
@@ -452,6 +464,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
           lng: lastPosition.lng,
           note: quickMarkerNote.trim() || undefined,
           existing_pois: existingPois || [],
+          nearby_markers: nearbyMarkers,
         },
       });
       if (error) throw error;

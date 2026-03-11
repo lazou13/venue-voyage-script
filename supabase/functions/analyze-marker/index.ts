@@ -104,6 +104,44 @@ const SYSTEM_PROMPT = `Tu es un expert incontesté de la médina de Marrakech. T
 - **1912-1956** : Protectorat français, ville nouvelle (Guéliz) hors remparts
 - **1985** : Médina inscrite au patrimoine mondial UNESCO
 
+## SPOTS INSTAGRAMMABLES — TOP LIEUX PHOTOGÉNIQUES
+
+### Terrasses avec vue
+- **Nomad** (Rahba Kedima) : terrasse sur 3 niveaux, vue sur les toits et la Koutoubia. Meilleure heure : 16h-18h, lumière dorée. #rooftopmarrakech
+- **Café des Épices** (Rahba Kedima) : vue plongeante sur la place aux épices, paniers colorés au premier plan. Matin tôt pour la lumière.
+- **Le Jardin** (Souk Sidi Abdelaziz) : jardin luxuriant caché, mur végétal, lumière tamisée. Toute la journée. #secretgarden
+- **Maison de la Photographie** : terrasse panoramique, vue 360° sur la médina et l'Atlas. 10h-11h ou 16h pour l'Atlas enneigé.
+- **Riad Yima** (Rahba Kedima) : déco pop-art marocain, ultra-coloré, murs peints. Idéal Instagram.
+
+### Portes et mosaïques
+- **Bab Agnaou** : la plus ornée, grès rosé, arc en fer à cheval. Matin (8h-10h) pour lumière directe sans foule.
+- **Fontaine Mouassine** : zellige + bois de cèdre sculpté, ruelles calmes. Lumière diffuse l'après-midi.
+- **Médersa Ben Youssef** : cour intérieure symétrique, bassins miroir, stuc + zellige. 9h à l'ouverture pour photos sans touristes.
+- **Tombeaux Saadiens** : colonnes de marbre, mausolée des 12 colonnes. Matin tôt.
+
+### Ruelles et souks photogéniques
+- **Souk des Teinturiers** : écheveaux de laine multicolores suspendus au-dessus de la ruelle. Fin de matinée, lumière zénithale.
+- **Rahba Kedima** : pyramides d'épices colorées, paniers tressés. Matin pour l'activité + lumière.
+- **Derbs autour de Mouassine** : portes peintes, bougainvilliers, chats. Lumière du matin ou golden hour.
+- **Kissaria** : tissus et couleurs, perspective en tunnel. Flash interdit, jouer avec la lumière naturelle.
+
+### Artisans en action
+- **Souk Haddadine** : ferronniers martelant le métal, étincelles, lanternes suspendues. Dramatique en contre-jour.
+- **Tanneries Bab Debbagh** : cuves colorées vue d'en haut (depuis terrasse des boutiques). Matin pour couleurs vives, menthe pour l'odeur.
+- **Souk Chouari** : copeaux de bois, artisans sculptant le thuya. Lumière naturelle latérale.
+
+### Golden hour spots
+- **Koutoubia** depuis le jardin : coucher de soleil derrière le minaret, palmiers au premier plan. 17h-18h30 selon saison.
+- **Place Jemaa el-Fna** depuis terrasse : stands de fumée + foule au crépuscule. 18h-19h pour la "blue hour".
+- **Remparts** (Bab Doukkala → Bab el-Khemis) : murs ocre dorés, golden hour magnifique.
+
+### Tips photo par heure
+- **7h-9h** : ruelles vides, lumière rasante, chats, portes sans passants
+- **10h-12h** : souks animés, artisans au travail, lumière zénithale dans les passages couverts
+- **14h-16h** : ombres dures, intérieurs de riads/musées, repos dans jardins
+- **16h-18h30** : golden hour, terrasses, Koutoubia, portraits chaleureux
+- **19h-21h** : Jemaa el-Fna illuminée, stands de fumée, ambiance nocturne
+
 ## INSTRUCTIONS
 
 Pour chaque marqueur terrain que tu analyses, tu dois produire :
@@ -120,6 +158,8 @@ Pour chaque marqueur terrain que tu analyses, tu dois produire :
 11. **Énigmes générées** : 1 QCM + 1 énigme + 1 défi terrain adaptés au lieu
 12. **Traductions** : toutes les descriptions en fr, en, ar, es, ary
 13. **Transcription audio** : si audio fourni, transcrire et enrichir (noms propres, prix, données structurées)
+14. **Potentiel Instagram** : score 1-5, meilleur angle de prise de vue, meilleure heure, hashtags suggérés (5-8 hashtags pertinents)
+15. **Contexte terrain** : si des marqueurs proches avec notes sont fournis, utilise-les pour enrichir et contextualiser ton analyse (corrections d'un humain = vérité terrain)
 
 Tu es passionné, précis et ancré dans la réalité du terrain. Tu parles comme un vrai guide marrakchi qui connaît chaque pierre.`;
 
@@ -274,7 +314,18 @@ const ANALYSIS_TOOL = {
           additionalProperties: false,
           description: "Données structurées extraites de l'audio"
         },
-        duplicate_warning: { type: "string", description: "Alerte si ce POI ressemble à un existant dans la bibliothèque, sinon chaîne vide" }
+        duplicate_warning: { type: "string", description: "Alerte si ce POI ressemble à un existant dans la bibliothèque, sinon chaîne vide" },
+        instagram_spot: {
+          type: "object",
+          properties: {
+            score: { type: "number", description: "Potentiel Instagram 1-5" },
+            best_angle: { type: "string", description: "Conseil de cadrage photo" },
+            best_time: { type: "string", description: "Meilleure heure pour la photo" },
+            hashtags: { type: "array", items: { type: "string" }, description: "5-8 hashtags Instagram pertinents" }
+          },
+          required: ["score", "best_angle", "best_time", "hashtags"],
+          additionalProperties: false
+        }
       },
       required: [
         "location_guess", "category", "sub_category", "tags",
@@ -282,7 +333,7 @@ const ANALYSIS_TOOL = {
         "summary_library", "guide_narration", "summary_i18n",
         "practical_tips", "difficulty", "suggested_step_config",
         "generated_challenges", "audio_transcript", "audio_structured_data",
-        "duplicate_warning"
+        "duplicate_warning", "instagram_spot"
       ],
       additionalProperties: false
     }
@@ -295,7 +346,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { photo_url, audio_url, lat, lng, note, existing_pois } = await req.json();
+    const { photo_url, audio_url, lat, lng, note, existing_pois, nearby_markers } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -318,6 +369,10 @@ Deno.serve(async (req) => {
 
     if (existing_pois && existing_pois.length > 0) {
       parts.push(`\n📚 POIs existants dans la bibliothèque (vérifie les doublons) :\n${existing_pois.map((p: any) => `- ${p.name} (${p.category}, ${p.zone}${p.lat ? `, ${p.lat}°N ${p.lng}°W` : ''})`).join('\n')}`);
+    }
+
+    if (nearby_markers && nearby_markers.length > 0) {
+      parts.push(`\n🔄 Marqueurs proches déjà posés (contexte terrain, corrections humaines = vérité) :\n${nearby_markers.map((m: any) => `- [${m.lat}°N, ${m.lng}°W] ${m.note || '(sans note)'}${m.photo_url ? ' 📷' : ''}${m.audio_url ? ' 🎙️' : ''}`).join('\n')}`);
     }
 
     parts.push("\nAnalyse ce marqueur terrain et produis l'analyse complète.");
