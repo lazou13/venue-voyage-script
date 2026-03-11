@@ -446,7 +446,6 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
 
       // Fetch nearby markers from same project for context (Strategy A)
       const nearbyMarkers = markers
-      const nearbyMarkers = allMarkers
         .filter(m => {
           if (!lastPosition) return false;
           const dlat = m.lat - lastPosition.lat;
