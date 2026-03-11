@@ -496,6 +496,52 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     setQuickMarkerPhoto('');
     setQuickMarkerAudioUrl('');
     setQuickMarkerSaved(false);
+    setAiAnalysis(null);
+    setAiError(null);
+    setIsAnalyzing(false);
+  };
+
+  // Apply AI analysis to last saved marker
+  const handleApplyAiAnalysis = async () => {
+    if (!aiAnalysis || !markers.length) return;
+    const lastMarker = markers[markers.length - 1];
+    if (!lastMarker) return;
+    
+    const enrichedNote = [
+      `📍 ${aiAnalysis.location_guess}`,
+      `📂 ${aiAnalysis.category}${aiAnalysis.sub_category ? ` / ${aiAnalysis.sub_category}` : ''}`,
+      '',
+      '📖 Guide:',
+      aiAnalysis.guide_narration?.fr || '',
+      '',
+      '🏛️ Anecdote:',
+      aiAnalysis.historical_anecdote || '',
+      '',
+      '📚 Bibliothèque:',
+      aiAnalysis.summary_library || '',
+    ].join('\n');
+
+    try {
+      await updateMarker.mutateAsync({
+        markerId: lastMarker.id,
+        traceId: lastMarker.trace_id,
+        lat: lastMarker.lat,
+        lng: lastMarker.lng,
+        note: enrichedNote,
+        photoUrl: lastMarker.photo_url || null,
+        audioUrl: lastMarker.audio_url || null,
+      });
+      toast({ title: 'Analyse appliquée', description: 'Note du marqueur enrichie par l\'IA' });
+      // Now close
+      setQuickMarkerOpen(false);
+      setQuickMarkerNote('');
+      setQuickMarkerPhoto('');
+      setQuickMarkerAudioUrl('');
+      setQuickMarkerSaved(false);
+      setAiAnalysis(null);
+    } catch (err) {
+      toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
+    }
   };
 
   // Photo upload -> auto-save marker
