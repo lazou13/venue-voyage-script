@@ -1670,9 +1670,50 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                             {a.nearby_restaurants?.length > 0 && (
                               <div>
                                 <p className="font-medium">🍽️ Restaurants :</p>
-                                <ul className="list-disc list-inside text-muted-foreground">
+                                <ul className="space-y-1 text-muted-foreground">
                                   {a.nearby_restaurants.map((r: any, i: number) => (
-                                    <li key={i}>{r.name} — {r.specialty} ({r.price_range})</li>
+                                    <li key={i} className="flex flex-wrap items-center gap-1">
+                                      <span className="font-medium text-foreground">{r.name}</span>
+                                      <span>— {r.specialty} ({r.price_range})</span>
+                                      {r.distance_hint && <span className="text-xs">📍 {r.distance_hint}</span>}
+                                      <span className="flex gap-1 ml-1">
+                                        {r.google_maps_query && (
+                                          <a href={`https://www.google.com/maps/search/${encodeURIComponent(r.google_maps_query)}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs" onClick={e => e.stopPropagation()}>📍 Maps</a>
+                                        )}
+                                        {r.instagram_handle && (
+                                          <a href={`https://instagram.com/${r.instagram_handle.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-pink-500 hover:underline text-xs" onClick={e => e.stopPropagation()}>📸 {r.instagram_handle}</a>
+                                        )}
+                                        {r.website_url && (
+                                          <a href={r.website_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs" onClick={e => e.stopPropagation()}>🌐 Site</a>
+                                        )}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                            {a.nearby_pois?.length > 0 && (
+                              <div>
+                                <p className="font-medium">🏛️ Points d'intérêt :</p>
+                                <ul className="space-y-1 text-muted-foreground">
+                                  {a.nearby_pois.map((poi: any, i: number) => (
+                                    <li key={i} className="flex flex-wrap items-center gap-1">
+                                      <span className="font-medium text-foreground">{poi.name}</span>
+                                      <Badge variant="outline" className="text-xs">{poi.type}</Badge>
+                                      <span className="text-xs">— {poi.description_fr}</span>
+                                      {poi.distance_hint && <span className="text-xs">📍 {poi.distance_hint}</span>}
+                                      <span className="flex gap-1 ml-1">
+                                        {poi.google_maps_query && (
+                                          <a href={`https://www.google.com/maps/search/${encodeURIComponent(poi.google_maps_query)}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs" onClick={e => e.stopPropagation()}>📍 Maps</a>
+                                        )}
+                                        {poi.instagram_handle && (
+                                          <a href={`https://instagram.com/${poi.instagram_handle.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="text-pink-500 hover:underline text-xs" onClick={e => e.stopPropagation()}>📸 {poi.instagram_handle}</a>
+                                        )}
+                                        {poi.website_url && (
+                                          <a href={poi.website_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs" onClick={e => e.stopPropagation()}>🌐 Site</a>
+                                        )}
+                                      </span>
+                                    </li>
                                   ))}
                                 </ul>
                               </div>
@@ -1683,8 +1724,18 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                                 <p className="text-muted-foreground">
                                   {a.instagram_spot.best_angle && <>Angle : {a.instagram_spot.best_angle}<br/></>}
                                   {a.instagram_spot.best_time && <>Heure : {a.instagram_spot.best_time}<br/></>}
-                                  {a.instagram_spot.hashtags?.length > 0 && a.instagram_spot.hashtags.join(' ')}
+                                  {a.instagram_spot.hashtags?.length > 0 && <span>{a.instagram_spot.hashtags.join(' ')}</span>}
                                 </p>
+                                {a.instagram_spot.instagram_examples?.length > 0 && (
+                                  <div className="mt-1">
+                                    <p className="text-xs font-medium">Exemples de posts :</p>
+                                    <ul className="list-disc list-inside text-xs text-muted-foreground">
+                                      {a.instagram_spot.instagram_examples.map((ex: string, i: number) => (
+                                        <li key={i}>{ex}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
                               </div>
                             )}
                             {a.practical_tips && (
