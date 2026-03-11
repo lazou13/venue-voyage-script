@@ -144,6 +144,11 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  
+  // Per-marker AI analysis state (for trace list)
+  const [markerAnalyses, setMarkerAnalyses] = useState<Record<string, any>>({});
+  const [analyzingMarkerId, setAnalyzingMarkerId] = useState<string | null>(null);
+  const [expandedAnalysisId, setExpandedAnalysisId] = useState<string | null>(null);
   const quickMarkerFileRef = useRef<HTMLInputElement>(null);
   const quickMarkerFileBrowseRef = useRef<HTMLInputElement>(null);
   
