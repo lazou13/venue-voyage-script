@@ -369,7 +369,7 @@ const ANALYSIS_TOOL = {
       },
       required: [
         "location_guess", "category", "sub_category", "tags",
-        "nearby_restaurants", "historical_anecdote",
+        "nearby_restaurants", "nearby_pois", "historical_anecdote",
         "summary_library", "guide_narration", "summary_i18n",
         "practical_tips", "difficulty", "suggested_step_config",
         "generated_challenges", "audio_transcript", "audio_structured_data",
