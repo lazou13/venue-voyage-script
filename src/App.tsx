@@ -39,8 +39,6 @@ const App = () => (
           <Route path="/" element={<Dashboard />} />
           <Route path="/intake/:projectId" element={<IntakeForm />} />
           <Route path="/admin/config" element={<Navigate to="/admin/enums" replace />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
           
           {/* Admin Panel Routes */}
           <Route path="/admin" element={<AdminLayout />}>
