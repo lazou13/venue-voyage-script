@@ -1,40 +1,24 @@
 
-# Plan: Expert IA Médina — analyze-marker
 
-## Status: ✅ Implémenté
+## Plan : Bouton "Approuver + Envoyer en bibliothèque"
 
-## Ce qui a été créé
+### Objectif
+Fusionner les deux actions (approuver l'analyse IA + promouvoir vers `medina_pois`) en un seul bouton dans le panel de compte-rendu.
 
-### Edge Function `analyze-marker`
-- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
-- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
-- Tool calling pour sortie JSON structurée avec 15 champs d'analyse
-- Gestion erreurs 429/402
+### Modification : `src/components/intake/RouteReconStep.tsx`
 
-### Capacités (15 fonctions)
-1. ✅ Identification lieu + catégorie + tags
-2. ✅ Restaurants proches (nom, spécialité, prix, avis)
-3. ✅ Anecdote historique
-4. ✅ Description guide multilingue (fr/en/ar/es/ary)
-5. ✅ Résumé bibliothèque multilingue
-6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
-7. ✅ Classification automatique catégorie/sous-catégorie
-8. ✅ Estimation difficulté + intérêt par public cible
-9. ✅ Suggestions step_config (types, validations)
-10. ✅ Génération énigmes (QCM + énigme + défi terrain)
-11. ✅ Transcription audio enrichie + données structurées
-12. ✅ Détection doublons vs bibliothèque existante
-13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags)
-14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
+**1. Nouvelle fonction `handleApproveAndPromote(markerId)`**
+- Appelle d'abord la logique d'approbation existante (enrichir la note via `updateMarker`)
+- Puis appelle `supabase.functions.invoke('promote-marker-to-library', { body: { marker_id } })`
+- Affiche un toast combiné ("Approuvé + envoyé en bibliothèque")
+- Ferme le panel d'analyse
+- Rafraîchit les marqueurs (`markersQuery.refetch()`)
 
-### Enrichissement des connaissances
-- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
-- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
-- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
+**2. Remplacer le bouton "Approuver" par deux boutons**
+Dans le panel d'analyse (lignes 1766-1789), remplacer les actions par :
+- **"✅ Approuver"** (garde le comportement actuel — enrichit la note seulement)
+- **"✅ Approuver + Bibliothèque"** (nouveau — enrichit la note ET promeut vers `medina_pois`)
+- **"✏️ Corriger"** (inchangé)
 
-### Intégration Frontend
-- Analyse automatique après chaque marqueur rapide sauvegardé
-- Panel IA dans le drawer avec résultats structurés
-- Bouton "Appliquer à la note" pour enrichir le marqueur
-- Bouton "Ignorer" pour fermer sans appliquer
-- Marqueurs proches du même projet envoyés comme contexte additionnel
+Le bouton "Approuver + Bibliothèque" sera désactivé si le marqueur est déjà `promoted: true`.
+
