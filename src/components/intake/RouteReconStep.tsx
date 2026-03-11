@@ -1809,7 +1809,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                               </div>
                             )}
 
-                            <div className="flex gap-2 pt-2 border-t border-border">
+                            <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
                               <Button
                                 size="sm"
                                 className="gap-1"
@@ -1820,6 +1820,18 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                               >
                                 <Check className="w-3 h-3" />
                                 Approuver
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                className="gap-1"
+                                disabled={marker.promoted}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleApproveAndPromote(marker.id);
+                                }}
+                              >
+                                ✅ Approuver + Bibliothèque
                               </Button>
                               <Button
                                 variant="outline"
