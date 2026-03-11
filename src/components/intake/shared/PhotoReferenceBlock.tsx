@@ -146,28 +146,45 @@ export function PhotoReferenceBlock({
               </div>
             </div>
           ) : (
-            <label className="cursor-pointer">
-              <div className="flex flex-col items-center justify-center gap-2 p-4 border-2 border-dashed rounded-lg hover:bg-muted/50 transition-colors max-w-[200px]">
-                {isUploading ? (
+            <div className="space-y-2">
+              {isUploading ? (
+                <div className="flex items-center justify-center p-4 max-w-[200px]">
                   <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
-                ) : (
-                  <>
-                    <ImageIcon className="w-8 h-8 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground text-center">
-                      Prendre / uploader la photo
-                    </span>
-                  </>
-                )}
-              </div>
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleFileChange}
-                className="hidden"
-                disabled={isUploading}
-              />
-            </label>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <label className="cursor-pointer">
+                    <Button variant="outline" size="sm" asChild>
+                      <span>
+                        <Camera className="w-3 h-3 mr-1" />
+                        📷 Photo
+                      </span>
+                    </Button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                  <label className="cursor-pointer">
+                    <Button variant="outline" size="sm" asChild>
+                      <span>
+                        <Upload className="w-3 h-3 mr-1" />
+                        📁 Fichier
+                      </span>
+                    </Button>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Caption input */}

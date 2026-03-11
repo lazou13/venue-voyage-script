@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Route, AlertTriangle, MapPin, Shield, Navigation, 
   Circle, Square, Plus, Download, Trash2, Clock, Ruler, MapPinned,
-  Zap, Camera, X, Check, Copy, Package, Flag, Compass, Mic, MicOff, Volume2, Library
+  Zap, Camera, X, Check, Copy, Package, Flag, Compass, Mic, MicOff, Volume2, Library, Upload
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCrossTabStats } from '@/hooks/useCrossTabStats';
@@ -140,6 +140,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   const [isSavingQuickMarker, setIsSavingQuickMarker] = useState(false);
   const [quickMarkerSaved, setQuickMarkerSaved] = useState(false);
   const quickMarkerFileRef = useRef<HTMLInputElement>(null);
+  const quickMarkerFileBrowseRef = useRef<HTMLInputElement>(null);
   
   // Departure marker state
   const [departureMarked, setDepartureMarked] = useState(false);
@@ -810,6 +811,13 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                         onChange={handleQuickMarkerPhotoUpload}
                         className="hidden"
                       />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        ref={quickMarkerFileBrowseRef}
+                        onChange={handleQuickMarkerPhotoUpload}
+                        className="hidden"
+                      />
                       <Button
                         variant="outline"
                         size="sm"
@@ -818,7 +826,17 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                         className="gap-2"
                       >
                         <Camera className="w-4 h-4" />
-                        {isUploading ? 'Upload...' : '📸 Photo (auto-save)'}
+                        {isUploading ? 'Upload...' : '📷 Photo'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => quickMarkerFileBrowseRef.current?.click()}
+                        disabled={isUploading || isSavingQuickMarker}
+                        className="gap-2"
+                      >
+                        <Upload className="w-4 h-4" />
+                        📁 Fichier
                       </Button>
 
                       {/* Voice recording button */}
