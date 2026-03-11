@@ -430,6 +430,42 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     setQuickMarkerOpen(true);
   };
 
+  // Trigger AI analysis in background
+  const triggerAiAnalysis = async (photoUrl?: string, audioUrl?: string) => {
+    if (!lastPosition) return;
+    setIsAnalyzing(true);
+    setAiError(null);
+    setAiAnalysis(null);
+    try {
+      // Fetch existing POIs for duplicate detection
+      const { data: existingPois } = await supabase
+        .from('medina_pois')
+        .select('name, category, zone, lat, lng')
+        .eq('is_active', true)
+        .limit(100);
+
+      const { data, error } = await supabase.functions.invoke('analyze-marker', {
+        body: {
+          photo_url: photoUrl || undefined,
+          audio_url: audioUrl || undefined,
+          lat: lastPosition.lat,
+          lng: lastPosition.lng,
+          note: quickMarkerNote.trim() || undefined,
+          existing_pois: existingPois || [],
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setAiAnalysis(data.analysis);
+    } catch (err) {
+      const msg = (err as Error).message || 'Erreur analyse IA';
+      setAiError(msg);
+      console.error('AI analysis error:', err);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const handleQuickMarkerSave = async (photoUrl?: string, audioUrl?: string) => {
     if (!lastPosition) {
       toast({ title: 'Erreur', description: 'Aucune position GPS', variant: 'destructive' });
@@ -444,14 +480,8 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
       await addMarkerAtLastCoord(note, finalPhoto, finalAudio);
       setQuickMarkerNumber(n => n + 1);
       setQuickMarkerSaved(true);
-      // Auto-close after brief success feedback
-      setTimeout(() => {
-        setQuickMarkerOpen(false);
-        setQuickMarkerNote('');
-        setQuickMarkerPhoto('');
-        setQuickMarkerAudioUrl('');
-        setQuickMarkerSaved(false);
-      }, 800);
+      // Trigger AI analysis in background (don't auto-close while analyzing)
+      triggerAiAnalysis(finalPhoto, finalAudio);
     } catch (err) {
       toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
     } finally {
