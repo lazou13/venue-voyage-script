@@ -314,7 +314,18 @@ const ANALYSIS_TOOL = {
           additionalProperties: false,
           description: "Données structurées extraites de l'audio"
         },
-        duplicate_warning: { type: "string", description: "Alerte si ce POI ressemble à un existant dans la bibliothèque, sinon chaîne vide" }
+        duplicate_warning: { type: "string", description: "Alerte si ce POI ressemble à un existant dans la bibliothèque, sinon chaîne vide" },
+        instagram_spot: {
+          type: "object",
+          properties: {
+            score: { type: "number", description: "Potentiel Instagram 1-5" },
+            best_angle: { type: "string", description: "Conseil de cadrage photo" },
+            best_time: { type: "string", description: "Meilleure heure pour la photo" },
+            hashtags: { type: "array", items: { type: "string" }, description: "5-8 hashtags Instagram pertinents" }
+          },
+          required: ["score", "best_angle", "best_time", "hashtags"],
+          additionalProperties: false
+        }
       },
       required: [
         "location_guess", "category", "sub_category", "tags",
