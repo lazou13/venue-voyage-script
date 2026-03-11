@@ -562,7 +562,127 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     }
   };
 
-  // Photo upload -> auto-save marker
+  // Trigger AI analysis for a specific marker in the trace list
+  const triggerMarkerAnalysis = async (marker: RouteMarker) => {
+    setAnalyzingMarkerId(marker.id);
+    try {
+      const { data: existingPois } = await supabase
+        .from('medina_pois')
+        .select('name, category, zone, lat, lng')
+        .eq('is_active', true)
+        .limit(100);
+
+      const nearbyMarkers = markers
+        .filter(m => {
+          const dlat = m.lat - marker.lat;
+          const dlng = m.lng - marker.lng;
+          const distApprox = Math.sqrt(dlat * dlat + dlng * dlng) * 111000;
+          return distApprox < 200 && m.note && m.id !== marker.id;
+        })
+        .slice(0, 10)
+        .map(m => ({ lat: m.lat, lng: m.lng, note: m.note, photo_url: m.photo_url, audio_url: m.audio_url }));
+
+      const { data, error } = await supabase.functions.invoke('analyze-marker', {
+        body: {
+          photo_url: marker.photo_url || undefined,
+          audio_url: marker.audio_url || undefined,
+          lat: marker.lat,
+          lng: marker.lng,
+          note: marker.note || undefined,
+          existing_pois: existingPois || [],
+          nearby_markers: nearbyMarkers,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setMarkerAnalyses(prev => ({ ...prev, [marker.id]: data.analysis }));
+      setExpandedAnalysisId(marker.id);
+    } catch (err) {
+      toast({ title: 'Erreur analyse IA', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setAnalyzingMarkerId(null);
+    }
+  };
+
+  // Analyze all markers in the selected trace
+  const triggerAnalyzeAll = async () => {
+    const toAnalyze = markers.filter(m => (m.photo_url || m.audio_url) && !markerAnalyses[m.id]);
+    if (toAnalyze.length === 0) {
+      toast({ title: 'Rien à analyser', description: 'Tous les marqueurs sont déjà analysés ou sans média' });
+      return;
+    }
+    for (const m of toAnalyze) {
+      await triggerMarkerAnalysis(m);
+    }
+    toast({ title: `${toAnalyze.length} marqueur(s) analysé(s)` });
+  };
+
+  // Approve marker analysis: merge into note
+  const handleApproveMarkerAnalysis = async (markerId: string) => {
+    const analysis = markerAnalyses[markerId];
+    const marker = markers.find(m => m.id === markerId);
+    if (!analysis || !marker) return;
+
+    const enrichedNote = [
+      `📍 ${analysis.location_guess}`,
+      `📂 ${analysis.category}${analysis.sub_category ? ` / ${analysis.sub_category}` : ''}`,
+      '',
+      '📖 Guide:',
+      analysis.guide_narration?.fr || '',
+      '',
+      '🏛️ Anecdote:',
+      analysis.historical_anecdote || '',
+      '',
+      '📚 Bibliothèque:',
+      analysis.summary_library || '',
+    ].join('\n');
+
+    try {
+      await updateMarker.mutateAsync({
+        markerId: marker.id,
+        traceId: marker.trace_id,
+        lat: marker.lat,
+        lng: marker.lng,
+        note: enrichedNote,
+        photoUrl: marker.photo_url || null,
+        audioUrl: marker.audio_url || null,
+      });
+      toast({ title: 'Analyse approuvée', description: 'Note enrichie par l\'IA' });
+      setExpandedAnalysisId(null);
+    } catch (err) {
+      toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
+    }
+  };
+
+  // Correct marker analysis: open edit dialog with pre-filled note
+  const handleCorrectMarkerAnalysis = (markerId: string) => {
+    const analysis = markerAnalyses[markerId];
+    const marker = markers.find(m => m.id === markerId);
+    if (!analysis || !marker) return;
+
+    const prefilled = [
+      `📍 ${analysis.location_guess}`,
+      `📂 ${analysis.category}${analysis.sub_category ? ` / ${analysis.sub_category}` : ''}`,
+      '',
+      '📖 Guide:',
+      analysis.guide_narration?.fr || '',
+      '',
+      '🏛️ Anecdote:',
+      analysis.historical_anecdote || '',
+      '',
+      '📚 Bibliothèque:',
+      analysis.summary_library || '',
+    ].join('\n');
+
+    setEditingMarker(marker);
+    setEditLat(String(marker.lat));
+    setEditLng(String(marker.lng));
+    setEditNote(prefilled);
+    setEditPhotoUrl(marker.photo_url || '');
+    setEditAudioUrl(marker.audio_url || '');
+  };
+
+
   const handleQuickMarkerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
