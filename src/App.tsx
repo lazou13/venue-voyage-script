@@ -6,8 +6,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import IntakeForm from "./pages/IntakeForm";
 
-import Auth from "./pages/Auth";
-import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminEnums from "./pages/admin/AdminEnums";
@@ -41,8 +39,6 @@ const App = () => (
           <Route path="/" element={<Dashboard />} />
           <Route path="/intake/:projectId" element={<IntakeForm />} />
           <Route path="/admin/config" element={<Navigate to="/admin/enums" replace />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
           
           {/* Admin Panel Routes */}
           <Route path="/admin" element={<AdminLayout />}>
