@@ -200,10 +200,10 @@ export default function AdminMedinaCustomBuilder() {
 
             <div className="space-y-1.5">
               <Label className="flex items-center gap-1"><Navigation className="w-3.5 h-3.5" /> Thème / Hub de départ</Label>
-              <Select value={hubTheme} onValueChange={setHubTheme}>
+              <Select value={hubTheme || '__none__'} onValueChange={v => setHubTheme(v === '__none__' ? '' : v)}>
                 <SelectTrigger><SelectValue placeholder="Aucun (départ libre)" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Aucun (départ libre)</SelectItem>
+                  <SelectItem value="__none__">Aucun (départ libre)</SelectItem>
                   {HUB_THEMES.map(t => (
                     <SelectItem key={t} value={t}>{t}</SelectItem>
                   ))}
