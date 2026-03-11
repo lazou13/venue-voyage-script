@@ -139,6 +139,11 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   const [quickMarkerNumber, setQuickMarkerNumber] = useState(1);
   const [isSavingQuickMarker, setIsSavingQuickMarker] = useState(false);
   const [quickMarkerSaved, setQuickMarkerSaved] = useState(false);
+  
+  // AI analysis state
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const quickMarkerFileRef = useRef<HTMLInputElement>(null);
   const quickMarkerFileBrowseRef = useRef<HTMLInputElement>(null);
   
