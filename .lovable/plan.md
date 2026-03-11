@@ -1,40 +1,57 @@
 
-# Plan: Expert IA Médina — analyze-marker
 
-## Status: ✅ Implémenté
+## Plan : Liens web/Instagram dans l'analyse IA + futur bouton Guide
 
-## Ce qui a été créé
+### Objectif
+Enrichir la sortie de `analyze-marker` pour que chaque restaurant et point d'intérêt inclue des liens (site web, Google Maps, Instagram) et des exemples de photos Instagram. Plus tard, un bouton "Guide" dans la chasse au trésor permettra au joueur de consulter ces infos.
 
-### Edge Function `analyze-marker`
-- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
-- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
-- Tool calling pour sortie JSON structurée avec 15 champs d'analyse
-- Gestion erreurs 429/402
+### 1. Enrichir le schéma JSON de `analyze-marker`
 
-### Capacités (15 fonctions)
-1. ✅ Identification lieu + catégorie + tags
-2. ✅ Restaurants proches (nom, spécialité, prix, avis)
-3. ✅ Anecdote historique
-4. ✅ Description guide multilingue (fr/en/ar/es/ary)
-5. ✅ Résumé bibliothèque multilingue
-6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
-7. ✅ Classification automatique catégorie/sous-catégorie
-8. ✅ Estimation difficulté + intérêt par public cible
-9. ✅ Suggestions step_config (types, validations)
-10. ✅ Génération énigmes (QCM + énigme + défi terrain)
-11. ✅ Transcription audio enrichie + données structurées
-12. ✅ Détection doublons vs bibliothèque existante
-13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags)
-14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
+**Fichier** : `supabase/functions/analyze-marker/index.ts`
 
-### Enrichissement des connaissances
-- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
-- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
-- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
+**`nearby_restaurants`** — ajouter les champs :
+- `website_url` (string, optionnel) : site web ou page TripAdvisor
+- `instagram_handle` (string, optionnel) : compte Instagram (ex: `@nomadmarrakech`)
+- `google_maps_query` (string) : requête de recherche Google Maps (ex: "Nomad Marrakech")
 
-### Intégration Frontend
-- Analyse automatique après chaque marqueur rapide sauvegardé
-- Panel IA dans le drawer avec résultats structurés
-- Bouton "Appliquer à la note" pour enrichir le marqueur
-- Bouton "Ignorer" pour fermer sans appliquer
-- Marqueurs proches du même projet envoyés comme contexte additionnel
+**Nouveau champ `nearby_pois`** — points d'intérêt proches (musées, monuments, jardins) :
+```json
+{
+  "nearby_pois": [{
+    "name": "Musée Dar Si Said",
+    "type": "musée",
+    "description_fr": "Arts marocains, bijoux berbères...",
+    "website_url": "https://...",
+    "instagram_handle": "@...",
+    "google_maps_query": "Musée Dar Si Said Marrakech",
+    "instagram_examples": ["url1", "url2"]
+  }]
+}
+```
+
+**`instagram_spot`** — ajouter :
+- `instagram_examples` : tableau de descriptions/URLs d'exemples de posts Instagram populaires pour ce lieu
+
+**Prompt système** — ajouter dans les instructions :
+> "16. **Liens et références** : pour chaque restaurant et point d'intérêt, fournis les liens web, comptes Instagram et une requête Google Maps. Pour les lieux Instagram, donne des exemples de posts populaires."
+
+Enrichir aussi la section gastronomie avec les comptes Instagram connus (ex: `@nomadmarrakech`, `@cafedespicesmarrakech`, `@lejardinmarrakech`).
+
+### 2. Afficher les liens dans le panel d'analyse
+
+**Fichier** : `src/components/intake/RouteReconStep.tsx`
+
+Dans le panel d'analyse (lignes 1670-1678 pour restaurants), afficher les liens cliquables :
+- Nom du restaurant cliquable vers Google Maps
+- Icône Instagram cliquable vers le profil
+- Section `nearby_pois` avec les mêmes liens
+
+Dans la section Instagram (lignes 1680-1688), afficher les exemples de posts.
+
+### 3. Bouton Guide (phase suivante, pas dans ce message)
+Plus tard, dans le mode jeu (`QuestPlay`), un bouton "📖 Guide" ouvrira un panel avec les infos enrichies du POI (restaurants, musées, liens Instagram) pour que le joueur puisse explorer les alentours.
+
+### Fichiers modifiés
+1. `supabase/functions/analyze-marker/index.ts` — schéma + prompt
+2. `src/components/intake/RouteReconStep.tsx` — affichage des liens
+
