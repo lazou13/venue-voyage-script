@@ -746,10 +746,22 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
               )}
 
               {isRecording && departureMarked && (
-                <Badge variant="outline" className="gap-1 border-green-500 text-green-600 py-1.5 px-3">
-                  <Check className="w-3 h-3" />
-                  Départ marqué
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="gap-1 border-green-500 text-green-600 py-1.5 px-3">
+                    <Check className="w-3 h-3" />
+                    Départ marqué
+                  </Badge>
+                  <Button
+                    onClick={() => addMarkerAtLastCoord('Nouveau point de départ')}
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={!lastPosition}
+                  >
+                    <Flag className="w-3.5 h-3.5" />
+                    Nouveau départ
+                  </Button>
+                </div>
               )}
 
               {isRecording && (
