@@ -1,108 +1,73 @@
 
 
-# Plan: Page /creez-votre-experience + Admin
+## Fonctions supplémentaires que le LLM Expert Médina pourrait assurer
 
-## Scope
+En plus de l'analyse photo/audio/GPS déjà prévue, voici les capacités additionnelles pertinentes pour votre workflow :
 
-Install `framer-motion`. Create a premium 4-step wizard page at `/creez-votre-experience` (fully functional, calls `public-generate-quest` and redirects to `/play`). Create admin page at `/admin/experience-page` to edit/publish/depublish the page config. Seed `experience_page_config` in `app_configs`. Zero hardcoded strings.
+### 1. Génération automatique d'énigmes et QCM
+À partir d'un POI analysé, le LLM peut générer directement des questions de jeu :
+- QCM sur l'histoire du lieu ("En quelle année cette medersa a été fondée ?")
+- Énigmes visuelles ("Comptez les colonnes de la cour intérieure")
+- Défis terrain ("Trouvez la fontaine la plus proche")
+- Codes secrets basés sur des détails architecturaux
 
-## Database
+### 2. Suggestion de parcours optimaux
+Quand vous avez N marqueurs posés, le LLM peut :
+- Proposer un ordre de visite logique (géographique + narratif)
+- Estimer les temps de marche entre points
+- Identifier les "trous" dans le parcours (zone non couverte)
+- Suggérer des POIs manquants depuis la bibliothèque existante
 
-**Seed migration**: Insert into `app_configs` a row with `key='experience_page_config'`, `status='published'`, `version=1` containing the full JSON config (hero texts, step labels, modes, durations, labels, unavailable message). No schema change needed — `app_configs` already exists.
+### 3. Détection de doublons / POIs trop proches
+Le LLM compare le nouveau marqueur avec la bibliothèque `medina_pois` existante et alerte :
+- "Ce point ressemble à [POI existant] à 15m — doublon ?"
+- Propose de fusionner ou enrichir le POI existant
 
-Also update `DURATION_TO_COUNT` in `public-generate-quest` to support 180 and 240 minute durations (currently only 60/90/120). Add mappings: `180: 12, 240: 15`.
+### 4. Rédaction multilingue automatique
+Au lieu de traduire après coup, le LLM produit directement les 5 langues (fr/en/ar/es/ary) pour :
+- La description guide
+- Le résumé bibliothèque
+- Les énigmes générées
 
-## Config JSON (experience_page_config)
+### 5. Conseils pratiques temps réel
+- Horaires d'ouverture estimés ("Ce souk ferme vers 19h, les vendredis après-midi c'est calme")
+- Alertes de sécurité ("Zone très fréquentée à cette heure, attention pickpockets")
+- Tips photo ("Meilleur angle depuis le toit du fondouk en face")
+- Accessibilité ("Passage étroit, non accessible fauteuil roulant")
 
-```json
-{
-  "hero": {
-    "title": "Créez votre expérience sur mesure",
-    "subtitle": "Parcours unique dans la médina, personnalisé selon vos envies",
-    "cta_label": "Commencer",
-    "benefits": [
-      { "icon": "clock", "text": "4h de validité" },
-      { "icon": "smartphone", "text": "100% autonome" },
-      { "icon": "camera", "text": "Médias premium" }
-    ]
-  },
-  "steps": [
-    { "id": "mode", "title": "Type & Durée", "subtitle": "Choisissez votre aventure" },
-    { "id": "zone", "title": "Zone & Intérêts", "subtitle": "Où explorer ?" },
-    { "id": "options", "title": "Options", "subtitle": "Personnalisez" },
-    { "id": "identity", "title": "Vos infos", "subtitle": "Pour recevoir l'expérience" }
-  ],
-  "modes": [
-    { "key": "visit", "emoji": "🚶", "label": "Visite guidée", "desc": "Découverte à votre rythme" },
-    { "key": "game", "emoji": "🎮", "label": "Jeu / Quête", "desc": "Énigmes et défis" }
-  ],
-  "durations": [
-    { "value": 120, "label": "2h", "desc": "Classique" },
-    { "value": 180, "label": "3h", "desc": "Immersif" },
-    { "value": 240, "label": "4h", "desc": "Grand tour" }
-  ],
-  "labels": {
-    "pause_label": "Pause café / thé incluse",
-    "email_label": "Email *",
-    "email_placeholder": "jean@example.com",
-    "name_label": "Nom (optionnel)",
-    "name_placeholder": "Jean Dupont",
-    "party_size_label": "Nombre de participants",
-    "submit_label": "Créer mon expérience",
-    "pricing_title": "Récapitulatif",
-    "total_label": "Total",
-    "next_label": "Suivant",
-    "prev_label": "Retour",
-    "categories_title": "Centres d'intérêt",
-    "categories_hint": "Optionnel — laissez vide pour un parcours varié",
-    "success_title": "C'est parti !",
-    "success_desc": "Redirection vers votre expérience..."
-  },
-  "unavailable_message": "Cette page est temporairement indisponible. Revenez bientôt !"
-}
-```
+### 6. Classification automatique des catégories
+Au lieu de choisir manuellement la catégorie du POI, le LLM la détecte :
+- souk / monument / riad / restaurant / fontaine / porte / derb / fondouk / jardin / musée / artisan
 
-## Files to create (8)
+### 7. Estimation de la difficulté du point
+Le LLM évalue automatiquement :
+- Difficulté d'accès (facile / caché / labyrinthe)
+- Niveau de connaissance requis pour les énigmes
+- Intérêt pour chaque public cible (famille, ados, corporate...)
 
-1. **`src/pages/PublicExperienceWizard.tsx`** — Main page
-   - Fetches `experience_page_config` (published) + pricing config + zones
-   - If depublished → full-screen unavailable message from config
-   - Hero → WizardProgress → AnimatePresence step transitions → PricingBox
-   - Desktop: 2-col (wizard 2/3, pricing 1/3 sticky). Mobile: single col + fixed bottom pricing bar
-   - On submit: calls `public-generate-quest` → redirect `/play?token=...`
+### 8. Storytelling contextuel
+Le LLM peut tisser une narration continue entre les points :
+- Transition narrative entre POI A et POI B
+- Arc narratif global du parcours (début/milieu/fin)
+- Personnage narrateur adapté à l'avatar choisi
 
-2. **`src/components/experience/ExperienceHero.tsx`** — Hero with gradient, benefit chips, CTA scroll
+### 9. Analyse de la photo pour les step_config
+Le LLM pré-remplit les champs techniques :
+- `possible_step_types` suggérés (photo → "photo", QR visible → "qr_code", etc.)
+- `possible_validation_modes` adaptés au lieu
+- Score de difficulté estimé
 
-3. **`src/components/experience/WizardProgress.tsx`** — Step indicator bar with motion layoutId
+### 10. Transcription vocale enrichie
+Au-delà de la simple transcription, le LLM :
+- Sépare les observations terrain des réflexions personnelles
+- Extrait les données structurées ("il a dit 50 dirhams" → prix: 50 MAD)
+- Corrige les noms propres locaux (Semmarine, Mouassine, etc.)
 
-4. **`src/components/experience/StepMode.tsx`** — Mode cards + duration cards with whileHover/whileTap
+---
 
-5. **`src/components/experience/StepZone.tsx`** — Zone select + animated category badges
+### Impact sur le plan technique
 
-6. **`src/components/experience/StepOptions.tsx`** — Pause + add-ons + mini recap
+Toutes ces fonctions peuvent être intégrées dans la **même edge function `analyze-marker`** via le tool calling — il suffit d'enrichir le schéma JSON de sortie et le prompt système. Pas de nouvelle infrastructure nécessaire.
 
-7. **`src/components/experience/StepIdentity.tsx`** — Email + name + party size + honeypot
-
-8. **`src/components/experience/PricingBox.tsx`** — Sticky sidebar / mobile bottom sheet with live pricing via `calculatePrice`
-
-9. **`src/pages/admin/AdminExperiencePage.tsx`** — Load/edit/save/publish/depublish `experience_page_config` from `app_configs`. Structured form for hero, steps, modes, durations, labels. Same draft/publish pattern as existing admin pages.
-
-## Files to modify (3)
-
-1. **`src/App.tsx`** — Add routes:
-   - `/creez-votre-experience` → `PublicExperienceWizard`
-   - Admin child route `experience-page` → `AdminExperiencePage`
-
-2. **`src/components/admin/AdminSidebar.tsx`** — Add nav item "Page Expérience" with Sparkles icon
-
-3. **`supabase/functions/public-generate-quest/index.ts`** — Add duration mappings `180: 12, 240: 15` to `DURATION_TO_COUNT`, and add `180, 240` to the validation allowlist
-
-## Technical details
-
-- **Framer Motion**: `AnimatePresence mode="wait"` wrapping steps. Slide left/right based on navigation direction. `motion.div` with `whileHover={{ scale: 1.03 }}` on cards.
-- **Icon mapping**: Simple object mapping config icon strings (`clock`, `smartphone`, `camera`) to lucide components.
-- **Submit flow**: Real API call to `public-generate-quest` via `supabase.functions.invoke()`, then redirect to `/play?token=...` on success. Error handling with toast.
-- **Admin page**: Standalone config management (not via global `useAppConfig` which is for `capabilities` key). Direct fetch/upsert on `app_configs` for key `experience_page_config`.
-- **Mobile pricing**: Fixed bottom bar with total + expand toggle for full breakdown.
-- **Validation**: Email required + format check before step 4 submit. Zone required before advancing past step 2.
+Le prompt système passerait de ~3000 à ~5000 tokens pour couvrir toutes ces capacités, ce qui reste dans les limites du modèle `gemini-2.5-pro`.
 
