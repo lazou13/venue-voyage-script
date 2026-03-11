@@ -654,6 +654,52 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     }
   };
 
+  // Approve + promote to library in one action
+  const handleApproveAndPromote = async (markerId: string) => {
+    const analysis = markerAnalyses[markerId];
+    const marker = markers.find(m => m.id === markerId);
+    if (!analysis || !marker) return;
+
+    const enrichedNote = [
+      `📍 ${analysis.location_guess}`,
+      `📂 ${analysis.category}${analysis.sub_category ? ` / ${analysis.sub_category}` : ''}`,
+      '',
+      '📖 Guide:',
+      analysis.guide_narration?.fr || '',
+      '',
+      '🏛️ Anecdote:',
+      analysis.historical_anecdote || '',
+      '',
+      '📚 Bibliothèque:',
+      analysis.summary_library || '',
+    ].join('\n');
+
+    try {
+      // 1. Enrich the note
+      await updateMarker.mutateAsync({
+        markerId: marker.id,
+        traceId: marker.trace_id,
+        lat: marker.lat,
+        lng: marker.lng,
+        note: enrichedNote,
+        photoUrl: marker.photo_url || null,
+        audioUrl: marker.audio_url || null,
+      });
+
+      // 2. Promote to library
+      const { error } = await supabase.functions.invoke('promote-marker-to-library', {
+        body: { marker_id: markerId },
+      });
+      if (error) throw error;
+
+      toast({ title: 'Approuvé + Bibliothèque', description: 'Note enrichie et POI créé en bibliothèque (draft)' });
+      setExpandedAnalysisId(null);
+      markersQuery.refetch();
+    } catch (err) {
+      toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
+    }
+  };
+
   // Correct marker analysis: open edit dialog with pre-filled note
   const handleCorrectMarkerAnalysis = (markerId: string) => {
     const analysis = markerAnalyses[markerId];
