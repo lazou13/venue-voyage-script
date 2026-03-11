@@ -445,7 +445,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
         .limit(100);
 
       // Fetch nearby markers from same project for context (Strategy A)
-      const allMarkers = traces.flatMap(t => t.markers || []);
+      const nearbyMarkers = markers
       const nearbyMarkers = allMarkers
         .filter(m => {
           if (!lastPosition) return false;
