@@ -333,7 +333,7 @@ const ANALYSIS_TOOL = {
         "summary_library", "guide_narration", "summary_i18n",
         "practical_tips", "difficulty", "suggested_step_config",
         "generated_challenges", "audio_transcript", "audio_structured_data",
-        "duplicate_warning"
+        "duplicate_warning", "instagram_spot"
       ],
       additionalProperties: false
     }
