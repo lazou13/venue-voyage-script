@@ -139,6 +139,11 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   const [quickMarkerNumber, setQuickMarkerNumber] = useState(1);
   const [isSavingQuickMarker, setIsSavingQuickMarker] = useState(false);
   const [quickMarkerSaved, setQuickMarkerSaved] = useState(false);
+  
+  // AI analysis state
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const quickMarkerFileRef = useRef<HTMLInputElement>(null);
   const quickMarkerFileBrowseRef = useRef<HTMLInputElement>(null);
   
@@ -425,6 +430,42 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     setQuickMarkerOpen(true);
   };
 
+  // Trigger AI analysis in background
+  const triggerAiAnalysis = async (photoUrl?: string, audioUrl?: string) => {
+    if (!lastPosition) return;
+    setIsAnalyzing(true);
+    setAiError(null);
+    setAiAnalysis(null);
+    try {
+      // Fetch existing POIs for duplicate detection
+      const { data: existingPois } = await supabase
+        .from('medina_pois')
+        .select('name, category, zone, lat, lng')
+        .eq('is_active', true)
+        .limit(100);
+
+      const { data, error } = await supabase.functions.invoke('analyze-marker', {
+        body: {
+          photo_url: photoUrl || undefined,
+          audio_url: audioUrl || undefined,
+          lat: lastPosition.lat,
+          lng: lastPosition.lng,
+          note: quickMarkerNote.trim() || undefined,
+          existing_pois: existingPois || [],
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setAiAnalysis(data.analysis);
+    } catch (err) {
+      const msg = (err as Error).message || 'Erreur analyse IA';
+      setAiError(msg);
+      console.error('AI analysis error:', err);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const handleQuickMarkerSave = async (photoUrl?: string, audioUrl?: string) => {
     if (!lastPosition) {
       toast({ title: 'Erreur', description: 'Aucune position GPS', variant: 'destructive' });
@@ -439,14 +480,8 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
       await addMarkerAtLastCoord(note, finalPhoto, finalAudio);
       setQuickMarkerNumber(n => n + 1);
       setQuickMarkerSaved(true);
-      // Auto-close after brief success feedback
-      setTimeout(() => {
-        setQuickMarkerOpen(false);
-        setQuickMarkerNote('');
-        setQuickMarkerPhoto('');
-        setQuickMarkerAudioUrl('');
-        setQuickMarkerSaved(false);
-      }, 800);
+      // Trigger AI analysis in background (don't auto-close while analyzing)
+      triggerAiAnalysis(finalPhoto, finalAudio);
     } catch (err) {
       toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
     } finally {
@@ -461,6 +496,52 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     setQuickMarkerPhoto('');
     setQuickMarkerAudioUrl('');
     setQuickMarkerSaved(false);
+    setAiAnalysis(null);
+    setAiError(null);
+    setIsAnalyzing(false);
+  };
+
+  // Apply AI analysis to last saved marker
+  const handleApplyAiAnalysis = async () => {
+    if (!aiAnalysis || !markers.length) return;
+    const lastMarker = markers[markers.length - 1];
+    if (!lastMarker) return;
+    
+    const enrichedNote = [
+      `📍 ${aiAnalysis.location_guess}`,
+      `📂 ${aiAnalysis.category}${aiAnalysis.sub_category ? ` / ${aiAnalysis.sub_category}` : ''}`,
+      '',
+      '📖 Guide:',
+      aiAnalysis.guide_narration?.fr || '',
+      '',
+      '🏛️ Anecdote:',
+      aiAnalysis.historical_anecdote || '',
+      '',
+      '📚 Bibliothèque:',
+      aiAnalysis.summary_library || '',
+    ].join('\n');
+
+    try {
+      await updateMarker.mutateAsync({
+        markerId: lastMarker.id,
+        traceId: lastMarker.trace_id,
+        lat: lastMarker.lat,
+        lng: lastMarker.lng,
+        note: enrichedNote,
+        photoUrl: lastMarker.photo_url || null,
+        audioUrl: lastMarker.audio_url || null,
+      });
+      toast({ title: 'Analyse appliquée', description: 'Note du marqueur enrichie par l\'IA' });
+      // Now close
+      setQuickMarkerOpen(false);
+      setQuickMarkerNote('');
+      setQuickMarkerPhoto('');
+      setQuickMarkerAudioUrl('');
+      setQuickMarkerSaved(false);
+      setAiAnalysis(null);
+    } catch (err) {
+      toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
+    }
   };
 
   // Photo upload -> auto-save marker
@@ -805,9 +886,115 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
             {isRecording && quickMarkerOpen && (
               <div className="p-3 rounded-md border border-primary/30 bg-primary/5 space-y-3">
                 {quickMarkerSaved ? (
-                  <div className="flex items-center justify-center gap-2 py-4 text-green-600">
-                    <Check className="w-6 h-6" />
-                    <span className="font-medium">Marqueur sauvegardé !</span>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-center gap-2 py-2 text-green-600">
+                      <Check className="w-5 h-5" />
+                      <span className="font-medium text-sm">Marqueur sauvegardé !</span>
+                    </div>
+                    
+                    {/* AI Analysis Section */}
+                    {isAnalyzing && (
+                      <div className="flex items-center gap-2 p-3 rounded-md border border-primary/20 bg-primary/5 animate-pulse">
+                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        <span className="text-sm text-muted-foreground">🧠 Analyse IA en cours...</span>
+                      </div>
+                    )}
+                    
+                    {aiError && (
+                      <div className="p-3 rounded-md border border-destructive/30 bg-destructive/5 text-sm text-destructive">
+                        ⚠️ {aiError}
+                        <Button variant="ghost" size="sm" className="ml-2" onClick={() => {
+                          setQuickMarkerOpen(false);
+                          setQuickMarkerSaved(false);
+                          setAiAnalysis(null);
+                          setAiError(null);
+                        }}>
+                          Fermer
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {aiAnalysis && (
+                      <div className="space-y-2 p-3 rounded-md border border-primary/20 bg-background text-sm">
+                        <p className="font-semibold text-primary">🧠 Analyse IA — {aiAnalysis.location_guess}</p>
+                        <p className="text-xs text-muted-foreground">📂 {aiAnalysis.category}{aiAnalysis.sub_category ? ` / ${aiAnalysis.sub_category}` : ''}</p>
+                        
+                        {aiAnalysis.historical_anecdote && (
+                          <div className="mt-1">
+                            <p className="text-xs font-medium">🏛️ Anecdote :</p>
+                            <p className="text-xs text-muted-foreground">{aiAnalysis.historical_anecdote}</p>
+                          </div>
+                        )}
+                        
+                        {aiAnalysis.guide_narration?.fr && (
+                          <div className="mt-1">
+                            <p className="text-xs font-medium">📖 Guide :</p>
+                            <p className="text-xs text-muted-foreground line-clamp-3">{aiAnalysis.guide_narration.fr}</p>
+                          </div>
+                        )}
+                        
+                        {aiAnalysis.nearby_restaurants?.length > 0 && (
+                          <div className="mt-1">
+                            <p className="text-xs font-medium">🍽️ Restaurants proches :</p>
+                            {aiAnalysis.nearby_restaurants.map((r: any, i: number) => (
+                              <p key={i} className="text-xs text-muted-foreground">• {r.name} — {r.specialty} ({r.price_range}) ⭐ {r.rating}</p>
+                            ))}
+                          </div>
+                        )}
+                        
+                        {aiAnalysis.practical_tips && (
+                          <div className="mt-1">
+                            <p className="text-xs font-medium">💡 Conseils :</p>
+                            <p className="text-xs text-muted-foreground">📸 {aiAnalysis.practical_tips.photo_tips}</p>
+                            <p className="text-xs text-muted-foreground">♿ {aiAnalysis.practical_tips.accessibility}</p>
+                          </div>
+                        )}
+                        
+                        {aiAnalysis.generated_challenges?.mcq && (
+                          <div className="mt-1">
+                            <p className="text-xs font-medium">🎮 Énigme générée :</p>
+                            <p className="text-xs text-muted-foreground italic">{aiAnalysis.generated_challenges.mcq.question_fr}</p>
+                          </div>
+                        )}
+                        
+                        {aiAnalysis.duplicate_warning && (
+                          <div className="mt-1 p-2 rounded bg-yellow-50 border border-yellow-200">
+                            <p className="text-xs text-yellow-700">⚠️ {aiAnalysis.duplicate_warning}</p>
+                          </div>
+                        )}
+                        
+                        {aiAnalysis.audio_transcript && (
+                          <div className="mt-1">
+                            <p className="text-xs font-medium">🎙️ Transcription :</p>
+                            <p className="text-xs text-muted-foreground">{aiAnalysis.audio_transcript}</p>
+                          </div>
+                        )}
+                        
+                        <div className="flex gap-2 mt-2">
+                          <Button size="sm" variant="default" onClick={handleApplyAiAnalysis} className="gap-1">
+                            <Check className="w-3 h-3" />
+                            Appliquer à la note
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => {
+                            setQuickMarkerOpen(false);
+                            setQuickMarkerSaved(false);
+                            setAiAnalysis(null);
+                          }}>
+                            Ignorer
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Close button when no AI action pending */}
+                    {!isAnalyzing && !aiAnalysis && !aiError && (
+                      <Button size="sm" variant="ghost" className="w-full" onClick={() => {
+                        setQuickMarkerOpen(false);
+                        setQuickMarkerSaved(false);
+                      }}>
+                        Fermer
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   <>
