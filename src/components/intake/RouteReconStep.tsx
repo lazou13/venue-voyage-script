@@ -140,6 +140,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   const [isSavingQuickMarker, setIsSavingQuickMarker] = useState(false);
   const [quickMarkerSaved, setQuickMarkerSaved] = useState(false);
   const quickMarkerFileRef = useRef<HTMLInputElement>(null);
+  const quickMarkerFileBrowseRef = useRef<HTMLInputElement>(null);
   
   // Departure marker state
   const [departureMarked, setDepartureMarked] = useState(false);
