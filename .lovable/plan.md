@@ -1,40 +1,45 @@
 
-# Plan: Expert IA Médina — analyze-marker
 
-## Status: ✅ Implémenté
+## Plan : Compte-rendu IA visible sous chaque marqueur de trace
 
-## Ce qui a été créé
+### Objectif
+Afficher le compte-rendu de l'analyse IA directement sous chaque marqueur dans la liste des traces enregistrées, avec possibilité de **corriger** (éditer la note) ou **approuver** (appliquer l'analyse).
 
-### Edge Function `analyze-marker`
-- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
-- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
-- Tool calling pour sortie JSON structurée avec 15 champs d'analyse
-- Gestion erreurs 429/402
+### Problème actuel
+L'analyse IA n'est visible que dans le drawer "marqueur rapide" pendant l'enregistrement. Une fois fermé, le résultat n'est plus accessible sauf s'il a été appliqué à la note.
 
-### Capacités (15 fonctions)
-1. ✅ Identification lieu + catégorie + tags
-2. ✅ Restaurants proches (nom, spécialité, prix, avis)
-3. ✅ Anecdote historique
-4. ✅ Description guide multilingue (fr/en/ar/es/ary)
-5. ✅ Résumé bibliothèque multilingue
-6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
-7. ✅ Classification automatique catégorie/sous-catégorie
-8. ✅ Estimation difficulté + intérêt par public cible
-9. ✅ Suggestions step_config (types, validations)
-10. ✅ Génération énigmes (QCM + énigme + défi terrain)
-11. ✅ Transcription audio enrichie + données structurées
-12. ✅ Détection doublons vs bibliothèque existante
-13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags)
-14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
+### Approche
 
-### Enrichissement des connaissances
-- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
-- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
-- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
+**1. Bouton "Analyser IA" par marqueur dans la liste**
+Dans la liste des marqueurs sous chaque trace (lignes 1406-1476), ajouter pour chaque marqueur :
+- Un bouton 🧠 "Analyser" qui déclenche `analyze-marker` pour ce marqueur spécifique (photo_url, audio_url, lat, lng, note)
+- Un état `markerAnalyses: Record<string, any>` pour stocker les résultats par marker ID
+- Un état `analyzingMarkerId: string | null` pour le spinner
 
-### Intégration Frontend
-- Analyse automatique après chaque marqueur rapide sauvegardé
-- Panel IA dans le drawer avec résultats structurés
-- Bouton "Appliquer à la note" pour enrichir le marqueur
-- Bouton "Ignorer" pour fermer sans appliquer
-- Marqueurs proches du même projet envoyés comme contexte additionnel
+**2. Panel de compte-rendu sous chaque marqueur**
+Quand l'analyse est disponible pour un marqueur, afficher un panel dépliable sous le marqueur contenant :
+- Lieu identifié, catégorie
+- Anecdote historique
+- Description guide (fr)
+- Restaurants proches
+- Spot Instagram (score, angle, hashtags)
+- Transcription audio si présente
+- Énigme générée
+
+**3. Actions Corriger / Approuver**
+Deux boutons en bas du panel :
+- **✅ Approuver** : applique l'analyse complète à la note du marqueur via `updateMarker` (même logique que `handleApplyAiAnalysis` mais ciblé sur le marqueur concerné)
+- **✏️ Corriger** : ouvre le dialogue d'édition du marqueur (`handleOpenEditMarker`) avec la note pré-remplie par l'analyse, permettant de modifier avant de sauvegarder
+
+**4. Auto-analyse au clic sur la trace**
+Quand on sélectionne une trace et que ses marqueurs se chargent, proposer un bouton "🧠 Analyser tous les marqueurs" qui lance l'analyse en série pour chaque marqueur ayant une photo ou un audio mais pas encore de note enrichie (pas de préfixe 📍).
+
+### Fichiers modifiés
+
+**`src/components/intake/RouteReconStep.tsx`**
+- Ajouter les états `markerAnalyses` et `analyzingMarkerId`
+- Créer une fonction `triggerMarkerAnalysis(marker)` qui appelle l'edge function pour un marqueur donné
+- Dans le rendu de chaque marqueur (lignes 1407-1474), ajouter le bouton 🧠 et le panel de résultat
+- Ajouter les handlers `handleApproveMarkerAnalysis(markerId)` et `handleCorrectMarkerAnalysis(markerId)`
+- Ajouter un bouton "Analyser tous" dans le header des marqueurs (ligne 1262)
+
