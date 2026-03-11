@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.promote-marker-to-library]
 verify_jwt = true
+
+[functions.analyze-marker]
+verify_jwt = false
