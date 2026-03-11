@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Route, AlertTriangle, MapPin, Shield, Navigation, 
   Circle, Square, Plus, Download, Trash2, Clock, Ruler, MapPinned,
-  Zap, Camera, X, Check, Copy, Package, Flag, Compass, Mic, MicOff, Volume2, Library
+  Zap, Camera, X, Check, Copy, Package, Flag, Compass, Mic, MicOff, Volume2, Library, Upload
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCrossTabStats } from '@/hooks/useCrossTabStats';
