@@ -145,10 +145,19 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   // Departure marker state
   const [departureMarked, setDepartureMarked] = useState(false);
   
-  // Reset departure marker when recording stops
+  // Reset departure marker when recording stops, but auto-mark if traces already exist
   useEffect(() => {
-    if (!isRecording) setDepartureMarked(false);
-  }, [isRecording]);
+    if (isRecording) {
+      const hasExistingTraces = traces.some(t => {
+        const geo = t.geojson as any;
+        const coords = geo?.coordinates;
+        return coords && coords.length > 0;
+      });
+      if (hasExistingTraces) setDepartureMarked(true);
+    } else {
+      setDepartureMarked(false);
+    }
+  }, [isRecording, traces]);
 
   // Duplicate to project state
   const navigate = useNavigate();
@@ -734,6 +743,13 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                   <Flag className="w-4 h-4" />
                   {lastPosition ? "Marquer départ" : "GPS en attente..."}
                 </Button>
+              )}
+
+              {isRecording && departureMarked && (
+                <Badge variant="outline" className="gap-1 border-green-500 text-green-600 py-1.5 px-3">
+                  <Check className="w-3 h-3" />
+                  Départ marqué
+                </Badge>
               )}
 
               {isRecording && (
