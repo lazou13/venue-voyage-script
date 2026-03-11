@@ -203,12 +203,33 @@ const ANALYSIS_TOOL = {
               specialty: { type: "string" },
               price_range: { type: "string", description: "Gamme de prix en MAD" },
               rating: { type: "string" },
-              distance_hint: { type: "string", description: "Distance approximative (ex: 2 min à pied)" }
+              distance_hint: { type: "string", description: "Distance approximative (ex: 2 min à pied)" },
+              website_url: { type: "string", description: "Site web, TripAdvisor ou Google page (optionnel)" },
+              instagram_handle: { type: "string", description: "Compte Instagram (ex: @nomadmarrakech)" },
+              google_maps_query: { type: "string", description: "Requête Google Maps (ex: Nomad Marrakech)" }
             },
-            required: ["name", "specialty", "price_range", "rating"],
+            required: ["name", "specialty", "price_range", "rating", "google_maps_query"],
             additionalProperties: false
           },
-          description: "2-3 restaurants les plus proches"
+          description: "2-3 restaurants les plus proches avec liens"
+        },
+        nearby_pois: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              type: { type: "string", description: "musée, monument, jardin, galerie, etc." },
+              description_fr: { type: "string", description: "Description courte en français" },
+              website_url: { type: "string", description: "Site web officiel (optionnel)" },
+              instagram_handle: { type: "string", description: "Compte Instagram (optionnel)" },
+              google_maps_query: { type: "string", description: "Requête Google Maps" },
+              distance_hint: { type: "string", description: "Distance approximative" }
+            },
+            required: ["name", "type", "description_fr", "google_maps_query"],
+            additionalProperties: false
+          },
+          description: "2-4 points d'intérêt proches (musées, monuments, jardins)"
         },
         historical_anecdote: { type: "string", description: "Anecdote historique fascinante sur ce lieu" },
         summary_library: { type: "string", description: "Résumé technique factuel pour la bibliothèque (3-4 phrases)" },
