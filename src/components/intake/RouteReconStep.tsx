@@ -810,6 +810,13 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                         onChange={handleQuickMarkerPhotoUpload}
                         className="hidden"
                       />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        ref={quickMarkerFileBrowseRef}
+                        onChange={handleQuickMarkerPhotoUpload}
+                        className="hidden"
+                      />
                       <Button
                         variant="outline"
                         size="sm"
@@ -818,7 +825,17 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                         className="gap-2"
                       >
                         <Camera className="w-4 h-4" />
-                        {isUploading ? 'Upload...' : '📸 Photo (auto-save)'}
+                        {isUploading ? 'Upload...' : '📷 Photo'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => quickMarkerFileBrowseRef.current?.click()}
+                        disabled={isUploading || isSavingQuickMarker}
+                        className="gap-2"
+                      >
+                        <Upload className="w-4 h-4" />
+                        📁 Fichier
                       </Button>
 
                       {/* Voice recording button */}
