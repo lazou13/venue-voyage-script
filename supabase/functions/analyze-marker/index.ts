@@ -371,6 +371,10 @@ Deno.serve(async (req) => {
       parts.push(`\n📚 POIs existants dans la bibliothèque (vérifie les doublons) :\n${existing_pois.map((p: any) => `- ${p.name} (${p.category}, ${p.zone}${p.lat ? `, ${p.lat}°N ${p.lng}°W` : ''})`).join('\n')}`);
     }
 
+    if (nearby_markers && nearby_markers.length > 0) {
+      parts.push(`\n🔄 Marqueurs proches déjà posés (contexte terrain, corrections humaines = vérité) :\n${nearby_markers.map((m: any) => `- [${m.lat}°N, ${m.lng}°W] ${m.note || '(sans note)'}${m.photo_url ? ' 📷' : ''}${m.audio_url ? ' 🎙️' : ''}`).join('\n')}`);
+    }
+
     parts.push("\nAnalyse ce marqueur terrain et produis l'analyse complète.");
 
     // Build messages
