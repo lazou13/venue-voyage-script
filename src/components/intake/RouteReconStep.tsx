@@ -1071,7 +1071,6 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
             {/* Quick marker inline drawer */}
             {isRecording && quickMarkerOpen && (
               <div className="p-3 rounded-md border border-primary/30 bg-primary/5 space-y-3">
-                  <>
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-medium">Marqueur rapide #{quickMarkerNumber}</p>
                       <Button
@@ -1192,8 +1191,6 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                         {quickMarkerPhotos.length > 0 ? `Valider (${quickMarkerPhotos.length} photo${quickMarkerPhotos.length > 1 ? 's' : ''})` : 'Valider sans photo'}
                       </Button>
                     </div>
-                  </>
-                )}
               </div>
             )}
 
