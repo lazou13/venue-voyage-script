@@ -561,6 +561,7 @@ export type Database = {
           lng: number
           note: string | null
           photo_url: string | null
+          photo_urls: string[] | null
           promoted: boolean
           trace_id: string
         }
@@ -572,6 +573,7 @@ export type Database = {
           lng: number
           note?: string | null
           photo_url?: string | null
+          photo_urls?: string[] | null
           promoted?: boolean
           trace_id: string
         }
@@ -583,6 +585,7 @@ export type Database = {
           lng?: number
           note?: string | null
           photo_url?: string | null
+          photo_urls?: string[] | null
           promoted?: boolean
           trace_id?: string
         }

@@ -28,7 +28,17 @@ export function useVoiceRecorder() {
   const startRecording = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      
+      // Detect supported mimeType (iOS Safari doesn't support audio/webm)
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+          ? 'audio/mp4'
+          : ''; // let browser choose default
+      
+      const recorderOptions: MediaRecorderOptions = mimeType ? { mimeType } : {};
+      const recorder = new MediaRecorder(stream, recorderOptions);
+      const detectedMime = recorder.mimeType || mimeType || 'audio/webm';
       chunksRef.current = [];
 
       recorder.ondataavailable = (e) => {
