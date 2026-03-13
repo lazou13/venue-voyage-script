@@ -8,12 +8,12 @@
 ### Edge Function `analyze-marker`
 - Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
 - Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
-- Tool calling pour sortie JSON structurée avec 15 champs d'analyse
+- Tool calling pour sortie JSON structurée avec 17 champs d'analyse
 - Gestion erreurs 429/402
 
-### Capacités (15 fonctions)
+### Capacités (17 fonctions)
 1. ✅ Identification lieu + catégorie + tags
-2. ✅ Restaurants proches (nom, spécialité, prix, avis)
+2. ✅ Restaurants proches (nom, spécialité, prix, avis, **lien carte/menu**, **5 avis Google résumés**)
 3. ✅ Anecdote historique
 4. ✅ Description guide multilingue (fr/en/ar/es/ary)
 5. ✅ Résumé bibliothèque multilingue
@@ -24,8 +24,11 @@
 10. ✅ Génération énigmes (QCM + énigme + défi terrain)
 11. ✅ Transcription audio enrichie + données structurées
 12. ✅ Détection doublons vs bibliothèque existante
-13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags)
+13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags, **posts Instagram réels avec URLs**)
 14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
+15. ✅ **POIs proches avec billets, tarifs et horaires** (musées, monuments)
+16. ✅ **Narration contextuelle** (suit le parcours, interdit les introductions génériques)
+17. ✅ **Liens web/Instagram/Maps** pour chaque restaurant et POI
 
 ### Enrichissement des connaissances
 - ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
@@ -38,6 +41,7 @@
 - Bouton "Appliquer à la note" pour enrichir le marqueur
 - Bouton "Ignorer" pour fermer sans appliquer
 - Marqueurs proches du même projet envoyés comme contexte additionnel
+- ✅ **Affichage enrichi** : avis Google, liens carte/menu, billets/tarifs, posts Instagram avec URLs
 
 ## Marqueur rapide — Améliorations terrain (✅ Implémenté)
 
@@ -55,3 +59,16 @@
 - ✅ `triggerAiAnalysis` supprimé du `handleQuickMarkerSave`
 - ✅ Drawer se ferme immédiatement après sauvegarde (toast "Marqueur sauvegardé ✓")
 - ✅ Analyse IA accessible dans la liste des marqueurs après STOP (bouton "Analyser" + "Analyser tous")
+
+## Promotion en bibliothèque (✅ Enrichi)
+
+### Flux "Approuver + Bibliothèque"
+- ✅ Note enrichie avec restaurants (carte, avis), POIs (billets, tarifs, horaires)
+- ✅ Analyse IA complète stockée dans `medina_pois.metadata.ai_analysis`
+- ✅ Photos Instagram de référence extraites dans `metadata.reference_photos`
+- ✅ Nom et catégorie du POI déduits de l'analyse IA (au lieu de "POI terrain")
+
+### Narration de guide contextuelle
+- ✅ Interdiction des introductions génériques ("Oubliez les souks...")
+- ✅ Transitions de parcours obligatoires ("Nous voilà maintenant devant...")
+- ✅ Contexte marques/enseignes (pourquoi elles sont là, leur histoire)
