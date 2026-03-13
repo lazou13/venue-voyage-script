@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     }
 
     // Parse input
-    const { marker_id } = await req.json();
+    const { marker_id, ai_analysis } = await req.json();
     if (!marker_id) {
       return new Response(
         JSON.stringify({ error: "marker_id requis" }),
