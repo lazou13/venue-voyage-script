@@ -1267,13 +1267,22 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
 
                     {/* Preview row */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      {quickMarkerPhoto && (
-                        <img 
-                          src={quickMarkerPhoto} 
-                          alt="Preview" 
-                          className="h-10 w-10 object-cover rounded border"
-                        />
-                      )}
+                      {quickMarkerPhotos.map((url, i) => (
+                        <div key={i} className="relative">
+                          <img 
+                            src={url} 
+                            alt={`Preview ${i + 1}`} 
+                            className="h-10 w-10 object-cover rounded border"
+                          />
+                          <button
+                            type="button"
+                            className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center text-xs"
+                            onClick={() => setQuickMarkerPhotos(prev => prev.filter((_, j) => j !== i))}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
                       {quickMarkerAudioUrl && (
                         <div className="flex items-center gap-1 text-xs text-green-600">
                           <Volume2 className="w-3 h-3" />
@@ -1282,7 +1291,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                       )}
                     </div>
                     
-                    {/* Valider sans photo */}
+                    {/* Valider */}
                     <div className="flex items-center gap-2">
                       <Button
                         variant="secondary"
@@ -1292,7 +1301,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                         className="gap-2"
                       >
                         <Check className="w-4 h-4" />
-                        Valider sans photo
+                        {quickMarkerPhotos.length > 0 ? `Valider (${quickMarkerPhotos.length} photo${quickMarkerPhotos.length > 1 ? 's' : ''})` : 'Valider sans photo'}
                       </Button>
                     </div>
                   </>
