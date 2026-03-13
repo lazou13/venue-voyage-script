@@ -572,7 +572,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
   }, []);
 
   // Add marker at last known coord (quick marker)
-  const addMarkerAtLastCoord = useCallback(async (note?: string, photoUrl?: string, audioUrl?: string) => {
+  const addMarkerAtLastCoord = useCallback(async (note?: string, photoUrl?: string, audioUrl?: string, photoUrls?: string[]) => {
     const { currentTraceId, coords } = state;
     
     if (!currentTraceId) {
@@ -591,6 +591,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
       lng: lastCoord.lng,
       note: note || undefined,
       photoUrl: photoUrl || undefined,
+      photoUrls: photoUrls || undefined,
       audioUrl: audioUrl || undefined,
     });
   }, [state.currentTraceId, state.coords, addMarker]);
