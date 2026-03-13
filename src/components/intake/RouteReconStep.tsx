@@ -742,7 +742,8 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
 
   // Voice recording upload handler
   const handleVoiceUpload = async (blob: Blob) => {
-    const file = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
+    const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
+    const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type || 'audio/webm' });
     const url = await uploadFile(file, `voice-notes/${projectId}`);
     if (url) {
       setQuickMarkerAudioUrl(url);
