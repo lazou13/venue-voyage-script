@@ -219,12 +219,27 @@ const ANALYSIS_TOOL = {
               distance_hint: { type: "string", description: "Distance approximative (ex: 2 min à pied)" },
               website_url: { type: "string", description: "Site web, TripAdvisor ou Google page (optionnel)" },
               instagram_handle: { type: "string", description: "Compte Instagram (ex: @nomadmarrakech)" },
-              google_maps_query: { type: "string", description: "Requête Google Maps (ex: Nomad Marrakech)" }
+              google_maps_query: { type: "string", description: "Requête Google Maps (ex: Nomad Marrakech)" },
+              menu_url: { type: "string", description: "Lien vers la carte/menu en ligne du restaurant (optionnel)" },
+              google_reviews: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    text: { type: "string", description: "Extrait court de l'avis (1-2 phrases)" },
+                    rating: { type: "number", description: "Note 1-5" },
+                    author: { type: "string", description: "Prénom ou pseudo de l'auteur" }
+                  },
+                  required: ["text", "rating", "author"],
+                  additionalProperties: false
+                },
+                description: "5 derniers avis Google résumés"
+              }
             },
             required: ["name", "specialty", "price_range", "rating", "google_maps_query"],
             additionalProperties: false
           },
-          description: "2-3 restaurants les plus proches avec liens"
+          description: "2-3 restaurants les plus proches avec liens, carte et avis"
         },
         nearby_pois: {
           type: "array",
@@ -237,12 +252,15 @@ const ANALYSIS_TOOL = {
               website_url: { type: "string", description: "Site web officiel (optionnel)" },
               instagram_handle: { type: "string", description: "Compte Instagram (optionnel)" },
               google_maps_query: { type: "string", description: "Requête Google Maps" },
-              distance_hint: { type: "string", description: "Distance approximative" }
+              distance_hint: { type: "string", description: "Distance approximative" },
+              ticket_url: { type: "string", description: "Site pour acheter les billets (musées, monuments)" },
+              ticket_price: { type: "string", description: "Tarif d'entrée (ex: 70 MAD adulte, 30 MAD enfant)" },
+              opening_hours: { type: "string", description: "Horaires détaillés d'ouverture" }
             },
             required: ["name", "type", "description_fr", "google_maps_query"],
             additionalProperties: false
           },
-          description: "2-4 points d'intérêt proches (musées, monuments, jardins)"
+          description: "2-4 points d'intérêt proches avec billets et horaires"
         },
         historical_anecdote: { type: "string", description: "Anecdote historique fascinante sur ce lieu" },
         summary_library: { type: "string", description: "Résumé technique factuel pour la bibliothèque (3-4 phrases)" },
