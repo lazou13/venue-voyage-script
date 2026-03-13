@@ -686,9 +686,9 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
         audioUrl: marker.audio_url || null,
       });
 
-      // 2. Promote to library
+      // 2. Promote to library with AI analysis
       const { error } = await supabase.functions.invoke('promote-marker-to-library', {
-        body: { marker_id: markerId },
+        body: { marker_id: markerId, ai_analysis: analysis },
       });
       if (error) throw error;
 
