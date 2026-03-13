@@ -134,7 +134,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   // Quick marker drawer state
   const [quickMarkerOpen, setQuickMarkerOpen] = useState(false);
   const [quickMarkerNote, setQuickMarkerNote] = useState('');
-  const [quickMarkerPhoto, setQuickMarkerPhoto] = useState('');
+  const [quickMarkerPhotos, setQuickMarkerPhotos] = useState<string[]>([]);
   const [quickMarkerAudioUrl, setQuickMarkerAudioUrl] = useState('');
   const [quickMarkerNumber, setQuickMarkerNumber] = useState(1);
   const [isSavingQuickMarker, setIsSavingQuickMarker] = useState(false);
