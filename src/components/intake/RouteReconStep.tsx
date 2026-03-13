@@ -1641,13 +1641,18 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                             {a.nearby_restaurants?.length > 0 && (
                               <div>
                                 <p className="font-medium">🍽️ Restaurants :</p>
-                                <ul className="space-y-1 text-muted-foreground">
+                                <ul className="space-y-2 text-muted-foreground">
                                   {a.nearby_restaurants.map((r: any, i: number) => (
-                                    <li key={i} className="flex flex-wrap items-center gap-1">
-                                      <span className="font-medium text-foreground">{r.name}</span>
-                                      <span>— {r.specialty} ({r.price_range})</span>
-                                      {r.distance_hint && <span className="text-xs">📍 {r.distance_hint}</span>}
-                                      <span className="flex gap-1 ml-1">
+                                    <li key={i} className="space-y-1">
+                                      <div className="flex flex-wrap items-center gap-1">
+                                        <span className="font-medium text-foreground">{r.name}</span>
+                                        <span>— {r.specialty} ({r.price_range})</span>
+                                        {r.distance_hint && <span className="text-xs">📍 {r.distance_hint}</span>}
+                                      </div>
+                                      <div className="flex flex-wrap gap-1 ml-2">
+                                        {r.menu_url && (
+                                          <a href={r.menu_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs" onClick={e => e.stopPropagation()}>🍽️ Carte</a>
+                                        )}
                                         {r.google_maps_query && (
                                           <a href={`https://www.google.com/maps/search/${encodeURIComponent(r.google_maps_query)}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs" onClick={e => e.stopPropagation()}>📍 Maps</a>
                                         )}
@@ -1657,7 +1662,17 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                                         {r.website_url && (
                                           <a href={r.website_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs" onClick={e => e.stopPropagation()}>🌐 Site</a>
                                         )}
-                                      </span>
+                                      </div>
+                                      {r.google_reviews?.length > 0 && (
+                                        <div className="ml-2 space-y-0.5">
+                                          <p className="text-xs font-medium text-foreground">📝 Avis Google :</p>
+                                          {r.google_reviews.slice(0, 5).map((rev: any, j: number) => (
+                                            <p key={j} className="text-xs text-muted-foreground">
+                                              {"⭐".repeat(Math.round(rev.rating))} <span className="italic">"{rev.text}"</span> — {rev.author}
+                                            </p>
+                                          ))}
+                                        </div>
+                                      )}
                                     </li>
                                   ))}
                                 </ul>
