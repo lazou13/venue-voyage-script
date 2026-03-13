@@ -920,7 +920,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
 
           <CardContent className="space-y-4">
             {/* Mode selector */}
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
               <Label className="text-sm font-medium">Mode:</Label>
               <RadioGroup
                 value={recordingMode}
