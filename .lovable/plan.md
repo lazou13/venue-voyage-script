@@ -1,20 +1,40 @@
 
+# Plan: Expert IA Médina — analyze-marker
 
-## Plan : Rendre les contrôles d'enregistrement responsives sur mobile
+## Status: ✅ Implémenté
 
-### Problème
-Sur un écran de 390px, les boutons STOP, Départ marqué/Nouveau départ et Marqueur rapide sont dans un seul `flex` horizontal (ligne 971) et débordent hors de l'écran. Le bouton "Marqueur rapide" n'est pas visible.
+## Ce qui a été créé
 
-### Solution
-Rendre le conteneur des contrôles d'enregistrement responsive avec `flex-wrap` pour que les boutons passent à la ligne sur petit écran.
+### Edge Function `analyze-marker`
+- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
+- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
+- Tool calling pour sortie JSON structurée avec 15 champs d'analyse
+- Gestion erreurs 429/402
 
-### Fichier modifié : `src/components/intake/RouteReconStep.tsx`
+### Capacités (15 fonctions)
+1. ✅ Identification lieu + catégorie + tags
+2. ✅ Restaurants proches (nom, spécialité, prix, avis)
+3. ✅ Anecdote historique
+4. ✅ Description guide multilingue (fr/en/ar/es/ary)
+5. ✅ Résumé bibliothèque multilingue
+6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
+7. ✅ Classification automatique catégorie/sous-catégorie
+8. ✅ Estimation difficulté + intérêt par public cible
+9. ✅ Suggestions step_config (types, validations)
+10. ✅ Génération énigmes (QCM + énigme + défi terrain)
+11. ✅ Transcription audio enrichie + données structurées
+12. ✅ Détection doublons vs bibliothèque existante
+13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags)
+14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
 
-**Ligne 971** — changer `flex items-center gap-3` en `flex flex-wrap items-center gap-2 sm:gap-3` pour permettre le retour à la ligne.
+### Enrichissement des connaissances
+- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
+- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
+- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
 
-**Lignes 1013-1030** — le groupe "Départ marqué + Nouveau départ" : ajouter `flex-wrap` pour qu'il passe aussi à la ligne si nécessaire.
-
-**Ligne 923** — le sélecteur de mode (Marche/Scooter) : ajouter `flex-wrap` pour s'adapter aux petits écrans.
-
-**Boutons** — réduire la taille des boutons sur mobile avec `text-xs sm:text-sm` et `size="sm"` quand ce n'est pas déjà le cas, pour que STOP + Marqueur rapide tiennent sur une ligne ou se wrappent proprement.
-
+### Intégration Frontend
+- Analyse automatique après chaque marqueur rapide sauvegardé
+- Panel IA dans le drawer avec résultats structurés
+- Bouton "Appliquer à la note" pour enrichir le marqueur
+- Bouton "Ignorer" pour fermer sans appliquer
+- Marqueurs proches du même projet envoyés comme contexte additionnel

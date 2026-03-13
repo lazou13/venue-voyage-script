@@ -920,7 +920,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
 
           <CardContent className="space-y-4">
             {/* Mode selector */}
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4">
               <Label className="text-sm font-medium">Mode:</Label>
               <RadioGroup
                 value={recordingMode}
@@ -968,7 +968,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
             )}
 
             {/* Recording controls */}
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {!isRecording ? (
                 <Button 
                   onClick={startRecording} 
@@ -1011,7 +1011,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
               )}
 
               {isRecording && departureMarked && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="gap-1 border-green-500 text-green-600 py-1.5 px-3">
                     <Check className="w-3 h-3" />
                     Départ marqué
@@ -1033,7 +1033,8 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                 <Button
                   onClick={handleQuickMarkerOpen}
                   variant="secondary"
-                  className="gap-2"
+                  size="sm"
+                  className="gap-1.5 text-xs sm:text-sm"
                   disabled={!lastPosition || quickMarkerOpen}
                 >
                   <Zap className="w-4 h-4" />
