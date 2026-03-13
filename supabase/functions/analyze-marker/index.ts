@@ -392,7 +392,21 @@ const ANALYSIS_TOOL = {
             best_angle: { type: "string", description: "Conseil de cadrage photo" },
             best_time: { type: "string", description: "Meilleure heure pour la photo" },
             hashtags: { type: "array", items: { type: "string" }, description: "5-8 hashtags Instagram pertinents" },
-            instagram_examples: { type: "array", items: { type: "string" }, description: "Descriptions de posts Instagram populaires pour ce lieu (ex: 'Vue panoramique depuis la terrasse avec thé à la menthe')" }
+            instagram_examples: { type: "array", items: { type: "string" }, description: "Descriptions de posts Instagram populaires pour ce lieu" },
+            instagram_example_posts: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  url: { type: "string", description: "URL Instagram du post (si connue)" },
+                  description: { type: "string", description: "Description du post" },
+                  estimated_likes: { type: "string", description: "Estimation de likes (ex: 2.5k)" }
+                },
+                required: ["description"],
+                additionalProperties: false
+              },
+              description: "Exemples de posts Instagram réels avec URLs quand disponibles"
+            }
           },
           required: ["score", "best_angle", "best_time", "hashtags"],
           additionalProperties: false
