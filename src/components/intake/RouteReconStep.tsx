@@ -484,7 +484,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     }
   };
 
-  const handleQuickMarkerSave = async (photoUrl?: string, audioUrl?: string) => {
+  const handleQuickMarkerSave = async () => {
     if (!lastPosition) {
       toast({ title: 'Erreur', description: 'Aucune position GPS', variant: 'destructive' });
       return;
@@ -493,13 +493,17 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     setIsSavingQuickMarker(true);
     try {
       const note = quickMarkerNote.trim() || `Marker ${quickMarkerNumber}`;
-      const finalPhoto = photoUrl || quickMarkerPhoto || undefined;
-      const finalAudio = audioUrl || quickMarkerAudioUrl || undefined;
-      await addMarkerAtLastCoord(note, finalPhoto, finalAudio);
+      const finalPhotos = quickMarkerPhotos;
+      const finalAudio = quickMarkerAudioUrl || undefined;
+      await addMarkerAtLastCoord(note, finalPhotos.length ? finalPhotos[0] : undefined, finalAudio, finalPhotos.length ? finalPhotos : undefined);
       setQuickMarkerNumber(n => n + 1);
-      setQuickMarkerSaved(true);
-      // Trigger AI analysis in background (don't auto-close while analyzing)
-      triggerAiAnalysis(finalPhoto, finalAudio);
+      // Close immediately — AI deferred to trace list
+      setQuickMarkerOpen(false);
+      setQuickMarkerNote('');
+      setQuickMarkerPhotos([]);
+      setQuickMarkerAudioUrl('');
+      setQuickMarkerSaved(false);
+      toast({ title: 'Marqueur sauvegardé ✓' });
     } catch (err) {
       toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
     } finally {
