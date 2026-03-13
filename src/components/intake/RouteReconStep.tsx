@@ -134,7 +134,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   // Quick marker drawer state
   const [quickMarkerOpen, setQuickMarkerOpen] = useState(false);
   const [quickMarkerNote, setQuickMarkerNote] = useState('');
-  const [quickMarkerPhoto, setQuickMarkerPhoto] = useState('');
+  const [quickMarkerPhotos, setQuickMarkerPhotos] = useState<string[]>([]);
   const [quickMarkerAudioUrl, setQuickMarkerAudioUrl] = useState('');
   const [quickMarkerNumber, setQuickMarkerNumber] = useState(1);
   const [isSavingQuickMarker, setIsSavingQuickMarker] = useState(false);
@@ -428,7 +428,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   // Quick marker handlers
   const handleQuickMarkerOpen = () => {
     setQuickMarkerNote('');
-    setQuickMarkerPhoto('');
+    setQuickMarkerPhotos([]);
     setQuickMarkerAudioUrl('');
     setQuickMarkerSaved(false);
     voiceRecorder.clearAudio();
@@ -484,7 +484,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     }
   };
 
-  const handleQuickMarkerSave = async (photoUrl?: string, audioUrl?: string) => {
+  const handleQuickMarkerSave = async () => {
     if (!lastPosition) {
       toast({ title: 'Erreur', description: 'Aucune position GPS', variant: 'destructive' });
       return;
@@ -493,13 +493,17 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     setIsSavingQuickMarker(true);
     try {
       const note = quickMarkerNote.trim() || `Marker ${quickMarkerNumber}`;
-      const finalPhoto = photoUrl || quickMarkerPhoto || undefined;
-      const finalAudio = audioUrl || quickMarkerAudioUrl || undefined;
-      await addMarkerAtLastCoord(note, finalPhoto, finalAudio);
+      const finalPhotos = quickMarkerPhotos;
+      const finalAudio = quickMarkerAudioUrl || undefined;
+      await addMarkerAtLastCoord(note, finalPhotos.length ? finalPhotos[0] : undefined, finalAudio, finalPhotos.length ? finalPhotos : undefined);
       setQuickMarkerNumber(n => n + 1);
-      setQuickMarkerSaved(true);
-      // Trigger AI analysis in background (don't auto-close while analyzing)
-      triggerAiAnalysis(finalPhoto, finalAudio);
+      // Close immediately — AI deferred to trace list
+      setQuickMarkerOpen(false);
+      setQuickMarkerNote('');
+      setQuickMarkerPhotos([]);
+      setQuickMarkerAudioUrl('');
+      setQuickMarkerSaved(false);
+      toast({ title: 'Marqueur sauvegardé ✓' });
     } catch (err) {
       toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
     } finally {
@@ -511,12 +515,9 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     if (voiceRecorder.isRecording) voiceRecorder.stopRecording();
     setQuickMarkerOpen(false);
     setQuickMarkerNote('');
-    setQuickMarkerPhoto('');
+    setQuickMarkerPhotos([]);
     setQuickMarkerAudioUrl('');
     setQuickMarkerSaved(false);
-    setAiAnalysis(null);
-    setAiError(null);
-    setIsAnalyzing(false);
   };
 
   // Apply AI analysis to last saved marker
@@ -550,10 +551,9 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
         audioUrl: lastMarker.audio_url || null,
       });
       toast({ title: 'Analyse appliquée', description: 'Note du marqueur enrichie par l\'IA' });
-      // Now close
       setQuickMarkerOpen(false);
       setQuickMarkerNote('');
-      setQuickMarkerPhoto('');
+      setQuickMarkerPhotos([]);
       setQuickMarkerAudioUrl('');
       setQuickMarkerSaved(false);
       setAiAnalysis(null);
@@ -734,15 +734,16 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     if (!file) return;
     const url = await uploadFile(file, `route-markers/${projectId}`);
     if (url) {
-      setQuickMarkerPhoto(url);
-      // Auto-save after photo upload
-      await handleQuickMarkerSave(url);
+      setQuickMarkerPhotos(prev => [...prev, url]);
     }
+    // Reset input so same file can be re-selected
+    e.target.value = '';
   };
 
   // Voice recording upload handler
   const handleVoiceUpload = async (blob: Blob) => {
-    const file = new File([blob], `voice-${Date.now()}.webm`, { type: 'audio/webm' });
+    const ext = blob.type.includes('mp4') ? 'mp4' : 'webm';
+    const file = new File([blob], `voice-${Date.now()}.${ext}`, { type: blob.type || 'audio/webm' });
     const url = await uploadFile(file, `voice-notes/${projectId}`);
     if (url) {
       setQuickMarkerAudioUrl(url);
@@ -1070,119 +1071,6 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
             {/* Quick marker inline drawer */}
             {isRecording && quickMarkerOpen && (
               <div className="p-3 rounded-md border border-primary/30 bg-primary/5 space-y-3">
-                {quickMarkerSaved ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-center gap-2 py-2 text-green-600">
-                      <Check className="w-5 h-5" />
-                      <span className="font-medium text-sm">Marqueur sauvegardé !</span>
-                    </div>
-                    
-                    {/* AI Analysis Section */}
-                    {isAnalyzing && (
-                      <div className="flex items-center gap-2 p-3 rounded-md border border-primary/20 bg-primary/5 animate-pulse">
-                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                        <span className="text-sm text-muted-foreground">🧠 Analyse IA en cours...</span>
-                      </div>
-                    )}
-                    
-                    {aiError && (
-                      <div className="p-3 rounded-md border border-destructive/30 bg-destructive/5 text-sm text-destructive">
-                        ⚠️ {aiError}
-                        <Button variant="ghost" size="sm" className="ml-2" onClick={() => {
-                          setQuickMarkerOpen(false);
-                          setQuickMarkerSaved(false);
-                          setAiAnalysis(null);
-                          setAiError(null);
-                        }}>
-                          Fermer
-                        </Button>
-                      </div>
-                    )}
-                    
-                    {aiAnalysis && (
-                      <div className="space-y-2 p-3 rounded-md border border-primary/20 bg-background text-sm">
-                        <p className="font-semibold text-primary">🧠 Analyse IA — {aiAnalysis.location_guess}</p>
-                        <p className="text-xs text-muted-foreground">📂 {aiAnalysis.category}{aiAnalysis.sub_category ? ` / ${aiAnalysis.sub_category}` : ''}</p>
-                        
-                        {aiAnalysis.historical_anecdote && (
-                          <div className="mt-1">
-                            <p className="text-xs font-medium">🏛️ Anecdote :</p>
-                            <p className="text-xs text-muted-foreground">{aiAnalysis.historical_anecdote}</p>
-                          </div>
-                        )}
-                        
-                        {aiAnalysis.guide_narration?.fr && (
-                          <div className="mt-1">
-                            <p className="text-xs font-medium">📖 Guide :</p>
-                            <p className="text-xs text-muted-foreground line-clamp-3">{aiAnalysis.guide_narration.fr}</p>
-                          </div>
-                        )}
-                        
-                        {aiAnalysis.nearby_restaurants?.length > 0 && (
-                          <div className="mt-1">
-                            <p className="text-xs font-medium">🍽️ Restaurants proches :</p>
-                            {aiAnalysis.nearby_restaurants.map((r: any, i: number) => (
-                              <p key={i} className="text-xs text-muted-foreground">• {r.name} — {r.specialty} ({r.price_range}) ⭐ {r.rating}</p>
-                            ))}
-                          </div>
-                        )}
-                        
-                        {aiAnalysis.practical_tips && (
-                          <div className="mt-1">
-                            <p className="text-xs font-medium">💡 Conseils :</p>
-                            <p className="text-xs text-muted-foreground">📸 {aiAnalysis.practical_tips.photo_tips}</p>
-                            <p className="text-xs text-muted-foreground">♿ {aiAnalysis.practical_tips.accessibility}</p>
-                          </div>
-                        )}
-                        
-                        {aiAnalysis.generated_challenges?.mcq && (
-                          <div className="mt-1">
-                            <p className="text-xs font-medium">🎮 Énigme générée :</p>
-                            <p className="text-xs text-muted-foreground italic">{aiAnalysis.generated_challenges.mcq.question_fr}</p>
-                          </div>
-                        )}
-                        
-                        {aiAnalysis.duplicate_warning && (
-                          <div className="mt-1 p-2 rounded bg-yellow-50 border border-yellow-200">
-                            <p className="text-xs text-yellow-700">⚠️ {aiAnalysis.duplicate_warning}</p>
-                          </div>
-                        )}
-                        
-                        {aiAnalysis.audio_transcript && (
-                          <div className="mt-1">
-                            <p className="text-xs font-medium">🎙️ Transcription :</p>
-                            <p className="text-xs text-muted-foreground">{aiAnalysis.audio_transcript}</p>
-                          </div>
-                        )}
-                        
-                        <div className="flex gap-2 mt-2">
-                          <Button size="sm" variant="default" onClick={handleApplyAiAnalysis} className="gap-1">
-                            <Check className="w-3 h-3" />
-                            Appliquer à la note
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => {
-                            setQuickMarkerOpen(false);
-                            setQuickMarkerSaved(false);
-                            setAiAnalysis(null);
-                          }}>
-                            Ignorer
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Close button when no AI action pending */}
-                    {!isAnalyzing && !aiAnalysis && !aiError && (
-                      <Button size="sm" variant="ghost" className="w-full" onClick={() => {
-                        setQuickMarkerOpen(false);
-                        setQuickMarkerSaved(false);
-                      }}>
-                        Fermer
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <>
                     <div className="flex items-center justify-between">
                       <p className="text-sm font-medium">Marqueur rapide #{quickMarkerNumber}</p>
                       <Button
@@ -1266,13 +1154,22 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
 
                     {/* Preview row */}
                     <div className="flex items-center gap-2 flex-wrap">
-                      {quickMarkerPhoto && (
-                        <img 
-                          src={quickMarkerPhoto} 
-                          alt="Preview" 
-                          className="h-10 w-10 object-cover rounded border"
-                        />
-                      )}
+                      {quickMarkerPhotos.map((url, i) => (
+                        <div key={i} className="relative">
+                          <img 
+                            src={url} 
+                            alt={`Preview ${i + 1}`} 
+                            className="h-10 w-10 object-cover rounded border"
+                          />
+                          <button
+                            type="button"
+                            className="absolute -top-1 -right-1 w-4 h-4 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center text-xs"
+                            onClick={() => setQuickMarkerPhotos(prev => prev.filter((_, j) => j !== i))}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
                       {quickMarkerAudioUrl && (
                         <div className="flex items-center gap-1 text-xs text-green-600">
                           <Volume2 className="w-3 h-3" />
@@ -1281,7 +1178,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                       )}
                     </div>
                     
-                    {/* Valider sans photo */}
+                    {/* Valider */}
                     <div className="flex items-center gap-2">
                       <Button
                         variant="secondary"
@@ -1291,11 +1188,9 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                         className="gap-2"
                       >
                         <Check className="w-4 h-4" />
-                        Valider sans photo
+                        {quickMarkerPhotos.length > 0 ? `Valider (${quickMarkerPhotos.length} photo${quickMarkerPhotos.length > 1 ? 's' : ''})` : 'Valider sans photo'}
                       </Button>
                     </div>
-                  </>
-                )}
               </div>
             )}
 

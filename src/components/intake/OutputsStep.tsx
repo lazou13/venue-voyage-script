@@ -104,6 +104,7 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
           lng: Number(m.lng),
           note: m.note,
           photo_url: m.photo_url,
+          photo_urls: (m as any).photo_urls || [],
           audio_url: (m as any).audio_url || null,
           created_at: m.created_at,
           promoted: (m as any).promoted ?? false,

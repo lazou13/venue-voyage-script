@@ -1,0 +1,1 @@
+ALTER TABLE route_markers ADD COLUMN photo_urls text[] DEFAULT '{}';
