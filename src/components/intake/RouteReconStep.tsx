@@ -515,12 +515,9 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     if (voiceRecorder.isRecording) voiceRecorder.stopRecording();
     setQuickMarkerOpen(false);
     setQuickMarkerNote('');
-    setQuickMarkerPhoto('');
+    setQuickMarkerPhotos([]);
     setQuickMarkerAudioUrl('');
     setQuickMarkerSaved(false);
-    setAiAnalysis(null);
-    setAiError(null);
-    setIsAnalyzing(false);
   };
 
   // Apply AI analysis to last saved marker
