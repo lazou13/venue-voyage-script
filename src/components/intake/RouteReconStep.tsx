@@ -1733,6 +1733,25 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                                     </ul>
                                   </div>
                                 )}
+                                {a.instagram_spot.instagram_example_posts?.length > 0 && (
+                                  <div className="mt-1">
+                                    <p className="text-xs font-medium">📷 Posts Instagram réels :</p>
+                                    <ul className="space-y-1 text-xs text-muted-foreground">
+                                      {a.instagram_spot.instagram_example_posts.map((post: any, i: number) => (
+                                        <li key={i} className="flex flex-wrap items-center gap-1">
+                                          {post.url ? (
+                                            <a href={post.url} target="_blank" rel="noopener noreferrer" className="text-pink-500 hover:underline" onClick={e => e.stopPropagation()}>
+                                              📸 {post.description}
+                                            </a>
+                                          ) : (
+                                            <span>{post.description}</span>
+                                          )}
+                                          {post.estimated_likes && <span className="text-muted-foreground/60">❤️ {post.estimated_likes}</span>}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
                               </div>
                             )}
                             {a.practical_tips && (
