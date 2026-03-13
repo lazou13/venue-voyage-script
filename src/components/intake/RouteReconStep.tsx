@@ -672,6 +672,35 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
       '',
       '📚 Bibliothèque:',
       analysis.summary_library || '',
+      '',
+      // Restaurants with menu + reviews
+      ...(analysis.nearby_restaurants?.length > 0 ? [
+        '🍽️ Restaurants:',
+        ...analysis.nearby_restaurants.map((r: any) => {
+          const parts = [`- ${r.name} — ${r.specialty} (${r.price_range}) ⭐ ${r.rating}`];
+          if (r.menu_url) parts.push(`  🍽️ Carte: ${r.menu_url}`);
+          if (r.google_maps_query) parts.push(`  📍 Maps: ${r.google_maps_query}`);
+          if (r.google_reviews?.length > 0) {
+            parts.push(`  📝 Avis:`);
+            r.google_reviews.slice(0, 5).forEach((rev: any) => {
+              parts.push(`    "${rev.text}" — ${rev.author} ⭐${rev.rating}`);
+            });
+          }
+          return parts.join('\n');
+        }),
+        '',
+      ] : []),
+      // POIs with tickets
+      ...(analysis.nearby_pois?.length > 0 ? [
+        '🏛️ POIs proches:',
+        ...analysis.nearby_pois.map((p: any) => {
+          const parts = [`- ${p.name} (${p.type}) — ${p.description_fr}`];
+          if (p.ticket_url) parts.push(`  🎫 Billets: ${p.ticket_url}`);
+          if (p.ticket_price) parts.push(`  💰 Tarif: ${p.ticket_price}`);
+          if (p.opening_hours) parts.push(`  🕐 Horaires: ${p.opening_hours}`);
+          return parts.join('\n');
+        }),
+      ] : []),
     ].join('\n');
 
     try {
@@ -686,9 +715,9 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
         audioUrl: marker.audio_url || null,
       });
 
-      // 2. Promote to library
+      // 2. Promote to library with AI analysis
       const { error } = await supabase.functions.invoke('promote-marker-to-library', {
-        body: { marker_id: markerId },
+        body: { marker_id: markerId, ai_analysis: analysis },
       });
       if (error) throw error;
 
@@ -1612,13 +1641,18 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                             {a.nearby_restaurants?.length > 0 && (
                               <div>
                                 <p className="font-medium">🍽️ Restaurants :</p>
-                                <ul className="space-y-1 text-muted-foreground">
+                                <ul className="space-y-2 text-muted-foreground">
                                   {a.nearby_restaurants.map((r: any, i: number) => (
-                                    <li key={i} className="flex flex-wrap items-center gap-1">
-                                      <span className="font-medium text-foreground">{r.name}</span>
-                                      <span>— {r.specialty} ({r.price_range})</span>
-                                      {r.distance_hint && <span className="text-xs">📍 {r.distance_hint}</span>}
-                                      <span className="flex gap-1 ml-1">
+                                    <li key={i} className="space-y-1">
+                                      <div className="flex flex-wrap items-center gap-1">
+                                        <span className="font-medium text-foreground">{r.name}</span>
+                                        <span>— {r.specialty} ({r.price_range})</span>
+                                        {r.distance_hint && <span className="text-xs">📍 {r.distance_hint}</span>}
+                                      </div>
+                                      <div className="flex flex-wrap gap-1 ml-2">
+                                        {r.menu_url && (
+                                          <a href={r.menu_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs" onClick={e => e.stopPropagation()}>🍽️ Carte</a>
+                                        )}
                                         {r.google_maps_query && (
                                           <a href={`https://www.google.com/maps/search/${encodeURIComponent(r.google_maps_query)}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs" onClick={e => e.stopPropagation()}>📍 Maps</a>
                                         )}
@@ -1628,7 +1662,17 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                                         {r.website_url && (
                                           <a href={r.website_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs" onClick={e => e.stopPropagation()}>🌐 Site</a>
                                         )}
-                                      </span>
+                                      </div>
+                                      {r.google_reviews?.length > 0 && (
+                                        <div className="ml-2 space-y-0.5">
+                                          <p className="text-xs font-medium text-foreground">📝 Avis Google :</p>
+                                          {r.google_reviews.slice(0, 5).map((rev: any, j: number) => (
+                                            <p key={j} className="text-xs text-muted-foreground">
+                                              {"⭐".repeat(Math.round(rev.rating))} <span className="italic">"{rev.text}"</span> — {rev.author}
+                                            </p>
+                                          ))}
+                                        </div>
+                                      )}
                                     </li>
                                   ))}
                                 </ul>
@@ -1637,14 +1681,25 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                             {a.nearby_pois?.length > 0 && (
                               <div>
                                 <p className="font-medium">🏛️ Points d'intérêt :</p>
-                                <ul className="space-y-1 text-muted-foreground">
+                                <ul className="space-y-2 text-muted-foreground">
                                   {a.nearby_pois.map((poi: any, i: number) => (
-                                    <li key={i} className="flex flex-wrap items-center gap-1">
-                                      <span className="font-medium text-foreground">{poi.name}</span>
-                                      <Badge variant="outline" className="text-xs">{poi.type}</Badge>
-                                      <span className="text-xs">— {poi.description_fr}</span>
-                                      {poi.distance_hint && <span className="text-xs">📍 {poi.distance_hint}</span>}
-                                      <span className="flex gap-1 ml-1">
+                                    <li key={i} className="space-y-1">
+                                      <div className="flex flex-wrap items-center gap-1">
+                                        <span className="font-medium text-foreground">{poi.name}</span>
+                                        <Badge variant="outline" className="text-xs">{poi.type}</Badge>
+                                        <span className="text-xs">— {poi.description_fr}</span>
+                                        {poi.distance_hint && <span className="text-xs">📍 {poi.distance_hint}</span>}
+                                      </div>
+                                      <div className="flex flex-wrap gap-1 ml-2">
+                                        {poi.ticket_url && (
+                                          <a href={poi.ticket_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs font-medium" onClick={e => e.stopPropagation()}>🎫 Billets</a>
+                                        )}
+                                        {poi.ticket_price && (
+                                          <span className="text-xs font-medium">💰 {poi.ticket_price}</span>
+                                        )}
+                                        {poi.opening_hours && (
+                                          <span className="text-xs">🕐 {poi.opening_hours}</span>
+                                        )}
                                         {poi.google_maps_query && (
                                           <a href={`https://www.google.com/maps/search/${encodeURIComponent(poi.google_maps_query)}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs" onClick={e => e.stopPropagation()}>📍 Maps</a>
                                         )}
@@ -1654,7 +1709,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                                         {poi.website_url && (
                                           <a href={poi.website_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-xs" onClick={e => e.stopPropagation()}>🌐 Site</a>
                                         )}
-                                      </span>
+                                      </div>
                                     </li>
                                   ))}
                                 </ul>
@@ -1674,6 +1729,25 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                                     <ul className="list-disc list-inside text-xs text-muted-foreground">
                                       {a.instagram_spot.instagram_examples.map((ex: string, i: number) => (
                                         <li key={i}>{ex}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                {a.instagram_spot.instagram_example_posts?.length > 0 && (
+                                  <div className="mt-1">
+                                    <p className="text-xs font-medium">📷 Posts Instagram réels :</p>
+                                    <ul className="space-y-1 text-xs text-muted-foreground">
+                                      {a.instagram_spot.instagram_example_posts.map((post: any, i: number) => (
+                                        <li key={i} className="flex flex-wrap items-center gap-1">
+                                          {post.url ? (
+                                            <a href={post.url} target="_blank" rel="noopener noreferrer" className="text-pink-500 hover:underline" onClick={e => e.stopPropagation()}>
+                                              📸 {post.description}
+                                            </a>
+                                          ) : (
+                                            <span>{post.description}</span>
+                                          )}
+                                          {post.estimated_likes && <span className="text-muted-foreground/60">❤️ {post.estimated_likes}</span>}
+                                        </li>
                                       ))}
                                     </ul>
                                   </div>

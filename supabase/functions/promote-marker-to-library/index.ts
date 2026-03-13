@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
     }
 
     // Parse input
-    const { marker_id } = await req.json();
+    const { marker_id, ai_analysis } = await req.json();
     if (!marker_id) {
       return new Response(
         JSON.stringify({ error: "marker_id requis" }),
@@ -87,20 +87,34 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 3. Create medina_poi
+    // 3. Create medina_poi with AI analysis in metadata
+    const poiMetadata: Record<string, unknown> = {
+      source_trace_id: marker.trace_id,
+      source_marker_id: marker.id,
+    };
+    if (ai_analysis) {
+      poiMetadata.ai_analysis = ai_analysis;
+      // Extract reference photos from Instagram examples
+      if (ai_analysis.instagram_spot?.instagram_example_posts) {
+        poiMetadata.reference_photos = ai_analysis.instagram_spot.instagram_example_posts
+          .filter((p: any) => p.url)
+          .map((p: any) => ({ url: p.url, description: p.description }));
+      }
+    }
+
+    const poiCategory = ai_analysis?.category || "terrain";
+    const poiName = ai_analysis?.location_guess || marker.note || "POI terrain";
+
     const { data: newPoi, error: poiErr } = await admin
       .from("medina_pois")
       .insert({
-        name: marker.note || "POI terrain",
+        name: poiName,
         zone: "terrain",
-        category: "terrain",
+        category: poiCategory,
         lat: marker.lat,
         lng: marker.lng,
         status: "draft",
-        metadata: {
-          source_trace_id: marker.trace_id,
-          source_marker_id: marker.id,
-        },
+        metadata: poiMetadata,
       })
       .select("id")
       .single();
