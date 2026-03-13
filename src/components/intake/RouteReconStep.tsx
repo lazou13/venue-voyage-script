@@ -428,7 +428,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   // Quick marker handlers
   const handleQuickMarkerOpen = () => {
     setQuickMarkerNote('');
-    setQuickMarkerPhoto('');
+    setQuickMarkerPhotos([]);
     setQuickMarkerAudioUrl('');
     setQuickMarkerSaved(false);
     voiceRecorder.clearAudio();
