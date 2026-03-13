@@ -734,10 +734,10 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     if (!file) return;
     const url = await uploadFile(file, `route-markers/${projectId}`);
     if (url) {
-      setQuickMarkerPhoto(url);
-      // Auto-save after photo upload
-      await handleQuickMarkerSave(url);
+      setQuickMarkerPhotos(prev => [...prev, url]);
     }
+    // Reset input so same file can be re-selected
+    e.target.value = '';
   };
 
   // Voice recording upload handler
