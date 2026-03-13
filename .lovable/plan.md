@@ -1,40 +1,51 @@
 
-# Plan: Expert IA Médina — analyze-marker
 
-## Status: ✅ Implémenté
+## Plan : Marqueur rapide — multi-photos, vocal fiable, IA différée
 
-## Ce qui a été créé
+### 3 problèmes identifiés
 
-### Edge Function `analyze-marker`
-- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
-- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
-- Tool calling pour sortie JSON structurée avec 15 champs d'analyse
-- Gestion erreurs 429/402
+1. **Une seule photo** : `handleQuickMarkerPhotoUpload` écrase `quickMarkerPhoto` (string unique) et auto-save immédiatement. Impossible d'ajouter une 2e photo.
+2. **Note vocale capricieuse** : `useVoiceRecorder` force `audio/webm` qui n'est pas supporté sur iOS Safari. Pas de fallback.
+3. **IA trop lente** : `triggerAiAnalysis` est appelé dans `handleQuickMarkerSave`, bloquant le drawer pendant 10-20s. L'utilisateur veut poser ses marqueurs vite et revoir l'IA après le STOP.
 
-### Capacités (15 fonctions)
-1. ✅ Identification lieu + catégorie + tags
-2. ✅ Restaurants proches (nom, spécialité, prix, avis)
-3. ✅ Anecdote historique
-4. ✅ Description guide multilingue (fr/en/ar/es/ary)
-5. ✅ Résumé bibliothèque multilingue
-6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
-7. ✅ Classification automatique catégorie/sous-catégorie
-8. ✅ Estimation difficulté + intérêt par public cible
-9. ✅ Suggestions step_config (types, validations)
-10. ✅ Génération énigmes (QCM + énigme + défi terrain)
-11. ✅ Transcription audio enrichie + données structurées
-12. ✅ Détection doublons vs bibliothèque existante
-13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags)
-14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
+---
 
-### Enrichissement des connaissances
-- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
-- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
-- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
+### 1. Multi-photos dans le marqueur rapide
 
-### Intégration Frontend
-- Analyse automatique après chaque marqueur rapide sauvegardé
-- Panel IA dans le drawer avec résultats structurés
-- Bouton "Appliquer à la note" pour enrichir le marqueur
-- Bouton "Ignorer" pour fermer sans appliquer
-- Marqueurs proches du même projet envoyés comme contexte additionnel
+**DB** : ajouter une colonne `photo_urls text[]` sur `route_markers` (migration). Garder `photo_url` pour rétrocompat.
+
+**`useRouteRecorder.ts`** : modifier `addMarkerAtLastCoord` pour accepter `photoUrls?: string[]` en plus de `photoUrl`.
+
+**`RouteReconStep.tsx`** :
+- Remplacer `quickMarkerPhoto: string` par `quickMarkerPhotos: string[]`
+- `handleQuickMarkerPhotoUpload` : ajoute l'URL au tableau au lieu d'écraser + ne fait plus d'auto-save
+- Afficher les miniatures en preview avec possibilité de supprimer
+- Le bouton "Valider" envoie toutes les photos d'un coup
+
+### 2. Voice recorder fiable (fallback mimeType)
+
+**`useVoiceRecorder.ts`** : détecter le mimeType supporté au lieu de forcer `audio/webm` :
+```typescript
+const mimeType = MediaRecorder.isTypeSupported('audio/webm') 
+  ? 'audio/webm' 
+  : MediaRecorder.isTypeSupported('audio/mp4') 
+    ? 'audio/mp4' 
+    : '';  // laisse le navigateur choisir
+```
+Adapter aussi le nom de fichier et le type du Blob en conséquence.
+
+### 3. IA différée — analyser après le STOP
+
+**`RouteReconStep.tsx`** :
+- Supprimer l'appel `triggerAiAnalysis` dans `handleQuickMarkerSave`
+- Après le save, fermer le drawer immédiatement (toast "Marqueur sauvegardé ✓")
+- Dans la liste des marqueurs (visible après STOP), ajouter un bouton "🧠 Analyser" par marqueur (existant : `handleAnalyzeMarker`) et le bouton batch "Analyser tous"
+- Le panel d'analyse IA reste dans la liste des marqueurs, pas dans le drawer rapide
+- Supprimer tout le bloc AI du drawer rapide (lignes 1080-1172)
+
+### Fichiers modifiés
+1. **Migration SQL** : `ALTER TABLE route_markers ADD COLUMN photo_urls text[]`
+2. **`src/hooks/useVoiceRecorder.ts`** : fallback mimeType
+3. **`src/hooks/useRouteRecorder.ts`** : support `photoUrls[]`
+4. **`src/components/intake/RouteReconStep.tsx`** : multi-photos, suppression IA du drawer, fermeture auto après save
+
