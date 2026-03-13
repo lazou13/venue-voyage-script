@@ -1011,7 +1011,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
               )}
 
               {isRecording && departureMarked && (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="outline" className="gap-1 border-green-500 text-green-600 py-1.5 px-3">
                     <Check className="w-3 h-3" />
                     Départ marqué
