@@ -1,57 +1,80 @@
 
-# Plan: Expert IA Médina — analyze-marker
 
-## Status: ✅ Implémenté
+## Plan : Enrichir l'expérience client — photos, Instagram et données pratiques
 
-## Ce qui a été créé
+### Améliorations proposées (5 axes)
 
-### Edge Function `analyze-marker`
-- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
-- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
-- Tool calling pour sortie JSON structurée avec 15 champs d'analyse
-- Gestion erreurs 429/402
+---
 
-### Capacités (15 fonctions)
-1. ✅ Identification lieu + catégorie + tags
-2. ✅ Restaurants proches (nom, spécialité, prix, avis)
-3. ✅ Anecdote historique
-4. ✅ Description guide multilingue (fr/en/ar/es/ary)
-5. ✅ Résumé bibliothèque multilingue
-6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
-7. ✅ Classification automatique catégorie/sous-catégorie
-8. ✅ Estimation difficulté + intérêt par public cible
-9. ✅ Suggestions step_config (types, validations)
-10. ✅ Génération énigmes (QCM + énigme + défi terrain)
-11. ✅ Transcription audio enrichie + données structurées
-12. ✅ Détection doublons vs bibliothèque existante
-13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags)
-14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
+### 1. Enrichir la base photo automatiquement lors de la promotion
 
-### Enrichissement des connaissances
-- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
-- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
-- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
+**Problème** : Quand on clique "Approuver + Bibliothèque", seule la photo terrain est copiée. Aucune photo de référence (Google, Instagram) n'est associée.
 
-### Intégration Frontend
-- Analyse automatique après chaque marqueur rapide sauvegardé
-- Panel IA dans le drawer avec résultats structurés
-- Bouton "Appliquer à la note" pour enrichir le marqueur
-- Bouton "Ignorer" pour fermer sans appliquer
-- Marqueurs proches du même projet envoyés comme contexte additionnel
+**Solution** : Dans `handleApproveAndPromote`, stocker les URLs de photos Instagram/web trouvées par l'IA dans `medina_pois.metadata.reference_photos` :
+- Photos Instagram populaires du lieu (URLs publiques)
+- Photo Google Maps du lieu si disponible
 
-## Marqueur rapide — Améliorations terrain (✅ Implémenté)
+**Fichier** : `src/components/intake/RouteReconStep.tsx` — enrichir le body envoyé à `promote-marker-to-library` avec `ai_analysis` complet, puis dans `promote-marker-to-library/index.ts`, stocker `metadata.ai_analysis` dans le POI créé.
 
-### Multi-photos
-- ✅ Colonne `photo_urls text[]` ajoutée à `route_markers`
-- ✅ `useRouteRecorder` supporte `photoUrls[]`
-- ✅ UI : ajout de photos multiples avec miniatures + suppression individuelle
-- ✅ Plus d'auto-save à la première photo — validation manuelle requise
+---
 
-### Notes vocales fiables
-- ✅ `useVoiceRecorder` : détection dynamique du mimeType (webm → mp4 → défaut navigateur)
-- ✅ Upload avec extension adaptée (.webm ou .mp4)
+### 2. Instagram : ajouter des exemples de photos réelles (URLs)
 
-### IA différée
-- ✅ `triggerAiAnalysis` supprimé du `handleQuickMarkerSave`
-- ✅ Drawer se ferme immédiatement après sauvegarde (toast "Marqueur sauvegardé ✓")
-- ✅ Analyse IA accessible dans la liste des marqueurs après STOP (bouton "Analyser" + "Analyser tous")
+**Problème** : `instagram_examples` contient des descriptions textuelles ("Vue panoramique depuis la terrasse...") mais pas de liens vers de vrais posts.
+
+**Solution** : Enrichir le schema `analyze-marker` :
+- Ajouter `instagram_example_posts` : array d'objets `{ url, description, estimated_likes }` avec des URLs Instagram réelles connues pour le lieu
+- Ajouter `instagram_reference_photos` : descriptions de types de photos qui fonctionnent bien (angles, compositions)
+
+**Fichier** : `supabase/functions/analyze-marker/index.ts` — enrichir le schema tool + prompt
+
+**UI** : Dans `RouteReconStep.tsx`, afficher les exemples avec liens cliquables vers Instagram.
+
+---
+
+### 3. Restaurants : lien carte/menu + 5 derniers avis Google résumés
+
+**Problème** : Les restaurants n'ont pas de lien vers leur carte/menu ni d'avis.
+
+**Solution** : Enrichir le schema `nearby_restaurants` avec :
+- `menu_url` (string) — lien vers la carte en ligne (si connu)
+- `google_reviews_summary` (array of `{ text, rating, author }`) — 5 avis résumés par l'IA
+
+**Fichiers** : `analyze-marker/index.ts` (schema + prompt) + `RouteReconStep.tsx` (affichage)
+
+---
+
+### 4. Musées/Monuments : billetterie + infos pratiques
+
+**Problème** : Pour les musées, pas de lien d'achat de billets ni tarifs.
+
+**Solution** : Enrichir `nearby_pois` avec :
+- `ticket_url` — site pour acheter les billets
+- `ticket_price` — tarif (ex: "70 MAD adulte, 30 MAD enfant")
+- `opening_hours` — horaires détaillés
+
+**Fichiers** : `analyze-marker/index.ts` (schema) + `RouteReconStep.tsx` (affichage avec 🎫)
+
+---
+
+### 5. Narration de guide contextuelle (suivre le parcours)
+
+**Problème** : Le guide commence toujours pareil avec des formules génériques.
+
+**Solution** : Modifier le prompt système pour :
+- Interdire les introductions génériques ("Oubliez les souks...")
+- Imposer des transitions de parcours : "Nous voilà maintenant devant...", "À quelques pas..."
+- Utiliser le contexte des `nearby_markers` pour enchaîner naturellement
+
+**Fichier** : `supabase/functions/analyze-marker/index.ts` — section INSTRUCTIONS du prompt
+
+---
+
+### Résumé des fichiers modifiés
+
+| Fichier | Modifications |
+|---------|---------------|
+| `supabase/functions/analyze-marker/index.ts` | Schema enrichi (menu_url, google_reviews, ticket_url, instagram posts) + prompt narration |
+| `src/components/intake/RouteReconStep.tsx` | Affichage enrichi (avis, carte, billets, photos Instagram) + envoi analyse à promote |
+| `supabase/functions/promote-marker-to-library/index.ts` | Accepter et stocker `ai_analysis` dans metadata |
+
