@@ -32,6 +32,7 @@ export interface RouteMarker {
   lng: number;
   note: string | null;
   photo_url: string | null;
+  photo_urls: string[] | null;
   audio_url: string | null;
   created_at: string;
   promoted: boolean;
