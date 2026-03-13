@@ -193,12 +193,13 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
 
   // Add marker
   const addMarker = useMutation({
-    mutationFn: async ({ traceId, lat, lng, note, photoUrl, audioUrl }: { 
+    mutationFn: async ({ traceId, lat, lng, note, photoUrl, photoUrls, audioUrl }: { 
       traceId: string; 
       lat: number; 
       lng: number; 
       note?: string; 
       photoUrl?: string;
+      photoUrls?: string[];
       audioUrl?: string;
     }) => {
       const { data, error } = await supabase
@@ -208,7 +209,8 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
           lat,
           lng,
           note: note || null,
-          photo_url: photoUrl || null,
+          photo_url: photoUrl || (photoUrls?.length ? photoUrls[0] : null),
+          photo_urls: photoUrls || [],
           audio_url: audioUrl || null,
         } as any)
         .select()
