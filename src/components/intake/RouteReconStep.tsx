@@ -672,6 +672,35 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
       '',
       '📚 Bibliothèque:',
       analysis.summary_library || '',
+      '',
+      // Restaurants with menu + reviews
+      ...(analysis.nearby_restaurants?.length > 0 ? [
+        '🍽️ Restaurants:',
+        ...analysis.nearby_restaurants.map((r: any) => {
+          const parts = [`- ${r.name} — ${r.specialty} (${r.price_range}) ⭐ ${r.rating}`];
+          if (r.menu_url) parts.push(`  🍽️ Carte: ${r.menu_url}`);
+          if (r.google_maps_query) parts.push(`  📍 Maps: ${r.google_maps_query}`);
+          if (r.google_reviews?.length > 0) {
+            parts.push(`  📝 Avis:`);
+            r.google_reviews.slice(0, 5).forEach((rev: any) => {
+              parts.push(`    "${rev.text}" — ${rev.author} ⭐${rev.rating}`);
+            });
+          }
+          return parts.join('\n');
+        }),
+        '',
+      ] : []),
+      // POIs with tickets
+      ...(analysis.nearby_pois?.length > 0 ? [
+        '🏛️ POIs proches:',
+        ...analysis.nearby_pois.map((p: any) => {
+          const parts = [`- ${p.name} (${p.type}) — ${p.description_fr}`];
+          if (p.ticket_url) parts.push(`  🎫 Billets: ${p.ticket_url}`);
+          if (p.ticket_price) parts.push(`  💰 Tarif: ${p.ticket_price}`);
+          if (p.opening_hours) parts.push(`  🕐 Horaires: ${p.opening_hours}`);
+          return parts.join('\n');
+        }),
+      ] : []),
     ].join('\n');
 
     try {
