@@ -551,10 +551,9 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
         audioUrl: lastMarker.audio_url || null,
       });
       toast({ title: 'Analyse appliquée', description: 'Note du marqueur enrichie par l\'IA' });
-      // Now close
       setQuickMarkerOpen(false);
       setQuickMarkerNote('');
-      setQuickMarkerPhoto('');
+      setQuickMarkerPhotos([]);
       setQuickMarkerAudioUrl('');
       setQuickMarkerSaved(false);
       setAiAnalysis(null);
