@@ -1033,7 +1033,8 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                 <Button
                   onClick={handleQuickMarkerOpen}
                   variant="secondary"
-                  className="gap-2"
+                  size="sm"
+                  className="gap-1.5 text-xs sm:text-sm"
                   disabled={!lastPosition || quickMarkerOpen}
                 >
                   <Zap className="w-4 h-4" />
