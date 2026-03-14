@@ -1,74 +1,50 @@
 
-# Plan: Expert IA Médina — analyze-marker
 
-## Status: ✅ Implémenté
+## Plan : Vue plein écran pour le détail d'un marqueur avec édition IA
 
-## Ce qui a été créé
+### Problème actuel
+Cliquer sur la ligne d'un marqueur ouvre le petit dialog "Modifier le marqueur" (screenshot 2) — trop étroit pour relire l'analyse IA, la corriger, ou l'enrichir. Pas de bouton "Approuver + Bibliothèque" dans ce dialog.
 
-### Edge Function `analyze-marker`
-- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
-- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
-- Tool calling pour sortie JSON structurée avec 17 champs d'analyse
-- Gestion erreurs 429/402
+### Solution
+Remplacer le comportement du clic sur la ligne du marqueur : au lieu d'ouvrir le petit `Dialog`, ouvrir une **vue plein écran** (Sheet ou Dialog `max-w-4xl`) avec tout le contenu du marqueur.
 
-### Capacités (17 fonctions)
-1. ✅ Identification lieu + catégorie + tags
-2. ✅ Restaurants proches (nom, spécialité, prix, avis, **lien carte/menu**, **5 avis Google résumés**)
-3. ✅ Anecdote historique
-4. ✅ Description guide multilingue (fr/en/ar/es/ary)
-5. ✅ Résumé bibliothèque multilingue
-6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
-7. ✅ Classification automatique catégorie/sous-catégorie
-8. ✅ Estimation difficulté + intérêt par public cible
-9. ✅ Suggestions step_config (types, validations)
-10. ✅ Génération énigmes (QCM + énigme + défi terrain)
-11. ✅ Transcription audio enrichie + données structurées
-12. ✅ Détection doublons vs bibliothèque existante
-13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags, **posts Instagram réels avec URLs**)
-14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
-15. ✅ **POIs proches avec billets, tarifs et horaires** (musées, monuments)
-16. ✅ **Narration contextuelle** (suit le parcours, interdit les introductions génériques)
-17. ✅ **Liens web/Instagram/Maps** pour chaque restaurant et POI
+### Structure de la nouvelle vue "MarkerDetailSheet"
 
-### Enrichissement des connaissances
-- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
-- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
-- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
+**Panneau gauche (ou haut sur mobile)** — Infos du marqueur :
+- Coordonnées GPS (éditables)
+- Photo (avec lightbox + changement)
+- Audio (lecture + changement)
+- Bouton "Ma position GPS"
 
-### Intégration Frontend
-- Analyse automatique après chaque marqueur rapide sauvegardé
-- Panel IA dans le drawer avec résultats structurés
-- Bouton "Appliquer à la note" pour enrichir le marqueur
-- Bouton "Ignorer" pour fermer sans appliquer
-- Marqueurs proches du même projet envoyés comme contexte additionnel
-- ✅ **Affichage enrichi** : avis Google, liens carte/menu, billets/tarifs, posts Instagram avec URLs
+**Panneau principal** — Contenu IA :
+- Si analyse IA disponible : affichage complet (lieu, catégorie, guide narration, anecdote, restaurants avec liens/avis, POIs avec billets, Instagram)
+- Chaque section est un `Textarea` éditable (pas juste du texte) → l'utilisateur peut corriger directement
+- Bouton "🧠 Enrichir avec l'IA" qui relance `triggerMarkerAnalysis` sur ce marqueur
+- Bouton "🧠 Demander à l'IA de modifier" qui ouvre un champ de prompt libre → appelle `analyze-marker` avec une instruction de correction
 
-## Marqueur rapide — Améliorations terrain (✅ Implémenté)
+**Footer** — Actions :
+- "Enregistrer" → sauve les modifications (note enrichie + coords + photo)
+- "✅ Approuver + Bibliothèque" → `handleApproveAndPromote`
+- "Supprimer" (destructive)
+- "Fermer"
 
-### Multi-photos
-- ✅ Colonne `photo_urls text[]` ajoutée à `route_markers`
-- ✅ `useRouteRecorder` supporte `photoUrls[]`
-- ✅ UI : ajout de photos multiples avec miniatures + suppression individuelle
-- ✅ Plus d'auto-save à la première photo — validation manuelle requise
+### Modifications techniques
 
-### Notes vocales fiables
-- ✅ `useVoiceRecorder` : détection dynamique du mimeType (webm → mp4 → défaut navigateur)
-- ✅ Upload avec extension adaptée (.webm ou .mp4)
+**Fichier unique : `src/components/intake/RouteReconStep.tsx`**
 
-### IA différée
-- ✅ `triggerAiAnalysis` supprimé du `handleQuickMarkerSave`
-- ✅ Drawer se ferme immédiatement après sauvegarde (toast "Marqueur sauvegardé ✓")
-- ✅ Analyse IA accessible dans la liste des marqueurs après STOP (bouton "Analyser" + "Analyser tous")
+1. **Nouvel état** : `detailMarkerId: string | null` (remplace le rôle de `editingMarker` pour le clic ligne)
+2. **Clic ligne** (l.1519) : `onClick={() => setDetailMarkerId(marker.id)}` au lieu de `handleOpenEditMarker`
+3. **Nouveau composant inline `MarkerDetailSheet`** : utilise `<Dialog>` avec `className="max-w-4xl max-h-[90vh]"` contenant :
+   - Grille 2 colonnes : gauche = coords/photo/audio, droite = contenu IA éditable
+   - Textarea pour la note/narration (pré-remplie avec l'analyse IA si dispo)
+   - Textarea pour chaque section IA (guide, anecdote, restaurants)
+   - Bouton "Enrichir IA" et "Approuver + Bibliothèque" dans le footer
+4. **Le petit dialog "Modifier le marqueur" reste** accessible via un bouton "Modifier coords" dans la vue détail (pour ne rien casser)
 
-## Promotion en bibliothèque (✅ Enrichi)
+### Flux utilisateur final
+1. Clic sur la ligne du marqueur → vue plein écran s'ouvre
+2. L'utilisateur voit tout : photo, analyse IA complète, liens, avis
+3. Il peut corriger le texte directement dans les champs
+4. Il peut cliquer "🧠 Enrichir" pour relancer l'IA
+5. Il clique "Enregistrer" ou "✅ Approuver + Bibliothèque"
 
-### Flux "Approuver + Bibliothèque"
-- ✅ Note enrichie avec restaurants (carte, avis), POIs (billets, tarifs, horaires)
-- ✅ Analyse IA complète stockée dans `medina_pois.metadata.ai_analysis`
-- ✅ Photos Instagram de référence extraites dans `metadata.reference_photos`
-- ✅ Nom et catégorie du POI déduits de l'analyse IA (au lieu de "POI terrain")
-
-### Narration de guide contextuelle
-- ✅ Interdiction des introductions génériques ("Oubliez les souks...")
-- ✅ Transitions de parcours obligatoires ("Nous voilà maintenant devant...")
-- ✅ Contexte marques/enseignes (pourquoi elles sont là, leur histoire)
