@@ -55,6 +55,7 @@ import {
 } from '@/components/ui/select';
 import { OptionMatrix } from './shared/OptionMatrix';
 import { PhotoLightbox, type LightboxPhoto } from './shared/PhotoLightbox';
+import { MarkerDetailSheet } from './MarkerDetailSheet';
 import type { QuestConfig, RouteReconDetails, ProjectType } from '@/types/intake';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -215,6 +216,9 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   // Promotion state
   const [selectedForPromotion, setSelectedForPromotion] = useState<Set<string>>(new Set());
   const [isPromoting, setIsPromoting] = useState(false);
+
+  // Detail sheet state
+  const [detailMarkerId, setDetailMarkerId] = useState<string | null>(null);
 
   // Fetch markers for selected trace
   const markersQuery = useTraceMarkers(selectedTraceId);
@@ -1516,7 +1520,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                     <div key={marker.id} className="space-y-0">
                       <div 
                         className="flex items-start gap-2 p-2 rounded bg-muted/30 text-sm cursor-pointer hover:bg-muted/60 transition-colors"
-                        onClick={() => handleOpenEditMarker(marker)}
+                        onClick={() => setDetailMarkerId(marker.id)}
                       >
                         <Checkbox
                           checked={selectedForPromotion.has(marker.id) || marker.promoted}
@@ -2368,7 +2372,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Edit Marker Dialog */}
+      {/* Edit Marker Dialog (kept for programmatic use) */}
       <Dialog open={!!editingMarker} onOpenChange={(open) => { if (!open) setEditingMarker(null); }}>
         <DialogContent>
           <DialogHeader>
@@ -2473,6 +2477,41 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Marker Detail Sheet (fullscreen) */}
+      <MarkerDetailSheet
+        marker={markers.find(m => m.id === detailMarkerId) || null}
+        analysis={detailMarkerId ? markerAnalyses[detailMarkerId] || null : null}
+        allMarkers={markers}
+        projectId={projectId}
+        open={!!detailMarkerId}
+        onClose={() => setDetailMarkerId(null)}
+        onSave={async (data) => {
+          if (!detailMarkerId) return;
+          const m = markers.find(mk => mk.id === detailMarkerId);
+          if (!m) return;
+          await updateMarker.mutateAsync({
+            markerId: m.id,
+            traceId: m.trace_id,
+            lat: data.lat,
+            lng: data.lng,
+            note: data.note,
+            photoUrl: data.photoUrl,
+            audioUrl: data.audioUrl,
+          });
+        }}
+        onDelete={(markerId, traceId) => {
+          setMarkerToDelete({ id: markerId, traceId });
+          setDetailMarkerId(null);
+        }}
+        onApproveAndPromote={async (markerId) => {
+          await handleApproveAndPromote(markerId);
+          setDetailMarkerId(null);
+        }}
+        onAnalysisUpdate={(markerId, analysis) => {
+          setMarkerAnalyses(prev => ({ ...prev, [markerId]: analysis }));
+        }}
+      />
     </div>
   );
 }
