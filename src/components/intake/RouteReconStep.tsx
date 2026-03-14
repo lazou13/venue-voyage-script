@@ -217,6 +217,9 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   const [selectedForPromotion, setSelectedForPromotion] = useState<Set<string>>(new Set());
   const [isPromoting, setIsPromoting] = useState(false);
 
+  // Detail sheet state
+  const [detailMarkerId, setDetailMarkerId] = useState<string | null>(null);
+
   // Fetch markers for selected trace
   const markersQuery = useTraceMarkers(selectedTraceId);
   const markers = markersQuery.data || [];
