@@ -1520,7 +1520,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                     <div key={marker.id} className="space-y-0">
                       <div 
                         className="flex items-start gap-2 p-2 rounded bg-muted/30 text-sm cursor-pointer hover:bg-muted/60 transition-colors"
-                        onClick={() => handleOpenEditMarker(marker)}
+                        onClick={() => setDetailMarkerId(marker.id)}
                       >
                         <Checkbox
                           checked={selectedForPromotion.has(marker.id) || marker.promoted}
