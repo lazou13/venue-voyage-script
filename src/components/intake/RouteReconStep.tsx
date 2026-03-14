@@ -2372,7 +2372,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Edit Marker Dialog */}
+      {/* Edit Marker Dialog (kept for programmatic use) */}
       <Dialog open={!!editingMarker} onOpenChange={(open) => { if (!open) setEditingMarker(null); }}>
         <DialogContent>
           <DialogHeader>
@@ -2477,6 +2477,41 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Marker Detail Sheet (fullscreen) */}
+      <MarkerDetailSheet
+        marker={markers.find(m => m.id === detailMarkerId) || null}
+        analysis={detailMarkerId ? markerAnalyses[detailMarkerId] || null : null}
+        allMarkers={markers}
+        projectId={projectId}
+        open={!!detailMarkerId}
+        onClose={() => setDetailMarkerId(null)}
+        onSave={async (data) => {
+          if (!detailMarkerId) return;
+          const m = markers.find(mk => mk.id === detailMarkerId);
+          if (!m) return;
+          await updateMarker.mutateAsync({
+            markerId: m.id,
+            traceId: m.trace_id,
+            lat: data.lat,
+            lng: data.lng,
+            note: data.note,
+            photoUrl: data.photoUrl,
+            audioUrl: data.audioUrl,
+          });
+        }}
+        onDelete={(markerId, traceId) => {
+          setMarkerToDelete({ id: markerId, traceId });
+          setDetailMarkerId(null);
+        }}
+        onApproveAndPromote={async (markerId) => {
+          await handleApproveAndPromote(markerId);
+          setDetailMarkerId(null);
+        }}
+        onAnalysisUpdate={(markerId, analysis) => {
+          setMarkerAnalyses(prev => ({ ...prev, [markerId]: analysis }));
+        }}
+      />
     </div>
   );
 }
