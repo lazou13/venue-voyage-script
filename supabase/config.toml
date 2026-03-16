@@ -38,3 +38,15 @@ verify_jwt = false
 
 [functions.public-project-data]
 verify_jwt = false
+
+[functions.poi-extract]
+verify_jwt = false
+
+[functions.poi-enrich]
+verify_jwt = false
+
+[functions.poi-proximity]
+verify_jwt = false
+
+[functions.poi-pipeline]
+verify_jwt = false
