@@ -129,12 +129,12 @@ export function MarkerDetailSheet({
 
   if (!marker) return null;
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     const latN = parseFloat(lat);
     const lngN = parseFloat(lng);
     if (isNaN(latN) || latN < -90 || latN > 90 || isNaN(lngN) || lngN < -180 || lngN > 180) {
       toast({ title: 'Coordonnées invalides', variant: 'destructive' });
-      return;
+      return false;
     }
     setIsSaving(true);
     try {
@@ -146,8 +146,10 @@ export function MarkerDetailSheet({
         audioUrl: audioUrl || null,
       });
       toast({ title: 'Marqueur enregistré ✓' });
+      return true;
     } catch (err) {
       toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
+      return false;
     } finally {
       setIsSaving(false);
     }
