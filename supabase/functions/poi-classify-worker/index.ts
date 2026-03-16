@@ -153,7 +153,7 @@ serve(async (req) => {
 
       // Count remaining
       const countRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/medina_pois?category_ai=is.null&status=neq.filtered&status=neq.merged&select=id&head=true`,
+        `${SUPABASE_URL}/rest/v1/medina_pois?category_ai=is.null&status=neq.filtered&status=neq.merged&lat=gte.31.60&lat=lte.31.67&lng=gte.-8.02&lng=lte.-7.97&select=id&head=true`,
         {
           headers: {
             apikey: SUPABASE_SERVICE_KEY,
