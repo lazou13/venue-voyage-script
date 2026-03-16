@@ -99,6 +99,7 @@ export function RouteReconMap({ trace, markers, liveCoords, lastPosition, onMark
               fillOpacity: 0.9,
               weight: 2,
             }}
+            eventHandlers={{ click: () => onMarkerClick?.(marker.id) }}
           >
             <Popup>
               <div className="max-w-[200px]">
