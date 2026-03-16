@@ -192,8 +192,13 @@ export function MarkerDetailSheet({
         existing_pois: existingPois || [],
         nearby_markers: nearbyMarkers,
       };
+      
+      // Conversational mode: send previous analysis + correction
       if (customPrompt) {
         body.custom_instruction = customPrompt;
+        if (analysis) {
+          body.previous_analysis = analysis;
+        }
       }
 
       const { data, error } = await supabase.functions.invoke('analyze-marker', { body });
@@ -202,7 +207,6 @@ export function MarkerDetailSheet({
 
       onAnalysisUpdate(marker.id, data.analysis);
       setNote(buildEnrichedNote(data.analysis));
-      setShowAiPrompt(false);
       setAiPrompt('');
       toast({ title: 'Analyse IA terminée ✓' });
     } catch (err) {
