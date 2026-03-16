@@ -24,7 +24,7 @@ function FitBounds({ bounds }: { bounds: LatLngBoundsExpression | null }) {
   return null;
 }
 
-export function RouteReconMap({ trace, markers, liveCoords, lastPosition, className }: RouteReconMapProps) {
+export function RouteReconMap({ trace, markers, liveCoords, lastPosition, onMarkerClick, className }: RouteReconMapProps) {
   const { tracePositions, bounds, center } = useMemo(() => {
     const positions: LatLngTuple[] = [];
 
