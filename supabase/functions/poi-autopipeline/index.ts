@@ -112,7 +112,7 @@ async function enrichPOI(poi: any) {
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       messages: [
-        { role: "system", content: ENRICH_SYSTEM },
+        { role: "system", content: LYRA_ENRICH },
         { role: "user", content: `POI: "${poi.name}"\nCatégorie: ${poi.category_ai ?? poi.category_google ?? "unknown"}\nTypes Google: ${googleTypes}\nAdresse: ${poi.address ?? "médina"}\nRating: ${poi.rating ?? "N/A"}/5 (${poi.reviews_count ?? 0} avis)\nAvis: ${googleReviews || "aucun"}\nCoordonnées: ${poi.lat}, ${poi.lng}` },
       ],
       tools: [{
