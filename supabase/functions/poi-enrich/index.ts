@@ -11,27 +11,42 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
-const SYSTEM_PROMPT = `Tu es un expert encyclopédique de la médina de Marrakech. Pour chaque POI, tu dois fournir un JSON structuré avec ces champs:
-- category_ai: une parmi (artisan, restaurant, monument, riad, hotel, boutique, spot_photo, mosquee, fontaine, jardin, musee, souk, place, porte)
-- district: quartier de la médina (ex: "Mouassine", "Bab Doukkala", "Mellah", "Kasbah", "Ben Youssef", "Jemaa el-Fna")
+const SYSTEM_PROMPT = `Tu es un expert encyclopédique de la médina de Marrakech et un concepteur de jeux de piste touristiques.
+
+Pour chaque POI, tu dois fournir un JSON structuré avec TOUS ces champs:
+
+CLASSIFICATION:
+- category_ai: une parmi (artisan, restaurant, cafe, monument, riad, hotel, boutique, souvenir_shop, spa, gallery, viewpoint, historic_site, mosquee, fontaine, jardin, musee, souk, place, porte)
+- subcategory: sous-catégorie libre (ex: "poterie", "tapis", "pâtisserie orientale", "palais", "médersa")
+- poi_quality_score: score de 1 à 10 basé sur l'intérêt touristique, la notoriété, le rating Google et le nombre d'avis
+- tourist_interest: phrase courte décrivant l'intérêt touristique principal
+
+CONTENU:
+- district: quartier de la médina (ex: "Mouassine", "Bab Doukkala", "Mellah", "Kasbah", "Ben Youssef", "Jemaa el-Fna", "Riad Zitoun")
 - description_short: 2-3 phrases de description touristique vivante en français
-- history_context: contexte historique en 2-3 phrases
-- local_anecdote: anecdote locale authentique
+- history_context: contexte historique en 2-3 phrases (si pertinent, sinon "")
+- local_anecdote: anecdote locale authentique et mémorable
 - instagram_spot: true/false — ce lieu est-il photogénique ?
-- riddle_easy: énigme facile pour chasse au trésor (indices visuels)
-- riddle_medium: énigme de difficulté moyenne (indices culturels/historiques)
-- challenge: défi terrain à réaliser sur place
+
+JEUX DE PISTE:
+- riddle_easy: énigme facile pour chasse au trésor (indices visuels, observable sur place)
+- riddle_medium: énigme de difficulté moyenne (indices culturels/historiques, nécessite réflexion)
+- challenge: défi terrain à réaliser sur place (photo, interaction, observation)
+
 Réponds UNIQUEMENT avec le JSON, sans markdown ni commentaire.`;
 
 async function enrichPOI(poi: any): Promise<Record<string, unknown>> {
-  const reviews = (poi.google_raw?.details?.reviews ?? []).slice(0, 3).map((r: any) => r.text).join(" | ");
-  
+  const reviews = (poi.google_raw?.nearby?.types ?? []).join(", ");
+  const googleReviews = (poi.google_raw?.details?.reviews ?? []).slice(0, 3).map((r: any) => r.text).join(" | ");
+
   const userPrompt = `POI: "${poi.name}"
 Catégorie Google: ${poi.category_google ?? "unknown"}
+Types Google: ${reviews}
 Adresse: ${poi.address ?? "médina de Marrakech"}
-Rating: ${poi.rating ?? "N/A"} (${poi.reviews_count ?? 0} avis)
-Avis Google extraits: ${reviews || "aucun"}
-Coordonnées: ${poi.lat}, ${poi.lng}`;
+Rating: ${poi.rating ?? "N/A"}/5 (${poi.reviews_count ?? 0} avis)
+Avis Google: ${googleReviews || "aucun"}
+Coordonnées: ${poi.lat}, ${poi.lng}
+Zone: ${poi.zone ?? "medina"}`;
 
   const response = await fetch(AI_URL, {
     method: "POST",
@@ -49,11 +64,14 @@ Coordonnées: ${poi.lat}, ${poi.lng}`;
         type: "function",
         function: {
           name: "enrich_poi",
-          description: "Enrichir un POI avec des données culturelles et des énigmes",
+          description: "Enrichir un POI avec classification, contenu touristique et énigmes",
           parameters: {
             type: "object",
             properties: {
-              category_ai: { type: "string", enum: ["artisan","restaurant","monument","riad","hotel","boutique","spot_photo","mosquee","fontaine","jardin","musee","souk","place","porte"] },
+              category_ai: { type: "string", enum: ["artisan","restaurant","cafe","monument","riad","hotel","boutique","souvenir_shop","spa","gallery","viewpoint","historic_site","mosquee","fontaine","jardin","musee","souk","place","porte"] },
+              subcategory: { type: "string" },
+              poi_quality_score: { type: "number", minimum: 1, maximum: 10 },
+              tourist_interest: { type: "string" },
               district: { type: "string" },
               description_short: { type: "string" },
               history_context: { type: "string" },
@@ -63,7 +81,7 @@ Coordonnées: ${poi.lat}, ${poi.lng}`;
               riddle_medium: { type: "string" },
               challenge: { type: "string" },
             },
-            required: ["category_ai","district","description_short","history_context","local_anecdote","instagram_spot","riddle_easy","riddle_medium","challenge"],
+            required: ["category_ai","subcategory","poi_quality_score","tourist_interest","district","description_short","history_context","local_anecdote","instagram_spot","riddle_easy","riddle_medium","challenge"],
             additionalProperties: false,
           },
         },
@@ -100,6 +118,7 @@ serve(async (req) => {
       .from("medina_pois")
       .select("*")
       .eq("enrichment_status", targetStatus)
+      .order("reviews_count", { ascending: false })
       .limit(batchSize);
 
     if (fetchErr) throw fetchErr;
@@ -115,21 +134,24 @@ serve(async (req) => {
 
     for (const poi of pois) {
       try {
-        const enrichment = await enrichPOI(poi);
-        logs.push(`✓ ${poi.name} → ${enrichment.category_ai} (${enrichment.district})`);
+        const e = await enrichPOI(poi);
+        logs.push(`✓ ${poi.name} → ${e.category_ai}/${e.subcategory} (${e.district}) score=${e.poi_quality_score}`);
 
         const { error: updateErr } = await supabase
           .from("medina_pois")
           .update({
-            category_ai: enrichment.category_ai,
-            district: enrichment.district,
-            description_short: enrichment.description_short,
-            history_context: enrichment.history_context,
-            local_anecdote: enrichment.local_anecdote,
-            instagram_spot: enrichment.instagram_spot,
-            riddle_easy: enrichment.riddle_easy,
-            riddle_medium: enrichment.riddle_medium,
-            challenge: enrichment.challenge,
+            category_ai: e.category_ai as string,
+            subcategory: e.subcategory as string,
+            poi_quality_score: e.poi_quality_score as number,
+            tourist_interest: e.tourist_interest as string,
+            district: e.district as string,
+            description_short: e.description_short as string,
+            history_context: e.history_context as string,
+            local_anecdote: e.local_anecdote as string,
+            instagram_spot: e.instagram_spot as boolean,
+            riddle_easy: e.riddle_easy as string,
+            riddle_medium: e.riddle_medium as string,
+            challenge: e.challenge as string,
             enrichment_status: "enriched",
           })
           .eq("id", poi.id);
@@ -141,12 +163,20 @@ serve(async (req) => {
           enriched++;
         }
 
-        // Rate limit: 1s between AI calls
-        await new Promise(r => setTimeout(r, 1000));
+        // Rate limit: 1.5s between AI calls
+        await new Promise(r => setTimeout(r, 1500));
       } catch (e) {
-        logs.push(`✗ ${poi.name}: ${e instanceof Error ? e.message : e}`);
+        const msg = e instanceof Error ? e.message : String(e);
+        logs.push(`✗ ${poi.name}: ${msg}`);
+        // Mark as error but with retry capability
         await supabase.from("medina_pois").update({ enrichment_status: "error" }).eq("id", poi.id);
         errors++;
+
+        // If rate limited, wait longer
+        if (msg.includes("429")) {
+          logs.push("⏳ Rate limited, waiting 10s...");
+          await new Promise(r => setTimeout(r, 10000));
+        }
       }
     }
 
