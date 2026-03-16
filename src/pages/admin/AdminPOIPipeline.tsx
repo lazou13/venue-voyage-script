@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge } from "lucide-react";
+import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-type StepKey = "extract" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker";
+type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker";
 
 export default function AdminPOIPipeline() {
   const { toast } = useToast();
@@ -47,10 +47,12 @@ export default function AdminPOIPipeline() {
 
     try {
       const fnName = step === "worker" ? "poi-worker"
+        : step === "classify" ? "poi-classify-worker"
         : step === "all" ? "poi-pipeline"
         : step === "clean" || step === "merge" ? "poi-pipeline"
         : `poi-${step}`;
       const fnBody = step === "worker" ? {}
+        : step === "classify" ? {}
         : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
         : step === "extract" ? { limit: 500 }
         : step === "enrich" ? { batch_size: 10 }
@@ -139,6 +141,19 @@ export default function AdminPOIPipeline() {
             <Button onClick={() => runStep("extract")} disabled={!!running} className="w-full">
               {running === "extract" && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
               Lancer l'extraction
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2"><Tags className="w-4 h-4" /> Classifier</CardTitle>
+            <CardDescription>Classification IA des POI sans catégorie (batch auto)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => runStep("classify")} disabled={!!running} className="w-full">
+              {running === "classify" && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Lancer classification IA
             </Button>
           </CardContent>
         </Card>
