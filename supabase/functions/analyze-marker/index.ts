@@ -142,6 +142,11 @@ const SYSTEM_PROMPT = `Tu es un expert incontesté de la médina de Marrakech. T
 - **16h-18h30** : golden hour, terrasses, Koutoubia, portraits chaleureux
 - **19h-21h** : Jemaa el-Fna illuminée, stands de fumée, ambiance nocturne
 
+## CORRECTION HUMAINE
+Si l'utilisateur te corrige sur l'identification du lieu, accepte sa correction comme VÉRITÉ ABSOLUE.
+Ne répète jamais une identification erronée après correction. Réanalyse ENTIÈREMENT avec le bon lieu.
+Le GPS en médina peut avoir 50-100m d'erreur (ruelles étroites, murs épais). La correction humaine prime TOUJOURS sur le GPS.
+
 ## INSTRUCTIONS
 
 ### STYLE DE NARRATION — RÈGLES ABSOLUES
@@ -431,7 +436,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { photo_url, audio_url, lat, lng, note, existing_pois, nearby_markers } = await req.json();
+    const { photo_url, audio_url, lat, lng, note, existing_pois, nearby_markers, custom_instruction, previous_analysis } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -460,7 +465,15 @@ Deno.serve(async (req) => {
       parts.push(`\n🔄 Marqueurs proches déjà posés (contexte terrain, corrections humaines = vérité) :\n${nearby_markers.map((m: any) => `- [${m.lat}°N, ${m.lng}°W] ${m.note || '(sans note)'}${m.photo_url ? ' 📷' : ''}${m.audio_url ? ' 🎙️' : ''}`).join('\n')}`);
     }
 
-    parts.push("\nAnalyse ce marqueur terrain et produis l'analyse complète.");
+    // If no previous analysis, ask for full analysis
+    if (!previous_analysis) {
+      parts.push("\nAnalyse ce marqueur terrain et produis l'analyse complète.");
+    }
+
+    // If custom_instruction without previous_analysis, add it to the main prompt
+    if (custom_instruction && !previous_analysis) {
+      parts.push(`\n💬 Instruction de l'utilisateur : "${custom_instruction}"`);
+    }
 
     // Build messages
     const messages: any[] = [
@@ -488,6 +501,18 @@ Deno.serve(async (req) => {
       messages.push({
         role: "user",
         content: `🎙️ Note vocale enregistrée sur le terrain : ${audio_url}\nTranscris et enrichis cette note vocale. Corrige les noms propres locaux et extrais les données structurées (prix, lieux mentionnés).`
+      });
+    }
+
+    // Conversational mode: inject previous analysis + user correction
+    if (previous_analysis && custom_instruction) {
+      messages.push({
+        role: "assistant",
+        content: `Voici mon analyse précédente :\n${JSON.stringify(previous_analysis, null, 2)}`
+      });
+      messages.push({
+        role: "user",
+        content: `⚠️ CORRECTION : ${custom_instruction}\n\nReprends ton analyse en tenant compte de cette correction. Produis une nouvelle analyse complète corrigée.`
       });
     }
 
