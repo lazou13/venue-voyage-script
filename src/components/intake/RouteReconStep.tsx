@@ -2071,89 +2071,94 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
           </CardContent>
         </Card>
 
-      {/* Route Type */}
-      <OptionMatrix 
-        title="Type de parcours" 
-        icon={Route}
-        description="Nature du parcours à reconnaître"
-      >
-        <div className="space-y-1.5">
-          <Label className="text-sm">Type de route</Label>
-          <Input
-            value={details.route_type || ''}
-            onChange={(e) => updateDetails({ route_type: e.target.value })}
-            placeholder="Ex: Urbain, Montagne, Côtier, Mixte..."
-          />
-        </div>
-      </OptionMatrix>
+      {/* Route details - hidden in library mode */}
+      {!isLibraryMode && (
+        <>
+          {/* Route Type */}
+          <OptionMatrix 
+            title="Type de parcours" 
+            icon={Route}
+            description="Nature du parcours à reconnaître"
+          >
+            <div className="space-y-1.5">
+              <Label className="text-sm">Type de route</Label>
+              <Input
+                value={details.route_type || ''}
+                onChange={(e) => updateDetails({ route_type: e.target.value })}
+                placeholder="Ex: Urbain, Montagne, Côtier, Mixte..."
+              />
+            </div>
+          </OptionMatrix>
 
-      {/* Segments */}
-      <OptionMatrix 
-        title="Segments du parcours" 
-        icon={Navigation}
-        description="Découpez le parcours en segments (un par ligne)"
-      >
-        <div className="space-y-1.5">
-          <Label className="text-sm">Segments</Label>
-          <Textarea
-            value={localSegments}
-            onChange={(e) => handleDebouncedArrayChange('segments', e.target.value, setLocalSegments)}
-            placeholder="Ex: Départ → Carrefour Nord (2km)&#10;Carrefour Nord → Col (5km)&#10;Col → Arrivée village (3km)"
-            rows={5}
-          />
-        </div>
-      </OptionMatrix>
+          {/* Segments */}
+          <OptionMatrix 
+            title="Segments du parcours" 
+            icon={Navigation}
+            description="Découpez le parcours en segments (un par ligne)"
+          >
+            <div className="space-y-1.5">
+              <Label className="text-sm">Segments</Label>
+              <Textarea
+                value={localSegments}
+                onChange={(e) => handleDebouncedArrayChange('segments', e.target.value, setLocalSegments)}
+                placeholder="Ex: Départ → Carrefour Nord (2km)&#10;Carrefour Nord → Col (5km)&#10;Col → Arrivée village (3km)"
+                rows={5}
+              />
+            </div>
+          </OptionMatrix>
 
-      {/* Danger Points */}
-      <OptionMatrix 
-        title="Points de danger" 
-        icon={AlertTriangle}
-        description="Zones nécessitant une attention particulière"
-      >
-        <div className="space-y-1.5">
-          <Label className="text-sm">Points dangereux</Label>
-          <Textarea
-            value={localDangerPoints}
-            onChange={(e) => handleDebouncedArrayChange('danger_points', e.target.value, setLocalDangerPoints)}
-            placeholder="Ex: Virage serré km 3&#10;Passage étroit km 7&#10;Traversée route principale km 12"
-            rows={4}
-          />
-        </div>
-      </OptionMatrix>
+          {/* Danger Points */}
+          <OptionMatrix 
+            title="Points de danger" 
+            icon={AlertTriangle}
+            description="Zones nécessitant une attention particulière"
+          >
+            <div className="space-y-1.5">
+              <Label className="text-sm">Points dangereux</Label>
+              <Textarea
+                value={localDangerPoints}
+                onChange={(e) => handleDebouncedArrayChange('danger_points', e.target.value, setLocalDangerPoints)}
+                placeholder="Ex: Virage serré km 3&#10;Passage étroit km 7&#10;Traversée route principale km 12"
+                rows={4}
+              />
+            </div>
+          </OptionMatrix>
 
-      {/* Mandatory Stops */}
-      <OptionMatrix 
-        title="Arrêts obligatoires" 
-        icon={MapPin}
-        description="Points de passage obligatoires"
-      >
-        <div className="space-y-1.5">
-          <Label className="text-sm">Arrêts</Label>
-          <Textarea
-            value={localMandatoryStops}
-            onChange={(e) => handleDebouncedArrayChange('mandatory_stops', e.target.value, setLocalMandatoryStops)}
-            placeholder="Ex: Point de ravitaillement km 5&#10;Check-point sécurité km 10&#10;Point photo km 15"
-            rows={4}
-          />
-        </div>
-      </OptionMatrix>
+          {/* Mandatory Stops */}
+          <OptionMatrix 
+            title="Arrêts obligatoires" 
+            icon={MapPin}
+            description="Points de passage obligatoires"
+          >
+            <div className="space-y-1.5">
+              <Label className="text-sm">Arrêts</Label>
+              <Textarea
+                value={localMandatoryStops}
+                onChange={(e) => handleDebouncedArrayChange('mandatory_stops', e.target.value, setLocalMandatoryStops)}
+                placeholder="Ex: Point de ravitaillement km 5&#10;Check-point sécurité km 10&#10;Point photo km 15"
+                rows={4}
+              />
+            </div>
+          </OptionMatrix>
 
-      {/* Safety Brief */}
-      <OptionMatrix 
-        title="Consignes de sécurité" 
-        icon={Shield}
-        description="Instructions de sécurité pour les participants"
-      >
-        <div className="space-y-1.5">
-          <Label className="text-sm">Consignes</Label>
-          <Textarea
-            value={localSafetyBrief}
-            onChange={(e) => handleDebouncedArrayChange('safety_brief', e.target.value, setLocalSafetyBrief)}
-            placeholder="Ex: Équipement obligatoire: casque, gilet&#10;Ne pas dépasser 30km/h en zone urbaine&#10;Signaler tout incident au 06..."
-            rows={5}
-          />
-        </div>
-      </OptionMatrix>
+          {/* Safety Brief */}
+          <OptionMatrix 
+            title="Consignes de sécurité" 
+            icon={Shield}
+            description="Instructions de sécurité pour les participants"
+          >
+            <div className="space-y-1.5">
+              <Label className="text-sm">Consignes</Label>
+              <Textarea
+                value={localSafetyBrief}
+                onChange={(e) => handleDebouncedArrayChange('safety_brief', e.target.value, setLocalSafetyBrief)}
+                placeholder="Ex: Équipement obligatoire: casque, gilet&#10;Ne pas dépasser 30km/h en zone urbaine&#10;Signaler tout incident au 06..."
+                rows={5}
+              />
+            </div>
+          </OptionMatrix>
+        </>
+      )}
 
       {/* Add Marker Dialog */}
       <Dialog open={markerDialogOpen} onOpenChange={setMarkerDialogOpen}>
