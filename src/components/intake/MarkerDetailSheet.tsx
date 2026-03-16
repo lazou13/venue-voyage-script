@@ -94,6 +94,7 @@ export function MarkerDetailSheet({
   const [photoUrl, setPhotoUrl] = useState('');
   const [audioUrl, setAudioUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
 
   // AI enrichment
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -129,12 +130,12 @@ export function MarkerDetailSheet({
 
   if (!marker) return null;
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     const latN = parseFloat(lat);
     const lngN = parseFloat(lng);
     if (isNaN(latN) || latN < -90 || latN > 90 || isNaN(lngN) || lngN < -180 || lngN > 180) {
       toast({ title: 'Coordonnées invalides', variant: 'destructive' });
-      return;
+      return false;
     }
     setIsSaving(true);
     try {
@@ -146,8 +147,10 @@ export function MarkerDetailSheet({
         audioUrl: audioUrl || null,
       });
       toast({ title: 'Marqueur enregistré ✓' });
+      return true;
     } catch (err) {
       toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -209,10 +212,16 @@ export function MarkerDetailSheet({
     }
   };
 
+
   const handleApprove = async () => {
-    // Save first, then promote
-    await handleSave();
-    await onApproveAndPromote(marker.id);
+    const saved = await handleSave();
+    if (!saved) return;
+    setIsApproving(true);
+    try {
+      await onApproveAndPromote(marker.id);
+    } finally {
+      setIsApproving(false);
+    }
   };
 
   return (
@@ -370,10 +379,10 @@ export function MarkerDetailSheet({
           <Button
             variant="secondary"
             className="gap-1"
-            disabled={marker.promoted || isSaving}
+            disabled={marker.promoted || isSaving || isApproving}
             onClick={handleApprove}
           >
-            ✅ Approuver + Bibliothèque
+            {isApproving ? '⏳ Promotion...' : '✅ Approuver + Bibliothèque'}
           </Button>
         </DialogFooter>
       </DialogContent>
