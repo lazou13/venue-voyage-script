@@ -11,7 +11,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
-const BATCH_SIZE = 5;
+const CLASSIFY_BATCH = 3;
+const ENRICH_BATCH = 2;
+const PROXIMITY_BATCH = 20;
 
 const GEO = { lat_min: 31.60, lat_max: 31.67, lng_min: -8.02, lng_max: -7.97 };
 
