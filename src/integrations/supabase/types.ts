@@ -144,6 +144,7 @@ export type Database = {
           nearby_restaurants: Json | null
           phone: string | null
           place_id: string | null
+          poi_quality_score: number | null
           radius_m: number
           rating: number | null
           reviews_count: number | null
@@ -152,6 +153,8 @@ export type Database = {
           souks_nearby: string[] | null
           status: string
           step_config: Json
+          subcategory: string | null
+          tourist_interest: string | null
           updated_at: string
           website: string | null
           zone: string
@@ -182,6 +185,7 @@ export type Database = {
           nearby_restaurants?: Json | null
           phone?: string | null
           place_id?: string | null
+          poi_quality_score?: number | null
           radius_m?: number
           rating?: number | null
           reviews_count?: number | null
@@ -190,6 +194,8 @@ export type Database = {
           souks_nearby?: string[] | null
           status?: string
           step_config?: Json
+          subcategory?: string | null
+          tourist_interest?: string | null
           updated_at?: string
           website?: string | null
           zone?: string
@@ -220,6 +226,7 @@ export type Database = {
           nearby_restaurants?: Json | null
           phone?: string | null
           place_id?: string | null
+          poi_quality_score?: number | null
           radius_m?: number
           rating?: number | null
           reviews_count?: number | null
@@ -228,6 +235,8 @@ export type Database = {
           souks_nearby?: string[] | null
           status?: string
           step_config?: Json
+          subcategory?: string | null
+          tourist_interest?: string | null
           updated_at?: string
           website?: string | null
           zone?: string
@@ -758,6 +767,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      clean_low_quality_pois: { Args: never; Returns: Json }
       cleanup_expired_data: { Args: never; Returns: Json }
       find_catalog_project: {
         Args: { p_slug: string }
@@ -774,6 +784,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      merge_duplicate_pois: { Args: never; Returns: Json }
     }
     Enums: {
       app_role: "admin"
