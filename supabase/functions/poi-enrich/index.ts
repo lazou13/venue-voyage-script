@@ -31,6 +31,7 @@ CONTENU:
 JEUX DE PISTE:
 - riddle_easy: énigme facile pour chasse au trésor (indices visuels, observable sur place)
 - riddle_medium: énigme de difficulté moyenne (indices culturels/historiques, nécessite réflexion)
+- riddle_hard: énigme difficile nécessitant des connaissances approfondies ou une investigation poussée
 - challenge: défi terrain à réaliser sur place (photo, interaction, observation)
 
 Réponds UNIQUEMENT avec le JSON, sans markdown ni commentaire.`;
