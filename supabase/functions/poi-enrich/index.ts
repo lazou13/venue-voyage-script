@@ -156,10 +156,21 @@ serve(async (req) => {
           enrichment_status: "enriched",
         };
 
-        const { error: updateErr } = await supabase
-          .from("medina_pois")
-          .update(updateData as any)
-          .eq("id", poi.id);
+        // Use direct REST API to bypass typed client column filtering
+        const updateRes = await fetch(
+          `${SUPABASE_URL}/rest/v1/medina_pois?id=eq.${poi.id}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: SUPABASE_SERVICE_KEY,
+              Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+              Prefer: "return=minimal",
+            },
+            body: JSON.stringify(updateData),
+          }
+        );
+        const updateErr = updateRes.ok ? null : { message: await updateRes.text() };
 
         if (updateErr) {
           logs.push(`✗ update ${poi.name}: ${updateErr.message}`);
