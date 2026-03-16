@@ -882,7 +882,54 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
 
   return (
     <div className="space-y-6">
-      <CrossTabSummary tab="parcours" stats={stats} onNavigate={onNavigate} />
+      {!isLibraryMode && <CrossTabSummary tab="parcours" stats={stats} onNavigate={onNavigate} />}
+
+      {/* Library mode: POI counter */}
+      {isLibraryMode && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardContent className="py-4 flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <Library className="w-6 h-6 text-amber-600" />
+              <div>
+                <p className="font-semibold text-lg">{markers.length} POI{markers.length !== 1 ? 's' : ''} collecté{markers.length !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-muted-foreground">
+                  {markers.filter(m => m.promoted).length} promu{markers.filter(m => m.promoted).length !== 1 ? 's' : ''} en bibliothèque
+                </p>
+              </div>
+            </div>
+            {markers.length > 0 && markers.some(m => !m.promoted) && (
+              <Button
+                variant="default"
+                size="sm"
+                className="gap-2"
+                disabled={isPromoting}
+                onClick={async () => {
+                  const unpromoted = markers.filter(m => !m.promoted);
+                  if (unpromoted.length === 0) return;
+                  setIsPromoting(true);
+                  let successCount = 0;
+                  for (const m of unpromoted) {
+                    try {
+                      const { error } = await supabase.functions.invoke('promote-marker-to-library', {
+                        body: { marker_id: m.id },
+                      });
+                      if (!error) successCount++;
+                    } catch {}
+                  }
+                  setIsPromoting(false);
+                  markersQuery.refetch();
+                  if (successCount > 0) {
+                    toast({ title: `${successCount} POI${successCount > 1 ? 's' : ''} promu${successCount > 1 ? 's' : ''} en bibliothèque` });
+                  }
+                }}
+              >
+                <Upload className="w-4 h-4" />
+                {isPromoting ? 'Promotion...' : `Tout promouvoir (${markers.filter(m => !m.promoted).length})`}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
       {/* Route Recording Section */}
       <Card className="border-primary/50 bg-primary/5">
         <CardHeader className="pb-3">
