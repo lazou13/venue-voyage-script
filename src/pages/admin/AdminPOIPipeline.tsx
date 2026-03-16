@@ -3,11 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags } from "lucide-react";
+import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker";
+type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline";
 
 export default function AdminPOIPipeline() {
   const { toast } = useToast();
@@ -16,15 +17,24 @@ export default function AdminPOIPipeline() {
 
   const { data: stats, refetch: refetchStats } = useQuery({
     queryKey: ["poi-pipeline-stats"],
+    refetchInterval: 30000, // Auto-refresh every 30s
     queryFn: async () => {
       const { data, error } = await supabase
         .from("medina_pois")
-        .select("enrichment_status, status, category_ai, poi_quality_score");
+        .select("enrichment_status, status, category_ai, poi_quality_score, description_short, nearby_pois_data, riddle_easy, riddle_hard");
       if (error) throw error;
-      const counts: Record<string, number> = { total: 0, raw: 0, enriched: 0, error: 0, pending: 0, filtered: 0, merged: 0 };
+
+      const counts: Record<string, number> = { total: 0, raw: 0, enriched: 0, error: 0, pending: 0, filtered: 0, merged: 0, processing: 0 };
       const categories: Record<string, number> = {};
       let totalScore = 0;
       let scoredCount = 0;
+      let classified = 0;
+      let withDescription = 0;
+      let withProximity = 0;
+      let withRiddleEasy = 0;
+      let withRiddleHard = 0;
+      let active = 0;
+
       for (const row of data ?? []) {
         const es = (row as any).enrichment_status ?? "pending";
         const st = (row as any).status ?? "draft";
@@ -32,12 +42,32 @@ export default function AdminPOIPipeline() {
         if (st === "filtered") counts.filtered++;
         if (st === "merged") counts.merged++;
         counts.total++;
+
+        const isActive = st !== "filtered" && st !== "merged";
+        if (isActive) active++;
+
         const cat = (row as any).category_ai;
-        if (cat) categories[cat] = (categories[cat] ?? 0) + 1;
+        if (cat) { categories[cat] = (categories[cat] ?? 0) + 1; if (isActive) classified++; }
+        if ((row as any).description_short && isActive) withDescription++;
+        if ((row as any).nearby_pois_data && isActive) withProximity++;
+        if ((row as any).riddle_easy && isActive) withRiddleEasy++;
+        if ((row as any).riddle_hard && isActive) withRiddleHard++;
+
         const score = (row as any).poi_quality_score;
         if (score) { totalScore += Number(score); scoredCount++; }
       }
-      return { counts, categories, avgScore: scoredCount > 0 ? (totalScore / scoredCount).toFixed(1) : "–" };
+
+      return {
+        counts,
+        categories,
+        avgScore: scoredCount > 0 ? (totalScore / scoredCount).toFixed(1) : "–",
+        active,
+        classified,
+        withDescription,
+        withProximity,
+        withRiddleEasy,
+        withRiddleHard,
+      };
     },
   });
 
@@ -48,11 +78,13 @@ export default function AdminPOIPipeline() {
     try {
       const fnName = step === "worker" ? "poi-worker"
         : step === "classify" ? "poi-classify-worker"
+        : step === "autopipeline" ? "poi-autopipeline"
         : step === "all" ? "poi-pipeline"
         : step === "clean" || step === "merge" ? "poi-pipeline"
         : `poi-${step}`;
       const fnBody = step === "worker" ? {}
         : step === "classify" ? {}
+        : step === "autopipeline" ? {}
         : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
         : step === "extract" ? { limit: 500 }
         : step === "enrich" ? { batch_size: 10 }
@@ -86,9 +118,16 @@ export default function AdminPOIPipeline() {
     }
   };
 
+  const active = stats?.active ?? 0;
+  const pctClassified = active > 0 ? Math.round((stats?.classified ?? 0) / active * 100) : 0;
+  const pctEnriched = active > 0 ? Math.round((stats?.withDescription ?? 0) / active * 100) : 0;
+  const pctProximity = active > 0 ? Math.round((stats?.withProximity ?? 0) / active * 100) : 0;
+  const pipelineComplete = pctClassified === 100 && pctEnriched === 100 && pctProximity === 100;
+
   const statusColors: Record<string, string> = {
     pending: "bg-muted text-muted-foreground",
     raw: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+    processing: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
     enriched: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
     error: "bg-destructive/10 text-destructive",
     filtered: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
@@ -97,18 +136,68 @@ export default function AdminPOIPipeline() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Pipeline POI Médina</h2>
-        <p className="text-muted-foreground">Extraction, classification IA, nettoyage, enrichissement et proximité.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Pipeline POI Médina</h2>
+          <p className="text-muted-foreground">
+            Automatisé via cron (toutes les 2 min) — classify → enrich → clean → merge → proximity
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {pipelineComplete ? (
+            <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 gap-1">
+              <CheckCircle2 className="w-3 h-3" /> Pipeline complet
+            </Badge>
+          ) : (
+            <Badge className="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 gap-1">
+              <Zap className="w-3 h-3" /> En cours (cron actif)
+            </Badge>
+          )}
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-        {["total", "pending", "raw", "enriched", "error", "filtered", "merged"].map(key => (
+      {/* Pipeline Progress */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Progression du pipeline</CardTitle>
+          <CardDescription>{active} POI actifs dans la médina de Marrakech</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Classification IA</span>
+              <span className="font-medium text-foreground">{stats?.classified ?? 0}/{active} ({pctClassified}%)</span>
+            </div>
+            <Progress value={pctClassified} className="h-2" />
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Enrichissement</span>
+              <span className="font-medium text-foreground">{stats?.withDescription ?? 0}/{active} ({pctEnriched}%)</span>
+            </div>
+            <Progress value={pctEnriched} className="h-2" />
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Proximité</span>
+              <span className="font-medium text-foreground">{stats?.withProximity ?? 0}/{active} ({pctProximity}%)</span>
+            </div>
+            <Progress value={pctProximity} className="h-2" />
+          </div>
+          <div className="grid grid-cols-2 gap-4 pt-2 text-sm">
+            <div><span className="text-muted-foreground">Énigmes faciles:</span> <span className="font-medium text-foreground">{stats?.withRiddleEasy ?? 0}/{active}</span></div>
+            <div><span className="text-muted-foreground">Énigmes difficiles:</span> <span className="font-medium text-foreground">{stats?.withRiddleHard ?? 0}/{active}</span></div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Status counters */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+        {["total", "pending", "raw", "processing", "enriched", "error", "filtered", "merged"].map(key => (
           <Card key={key}>
-            <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold text-foreground">{stats?.counts?.[key] ?? 0}</p>
-              <Badge className={statusColors[key] ?? ""} variant="secondary">{key}</Badge>
+            <CardContent className="p-3 text-center">
+              <p className="text-xl font-bold text-foreground">{stats?.counts?.[key] ?? 0}</p>
+              <Badge className={statusColors[key] ?? "bg-muted text-muted-foreground"} variant="secondary">{key}</Badge>
             </CardContent>
           </Card>
         ))}
@@ -130,103 +219,48 @@ export default function AdminPOIPipeline() {
         </Card>
       )}
 
-      {/* Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2"><MapPin className="w-4 h-4" /> Extraire</CardTitle>
-            <CardDescription>Google Places (grille 5 points × 9 types)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => runStep("extract")} disabled={!!running} className="w-full">
-              {running === "extract" && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              Lancer l'extraction
+      {/* Manual actions */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Actions manuelles</CardTitle>
+          <CardDescription>Le pipeline tourne automatiquement. Ces boutons permettent de forcer une étape.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Button onClick={() => runStep("autopipeline")} disabled={!!running} size="sm" className="gap-1">
+              {running === "autopipeline" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+              Autopipeline
             </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2"><Tags className="w-4 h-4" /> Classifier</CardTitle>
-            <CardDescription>Classification IA des POI sans catégorie (batch auto)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => runStep("classify")} disabled={!!running} className="w-full">
-              {running === "classify" && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              Lancer classification IA
+            <Button onClick={() => runStep("classify")} disabled={!!running} variant="outline" size="sm" className="gap-1">
+              {running === "classify" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Tags className="w-3 h-3" />}
+              Classifier
             </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2"><Brain className="w-4 h-4" /> Worker Enrichissement</CardTitle>
-            <CardDescription>Enrichit automatiquement tous les POI raw en boucle (batch de 20)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => runStep("worker")} disabled={!!running} className="w-full">
-              {running === "worker" && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              Lancer worker enrichissement
+            <Button onClick={() => runStep("worker")} disabled={!!running} variant="outline" size="sm" className="gap-1">
+              {running === "worker" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Brain className="w-3 h-3" />}
+              Enrichir
             </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2"><Trash2 className="w-4 h-4" /> Nettoyer</CardTitle>
-            <CardDescription>Filtrer POI faibles (&lt;10 avis, &lt;3.5★)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => runStep("clean")} disabled={!!running} variant="outline" className="w-full">
-              {running === "clean" && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              Nettoyer la base
+            <Button onClick={() => runStep("extract")} disabled={!!running} variant="outline" size="sm" className="gap-1">
+              {running === "extract" ? <Loader2 className="w-3 h-3 animate-spin" /> : <MapPin className="w-3 h-3" />}
+              Extraire
             </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2"><GitMerge className="w-4 h-4" /> Dédupliquer</CardTitle>
-            <CardDescription>Fusionner doublons (&lt;15m, même nom)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => runStep("merge")} disabled={!!running} variant="outline" className="w-full">
-              {running === "merge" && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              Fusionner doublons
+            <Button onClick={() => runStep("clean")} disabled={!!running} variant="outline" size="sm" className="gap-1">
+              {running === "clean" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+              Nettoyer
             </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2"><Route className="w-4 h-4" /> Proximités</CardTitle>
-            <CardDescription>5 restaurants + 5 POI proches (&lt;120m)</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => runStep("proximity")} disabled={!!running} className="w-full">
-              {running === "proximity" && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              Calculer proximités
+            <Button onClick={() => runStep("merge")} disabled={!!running} variant="outline" size="sm" className="gap-1">
+              {running === "merge" ? <Loader2 className="w-3 h-3 animate-spin" /> : <GitMerge className="w-3 h-3" />}
+              Fusionner
             </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2"><Rocket className="w-4 h-4" /> Pipeline complet</CardTitle>
-            <CardDescription>Extract → Enrich → Clean → Merge → Proximity</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={() => runStep("all")} disabled={!!running} variant="default" className="w-full">
-              {running === "all" && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              Tout lancer
+            <Button onClick={() => runStep("proximity")} disabled={!!running} variant="outline" size="sm" className="gap-1">
+              {running === "proximity" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Route className="w-3 h-3" />}
+              Proximité
             </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Button variant="outline" size="sm" onClick={() => refetchStats()}>
-        <RefreshCw className="w-4 h-4 mr-2" /> Rafraîchir stats
-      </Button>
+            <Button variant="outline" size="sm" onClick={() => refetchStats()} className="gap-1">
+              <RefreshCw className="w-3 h-3" /> Rafraîchir
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Logs */}
       {logs.length > 0 && (
