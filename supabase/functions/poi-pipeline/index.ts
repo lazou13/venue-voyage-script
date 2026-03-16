@@ -41,7 +41,13 @@ serve(async (req) => {
       results.extract = await callFunction("poi-extract", { limit, with_details: true });
     }
 
-    // 2. Enrich (classify + content in one pass)
+    // 2. Classify (category_ai, subcategory, score)
+    if (step === "all" || step === "classify") {
+      pipeline.push("classify");
+      results.classify = await callFunction("poi-classify-worker", {});
+    }
+
+    // 3. Enrich (full content)
     if (step === "all" || step === "enrich") {
       pipeline.push("enrich");
       let totalEnriched = 0;
