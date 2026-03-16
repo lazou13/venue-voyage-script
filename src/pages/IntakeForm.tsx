@@ -25,10 +25,13 @@ const CORE_STEPS = [
 ];
 
 // Type-specific steps
-const TYPE_STEPS: Record<ProjectType, { id: string; label: string; component: React.ComponentType<{ projectId: string; onNavigate?: (tab: string) => void }> }> = {
-  establishment: { id: 'establishment', label: 'Établissement', component: EstablishmentStep },
-  tourist_spot: { id: 'tourist_spot', label: 'Site Touristique', component: TouristSpotStep },
-  route_recon: { id: 'route_recon', label: 'Parcours', component: RouteReconStep },
+const TYPE_STEPS: Record<ProjectType, { id: string; label: string; component: React.ComponentType<{ projectId: string; onNavigate?: (tab: string) => void }> }[]> = {
+  establishment: [{ id: 'establishment', label: 'Établissement', component: EstablishmentStep }],
+  tourist_spot: [
+    { id: 'tourist_spot', label: 'Site Touristique', component: TouristSpotStep },
+    { id: 'route_recon', label: 'Parcours', component: RouteReconStep },
+  ],
+  route_recon: [{ id: 'route_recon', label: 'Parcours', component: RouteReconStep }],
 };
 
 // Common steps that are always visible
@@ -59,7 +62,7 @@ export default function IntakeForm() {
       setEditName(project.hotel_name || '');
       setEditCity(project.city || '');
     }
-  }, [project?.id]); // only on project load, not on every render
+  }, [project?.id]);
 
   // Save on debounce
   useEffect(() => {
@@ -81,10 +84,10 @@ export default function IntakeForm() {
 
   // Build dynamic steps based on project type
   const steps = useMemo(() => {
-    const typeStep = TYPE_STEPS[projectType];
+    const typeSteps = TYPE_STEPS[projectType];
     return [
       ...CORE_STEPS,
-      typeStep,
+      ...typeSteps,
       ...COMMON_STEPS,
     ];
   }, [projectType]);
