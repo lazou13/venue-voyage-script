@@ -24,12 +24,18 @@ serve(async (req) => {
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-    // Fetch all POIs with coordinates
+    // Fetch all POIs with coordinates — geo-fenced to Marrakech medina
     const { data: allPois, error } = await supabase
       .from("medina_pois")
       .select("id, name, lat, lng, category, category_ai, category_google")
       .not("lat", "is", null)
-      .not("lng", "is", null);
+      .not("lng", "is", null)
+      .neq("status", "filtered")
+      .neq("status", "merged")
+      .gte("lat", 31.60)
+      .lte("lat", 31.67)
+      .gte("lng", -8.02)
+      .lte("lng", -7.97);
 
     if (error) throw error;
     if (!allPois?.length) {

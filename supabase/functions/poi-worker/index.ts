@@ -130,11 +130,17 @@ serve(async (req) => {
 
       batchNum++;
 
-      // 1. Fetch batch of raw POIs
+      // 1. Fetch batch of raw POIs — geo-fenced to Marrakech medina
       const { data: batch, error: fetchErr } = await supabase
         .from("medina_pois")
         .select("*")
         .eq("enrichment_status", "raw")
+        .neq("status", "filtered")
+        .neq("status", "merged")
+        .gte("lat", 31.60)
+        .lte("lat", 31.67)
+        .gte("lng", -8.02)
+        .lte("lng", -7.97)
         .order("reviews_count", { ascending: false })
         .limit(BATCH_SIZE);
 
