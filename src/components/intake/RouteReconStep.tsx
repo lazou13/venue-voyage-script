@@ -1360,19 +1360,21 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                         >
                           <Compass className="w-4 h-4" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Dupliquer en projet"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setTraceToDuplicate(trace);
-                            setDuplicateDialogOpen(true);
-                          }}
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
+                        {!isLibraryMode && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Dupliquer en projet"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTraceToDuplicate(trace);
+                              setDuplicateDialogOpen(true);
+                            }}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
