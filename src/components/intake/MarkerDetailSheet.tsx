@@ -305,6 +305,17 @@ export function MarkerDetailSheet({
 
               {/* AI actions */}
               <div className="space-y-2 border-t pt-3">
+                {/* Show location guess badge if analysis exists */}
+                {analysis?.location_guess && (
+                  <div className="flex items-center gap-2 p-2 rounded-md bg-muted">
+                    <MapPin className="w-3 h-3 text-primary shrink-0" />
+                    <span className="text-xs font-medium">IA : {analysis.location_guess}</span>
+                    {analysis.category && (
+                      <Badge variant="outline" className="text-xs">{analysis.category}</Badge>
+                    )}
+                  </div>
+                )}
+
                 <Button
                   variant="outline"
                   size="sm"
@@ -313,34 +324,58 @@ export function MarkerDetailSheet({
                   onClick={() => handleEnrichAI()}
                 >
                   {isAnalyzing ? <span className="animate-spin">⏳</span> : <span>🧠</span>}
-                  {isAnalyzing ? 'Analyse en cours...' : 'Enrichir avec l\'IA'}
+                  {isAnalyzing ? 'Analyse en cours...' : analysis ? 'Réanalyser' : 'Enrichir avec l\'IA'}
                 </Button>
-                {!showAiPrompt ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full gap-2 text-xs"
-                    onClick={() => setShowAiPrompt(true)}
-                  >
-                    ✏️ Demander une modification à l'IA
-                  </Button>
-                ) : (
+
+                {/* Always-visible chat field when analysis exists */}
+                {analysis && (
                   <div className="space-y-2">
                     <Textarea
-                      placeholder="Ex: Ajoute plus de détails sur l'histoire du lieu..."
+                      placeholder="Ce n'est pas ça, c'est en fait... / Ajoute plus de détails sur..."
                       value={aiPrompt}
                       onChange={e => setAiPrompt(e.target.value)}
                       className="min-h-[60px] text-xs"
                     />
-                    <div className="flex gap-2">
-                      <Button size="sm" className="flex-1 gap-1" disabled={isAnalyzing || !aiPrompt.trim()} onClick={() => handleEnrichAI(aiPrompt)}>
-                        🧠 Envoyer
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => { setShowAiPrompt(false); setAiPrompt(''); }}>
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full gap-1"
+                      disabled={isAnalyzing || !aiPrompt.trim()}
+                      onClick={() => handleEnrichAI(aiPrompt)}
+                    >
+                      {isAnalyzing ? '⏳ Correction...' : '💬 Envoyer à l\'IA'}
+                    </Button>
                   </div>
+                )}
+
+                {/* Before first analysis: optional hint field */}
+                {!analysis && (
+                  !showAiPrompt ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full gap-2 text-xs"
+                      onClick={() => setShowAiPrompt(true)}
+                    >
+                      ✏️ Donner un indice à l'IA
+                    </Button>
+                  ) : (
+                    <div className="space-y-2">
+                      <Textarea
+                        placeholder="Ex: C'est le Medina Mall, pas un monument..."
+                        value={aiPrompt}
+                        onChange={e => setAiPrompt(e.target.value)}
+                        className="min-h-[60px] text-xs"
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" className="flex-1 gap-1" disabled={isAnalyzing || !aiPrompt.trim()} onClick={() => handleEnrichAI(aiPrompt)}>
+                          🧠 Envoyer
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => { setShowAiPrompt(false); setAiPrompt(''); }}>
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )
                 )}
               </div>
             </div>
