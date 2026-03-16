@@ -1,30 +1,74 @@
 
+# Plan: Expert IA Médina — analyze-marker
 
-## Plan : Mode Bibliothèque — Carte interactive Leaflet + nettoyage des sections inutiles
+## Status: ✅ Implémenté
 
-### Problème
-Le projet "Bibliothèque" affiche actuellement toutes les sections de RouteReconStep (type de parcours, segments, danger, arrêts, sécurité) qui ne sont pas pertinentes. Il manque aussi une carte interactive pour visualiser les POIs en temps réel.
+## Ce qui a été créé
 
-### Solution
+### Edge Function `analyze-marker`
+- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
+- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
+- Tool calling pour sortie JSON structurée avec 17 champs d'analyse
+- Gestion erreurs 429/402
 
-**Fichier unique : `src/components/intake/RouteReconStep.tsx`**
+### Capacités (17 fonctions)
+1. ✅ Identification lieu + catégorie + tags
+2. ✅ Restaurants proches (nom, spécialité, prix, avis, **lien carte/menu**, **5 avis Google résumés**)
+3. ✅ Anecdote historique
+4. ✅ Description guide multilingue (fr/en/ar/es/ary)
+5. ✅ Résumé bibliothèque multilingue
+6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
+7. ✅ Classification automatique catégorie/sous-catégorie
+8. ✅ Estimation difficulté + intérêt par public cible
+9. ✅ Suggestions step_config (types, validations)
+10. ✅ Génération énigmes (QCM + énigme + défi terrain)
+11. ✅ Transcription audio enrichie + données structurées
+12. ✅ Détection doublons vs bibliothèque existante
+13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags, **posts Instagram réels avec URLs**)
+14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
+15. ✅ **POIs proches avec billets, tarifs et horaires** (musées, monuments)
+16. ✅ **Narration contextuelle** (suit le parcours, interdit les introductions génériques)
+17. ✅ **Liens web/Instagram/Maps** pour chaque restaurant et POI
 
-1. **Détecter le mode bibliothèque** : Lire `questConfig.project_type` et créer un booléen `isLibraryMode = projectType === 'library'`.
+### Enrichissement des connaissances
+- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
+- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
+- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
 
-2. **Masquer les sections non pertinentes** : Wrapper les 5 `OptionMatrix` (Type de parcours, Segments, Danger, Arrêts, Sécurité) avec `{!isLibraryMode && (...)}`. Masquer aussi la section "Dupliquer en projet", le bandeau Guidage, et le CrossTabSummary qui n'ont pas de sens pour la bibliothèque.
+### Intégration Frontend
+- Analyse automatique après chaque marqueur rapide sauvegardé
+- Panel IA dans le drawer avec résultats structurés
+- Bouton "Appliquer à la note" pour enrichir le marqueur
+- Bouton "Ignorer" pour fermer sans appliquer
+- Marqueurs proches du même projet envoyés comme contexte additionnel
+- ✅ **Affichage enrichi** : avis Google, liens carte/menu, billets/tarifs, posts Instagram avec URLs
 
-3. **Ajouter une carte Leaflet interactive** : Remplacer le placeholder SVG actuel par une vraie carte Leaflet (déjà en dépendance dans le projet via `react-leaflet`). La carte affiche :
-   - La trace GPS en polyline bleue (temps réel pendant l'enregistrement)
-   - Les marqueurs en tant que `CircleMarker` cliquables avec popup (note + miniature photo)
-   - La position actuelle de l'utilisateur avec un point pulsant
-   - Auto-centrage sur les bounds des données (trace + marqueurs)
-   - Cette carte est visible pour **tous les types de projet**, pas seulement bibliothèque — elle remplace l'aperçu SVG simplifié existant
+## Marqueur rapide — Améliorations terrain (✅ Implémenté)
 
-4. **Suggestions UX supplémentaires pour le mode bibliothèque** :
-   - Afficher un compteur prominent "X POIs collectés" en haut
-   - Ajouter un bouton "📤 Tout promouvoir" pour envoyer tous les marqueurs non-promus vers la bibliothèque en masse
+### Multi-photos
+- ✅ Colonne `photo_urls text[]` ajoutée à `route_markers`
+- ✅ `useRouteRecorder` supporte `photoUrls[]`
+- ✅ UI : ajout de photos multiples avec miniatures + suppression individuelle
+- ✅ Plus d'auto-save à la première photo — validation manuelle requise
 
-### Rendu visuel attendu
-- Mode bibliothèque : Enregistreur GPS + carte interactive + liste de marqueurs + actions de promotion. Rien d'autre.
-- Mode parcours classique : Comportement inchangé (carte Leaflet remplace juste le SVG).
+### Notes vocales fiables
+- ✅ `useVoiceRecorder` : détection dynamique du mimeType (webm → mp4 → défaut navigateur)
+- ✅ Upload avec extension adaptée (.webm ou .mp4)
 
+### IA différée
+- ✅ `triggerAiAnalysis` supprimé du `handleQuickMarkerSave`
+- ✅ Drawer se ferme immédiatement après sauvegarde (toast "Marqueur sauvegardé ✓")
+- ✅ Analyse IA accessible dans la liste des marqueurs après STOP (bouton "Analyser" + "Analyser tous")
+
+## Promotion en bibliothèque (✅ Enrichi)
+
+### Flux "Approuver + Bibliothèque"
+- ✅ Note enrichie avec restaurants (carte, avis), POIs (billets, tarifs, horaires)
+- ✅ Analyse IA complète stockée dans `medina_pois.metadata.ai_analysis`
+- ✅ Photos Instagram de référence extraites dans `metadata.reference_photos`
+- ✅ Nom et catégorie du POI déduits de l'analyse IA (au lieu de "POI terrain")
+
+### Narration de guide contextuelle
+- ✅ Interdiction des introductions génériques ("Oubliez les souks...")
+- ✅ Transitions de parcours obligatoires ("Nous voilà maintenant devant...")
+- ✅ Contexte marques/enseignes (pourquoi elles sont là, leur histoire)

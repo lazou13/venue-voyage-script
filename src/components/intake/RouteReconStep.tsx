@@ -56,6 +56,7 @@ import {
 import { OptionMatrix } from './shared/OptionMatrix';
 import { PhotoLightbox, type LightboxPhoto } from './shared/PhotoLightbox';
 import { MarkerDetailSheet } from './MarkerDetailSheet';
+import { RouteReconMap } from './RouteReconMap';
 import type { QuestConfig, RouteReconDetails, ProjectType } from '@/types/intake';
 import type { Json } from '@/integrations/supabase/types';
 
@@ -88,6 +89,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const questConfig = project?.quest_config || {};
+  const isLibraryMode = questConfig.project_type === 'library';
   const details = questConfig.route_recon_details || {};
 
   // Recording mode state
@@ -880,7 +882,54 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
 
   return (
     <div className="space-y-6">
-      <CrossTabSummary tab="parcours" stats={stats} onNavigate={onNavigate} />
+      {!isLibraryMode && <CrossTabSummary tab="parcours" stats={stats} onNavigate={onNavigate} />}
+
+      {/* Library mode: POI counter */}
+      {isLibraryMode && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardContent className="py-4 flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <Library className="w-6 h-6 text-amber-600" />
+              <div>
+                <p className="font-semibold text-lg">{markers.length} POI{markers.length !== 1 ? 's' : ''} collecté{markers.length !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-muted-foreground">
+                  {markers.filter(m => m.promoted).length} promu{markers.filter(m => m.promoted).length !== 1 ? 's' : ''} en bibliothèque
+                </p>
+              </div>
+            </div>
+            {markers.length > 0 && markers.some(m => !m.promoted) && (
+              <Button
+                variant="default"
+                size="sm"
+                className="gap-2"
+                disabled={isPromoting}
+                onClick={async () => {
+                  const unpromoted = markers.filter(m => !m.promoted);
+                  if (unpromoted.length === 0) return;
+                  setIsPromoting(true);
+                  let successCount = 0;
+                  for (const m of unpromoted) {
+                    try {
+                      const { error } = await supabase.functions.invoke('promote-marker-to-library', {
+                        body: { marker_id: m.id },
+                      });
+                      if (!error) successCount++;
+                    } catch {}
+                  }
+                  setIsPromoting(false);
+                  markersQuery.refetch();
+                  if (successCount > 0) {
+                    toast({ title: `${successCount} POI${successCount > 1 ? 's' : ''} promu${successCount > 1 ? 's' : ''} en bibliothèque` });
+                  }
+                }}
+              >
+                <Upload className="w-4 h-4" />
+                {isPromoting ? 'Promotion...' : `Tout promouvoir (${markers.filter(m => !m.promoted).length})`}
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
       {/* Route Recording Section */}
       <Card className="border-primary/50 bg-primary/5">
         <CardHeader className="pb-3">
@@ -890,8 +939,8 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
           </CardTitle>
         </CardHeader>
         
-        {/* Bandeau Guidage proéminent - toujours visible */}
-        {(() => {
+        {/* Bandeau Guidage proéminent - masqué en mode bibliothèque */}
+        {!isLibraryMode && (() => {
           const validTraceCount = traces.filter(t => t.geojson.coordinates.length >= 2).length;
           const hasValidTraces = validTraceCount > 0;
           
@@ -1292,38 +1341,41 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-primary hover:text-primary"
-                          title="Guidage"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            // Fetch markers for this trace
-                            const { data: traceMarkers } = await supabase
-                              .from('route_markers')
-                              .select('*')
-                              .eq('trace_id', trace.id)
-                              .order('created_at', { ascending: true });
-                            setGuidanceMarkers((traceMarkers || []) as RouteMarker[]);
-                            setGuidanceTrace(trace);
-                          }}
-                        >
-                          <Compass className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Dupliquer en projet"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setTraceToDuplicate(trace);
-                            setDuplicateDialogOpen(true);
-                          }}
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
+                        {!isLibraryMode && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-primary hover:text-primary"
+                            title="Guidage"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const { data: traceMarkers } = await supabase
+                                .from('route_markers')
+                                .select('*')
+                                .eq('trace_id', trace.id)
+                                .order('created_at', { ascending: true });
+                              setGuidanceMarkers((traceMarkers || []) as RouteMarker[]);
+                              setGuidanceTrace(trace);
+                            }}
+                          >
+                            <Compass className="w-4 h-4" />
+                          </Button>
+                        )}
+                        {!isLibraryMode && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Dupliquer en projet"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setTraceToDuplicate(trace);
+                              setDuplicateDialogOpen(true);
+                            }}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -2007,177 +2059,107 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
               onClose={() => setLightboxOpen(false)}
             />
 
-            {/* Simple map placeholder */}
-            {selectedTrace && selectedTrace.geojson.coordinates.length > 0 && (
-              <div className="border rounded-md p-4 bg-muted/20">
-                <p className="text-xs text-muted-foreground mb-2">Aperçu trace (simplifié)</p>
-                <svg 
-                  viewBox="0 0 200 100" 
-                  className="w-full h-24 border rounded bg-background"
-                >
-                  {(() => {
-                    const coords = selectedTrace.geojson.coordinates;
-                    if (coords.length < 2) return null;
-                    
-                    // Normalize coordinates to fit SVG
-                    const lngs = coords.map(c => c[0]);
-                    const lats = coords.map(c => c[1]);
-                    const minLng = Math.min(...lngs);
-                    const maxLng = Math.max(...lngs);
-                    const minLat = Math.min(...lats);
-                    const maxLat = Math.max(...lats);
-                    const rangeLng = maxLng - minLng || 0.001;
-                    const rangeLat = maxLat - minLat || 0.001;
-                    
-                    const points = coords.map(c => {
-                      const x = ((c[0] - minLng) / rangeLng) * 180 + 10;
-                      const y = 90 - ((c[1] - minLat) / rangeLat) * 80;
-                      return `${x},${y}`;
-                    }).join(' ');
-                    
-                    return (
-                      <>
-                        <polyline
-                          points={points}
-                          fill="none"
-                          stroke="hsl(var(--primary))"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        {/* Start point */}
-                        <circle
-                          cx={((coords[0][0] - minLng) / rangeLng) * 180 + 10}
-                          cy={90 - ((coords[0][1] - minLat) / rangeLat) * 80}
-                          r="4"
-                          fill="hsl(var(--primary))"
-                        />
-                        {/* End point */}
-                        <circle
-                          cx={((coords[coords.length-1][0] - minLng) / rangeLng) * 180 + 10}
-                          cy={90 - ((coords[coords.length-1][1] - minLat) / rangeLat) * 80}
-                          r="4"
-                          fill="hsl(var(--destructive))"
-                        />
-                        {/* Markers */}
-                        {markers.map((marker, i) => {
-                          const x = ((marker.lng - minLng) / rangeLng) * 180 + 10;
-                          const y = 90 - ((marker.lat - minLat) / rangeLat) * 80;
-                          return (
-                            <circle
-                              key={marker.id}
-                              cx={x}
-                              cy={y}
-                              r="3"
-                              fill="hsl(var(--chart-1))"
-                              stroke="white"
-                              strokeWidth="1"
-                            />
-                          );
-                        })}
-                      </>
-                    );
-                  })()}
-                </svg>
-                <div className="flex gap-4 text-xs text-muted-foreground mt-2">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-primary" /> Départ
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-destructive" /> Arrivée
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-chart-1" /> Marqueurs
-                  </span>
-                </div>
-              </div>
-            )}
+            {/* Interactive Leaflet map */}
+            {(selectedTrace && selectedTrace.geojson.coordinates.length > 0) || (isRecording && coords.length > 0) ? (
+              <RouteReconMap
+                trace={selectedTrace || null}
+                markers={markers}
+                liveCoords={isRecording ? coords : undefined}
+                lastPosition={isRecording ? lastPosition : undefined}
+                className="h-72 w-full rounded-md overflow-hidden border"
+              />
+            ) : null}
           </CardContent>
         </Card>
 
-      {/* Route Type */}
-      <OptionMatrix 
-        title="Type de parcours" 
-        icon={Route}
-        description="Nature du parcours à reconnaître"
-      >
-        <div className="space-y-1.5">
-          <Label className="text-sm">Type de route</Label>
-          <Input
-            value={details.route_type || ''}
-            onChange={(e) => updateDetails({ route_type: e.target.value })}
-            placeholder="Ex: Urbain, Montagne, Côtier, Mixte..."
-          />
-        </div>
-      </OptionMatrix>
+      {/* Route details - hidden in library mode */}
+      {!isLibraryMode && (
+        <>
+          {/* Route Type */}
+          <OptionMatrix 
+            title="Type de parcours" 
+            icon={Route}
+            description="Nature du parcours à reconnaître"
+          >
+            <div className="space-y-1.5">
+              <Label className="text-sm">Type de route</Label>
+              <Input
+                value={details.route_type || ''}
+                onChange={(e) => updateDetails({ route_type: e.target.value })}
+                placeholder="Ex: Urbain, Montagne, Côtier, Mixte..."
+              />
+            </div>
+          </OptionMatrix>
 
-      {/* Segments */}
-      <OptionMatrix 
-        title="Segments du parcours" 
-        icon={Navigation}
-        description="Découpez le parcours en segments (un par ligne)"
-      >
-        <div className="space-y-1.5">
-          <Label className="text-sm">Segments</Label>
-          <Textarea
-            value={localSegments}
-            onChange={(e) => handleDebouncedArrayChange('segments', e.target.value, setLocalSegments)}
-            placeholder="Ex: Départ → Carrefour Nord (2km)&#10;Carrefour Nord → Col (5km)&#10;Col → Arrivée village (3km)"
-            rows={5}
-          />
-        </div>
-      </OptionMatrix>
+          {/* Segments */}
+          <OptionMatrix 
+            title="Segments du parcours" 
+            icon={Navigation}
+            description="Découpez le parcours en segments (un par ligne)"
+          >
+            <div className="space-y-1.5">
+              <Label className="text-sm">Segments</Label>
+              <Textarea
+                value={localSegments}
+                onChange={(e) => handleDebouncedArrayChange('segments', e.target.value, setLocalSegments)}
+                placeholder="Ex: Départ → Carrefour Nord (2km)&#10;Carrefour Nord → Col (5km)&#10;Col → Arrivée village (3km)"
+                rows={5}
+              />
+            </div>
+          </OptionMatrix>
 
-      {/* Danger Points */}
-      <OptionMatrix 
-        title="Points de danger" 
-        icon={AlertTriangle}
-        description="Zones nécessitant une attention particulière"
-      >
-        <div className="space-y-1.5">
-          <Label className="text-sm">Points dangereux</Label>
-          <Textarea
-            value={localDangerPoints}
-            onChange={(e) => handleDebouncedArrayChange('danger_points', e.target.value, setLocalDangerPoints)}
-            placeholder="Ex: Virage serré km 3&#10;Passage étroit km 7&#10;Traversée route principale km 12"
-            rows={4}
-          />
-        </div>
-      </OptionMatrix>
+          {/* Danger Points */}
+          <OptionMatrix 
+            title="Points de danger" 
+            icon={AlertTriangle}
+            description="Zones nécessitant une attention particulière"
+          >
+            <div className="space-y-1.5">
+              <Label className="text-sm">Points dangereux</Label>
+              <Textarea
+                value={localDangerPoints}
+                onChange={(e) => handleDebouncedArrayChange('danger_points', e.target.value, setLocalDangerPoints)}
+                placeholder="Ex: Virage serré km 3&#10;Passage étroit km 7&#10;Traversée route principale km 12"
+                rows={4}
+              />
+            </div>
+          </OptionMatrix>
 
-      {/* Mandatory Stops */}
-      <OptionMatrix 
-        title="Arrêts obligatoires" 
-        icon={MapPin}
-        description="Points de passage obligatoires"
-      >
-        <div className="space-y-1.5">
-          <Label className="text-sm">Arrêts</Label>
-          <Textarea
-            value={localMandatoryStops}
-            onChange={(e) => handleDebouncedArrayChange('mandatory_stops', e.target.value, setLocalMandatoryStops)}
-            placeholder="Ex: Point de ravitaillement km 5&#10;Check-point sécurité km 10&#10;Point photo km 15"
-            rows={4}
-          />
-        </div>
-      </OptionMatrix>
+          {/* Mandatory Stops */}
+          <OptionMatrix 
+            title="Arrêts obligatoires" 
+            icon={MapPin}
+            description="Points de passage obligatoires"
+          >
+            <div className="space-y-1.5">
+              <Label className="text-sm">Arrêts</Label>
+              <Textarea
+                value={localMandatoryStops}
+                onChange={(e) => handleDebouncedArrayChange('mandatory_stops', e.target.value, setLocalMandatoryStops)}
+                placeholder="Ex: Point de ravitaillement km 5&#10;Check-point sécurité km 10&#10;Point photo km 15"
+                rows={4}
+              />
+            </div>
+          </OptionMatrix>
 
-      {/* Safety Brief */}
-      <OptionMatrix 
-        title="Consignes de sécurité" 
-        icon={Shield}
-        description="Instructions de sécurité pour les participants"
-      >
-        <div className="space-y-1.5">
-          <Label className="text-sm">Consignes</Label>
-          <Textarea
-            value={localSafetyBrief}
-            onChange={(e) => handleDebouncedArrayChange('safety_brief', e.target.value, setLocalSafetyBrief)}
-            placeholder="Ex: Équipement obligatoire: casque, gilet&#10;Ne pas dépasser 30km/h en zone urbaine&#10;Signaler tout incident au 06..."
-            rows={5}
-          />
-        </div>
-      </OptionMatrix>
+          {/* Safety Brief */}
+          <OptionMatrix 
+            title="Consignes de sécurité" 
+            icon={Shield}
+            description="Instructions de sécurité pour les participants"
+          >
+            <div className="space-y-1.5">
+              <Label className="text-sm">Consignes</Label>
+              <Textarea
+                value={localSafetyBrief}
+                onChange={(e) => handleDebouncedArrayChange('safety_brief', e.target.value, setLocalSafetyBrief)}
+                placeholder="Ex: Équipement obligatoire: casque, gilet&#10;Ne pas dépasser 30km/h en zone urbaine&#10;Signaler tout incident au 06..."
+                rows={5}
+              />
+            </div>
+          </OptionMatrix>
+        </>
+      )}
 
       {/* Add Marker Dialog */}
       <Dialog open={markerDialogOpen} onOpenChange={setMarkerDialogOpen}>
