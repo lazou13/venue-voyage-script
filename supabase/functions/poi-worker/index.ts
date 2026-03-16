@@ -34,6 +34,7 @@ CONTENU:
 JEUX DE PISTE:
 - riddle_easy: énigme facile pour chasse au trésor (indices visuels, observable sur place)
 - riddle_medium: énigme de difficulté moyenne (indices culturels/historiques, nécessite réflexion)
+- riddle_hard: énigme difficile nécessitant des connaissances approfondies ou une investigation poussée
 - challenge: défi terrain à réaliser sur place (photo, interaction, observation)
 
 Réponds UNIQUEMENT avec le JSON, sans markdown ni commentaire.`;
@@ -85,9 +86,10 @@ Zone: ${poi.zone ?? "medina"}`;
               instagram_spot: { type: "boolean" },
               riddle_easy: { type: "string" },
               riddle_medium: { type: "string" },
+              riddle_hard: { type: "string" },
               challenge: { type: "string" },
             },
-            required: ["category_ai","subcategory","poi_quality_score","tourist_interest","district","description_short","history_context","local_anecdote","instagram_spot","riddle_easy","riddle_medium","challenge"],
+            required: ["category_ai","subcategory","poi_quality_score","tourist_interest","district","description_short","history_context","local_anecdote","instagram_spot","riddle_easy","riddle_medium","riddle_hard","challenge"],
             additionalProperties: false,
           },
         },
@@ -196,6 +198,7 @@ serve(async (req) => {
             instagram_spot: enrichment.instagram_spot ?? false,
             riddle_easy: enrichment.riddle_easy ?? null,
             riddle_medium: enrichment.riddle_medium ?? null,
+            riddle_hard: enrichment.riddle_hard ?? null,
             challenge: enrichment.challenge ?? null,
             enrichment_status: "enriched",
           };
