@@ -89,6 +89,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const questConfig = project?.quest_config || {};
+  const isLibraryMode = questConfig.project_type === 'library';
   const details = questConfig.route_recon_details || {};
 
   // Recording mode state
