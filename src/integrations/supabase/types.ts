@@ -149,6 +149,7 @@ export type Database = {
           rating: number | null
           reviews_count: number | null
           riddle_easy: string | null
+          riddle_hard: string | null
           riddle_medium: string | null
           souks_nearby: string[] | null
           status: string
@@ -190,6 +191,7 @@ export type Database = {
           rating?: number | null
           reviews_count?: number | null
           riddle_easy?: string | null
+          riddle_hard?: string | null
           riddle_medium?: string | null
           souks_nearby?: string[] | null
           status?: string
@@ -231,6 +233,7 @@ export type Database = {
           rating?: number | null
           reviews_count?: number | null
           riddle_easy?: string | null
+          riddle_hard?: string | null
           riddle_medium?: string | null
           souks_nearby?: string[] | null
           status?: string

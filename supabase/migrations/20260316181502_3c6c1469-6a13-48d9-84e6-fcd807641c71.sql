@@ -1,0 +1,1 @@
+ALTER TABLE medina_pois ADD COLUMN IF NOT EXISTS riddle_hard TEXT;
