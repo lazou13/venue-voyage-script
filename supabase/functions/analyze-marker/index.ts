@@ -465,7 +465,15 @@ Deno.serve(async (req) => {
       parts.push(`\n🔄 Marqueurs proches déjà posés (contexte terrain, corrections humaines = vérité) :\n${nearby_markers.map((m: any) => `- [${m.lat}°N, ${m.lng}°W] ${m.note || '(sans note)'}${m.photo_url ? ' 📷' : ''}${m.audio_url ? ' 🎙️' : ''}`).join('\n')}`);
     }
 
-    parts.push("\nAnalyse ce marqueur terrain et produis l'analyse complète.");
+    // If no previous analysis, ask for full analysis
+    if (!previous_analysis) {
+      parts.push("\nAnalyse ce marqueur terrain et produis l'analyse complète.");
+    }
+
+    // If custom_instruction without previous_analysis, add it to the main prompt
+    if (custom_instruction && !previous_analysis) {
+      parts.push(`\n💬 Instruction de l'utilisateur : "${custom_instruction}"`);
+    }
 
     // Build messages
     const messages: any[] = [
@@ -493,6 +501,18 @@ Deno.serve(async (req) => {
       messages.push({
         role: "user",
         content: `🎙️ Note vocale enregistrée sur le terrain : ${audio_url}\nTranscris et enrichis cette note vocale. Corrige les noms propres locaux et extrais les données structurées (prix, lieux mentionnés).`
+      });
+    }
+
+    // Conversational mode: inject previous analysis + user correction
+    if (previous_analysis && custom_instruction) {
+      messages.push({
+        role: "assistant",
+        content: `Voici mon analyse précédente :\n${JSON.stringify(previous_analysis, null, 2)}`
+      });
+      messages.push({
+        role: "user",
+        content: `⚠️ CORRECTION : ${custom_instruction}\n\nReprends ton analyse en tenant compte de cette correction. Produis une nouvelle analyse complète corrigée.`
       });
     }
 
