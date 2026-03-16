@@ -733,12 +733,15 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     traces: tracesQuery.data || [],
     isLoadingTraces: tracesQuery.isLoading,
     useTraceMarkers,
+    allMarkers: allMarkersQuery.data || [],
+    isLoadingAllMarkers: allMarkersQuery.isLoading,
     
     // Actions
     startRecording,
     stopRecording,
     addMarker,
     addMarkerAtLastCoord,
+    addStandaloneMarker,
     deleteTrace,
     deleteMarker,
     updateMarker,
