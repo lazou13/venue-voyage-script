@@ -1,6 +1,44 @@
-# Plan: Expert IA Médina — analyze-marker
+# Plan: Expert IA Médina — LYRA V3
 
 ## Status: ✅ Implémenté
+
+## Prompt LYRA V3 — Intégration complète
+
+### Fichiers modifiés (6 Edge Functions)
+
+| Fonction | Action | Modèle |
+|---|---|---|
+| `poi-autopipeline` | Prompts classify (`LYRA_CLASSIFY`) + enrich (`LYRA_ENRICH`) remplacés | flash-lite / flash |
+| `poi-enrich` | `SYSTEM_PROMPT` remplacé par LYRA V3 blocs 1-9+12 | flash |
+| `poi-worker` | `SYSTEM_PROMPT` remplacé par LYRA V3 blocs 1-9+12 | flash |
+| `poi-classify-worker` | Prompt classify remplacé par LYRA condensé | flash-lite |
+| `analyze-marker` | Fusionné : LYRA V3 blocs 1-3 + encyclopédie existante + blocs 8-9-12 | pro |
+| `public-generate-quest` | `systemPrompt` enrichi avec blocs 6-7-9-11-12 | gpt-5-mini |
+
+### Contenu LYRA V3 intégré
+
+- **Bloc 1** (Rôle) : LYRA-MEDINA-GRAPH, moteur d'intelligence urbaine
+- **Bloc 2** (Médina) : dense, labyrinthique, structurée
+- **Bloc 3** (Graphe urbain) : POI = nœud, analyse distance/cohérence/diversité
+- **Bloc 4** (Types) : 20 catégories (hammam → spa)
+- **Bloc 5** (Évaluation) : intérêt touristique, potentiel visuel, potentiel d'énigme
+- **Bloc 6** (Parcours) : 800m-2km, 5-8 POI, diversité obligatoire
+- **Bloc 7** (Chasse au trésor) : départ → exploration → culture → fun → final
+- **Bloc 8** (Énigmes) : easy/medium/hard par POI
+- **Bloc 9** (Narration) : immersive, concise, informative
+- **Blocs 10-11** (Structure/Cohérence) : JSON structuré, logique géographique
+- **Bloc 12** (Contraintes) : anti-hallucination, "à vérifier"
+
+### Encyclopédie préservée (analyze-marker uniquement)
+- ✅ Coordonnées GPS des souks (13 souks)
+- ✅ Quartiers historiques (6 quartiers)
+- ✅ Monuments majeurs (10+ avec dates)
+- ✅ Restaurants par zone (~20 restaurants)
+- ✅ Artisanat par quartier
+- ✅ Spots Instagram + tips photo
+- ✅ Boutiques et commerces
+- ✅ Vocabulaire local
+- ✅ Comptes Instagram connus
 
 ## Ce qui a été créé
 
