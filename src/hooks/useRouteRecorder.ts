@@ -314,6 +314,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['route-markers', variables.traceId] });
+      queryClient.invalidateQueries({ queryKey: ['route-markers-all', projectId] });
       toast({ title: 'Marqueur ajouté' });
     },
   });
