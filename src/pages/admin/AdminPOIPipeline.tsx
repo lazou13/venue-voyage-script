@@ -46,9 +46,12 @@ export default function AdminPOIPipeline() {
     setLogs([`▶ Lancement: ${step}...`]);
 
     try {
-      const fnName = step === "all" ? "poi-pipeline" : step === "clean" || step === "merge" ? "poi-pipeline" : `poi-${step}`;
-      const fnBody = step === "all"
-        ? { step: "all", limit: 500, batch_size: 5 }
+      const fnName = step === "worker" ? "poi-worker"
+        : step === "all" ? "poi-pipeline"
+        : step === "clean" || step === "merge" ? "poi-pipeline"
+        : `poi-${step}`;
+      const fnBody = step === "worker" ? {}
+        : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
         : step === "extract" ? { limit: 500 }
         : step === "enrich" ? { batch_size: 10 }
         : step === "clean" ? { step: "clean" }
