@@ -198,6 +198,7 @@ serve(async (req) => {
             instagram_spot: enrichment.instagram_spot ?? false,
             riddle_easy: enrichment.riddle_easy ?? null,
             riddle_medium: enrichment.riddle_medium ?? null,
+            riddle_hard: enrichment.riddle_hard ?? null,
             challenge: enrichment.challenge ?? null,
             enrichment_status: "enriched",
           };

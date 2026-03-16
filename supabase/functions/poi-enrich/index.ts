@@ -154,8 +154,9 @@ serve(async (req) => {
           local_anecdote: e.local_anecdote ?? null,
           instagram_spot: e.instagram_spot ?? false,
           riddle_easy: e.riddle_easy ?? null,
-          riddle_medium: e.riddle_medium ?? null,
-          challenge: e.challenge ?? null,
+           riddle_medium: e.riddle_medium ?? null,
+            riddle_hard: e.riddle_hard ?? null,
+            challenge: e.challenge ?? null,
           enrichment_status: "enriched",
         };
 
