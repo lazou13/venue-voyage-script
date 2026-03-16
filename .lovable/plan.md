@@ -1,83 +1,74 @@
 
+# Plan: Expert IA Médina — analyze-marker
 
-## Plan : Enrichir l'IA pour toutes les boutiques et commerces
+## Status: ✅ Implémenté
 
-### Problème
-Le prompt IA ne couvre que les souks (de manière générique) et les restaurants. Il manque les **boutiques individuelles** : marques, enseignes, artisans nommés, concept stores, pharmacies, bazars, centres commerciaux. Et le champ `website_url` n'existe pas au niveau racine de l'analyse.
+## Ce qui a été créé
 
-### Corrections
+### Edge Function `analyze-marker`
+- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
+- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
+- Tool calling pour sortie JSON structurée avec 17 champs d'analyse
+- Gestion erreurs 429/402
 
-#### 1. Enrichir le `SYSTEM_PROMPT` — nouvelle section "Boutiques & Commerces"
+### Capacités (17 fonctions)
+1. ✅ Identification lieu + catégorie + tags
+2. ✅ Restaurants proches (nom, spécialité, prix, avis, **lien carte/menu**, **5 avis Google résumés**)
+3. ✅ Anecdote historique
+4. ✅ Description guide multilingue (fr/en/ar/es/ary)
+5. ✅ Résumé bibliothèque multilingue
+6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
+7. ✅ Classification automatique catégorie/sous-catégorie
+8. ✅ Estimation difficulté + intérêt par public cible
+9. ✅ Suggestions step_config (types, validations)
+10. ✅ Génération énigmes (QCM + énigme + défi terrain)
+11. ✅ Transcription audio enrichie + données structurées
+12. ✅ Détection doublons vs bibliothèque existante
+13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags, **posts Instagram réels avec URLs**)
+14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
+15. ✅ **POIs proches avec billets, tarifs et horaires** (musées, monuments)
+16. ✅ **Narration contextuelle** (suit le parcours, interdit les introductions génériques)
+17. ✅ **Liens web/Instagram/Maps** pour chaque restaurant et POI
 
-**Fichier : `supabase/functions/analyze-marker/index.ts`**
+### Enrichissement des connaissances
+- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
+- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
+- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
 
-Ajouter après la section "Fondouks" (ligne 55) :
+### Intégration Frontend
+- Analyse automatique après chaque marqueur rapide sauvegardé
+- Panel IA dans le drawer avec résultats structurés
+- Bouton "Appliquer à la note" pour enrichir le marqueur
+- Bouton "Ignorer" pour fermer sans appliquer
+- Marqueurs proches du même projet envoyés comme contexte additionnel
+- ✅ **Affichage enrichi** : avis Google, liens carte/menu, billets/tarifs, posts Instagram avec URLs
 
-```
-## BOUTIQUES & COMMERCES
+## Marqueur rapide — Améliorations terrain (✅ Implémenté)
 
-### Centres commerciaux
-- **Medina Mall** (~31.6208°N, 7.9866°W) : centre commercial à l'entrée de la Kasbah. Site : https://www.medinamall.ma/
-  Ouvert en 2018. Restaurants intérieurs, boutiques mode, pharmacie, café. Premier mall dans le périmètre historique.
-- **M Avenue** (~31.6300°N, 8.0100°W) : boulevard moderne. Site : https://www.m-avenue.ma/
+### Multi-photos
+- ✅ Colonne `photo_urls text[]` ajoutée à `route_markers`
+- ✅ `useRouteRecorder` supporte `photoUrls[]`
+- ✅ UI : ajout de photos multiples avec miniatures + suppression individuelle
+- ✅ Plus d'auto-save à la première photo — validation manuelle requise
 
-### Boutiques notables en médina
-- **33 Rue Majorelle** : concept store déco & mode
-- **Kulchi** (Mouassine) : artisanat contemporain marocain
-- **Lalla** : sacs et accessoires en cuir design
-- **Max & Jan** : maroquinerie haut de gamme
-- **Atelier Moro** : bijoux berbères modernes
-- **Côté Bougie** : bougies artisanales parfumées
-- **Chabi Chic** : céramique marocaine moderne
-- **Ministero del Gusto** : antiquités et mobilier
-- **L'Art du Bain** : savons et cosmétiques traditionnels
-- **Ensemble Artisanal** (~Koutoubia) : prix fixes, artisans officiels
+### Notes vocales fiables
+- ✅ `useVoiceRecorder` : détection dynamique du mimeType (webm → mp4 → défaut navigateur)
+- ✅ Upload avec extension adaptée (.webm ou .mp4)
 
-### Marques internationales présentes
-Zara, H&M, L'Occitane, Yves Rocher — principalement à Guéliz et M Avenue.
-Si une marque internationale est en médina, expliquer pourquoi et comment elle s'est adaptée.
+### IA différée
+- ✅ `triggerAiAnalysis` supprimé du `handleQuickMarkerSave`
+- ✅ Drawer se ferme immédiatement après sauvegarde (toast "Marqueur sauvegardé ✓")
+- ✅ Analyse IA accessible dans la liste des marqueurs après STOP (bouton "Analyser" + "Analyser tous")
 
-### INSTRUCTIONS BOUTIQUES
-Pour TOUT commerce (boutique, magasin, enseigne, artisan nommé, pharmacie, concept store, mall) :
-- Donner le nom exact, ce qu'on y trouve, la gamme de prix
-- Fournir le site web, Instagram, Google Maps
-- Si c'est dans un centre commercial : lister les boutiques et restaurants À L'INTÉRIEUR
-- Anecdote : histoire de la boutique, du fondateur, ou du bâtiment
-```
+## Promotion en bibliothèque (✅ Enrichi)
 
-#### 2. Ajouter la catégorie `boutique` + `centre_commercial` au schema
+### Flux "Approuver + Bibliothèque"
+- ✅ Note enrichie avec restaurants (carte, avis), POIs (billets, tarifs, horaires)
+- ✅ Analyse IA complète stockée dans `medina_pois.metadata.ai_analysis`
+- ✅ Photos Instagram de référence extraites dans `metadata.reference_photos`
+- ✅ Nom et catégorie du POI déduits de l'analyse IA (au lieu de "POI terrain")
 
-Ligne 212, ajouter à l'enum `category` : `"boutique"`, `"centre_commercial"`
-
-#### 3. Ajouter `website_url` au schema racine
-
-Ajouter un champ `website_url` à l'objet racine du tool schema (à côté de `location_guess`) :
-```json
-website_url: { type: "string", description: "Site web officiel du lieu (obligatoire si connu)" }
-```
-
-#### 4. Mettre à jour les instructions (ligne 164-186)
-
-Ajouter une instruction 18 :
-```
-18. **Boutiques et commerces** : pour toute boutique, magasin, enseigne, artisan nommé, pharmacie, concept store ou centre commercial, fournir : nom, spécialités/produits, gamme de prix, site web, Instagram, Google Maps. Si c'est un mall, lister les commerces et restaurants intérieurs.
-```
-
-Modifier l'instruction existante sur les liens (16) pour ajouter :
-```
-- **Pour les boutiques** : site web ou page Instagram, produits phares, gamme de prix
-```
-
-#### 5. Afficher `website_url` dans la note enrichie
-
-**Fichier : `src/components/intake/MarkerDetailSheet.tsx`**
-
-Dans `buildEnrichedNote`, ajouter après la ligne `📂 catégorie` :
-```typescript
-if (a.website_url) parts.push(`🌐 ${a.website_url}`);
-```
-
-### Fichiers modifiés
-- `supabase/functions/analyze-marker/index.ts` — prompt + schema
-- `src/components/intake/MarkerDetailSheet.tsx` — affichage website_url
-
+### Narration de guide contextuelle
+- ✅ Interdiction des introductions génériques ("Oubliez les souks...")
+- ✅ Transitions de parcours obligatoires ("Nous voilà maintenant devant...")
+- ✅ Contexte marques/enseignes (pourquoi elles sont là, leur histoire)
