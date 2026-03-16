@@ -145,13 +145,13 @@ export default function AdminPOIPipeline() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2"><Brain className="w-4 h-4" /> Classifier + Enrichir</CardTitle>
-            <CardDescription>Classification IA, descriptions, énigmes, scores</CardDescription>
+            <CardTitle className="text-base flex items-center gap-2"><Brain className="w-4 h-4" /> Worker Enrichissement</CardTitle>
+            <CardDescription>Enrichit automatiquement tous les POI raw en boucle (batch de 20)</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => runStep("enrich")} disabled={!!running} className="w-full">
-              {running === "enrich" && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              Enrichir les POI bruts
+            <Button onClick={() => runStep("worker")} disabled={!!running} className="w-full">
+              {running === "worker" && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Lancer worker enrichissement
             </Button>
           </CardContent>
         </Card>
