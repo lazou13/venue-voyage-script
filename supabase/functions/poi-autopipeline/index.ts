@@ -71,7 +71,7 @@ async function classifyPOI(poi: any) {
     body: JSON.stringify({
       model: "google/gemini-2.5-flash-lite",
       messages: [
-        { role: "system", content: "Tu es un expert de la médina de Marrakech. Classifie chaque POI." },
+        { role: "system", content: LYRA_CLASSIFY },
         { role: "user", content: `Classifie ce POI:\nNom: "${poi.name}"\nTypes Google: ${googleTypes}\nAdresse: ${poi.address ?? "médina"}\nRating: ${poi.rating ?? "N/A"}/5 (${poi.reviews_count ?? 0} avis)\nCoordonnées: ${poi.lat}, ${poi.lng}` },
       ],
       tools: [{
