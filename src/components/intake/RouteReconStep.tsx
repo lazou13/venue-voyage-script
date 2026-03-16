@@ -774,6 +774,25 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     setEditPhotoUrl(marker.photo_url || '');
     setEditAudioUrl(marker.audio_url || '');
   };
+  // Standalone quick marker (no recording needed)
+  const handleStandaloneMarker = async () => {
+    setIsSavingStandalone(true);
+    try {
+      await addStandaloneMarker({
+        note: `Point terrain #${allMarkers.length + 1}`,
+      });
+      toast({ title: '📍 Marqueur sauvegardé ✓', description: 'Point ajouté via GPS navigateur' });
+    } catch (err) {
+      // Persistent error toast
+      toast({
+        title: '❌ Échec sauvegarde marqueur',
+        description: (err as Error).message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingStandalone(false);
+    }
+  };
 
 
   const handleQuickMarkerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
