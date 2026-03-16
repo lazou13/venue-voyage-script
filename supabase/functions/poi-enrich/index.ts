@@ -137,7 +137,8 @@ serve(async (req) => {
     for (const poi of pois) {
       try {
         const e = await enrichPOI(poi);
-        logs.push(`✓ ${poi.name} → ${e.category_ai}/${e.subcategory} (${e.district}) score=${e.poi_quality_score}`);
+        logs.push(`✓ ${poi.name} → ${e.category_ai}/${e.subcategory} (${e.district}) score=${e.poi_quality_score} keys=${Object.keys(e).join(",")}`);
+        logs.push(`  RAW: ${JSON.stringify(e).substring(0, 300)}`);
 
         // Use raw object to avoid typed client stripping unknown columns
         const updateData: Record<string, unknown> = {
