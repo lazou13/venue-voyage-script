@@ -47,10 +47,12 @@ export default function AdminPOIPipeline() {
 
     try {
       const fnName = step === "worker" ? "poi-worker"
+        : step === "classify" ? "poi-classify-worker"
         : step === "all" ? "poi-pipeline"
         : step === "clean" || step === "merge" ? "poi-pipeline"
         : `poi-${step}`;
       const fnBody = step === "worker" ? {}
+        : step === "classify" ? {}
         : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
         : step === "extract" ? { limit: 500 }
         : step === "enrich" ? { batch_size: 10 }
