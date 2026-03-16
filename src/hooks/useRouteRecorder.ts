@@ -620,8 +620,8 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     points: state.coords.length,
   };
 
-  // Get last known position
-  const lastPosition = state.coords.length > 0 ? state.coords[state.coords.length - 1] : null;
+  // Get last known position — prefer filtered coords, fallback to raw GPS
+  const lastPosition = state.coords.length > 0 ? state.coords[state.coords.length - 1] : rawLastPositionRef.current;
 
   return {
     // State
