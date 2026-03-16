@@ -209,7 +209,8 @@ const ANALYSIS_TOOL = {
       type: "object",
       properties: {
         location_guess: { type: "string", description: "Nom du lieu identifié (ex: Souk Semmarine, entrée nord)" },
-        category: { type: "string", enum: ["souk", "monument", "riad", "restaurant", "fontaine", "porte", "derb", "fondouk", "jardin", "musée", "artisan", "place", "mosquée", "hammam", "tannerie", "generic"], description: "Catégorie principale du POI" },
+        category: { type: "string", enum: ["souk", "monument", "riad", "restaurant", "fontaine", "porte", "derb", "fondouk", "jardin", "musée", "artisan", "place", "mosquée", "hammam", "tannerie", "boutique", "centre_commercial", "generic"], description: "Catégorie principale du POI" },
+        website_url: { type: "string", description: "Site web officiel du lieu (obligatoire si connu)" },
         sub_category: { type: "string", description: "Sous-catégorie (ex: textile, épices, ferronnerie)" },
         tags: { type: "array", items: { type: "string" }, description: "Tags descriptifs pour la recherche" },
         nearby_restaurants: {
