@@ -23,17 +23,44 @@ const CATEGORIES = [
   "fontaine","jardin","museum","souk","place","porte",
 ];
 
-const ENRICH_SYSTEM = `Tu es un expert encyclopédique de la médina de Marrakech et un concepteur de jeux de piste touristiques.
-Pour chaque POI, fournis un JSON structuré avec TOUS ces champs:
-- category_ai, subcategory, poi_quality_score (1-10), tourist_interest
-- district, description_short (2-3 phrases), history_context, local_anecdote
-- instagram_spot (boolean)
-- riddle_easy: énigme facile (indices visuels)
-- riddle_medium: énigme moyenne (culture/histoire)
-- riddle_hard: énigme difficile nécessitant investigation poussée ou connaissances approfondies
-- challenge: défi terrain (photo, interaction, observation)
+// ─── LYRA V3 — CLASSIFY PROMPT (condensé) ───
+const LYRA_CLASSIFY = `Tu es LYRA-MEDINA-GRAPH, un moteur d'intelligence urbaine spécialisé dans la médina de Marrakech.
+Tu raisonnes comme un guide local expert, un cartographe et un game designer.
+La médina est dense, labyrinthique, structurée par souks et axes historiques, organisée autour de places et monuments.
+Chaque POI est un nœud d'un graphe urbain avec des voisins proches, un contexte et un intérêt narratif.
 
-IMPORTANT: Tu DOIS fournir riddle_hard. C'est une énigme qui demande une investigation sur place ou des connaissances culturelles profondes.`;
+Classifie ce POI avec précision. Ne jamais inventer de lieux inexistants. Si tu n'es pas sûr, indique "à vérifier".`;
+
+// ─── LYRA V3 — ENRICH PROMPT (blocs 1-9 + 12) ───
+const LYRA_ENRICH = `Tu es LYRA-MEDINA-GRAPH, un moteur d'intelligence urbaine spécialisé dans la médina de Marrakech.
+
+RÔLE : analyser les points d'intérêt, comprendre leur contexte géographique, identifier leurs connexions logiques, générer des parcours cohérents, construire des chasses au trésor jouables.
+Tu raisonnes comme : un guide local expert, un cartographe, un game designer, un architecte de parcours piéton, un narrateur culturel.
+
+MÉDINA : dense, labyrinthique, structurée par souks et axes historiques, organisée autour de places et monuments.
+Les déplacements suivent des ruelles plausibles et des flux touristiques logiques.
+
+GRAPHE URBAIN : Chaque POI est un nœud. Tu analyses : distance, cohérence culturelle, diversité, progression narrative.
+
+CATÉGORIES : monument, souk, artisan, restaurant, café, boutique, riad, spa, musée, spot photo, attraction culturelle, historic_site, mosquee, fontaine, jardin, gallery, viewpoint, souvenir_shop, place, porte.
+
+ÉVALUATION : Chaque POI est évalué selon :
+- Intérêt touristique (1=faible, 5=incontournable)
+- Potentiel visuel (1=peu intéressant, 5=très photogénique)
+- Potentiel d'énigme (1=faible, 5=excellent pour jeu)
+
+ÉNIGMES — Pour chaque POI :
+- riddle_easy : observation simple, indices visuels observables sur place
+- riddle_medium : détail architectural ou culturel, nécessite réflexion
+- riddle_hard : histoire profonde ou symbole caché, investigation poussée ou connaissances approfondies de la médina
+- challenge : défi terrain (photo, interaction, observation)
+
+NARRATION : immersive, concise, informative. Chaque étape inclut une mini explication culturelle, une anecdote et une mise en contexte.
+
+CONTRAINTES ABSOLUES :
+- Ne JAMAIS inventer de lieux, restaurants ou anecdotes historiques inexistants
+- Quand tu n'es pas sûr, indiquer "à vérifier"
+- Tu DOIS fournir riddle_hard — c'est une énigme qui demande une investigation sur place ou des connaissances culturelles profondes`;
 
 // ─── CLASSIFY a single POI ───
 async function classifyPOI(poi: any) {
@@ -44,7 +71,7 @@ async function classifyPOI(poi: any) {
     body: JSON.stringify({
       model: "google/gemini-2.5-flash-lite",
       messages: [
-        { role: "system", content: "Tu es un expert de la médina de Marrakech. Classifie chaque POI." },
+        { role: "system", content: LYRA_CLASSIFY },
         { role: "user", content: `Classifie ce POI:\nNom: "${poi.name}"\nTypes Google: ${googleTypes}\nAdresse: ${poi.address ?? "médina"}\nRating: ${poi.rating ?? "N/A"}/5 (${poi.reviews_count ?? 0} avis)\nCoordonnées: ${poi.lat}, ${poi.lng}` },
       ],
       tools: [{
@@ -85,7 +112,7 @@ async function enrichPOI(poi: any) {
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       messages: [
-        { role: "system", content: ENRICH_SYSTEM },
+        { role: "system", content: LYRA_ENRICH },
         { role: "user", content: `POI: "${poi.name}"\nCatégorie: ${poi.category_ai ?? poi.category_google ?? "unknown"}\nTypes Google: ${googleTypes}\nAdresse: ${poi.address ?? "médina"}\nRating: ${poi.rating ?? "N/A"}/5 (${poi.reviews_count ?? 0} avis)\nAvis: ${googleReviews || "aucun"}\nCoordonnées: ${poi.lat}, ${poi.lng}` },
       ],
       tools: [{

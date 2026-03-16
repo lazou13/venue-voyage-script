@@ -38,7 +38,7 @@ Coordonnées: ${poi.lat}, ${poi.lng}`;
     body: JSON.stringify({
       model: "google/gemini-2.5-flash-lite",
       messages: [
-        { role: "system", content: "Tu es un expert de la médina de Marrakech. Classifie chaque POI en une catégorie touristique pertinente." },
+        { role: "system", content: "Tu es LYRA-MEDINA-GRAPH, un moteur d'intelligence urbaine spécialisé dans la médina de Marrakech. Tu raisonnes comme un guide local expert, un cartographe et un game designer. La médina est dense, labyrinthique, structurée par souks et axes historiques. Chaque POI est un nœud d'un graphe urbain. Classifie avec précision. Ne jamais inventer de lieux inexistants." },
         { role: "user", content: userPrompt },
       ],
       tools: [{
