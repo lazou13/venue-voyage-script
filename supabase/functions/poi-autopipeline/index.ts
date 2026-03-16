@@ -197,7 +197,7 @@ serve(async (req) => {
         .gte("lat", GEO.lat_min).lte("lat", GEO.lat_max)
         .gte("lng", GEO.lng_min).lte("lng", GEO.lng_max)
         .order("reviews_count", { ascending: false, nullsFirst: false })
-        .limit(BATCH_SIZE);
+        .limit(ENRICH_BATCH);
 
       let enriched = 0;
       for (const poi of batch ?? []) {
