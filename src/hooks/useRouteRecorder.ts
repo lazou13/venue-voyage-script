@@ -90,6 +90,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
   const queryClient = useQueryClient();
   const watchIdRef = useRef<number | null>(null);
   const lastKeptPointRef = useRef<RouteCoord | null>(null);
+  const rawLastPositionRef = useRef<RouteCoord | null>(null);
   const modeRef = useRef<RecordingMode>(mode);
   const autosaveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSavedCountRef = useRef<number>(0);
@@ -407,6 +408,9 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
             timestamp: position.timestamp,
             accuracy,
           };
+
+          // Always track raw position (for quick marker even with poor GPS)
+          rawLastPositionRef.current = newCoord;
           
           const lastKept = lastKeptPointRef.current;
           const isFirstPoint = lastKept === null;
@@ -579,11 +583,12 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
       throw new Error('Aucun enregistrement en cours');
     }
     
-    if (coords.length === 0) {
+    // Use filtered coords first, fallback to raw GPS position
+    const lastCoord = coords.length > 0 ? coords[coords.length - 1] : rawLastPositionRef.current;
+    
+    if (!lastCoord) {
       throw new Error('Aucune position GPS disponible');
     }
-    
-    const lastCoord = coords[coords.length - 1];
     
     return addMarker.mutateAsync({
       traceId: currentTraceId,
@@ -615,8 +620,8 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     points: state.coords.length,
   };
 
-  // Get last known position
-  const lastPosition = state.coords.length > 0 ? state.coords[state.coords.length - 1] : null;
+  // Get last known position — prefer filtered coords, fallback to raw GPS
+  const lastPosition = state.coords.length > 0 ? state.coords[state.coords.length - 1] : rawLastPositionRef.current;
 
   return {
     // State
