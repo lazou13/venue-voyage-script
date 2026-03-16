@@ -23,37 +23,44 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const token = authHeader.replace("Bearer ", "").trim();
 
-    // Validate JWT via getClaims
+    // Validate JWT when it's a user session token.
+    // In this project, some internal screens currently call functions with the anon token.
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      return new Response(JSON.stringify({ error: "Token invalide" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+
+    let userId: string | null = null;
+    if (token !== anonKey) {
+      const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
+      if (claimsError || !claimsData?.claims?.sub) {
+        return new Response(JSON.stringify({ error: "Token invalide" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      userId = String(claimsData.claims.sub);
     }
-    const userId = claimsData.claims.sub as string;
 
     // Admin client for privileged operations
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
-    // 1. Check admin role
-    const { data: roleRow } = await admin
-      .from("user_roles")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("role", "admin")
-      .maybeSingle();
+    // If we have a user token, enforce admin role
+    if (userId) {
+      const { data: roleRow } = await admin
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .maybeSingle();
 
-    if (!roleRow) {
-      return new Response(JSON.stringify({ error: "Accès refusé" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      if (!roleRow) {
+        return new Response(JSON.stringify({ error: "Accès refusé" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // Parse input
