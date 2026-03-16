@@ -276,7 +276,7 @@ serve(async (req) => {
         .gte("lat", GEO.lat_min).lte("lat", GEO.lat_max)
         .gte("lng", GEO.lng_min).lte("lng", GEO.lng_max)
         .or("nearby_pois_data.is.null,nearby_pois_data.eq.[]")
-        .limit(10);
+        .limit(PROXIMITY_BATCH);
 
       const restaurantCats = ["restaurant", "cafe"];
       let proxUpdated = 0;
