@@ -1341,25 +1341,26 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                         </div>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-primary hover:text-primary"
-                          title="Guidage"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            // Fetch markers for this trace
-                            const { data: traceMarkers } = await supabase
-                              .from('route_markers')
-                              .select('*')
-                              .eq('trace_id', trace.id)
-                              .order('created_at', { ascending: true });
-                            setGuidanceMarkers((traceMarkers || []) as RouteMarker[]);
-                            setGuidanceTrace(trace);
-                          }}
-                        >
-                          <Compass className="w-4 h-4" />
-                        </Button>
+                        {!isLibraryMode && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-primary hover:text-primary"
+                            title="Guidage"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              const { data: traceMarkers } = await supabase
+                                .from('route_markers')
+                                .select('*')
+                                .eq('trace_id', trace.id)
+                                .order('created_at', { ascending: true });
+                              setGuidanceMarkers((traceMarkers || []) as RouteMarker[]);
+                              setGuidanceTrace(trace);
+                            }}
+                          >
+                            <Compass className="w-4 h-4" />
+                          </Button>
+                        )}
                         {!isLibraryMode && (
                           <Button
                             variant="ghost"
