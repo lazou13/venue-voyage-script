@@ -64,7 +64,13 @@ serve(async (req) => {
       results.enrich = { enriched: totalEnriched, iterations: iteration, logs: enrichLogs };
     }
 
-    // 3. Clean low-quality POIs
+    // 4. Proximity
+    if (step === "all" || step === "proximity") {
+      pipeline.push("proximity");
+      results.proximity = await callFunction("poi-proximity", {});
+    }
+
+    // 5. Clean low-quality POIs
     if (step === "all" || step === "clean") {
       pipeline.push("clean");
       const { data: cleanResult, error: cleanErr } = await supabase.rpc("clean_low_quality_pois");
@@ -75,7 +81,7 @@ serve(async (req) => {
       }
     }
 
-    // 4. Merge duplicates
+    // 6. Merge duplicates
     if (step === "all" || step === "merge") {
       pipeline.push("merge");
       const { data: mergeResult, error: mergeErr } = await supabase.rpc("merge_duplicate_pois");
@@ -84,12 +90,6 @@ serve(async (req) => {
       } else {
         results.merge = mergeResult;
       }
-    }
-
-    // 5. Proximity
-    if (step === "all" || step === "proximity") {
-      pipeline.push("proximity");
-      results.proximity = await callFunction("poi-proximity", {});
     }
 
     // 6. Final stats
