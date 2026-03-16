@@ -1414,7 +1414,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
 
             {/* Markers for selected trace */}
             {selectedTrace && markers.length > 0 && (
-              <div className="space-y-2">
+              <div ref={markersListRef} className="space-y-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <Label className="text-sm font-medium">Marqueurs ({markers.length})</Label>
                   <div className="flex items-center gap-2 flex-wrap">
