@@ -583,11 +583,12 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
       throw new Error('Aucun enregistrement en cours');
     }
     
-    if (coords.length === 0) {
+    // Use filtered coords first, fallback to raw GPS position
+    const lastCoord = coords.length > 0 ? coords[coords.length - 1] : rawLastPositionRef.current;
+    
+    if (!lastCoord) {
       throw new Error('Aucune position GPS disponible');
     }
-    
-    const lastCoord = coords[coords.length - 1];
     
     return addMarker.mutateAsync({
       traceId: currentTraceId,
