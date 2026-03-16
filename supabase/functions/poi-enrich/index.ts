@@ -137,23 +137,26 @@ serve(async (req) => {
         const e = await enrichPOI(poi);
         logs.push(`✓ ${poi.name} → ${e.category_ai}/${e.subcategory} (${e.district}) score=${e.poi_quality_score}`);
 
+        // Use raw object to avoid typed client stripping unknown columns
+        const updateData: Record<string, unknown> = {
+          category_ai: e.category_ai ?? null,
+          subcategory: e.subcategory ?? null,
+          poi_quality_score: e.poi_quality_score ?? null,
+          tourist_interest: e.tourist_interest ?? null,
+          district: e.district ?? null,
+          description_short: e.description_short ?? null,
+          history_context: e.history_context ?? null,
+          local_anecdote: e.local_anecdote ?? null,
+          instagram_spot: e.instagram_spot ?? false,
+          riddle_easy: e.riddle_easy ?? null,
+          riddle_medium: e.riddle_medium ?? null,
+          challenge: e.challenge ?? null,
+          enrichment_status: "enriched",
+        };
+
         const { error: updateErr } = await supabase
           .from("medina_pois")
-          .update({
-            category_ai: e.category_ai as string,
-            subcategory: e.subcategory as string,
-            poi_quality_score: e.poi_quality_score as number,
-            tourist_interest: e.tourist_interest as string,
-            district: e.district as string,
-            description_short: e.description_short as string,
-            history_context: e.history_context as string,
-            local_anecdote: e.local_anecdote as string,
-            instagram_spot: e.instagram_spot as boolean,
-            riddle_easy: e.riddle_easy as string,
-            riddle_medium: e.riddle_medium as string,
-            challenge: e.challenge as string,
-            enrichment_status: "enriched",
-          })
+          .update(updateData as any)
           .eq("id", poi.id);
 
         if (updateErr) {
