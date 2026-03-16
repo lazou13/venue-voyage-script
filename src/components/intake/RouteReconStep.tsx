@@ -56,6 +56,7 @@ import {
 import { OptionMatrix } from './shared/OptionMatrix';
 import { PhotoLightbox, type LightboxPhoto } from './shared/PhotoLightbox';
 import { MarkerDetailSheet } from './MarkerDetailSheet';
+import { RouteReconMap } from './RouteReconMap';
 import type { QuestConfig, RouteReconDetails, ProjectType } from '@/types/intake';
 import type { Json } from '@/integrations/supabase/types';
 
