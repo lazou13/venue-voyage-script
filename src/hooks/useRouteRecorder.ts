@@ -331,6 +331,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     },
     onSuccess: async (traceId) => {
       queryClient.invalidateQueries({ queryKey: ['route-markers', traceId] });
+      queryClient.invalidateQueries({ queryKey: ['route-markers-all', projectId] });
       // Rebuild trace geojson from remaining markers
       await rebuildTraceGeojson(traceId);
       toast({ title: 'Marqueur supprimé' });
