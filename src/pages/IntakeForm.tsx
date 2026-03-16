@@ -86,11 +86,21 @@ export default function IntakeForm() {
   // Build dynamic steps based on project type
   const steps = useMemo(() => {
     const typeSteps = TYPE_STEPS[projectType];
+    if (projectType === 'library') {
+      return typeSteps;
+    }
     return [
       ...CORE_STEPS,
       ...typeSteps,
       ...COMMON_STEPS,
     ];
+  }, [projectType]);
+
+  // Default to route_recon tab for library projects
+  useEffect(() => {
+    if (projectType === 'library') {
+      setActiveTab('route_recon');
+    }
   }, [projectType]);
 
   if (isLoading) {

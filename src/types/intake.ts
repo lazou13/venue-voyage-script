@@ -358,6 +358,7 @@ export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   establishment: 'Établissement',
   tourist_spot: 'Site Touristique',
   route_recon: 'Reconnaissance Parcours',
+  library: 'Bibliothèque',
 };
 
 export const PLAY_MODE_LABELS: Record<PlayMode, string> = {

@@ -20,6 +20,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   establishment: <Building2 className="w-6 h-6" />,
   tourist_spot: <MapPin className="w-6 h-6" />,
   route_recon: <Route className="w-6 h-6" />,
+  library: <Library className="w-6 h-6" />,
 };
 
 const DEFAULT_ICON = <Plus className="w-6 h-6" />;
