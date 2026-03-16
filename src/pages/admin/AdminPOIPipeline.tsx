@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-type StepKey = "extract" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker";
+type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker";
 
 export default function AdminPOIPipeline() {
   const { toast } = useToast();
