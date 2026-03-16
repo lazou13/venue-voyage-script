@@ -99,7 +99,9 @@ Zone: ${poi.zone ?? "medina"}`;
   const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
   if (!toolCall) throw new Error("No tool call in AI response");
 
-  return JSON.parse(toolCall.function.arguments);
+  const parsed = JSON.parse(toolCall.function.arguments);
+  console.log("AI enrichment result keys:", Object.keys(parsed), "score:", parsed.poi_quality_score, "sub:", parsed.subcategory);
+  return parsed;
 }
 
 serve(async (req) => {
