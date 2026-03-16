@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, MapPin, Route, Plus, Loader2 } from 'lucide-react';
+import { Building2, MapPin, Route, Plus, Loader2, Library } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { useQueryClient } from '@tanstack/react-query';
@@ -20,6 +20,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   establishment: <Building2 className="w-6 h-6" />,
   tourist_spot: <MapPin className="w-6 h-6" />,
   route_recon: <Route className="w-6 h-6" />,
+  library: <Library className="w-6 h-6" />,
 };
 
 const DEFAULT_ICON = <Plus className="w-6 h-6" />;

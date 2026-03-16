@@ -21,7 +21,7 @@ export type TransportMode = 'walking' | 'cycling' | 'bus' | 'car' | 'boat' | 'mi
 export type PlayMode = 'solo' | 'team' | 'one_vs_one' | 'multi_solo';
 
 // ============= Project Type (new) =============
-export type ProjectType = 'establishment' | 'tourist_spot' | 'route_recon';
+export type ProjectType = 'establishment' | 'tourist_spot' | 'route_recon' | 'library';
 
 // ============= I18n types =============
 export interface I18nText {
@@ -358,6 +358,7 @@ export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   establishment: 'Établissement',
   tourist_spot: 'Site Touristique',
   route_recon: 'Reconnaissance Parcours',
+  library: 'Bibliothèque',
 };
 
 export const PLAY_MODE_LABELS: Record<PlayMode, string> = {
