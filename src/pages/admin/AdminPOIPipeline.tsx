@@ -147,6 +147,19 @@ export default function AdminPOIPipeline() {
 
         <Card>
           <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2"><Tags className="w-4 h-4" /> Classifier</CardTitle>
+            <CardDescription>Classification IA des POI sans catégorie (batch auto)</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => runStep("classify")} disabled={!!running} className="w-full">
+              {running === "classify" && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Lancer classification IA
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2"><Brain className="w-4 h-4" /> Worker Enrichissement</CardTitle>
             <CardDescription>Enrichit automatiquement tous les POI raw en boucle (batch de 20)</CardDescription>
           </CardHeader>
