@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-type StepKey = "extract" | "enrich" | "clean" | "merge" | "proximity" | "all";
+type StepKey = "extract" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker";
 
 export default function AdminPOIPipeline() {
   const { toast } = useToast();
@@ -46,9 +46,12 @@ export default function AdminPOIPipeline() {
     setLogs([`▶ Lancement: ${step}...`]);
 
     try {
-      const fnName = step === "all" ? "poi-pipeline" : step === "clean" || step === "merge" ? "poi-pipeline" : `poi-${step}`;
-      const fnBody = step === "all"
-        ? { step: "all", limit: 500, batch_size: 5 }
+      const fnName = step === "worker" ? "poi-worker"
+        : step === "all" ? "poi-pipeline"
+        : step === "clean" || step === "merge" ? "poi-pipeline"
+        : `poi-${step}`;
+      const fnBody = step === "worker" ? {}
+        : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
         : step === "extract" ? { limit: 500 }
         : step === "enrich" ? { batch_size: 10 }
         : step === "clean" ? { step: "clean" }
@@ -142,13 +145,13 @@ export default function AdminPOIPipeline() {
 
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2"><Brain className="w-4 h-4" /> Classifier + Enrichir</CardTitle>
-            <CardDescription>Classification IA, descriptions, énigmes, scores</CardDescription>
+            <CardTitle className="text-base flex items-center gap-2"><Brain className="w-4 h-4" /> Worker Enrichissement</CardTitle>
+            <CardDescription>Enrichit automatiquement tous les POI raw en boucle (batch de 20)</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => runStep("enrich")} disabled={!!running} className="w-full">
-              {running === "enrich" && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
-              Enrichir les POI bruts
+            <Button onClick={() => runStep("worker")} disabled={!!running} className="w-full">
+              {running === "worker" && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+              Lancer worker enrichissement
             </Button>
           </CardContent>
         </Card>
