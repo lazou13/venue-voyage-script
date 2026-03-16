@@ -12,56 +12,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Non authentifié" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const token = authHeader.replace("Bearer ", "").trim();
-
-    // Validate JWT when it's a user session token.
-    // In this project, some internal screens currently call functions with the anon token.
-    const userClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    let userId: string | null = null;
-    if (token !== anonKey) {
-      const { data: claimsData, error: claimsError } = await userClient.auth.getClaims(token);
-      if (claimsError || !claimsData?.claims?.sub) {
-        return new Response(JSON.stringify({ error: "Token invalide" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      userId = String(claimsData.claims.sub);
-    }
-
-    // Admin client for privileged operations
     const admin = createClient(supabaseUrl, serviceRoleKey);
-
-    // If we have a user token, enforce admin role
-    if (userId) {
-      const { data: roleRow } = await admin
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("role", "admin")
-        .maybeSingle();
-
-      if (!roleRow) {
-        return new Response(JSON.stringify({ error: "Accès refusé" }), {
-          status: 403,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    }
 
     // Parse input
     const { marker_id, ai_analysis } = await req.json();

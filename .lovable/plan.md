@@ -1,23 +1,74 @@
 
-## Plan : Corriger l'erreur 401 sur "Approuver + Bibliotheque"
+# Plan: Expert IA Médina — analyze-marker
 
-### Diagnostic
+## Status: ✅ Implémenté
 
-Le token envoyé par le SDK dans la requête est le **anon key** (HS256). La fonction Edge compare ce token avec `Deno.env.get("SUPABASE_ANON_KEY")`. Bien que les valeurs semblent identiques, `getClaims()` est quand même appelé et échoue car il y a probablement une différence subtile (whitespace, encoding) entre la valeur envoyée et la variable d'environnement, OU le SDK envoie parfois le token de session ES256 (qui échoue aussi à `getClaims` dans ce contexte).
+## Ce qui a été créé
 
-Le mode choisi est **accès ouvert** (pas de login requis). La solution la plus fiable est de supprimer toute validation d'authentification dans cette fonction, comme c'est le cas pour `analyze-marker` qui fonctionne parfaitement.
+### Edge Function `analyze-marker`
+- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
+- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
+- Tool calling pour sortie JSON structurée avec 17 champs d'analyse
+- Gestion erreurs 429/402
 
-### Modification
+### Capacités (17 fonctions)
+1. ✅ Identification lieu + catégorie + tags
+2. ✅ Restaurants proches (nom, spécialité, prix, avis, **lien carte/menu**, **5 avis Google résumés**)
+3. ✅ Anecdote historique
+4. ✅ Description guide multilingue (fr/en/ar/es/ary)
+5. ✅ Résumé bibliothèque multilingue
+6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
+7. ✅ Classification automatique catégorie/sous-catégorie
+8. ✅ Estimation difficulté + intérêt par public cible
+9. ✅ Suggestions step_config (types, validations)
+10. ✅ Génération énigmes (QCM + énigme + défi terrain)
+11. ✅ Transcription audio enrichie + données structurées
+12. ✅ Détection doublons vs bibliothèque existante
+13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags, **posts Instagram réels avec URLs**)
+14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
+15. ✅ **POIs proches avec billets, tarifs et horaires** (musées, monuments)
+16. ✅ **Narration contextuelle** (suit le parcours, interdit les introductions génériques)
+17. ✅ **Liens web/Instagram/Maps** pour chaque restaurant et POI
 
-**Fichier : `supabase/functions/promote-marker-to-library/index.ts`**
+### Enrichissement des connaissances
+- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
+- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
+- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
 
-Supprimer tout le bloc d'authentification (lignes 14-64) : la vérification du header Authorization, la comparaison avec le anon key, le getClaims, et le controle du role admin. Garder uniquement le client admin (service_role) pour les operations privilegiees.
+### Intégration Frontend
+- Analyse automatique après chaque marqueur rapide sauvegardé
+- Panel IA dans le drawer avec résultats structurés
+- Bouton "Appliquer à la note" pour enrichir le marqueur
+- Bouton "Ignorer" pour fermer sans appliquer
+- Marqueurs proches du même projet envoyés comme contexte additionnel
+- ✅ **Affichage enrichi** : avis Google, liens carte/menu, billets/tarifs, posts Instagram avec URLs
 
-La fonction devient :
-1. CORS handler (inchangé)
-2. Créer le client admin avec service_role_key
-3. Parser le body (marker_id, ai_analysis)
-4. Exécuter la logique métier (charger marqueur, créer POI, copier médias, marquer promu)
-5. Retourner le résultat
+## Marqueur rapide — Améliorations terrain (✅ Implémenté)
 
-Tout le reste du code (lignes 66-250) reste identique.
+### Multi-photos
+- ✅ Colonne `photo_urls text[]` ajoutée à `route_markers`
+- ✅ `useRouteRecorder` supporte `photoUrls[]`
+- ✅ UI : ajout de photos multiples avec miniatures + suppression individuelle
+- ✅ Plus d'auto-save à la première photo — validation manuelle requise
+
+### Notes vocales fiables
+- ✅ `useVoiceRecorder` : détection dynamique du mimeType (webm → mp4 → défaut navigateur)
+- ✅ Upload avec extension adaptée (.webm ou .mp4)
+
+### IA différée
+- ✅ `triggerAiAnalysis` supprimé du `handleQuickMarkerSave`
+- ✅ Drawer se ferme immédiatement après sauvegarde (toast "Marqueur sauvegardé ✓")
+- ✅ Analyse IA accessible dans la liste des marqueurs après STOP (bouton "Analyser" + "Analyser tous")
+
+## Promotion en bibliothèque (✅ Enrichi)
+
+### Flux "Approuver + Bibliothèque"
+- ✅ Note enrichie avec restaurants (carte, avis), POIs (billets, tarifs, horaires)
+- ✅ Analyse IA complète stockée dans `medina_pois.metadata.ai_analysis`
+- ✅ Photos Instagram de référence extraites dans `metadata.reference_photos`
+- ✅ Nom et catégorie du POI déduits de l'analyse IA (au lieu de "POI terrain")
+
+### Narration de guide contextuelle
+- ✅ Interdiction des introductions génériques ("Oubliez les souks...")
+- ✅ Transitions de parcours obligatoires ("Nous voilà maintenant devant...")
+- ✅ Contexte marques/enseignes (pourquoi elles sont là, leur histoire)
