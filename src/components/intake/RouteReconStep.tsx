@@ -154,6 +154,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   const [expandedAnalysisId, setExpandedAnalysisId] = useState<string | null>(null);
   const quickMarkerFileRef = useRef<HTMLInputElement>(null);
   const quickMarkerFileBrowseRef = useRef<HTMLInputElement>(null);
+  const markersListRef = useRef<HTMLDivElement>(null);
   
   // Departure marker state
   const [departureMarked, setDepartureMarked] = useState(false);
