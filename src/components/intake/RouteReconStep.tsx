@@ -144,6 +144,8 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   const [quickMarkerNumber, setQuickMarkerNumber] = useState(1);
   const [isSavingQuickMarker, setIsSavingQuickMarker] = useState(false);
   const [quickMarkerSaved, setQuickMarkerSaved] = useState(false);
+  const [isSavingStandalone, setIsSavingStandalone] = useState(false);
+  const [standaloneQuickOpen, setStandaloneQuickOpen] = useState(false);
   
   // AI analysis state
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
