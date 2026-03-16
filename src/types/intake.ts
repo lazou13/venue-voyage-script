@@ -21,7 +21,7 @@ export type TransportMode = 'walking' | 'cycling' | 'bus' | 'car' | 'boat' | 'mi
 export type PlayMode = 'solo' | 'team' | 'one_vs_one' | 'multi_solo';
 
 // ============= Project Type (new) =============
-export type ProjectType = 'establishment' | 'tourist_spot' | 'route_recon';
+export type ProjectType = 'establishment' | 'tourist_spot' | 'route_recon' | 'library';
 
 // ============= I18n types =============
 export interface I18nText {
