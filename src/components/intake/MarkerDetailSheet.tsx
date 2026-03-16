@@ -379,10 +379,10 @@ export function MarkerDetailSheet({
           <Button
             variant="secondary"
             className="gap-1"
-            disabled={marker.promoted || isSaving}
+            disabled={marker.promoted || isSaving || isApproving}
             onClick={handleApprove}
           >
-            ✅ Approuver + Bibliothèque
+            {isApproving ? '⏳ Promotion...' : '✅ Approuver + Bibliothèque'}
           </Button>
         </DialogFooter>
       </DialogContent>

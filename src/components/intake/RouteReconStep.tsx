@@ -2495,8 +2495,12 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
           setDetailMarkerId(null);
         }}
         onApproveAndPromote={async (markerId) => {
-          await handleApproveAndPromote(markerId);
-          setDetailMarkerId(null);
+          try {
+            await handleApproveAndPromote(markerId);
+            setDetailMarkerId(null);
+          } catch {
+            // toast already shown inside handleApproveAndPromote
+          }
         }}
         onAnalysisUpdate={(markerId, analysis) => {
           setMarkerAnalyses(prev => ({ ...prev, [markerId]: analysis }));
