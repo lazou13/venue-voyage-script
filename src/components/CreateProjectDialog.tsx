@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, MapPin, Route, Plus, Loader2 } from 'lucide-react';
+import { Building2, MapPin, Route, Plus, Loader2, Library } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCapabilities } from '@/hooks/useCapabilities';
 import { useQueryClient } from '@tanstack/react-query';
