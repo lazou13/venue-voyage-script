@@ -9,6 +9,7 @@ interface RouteReconMapProps {
   markers: RouteMarker[];
   liveCoords?: RouteCoord[];
   lastPosition?: RouteCoord | null;
+  onMarkerClick?: (markerId: string) => void;
   className?: string;
 }
 
