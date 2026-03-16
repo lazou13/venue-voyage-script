@@ -1155,7 +1155,29 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                   Marqueur rapide
                 </Button>
               )}
+
+              {/* Standalone marker button — available even without recording */}
+              {!isRecording && (
+                <Button
+                  onClick={handleStandaloneMarker}
+                  variant="secondary"
+                  className="gap-2"
+                  disabled={isSavingStandalone}
+                >
+                  <MapPin className="w-4 h-4" />
+                  {isSavingStandalone ? 'GPS...' : '📍 Ajouter un point ici'}
+                </Button>
+              )}
             </div>
+
+            {/* Global marker counter */}
+            {allMarkers.length > 0 && (
+              <div className="flex items-center gap-2 text-sm">
+                <MapPin className="w-4 h-4 text-primary" />
+                <span className="font-medium">{allMarkers.length} marqueur{allMarkers.length !== 1 ? 's' : ''} total</span>
+                <span className="text-muted-foreground">sur {traces.length} trace{traces.length !== 1 ? 's' : ''}</span>
+              </div>
+            )}
             
             {/* GPS quality indicator */}
             {isRecording && lastPosition && (
