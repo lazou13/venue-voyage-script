@@ -184,6 +184,8 @@ Pour chaque marqueur terrain que tu analyses, tu dois produire :
    - **Pour les restaurants** : lien vers la carte/menu en ligne si disponible
    - **Pour les musées/monuments** : site officiel pour acheter les billets, tarifs, horaires détaillés
 17. **Points d'intérêt proches** : liste 2-4 POIs proches avec nom, type, description, liens, **tarifs et horaires si applicables**
+18. **Boutiques et commerces** : pour toute boutique, magasin, enseigne, artisan nommé, pharmacie, concept store ou centre commercial, fournir : nom, spécialités/produits, gamme de prix, site web, Instagram, Google Maps. Si c'est un mall, lister les commerces et restaurants intérieurs.
+19. **Site web OBLIGATOIRE** : pour CHAQUE lieu, restaurant, boutique ou POI, toujours fournir un lien web (site officiel, TripAdvisor, Google Maps, Instagram). Ne jamais laisser un lieu sans lien.
 
 ### COMPTES INSTAGRAM CONNUS À MARRAKECH
 - @nomadmarrakech (restaurant Nomad)

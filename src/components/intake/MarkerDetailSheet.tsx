@@ -30,6 +30,7 @@ function buildEnrichedNote(a: any): string {
   const parts: string[] = [
     `📍 ${a.location_guess || ''}`,
     `📂 ${a.category || ''}${a.sub_category ? ` / ${a.sub_category}` : ''}`,
+    ...(a.website_url ? [`🌐 ${a.website_url}`] : []),
     '',
     '📖 Guide:',
     a.guide_narration?.fr || '',
