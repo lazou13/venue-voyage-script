@@ -21,6 +21,7 @@ const navItems = [
   { to: '/admin/catalog', label: 'Catalogue', icon: Store },
   { to: '/admin/health', label: 'Santé', icon: HeartPulse },
   { to: '/admin/experience-page', label: 'Page Expérience', icon: Sparkles },
+  { to: '/admin/poi-pipeline', label: 'Pipeline POI', icon: Database },
 ];
 
 export function AdminSidebar({ hasUnsavedChanges }: AdminSidebarProps) {
