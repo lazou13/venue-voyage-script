@@ -94,6 +94,7 @@ export function MarkerDetailSheet({
   const [photoUrl, setPhotoUrl] = useState('');
   const [audioUrl, setAudioUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
 
   // AI enrichment
   const [isAnalyzing, setIsAnalyzing] = useState(false);
