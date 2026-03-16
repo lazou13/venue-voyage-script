@@ -1324,7 +1324,10 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                   {traces.map(trace => (
                     <div 
                       key={trace.id}
-                      onClick={() => setSelectedTraceId(trace.id)}
+                      onClick={() => {
+                        setSelectedTraceId(trace.id);
+                        setTimeout(() => markersListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+                      }}
                       className={`flex items-center justify-between p-2 rounded-md border cursor-pointer transition-colors ${
                         selectedTraceId === trace.id ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
                       }`}
