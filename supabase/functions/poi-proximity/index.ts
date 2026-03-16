@@ -42,6 +42,7 @@ serve(async (req) => {
     let updated = 0;
 
     const restaurantCategories = ["restaurant", "cafe"];
+    const RADIUS_M = 200;
 
     for (const poi of allPois) {
       const distances = allPois
@@ -52,6 +53,7 @@ serve(async (req) => {
           category: p.category_ai ?? p.category,
           distance_m: Math.round(haversineM(poi.lat!, poi.lng!, p.lat!, p.lng!)),
         }))
+        .filter(d => d.distance_m <= RADIUS_M)
         .sort((a, b) => a.distance_m - b.distance_m);
 
       const nearbyRestaurants = distances
@@ -61,7 +63,7 @@ serve(async (req) => {
 
       const nearbyPois = distances
         .filter(d => !restaurantCategories.includes(d.category))
-        .slice(0, 5);
+        .slice(0, 8);
 
       const { error: upErr } = await supabase
         .from("medina_pois")
