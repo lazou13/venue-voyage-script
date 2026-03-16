@@ -42,6 +42,46 @@ const COMMON_STEPS = [
   { id: 'outputs', label: 'Exports', component: OutputsStep },
 ];
 
+export default function IntakeForm() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('core');
+
+  const { project, isLoading, validate, updateProject } = useProject(projectId);
+  const validation = validate();
+
+  // Editable name & city with debounced save
+  const [editName, setEditName] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const debouncedName = useDebounce(editName, 600);
+  const debouncedCity = useDebounce(editCity, 600);
+
+  // Sync local state from project
+  useEffect(() => {
+    if (project) {
+      setEditName(project.hotel_name || '');
+      setEditCity(project.city || '');
+    }
+  }, [project?.id]);
+
+  // Save on debounce
+  useEffect(() => {
+    if (!project || debouncedName === project.hotel_name) return;
+    if (debouncedName.trim()) {
+      updateProject.mutate({ hotel_name: debouncedName.trim() });
+    }
+  }, [debouncedName]);
+
+  useEffect(() => {
+    if (!project || debouncedCity === project.city) return;
+    if (debouncedCity.trim()) {
+      updateProject.mutate({ city: debouncedCity.trim() });
+    }
+  }, [debouncedCity]);
+
+  // Get project type from quest_config
+  const projectType: ProjectType = project?.quest_config?.project_type || 'establishment';
+
   // Build dynamic steps based on project type
   const steps = useMemo(() => {
     const typeSteps = TYPE_STEPS[projectType];
