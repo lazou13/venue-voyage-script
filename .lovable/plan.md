@@ -1,74 +1,49 @@
 
-# Plan: Expert IA Médina — analyze-marker
 
-## Status: ✅ Implémenté
+## Plan : Mode conversationnel IA + correction d'identification GPS
 
-## Ce qui a été créé
+### Problèmes identifiés
 
-### Edge Function `analyze-marker`
-- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
-- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
-- Tool calling pour sortie JSON structurée avec 17 champs d'analyse
-- Gestion erreurs 429/402
+1. **GPS imprécis → mauvaise identification** : L'IA reçoit les coordonnées GPS et devine le lieu. Mais le GPS mobile en médina (ruelles étroites, murs épais) peut avoir 50-100m d'erreur, ce qui fait confondre des lieux proches. L'IA n'a **aucun moyen d'être corrigée** car `custom_instruction` est ignoré dans le code backend (ligne 434 : seuls `photo_url, audio_url, lat, lng, note, existing_pois, nearby_markers` sont extraits).
 
-### Capacités (17 fonctions)
-1. ✅ Identification lieu + catégorie + tags
-2. ✅ Restaurants proches (nom, spécialité, prix, avis, **lien carte/menu**, **5 avis Google résumés**)
-3. ✅ Anecdote historique
-4. ✅ Description guide multilingue (fr/en/ar/es/ary)
-5. ✅ Résumé bibliothèque multilingue
-6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
-7. ✅ Classification automatique catégorie/sous-catégorie
-8. ✅ Estimation difficulté + intérêt par public cible
-9. ✅ Suggestions step_config (types, validations)
-10. ✅ Génération énigmes (QCM + énigme + défi terrain)
-11. ✅ Transcription audio enrichie + données structurées
-12. ✅ Détection doublons vs bibliothèque existante
-13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags, **posts Instagram réels avec URLs**)
-14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
-15. ✅ **POIs proches avec billets, tarifs et horaires** (musées, monuments)
-16. ✅ **Narration contextuelle** (suit le parcours, interdit les introductions génériques)
-17. ✅ **Liens web/Instagram/Maps** pour chaque restaurant et POI
+2. **Pas de conversation** : Chaque appel repart de zéro. L'utilisateur ne peut pas dire "non c'est Medina Mall, pas les Tombeaux Saadiens".
 
-### Enrichissement des connaissances
-- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
-- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
-- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
+### Corrections
 
-### Intégration Frontend
-- Analyse automatique après chaque marqueur rapide sauvegardé
-- Panel IA dans le drawer avec résultats structurés
-- Bouton "Appliquer à la note" pour enrichir le marqueur
-- Bouton "Ignorer" pour fermer sans appliquer
-- Marqueurs proches du même projet envoyés comme contexte additionnel
-- ✅ **Affichage enrichi** : avis Google, liens carte/menu, billets/tarifs, posts Instagram avec URLs
+#### 1. Edge function `analyze-marker` — accepter `custom_instruction` + `previous_analysis`
 
-## Marqueur rapide — Améliorations terrain (✅ Implémenté)
+**Fichier : `supabase/functions/analyze-marker/index.ts`**
 
-### Multi-photos
-- ✅ Colonne `photo_urls text[]` ajoutée à `route_markers`
-- ✅ `useRouteRecorder` supporte `photoUrls[]`
-- ✅ UI : ajout de photos multiples avec miniatures + suppression individuelle
-- ✅ Plus d'auto-save à la première photo — validation manuelle requise
+- Ligne 434 : ajouter `custom_instruction` et `previous_analysis` à la destructuration du body
+- Si `previous_analysis` existe :
+  - Injecter un message `assistant` avec le JSON de l'analyse précédente
+  - Puis un message `user` avec la correction humaine (`custom_instruction`)
+  - Cela crée un historique conversationnel : système → analyse initiale → correction → nouvelle analyse
+- Si `custom_instruction` seule (sans previous) : l'ajouter au prompt utilisateur principal
+- Ajouter au prompt système une instruction : "Si l'utilisateur te corrige, accepte sa correction comme vérité terrain et ajuste toute ton analyse en conséquence."
 
-### Notes vocales fiables
-- ✅ `useVoiceRecorder` : détection dynamique du mimeType (webm → mp4 → défaut navigateur)
-- ✅ Upload avec extension adaptée (.webm ou .mp4)
+#### 2. Frontend `MarkerDetailSheet` — envoyer le contexte conversationnel
 
-### IA différée
-- ✅ `triggerAiAnalysis` supprimé du `handleQuickMarkerSave`
-- ✅ Drawer se ferme immédiatement après sauvegarde (toast "Marqueur sauvegardé ✓")
-- ✅ Analyse IA accessible dans la liste des marqueurs après STOP (bouton "Analyser" + "Analyser tous")
+**Fichier : `src/components/intake/MarkerDetailSheet.tsx`**
 
-## Promotion en bibliothèque (✅ Enrichi)
+- Dans `handleEnrichAI(customPrompt)` : si `analysis` existe et `customPrompt` fourni, envoyer `previous_analysis: analysis` dans le body
+- Rendre le champ de conversation toujours visible quand une analyse existe (plus besoin de cliquer "Demander une modification")
+- Afficher le `location_guess` de l'IA en badge visible pour que l'utilisateur voie immédiatement l'erreur
+- Placeholder dynamique : "Ce n'est pas ça, c'est en fait..." quand analyse présente
 
-### Flux "Approuver + Bibliothèque"
-- ✅ Note enrichie avec restaurants (carte, avis), POIs (billets, tarifs, horaires)
-- ✅ Analyse IA complète stockée dans `medina_pois.metadata.ai_analysis`
-- ✅ Photos Instagram de référence extraites dans `metadata.reference_photos`
-- ✅ Nom et catégorie du POI déduits de l'analyse IA (au lieu de "POI terrain")
+#### 3. Prompt système — instruction de correction
 
-### Narration de guide contextuelle
-- ✅ Interdiction des introductions génériques ("Oubliez les souks...")
-- ✅ Transitions de parcours obligatoires ("Nous voilà maintenant devant...")
-- ✅ Contexte marques/enseignes (pourquoi elles sont là, leur histoire)
+Ajouter au `SYSTEM_PROMPT` :
+```
+## CORRECTION HUMAINE
+Si l'utilisateur te corrige sur l'identification du lieu, accepte sa correction comme VÉRITÉ ABSOLUE.
+Ne répète jamais une identification erronée après correction. Réanalyse entièrement avec le bon lieu.
+```
+
+### Résultat
+
+```
+Avant : GPS imprécis → IA dit "Tombeaux Saadiens" → utilisateur tape correction → RIEN ne se passe
+Après : GPS imprécis → IA dit "Tombeaux Saadiens" → utilisateur tape "c'est medina mall" → IA reçoit sa propre erreur + correction → produit analyse correcte de Medina Mall
+```
+
