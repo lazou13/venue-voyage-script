@@ -211,10 +211,17 @@ export function MarkerDetailSheet({
     }
   };
 
+  const [isApproving, setIsApproving] = useState(false);
+
   const handleApprove = async () => {
-    // Save first, then promote
-    await handleSave();
-    await onApproveAndPromote(marker.id);
+    const saved = await handleSave();
+    if (!saved) return;
+    setIsApproving(true);
+    try {
+      await onApproveAndPromote(marker.id);
+    } finally {
+      setIsApproving(false);
+    }
   };
 
   return (
