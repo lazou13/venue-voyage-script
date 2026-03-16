@@ -90,6 +90,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
   const queryClient = useQueryClient();
   const watchIdRef = useRef<number | null>(null);
   const lastKeptPointRef = useRef<RouteCoord | null>(null);
+  const rawLastPositionRef = useRef<RouteCoord | null>(null);
   const modeRef = useRef<RecordingMode>(mode);
   const autosaveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSavedCountRef = useRef<number>(0);
