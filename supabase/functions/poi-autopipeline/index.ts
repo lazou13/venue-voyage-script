@@ -11,8 +11,8 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
-const CLASSIFY_BATCH = 3;
-const ENRICH_BATCH = 2;
+const CLASSIFY_BATCH = 5;
+const ENRICH_BATCH = 3;
 const PROXIMITY_BATCH = 20;
 
 const GEO = { lat_min: 31.60, lat_max: 31.67, lng_min: -8.02, lng_max: -7.97 };
@@ -20,7 +20,7 @@ const GEO = { lat_min: 31.60, lat_max: 31.67, lng_min: -8.02, lng_max: -7.97 };
 const CATEGORIES = [
   "artisan","restaurant","cafe","monument","riad","hotel","boutique",
   "souvenir_shop","spa","gallery","viewpoint","historic_site","mosquee",
-  "fontaine","jardin","musee","souk","place","porte",
+  "fontaine","jardin","museum","souk","place","porte",
 ];
 
 const ENRICH_SYSTEM = `Tu es un expert encyclopédique de la médina de Marrakech et un concepteur de jeux de piste touristiques.
@@ -31,7 +31,9 @@ Pour chaque POI, fournis un JSON structuré avec TOUS ces champs:
 - riddle_easy: énigme facile (indices visuels)
 - riddle_medium: énigme moyenne (culture/histoire)
 - riddle_hard: énigme difficile nécessitant investigation poussée ou connaissances approfondies
-- challenge: défi terrain (photo, interaction, observation)`;
+- challenge: défi terrain (photo, interaction, observation)
+
+IMPORTANT: Tu DOIS fournir riddle_hard. C'est une énigme qui demande une investigation sur place ou des connaissances culturelles profondes.`;
 
 // ─── CLASSIFY a single POI ───
 async function classifyPOI(poi: any) {
@@ -123,7 +125,7 @@ async function enrichPOI(poi: any) {
   return JSON.parse(tc.function.arguments);
 }
 
-// ─── PROXIMITY for a batch of POIs ───
+// ─── PROXIMITY ───
 function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000;
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -138,21 +140,32 @@ serve(async (req) => {
 
   const startTime = Date.now();
   const logs: string[] = [];
+  const results: Record<string, any> = { phases: [] };
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-    const geoBase = () => supabase
-      .from("medina_pois")
-      .select("*", { count: "exact", head: true })
+    const activeFilter = (q: any) => q
       .neq("status", "filtered").neq("status", "merged")
       .gte("lat", GEO.lat_min).lte("lat", GEO.lat_max)
       .gte("lng", GEO.lng_min).lte("lng", GEO.lng_max);
 
-    // ── PHASE 1: CLASSIFY ──
-    const { count: unclassified } = await geoBase().is("category_ai", null);
-    logs.push(`📊 Unclassified: ${unclassified ?? 0}`);
+    // ── COUNT current state ──
+    const { count: totalActive } = await activeFilter(
+      supabase.from("medina_pois").select("*", { count: "exact", head: true })
+    );
+    const { count: unclassified } = await activeFilter(
+      supabase.from("medina_pois").select("*", { count: "exact", head: true })
+    ).is("category_ai", null);
+    const { count: rawCount } = await activeFilter(
+      supabase.from("medina_pois").select("*", { count: "exact", head: true })
+    ).eq("enrichment_status", "raw");
 
+    const classified = (totalActive ?? 0) - (unclassified ?? 0);
+    logs.push(`📊 Total: ${totalActive} | Classified: ${classified} | Unclassified: ${unclassified} | Raw (to enrich): ${rawCount}`);
+
+    // ── PHASE 1: CLASSIFY (runs if any unclassified) ──
+    let classifiedThisRun = 0;
     if ((unclassified ?? 0) > 0) {
       const { data: batch } = await supabase
         .from("medina_pois")
@@ -164,7 +177,6 @@ serve(async (req) => {
         .order("reviews_count", { ascending: false, nullsFirst: false })
         .limit(CLASSIFY_BATCH);
 
-      let classified = 0;
       for (const poi of batch ?? []) {
         try {
           const r = await classifyPOI(poi);
@@ -173,38 +185,41 @@ serve(async (req) => {
             subcategory: r.subcategory,
             poi_quality_score: r.poi_quality_score,
             status: "classified",
+            enrichment_status: "raw",
           }).eq("id", poi.id);
-          classified++;
+          classifiedThisRun++;
           logs.push(`✓ classified ${poi.name} → ${r.category_ai}`);
         } catch (e) {
           logs.push(`✗ classify ${poi.name}: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
-      logs.push(`🏷️ Classified: ${classified}/${batch?.length ?? 0}`);
-      return respond(logs, { phase: "classify", classified }, startTime);
+      logs.push(`🏷️ Classified this run: ${classifiedThisRun}/${batch?.length ?? 0}`);
+      results.phases.push("classify");
+      results.classified = classifiedThisRun;
     }
 
-    // ── PHASE 2: ENRICH ──
-    const { count: rawCount } = await geoBase().eq("enrichment_status", "raw");
-    logs.push(`📊 Raw (to enrich): ${rawCount ?? 0}`);
+    // ── PHASE 2: ENRICH (runs in PARALLEL, not blocked by classify) ──
+    // Re-count raw after classify may have added some
+    const { count: rawNow } = await activeFilter(
+      supabase.from("medina_pois").select("*", { count: "exact", head: true })
+    ).eq("enrichment_status", "raw");
 
-    if ((rawCount ?? 0) > 0) {
+    let enrichedThisRun = 0;
+    if ((rawNow ?? 0) > 0) {
       const { data: batch } = await supabase
         .from("medina_pois")
         .select("*")
         .eq("enrichment_status", "raw")
+        .not("category_ai", "is", null)
         .neq("status", "filtered").neq("status", "merged")
         .gte("lat", GEO.lat_min).lte("lat", GEO.lat_max)
         .gte("lng", GEO.lng_min).lte("lng", GEO.lng_max)
         .order("reviews_count", { ascending: false, nullsFirst: false })
         .limit(ENRICH_BATCH);
 
-      let enriched = 0;
       for (const poi of batch ?? []) {
         try {
           const r = await enrichPOI(poi);
-
-          // Fallback for riddle_hard
           const riddleHard = r.riddle_hard || `Quel secret se cache derrière les murs de ${poi.name} ? Cherchez un indice architectural unique qui révèle son histoire cachée.`;
 
           await supabase.from("medina_pois").update({
@@ -224,97 +239,109 @@ serve(async (req) => {
             enrichment_status: "enriched",
             status: "enriched",
           }).eq("id", poi.id);
-          enriched++;
-          logs.push(`✓ enriched ${poi.name} (hard: ${riddleHard ? "yes" : "FALLBACK"})`);
+          enrichedThisRun++;
+          logs.push(`✓ enriched ${poi.name} (hard: ${r.riddle_hard ? "AI" : "FALLBACK"})`);
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           logs.push(`✗ enrich ${poi.name}: ${msg}`);
           await supabase.from("medina_pois").update({ enrichment_status: "error" }).eq("id", poi.id);
           if (msg.includes("429")) {
-            logs.push("⏳ Rate limited, stopping batch");
+            logs.push("⏳ Rate limited, stopping enrich batch");
             break;
           }
         }
       }
-      logs.push(`🧠 Enriched: ${enriched}/${batch?.length ?? 0}`);
-      return respond(logs, { phase: "enrich", enriched }, startTime);
+      logs.push(`🧠 Enriched this run: ${enrichedThisRun}/${batch?.length ?? 0}`);
+      results.phases.push("enrich");
+      results.enriched = enrichedThisRun;
     }
 
-    // ── PHASE 3: CLEAN + MERGE ──
-    logs.push("🧹 Running clean + merge...");
-    const { data: cleanResult } = await supabase.rpc("clean_low_quality_pois");
-    const { data: mergeResult } = await supabase.rpc("merge_duplicate_pois");
-    logs.push(`Clean: ${(cleanResult as any)?.filtered ?? 0} | Merge: ${(mergeResult as any)?.merged ?? 0}`);
+    // ── If nothing was classified or enriched, run clean+merge+proximity ──
+    if (classifiedThisRun === 0 && enrichedThisRun === 0) {
+      // CLEAN + MERGE
+      logs.push("🧹 Running clean + merge...");
+      const { data: cleanResult } = await supabase.rpc("clean_low_quality_pois");
+      const { data: mergeResult } = await supabase.rpc("merge_duplicate_pois");
+      logs.push(`Clean: ${(cleanResult as any)?.filtered ?? 0} | Merge: ${(mergeResult as any)?.merged ?? 0}`);
 
-    // ── PHASE 4: PROXIMITY ──
-    // Fix: check for empty array [], not just NULL
-    const { count: noProximity } = await supabase
-      .from("medina_pois")
-      .select("*", { count: "exact", head: true })
-      .neq("status", "filtered").neq("status", "merged")
-      .gte("lat", GEO.lat_min).lte("lat", GEO.lat_max)
-      .gte("lng", GEO.lng_min).lte("lng", GEO.lng_max)
-      .or("nearby_pois_data.is.null,nearby_pois_data.eq.[]");
-
-    logs.push(`📊 Without proximity: ${noProximity ?? 0}`);
-
-    if ((noProximity ?? 0) > 0) {
-      // Fetch ALL active POIs for distance calculation
-      const { data: allPois } = await supabase
+      // PROXIMITY — fixed filter for empty arrays
+      const { count: noProximity } = await supabase
         .from("medina_pois")
-        .select("id,name,lat,lng,category,category_ai,category_google")
-        .not("lat", "is", null).not("lng", "is", null)
-        .neq("status", "filtered").neq("status", "merged")
-        .gte("lat", GEO.lat_min).lte("lat", GEO.lat_max)
-        .gte("lng", GEO.lng_min).lte("lng", GEO.lng_max);
-
-      // Process only POIs missing proximity, in batches of 10
-      const { data: batch } = await supabase
-        .from("medina_pois")
-        .select("id,name,lat,lng,category,category_ai,category_google")
+        .select("*", { count: "exact", head: true })
         .neq("status", "filtered").neq("status", "merged")
         .gte("lat", GEO.lat_min).lte("lat", GEO.lat_max)
         .gte("lng", GEO.lng_min).lte("lng", GEO.lng_max)
-        .or("nearby_pois_data.is.null,nearby_pois_data.eq.[]")
-        .limit(PROXIMITY_BATCH);
+        .or("nearby_pois_data.is.null,nearby_pois_data.eq.[]");
 
-      const restaurantCats = ["restaurant", "cafe"];
-      let proxUpdated = 0;
+      logs.push(`📊 Without proximity: ${noProximity ?? 0}`);
 
-      for (const poi of batch ?? []) {
-        if (!poi.lat || !poi.lng) continue;
-        const distances = (allPois ?? [])
-          .filter(p => p.id !== poi.id && p.lat && p.lng)
-          .map(p => ({
-            id: p.id, name: p.name,
-            category: p.category_ai ?? p.category,
-            distance_m: Math.round(haversineM(poi.lat!, poi.lng!, p.lat!, p.lng!)),
-          }))
-          .filter(d => d.distance_m <= 200)
-          .sort((a, b) => a.distance_m - b.distance_m);
+      if ((noProximity ?? 0) > 0) {
+        const { data: allPois } = await supabase
+          .from("medina_pois")
+          .select("id,name,lat,lng,category,category_ai,category_google")
+          .not("lat", "is", null).not("lng", "is", null)
+          .neq("status", "filtered").neq("status", "merged")
+          .gte("lat", GEO.lat_min).lte("lat", GEO.lat_max)
+          .gte("lng", GEO.lng_min).lte("lng", GEO.lng_max);
 
-        const nearbyRestaurants = distances.filter(d => restaurantCats.includes(d.category)).slice(0, 5);
-        const nearbyPois = distances.filter(d => !restaurantCats.includes(d.category)).slice(0, 8);
+        const { data: batch } = await supabase
+          .from("medina_pois")
+          .select("id,name,lat,lng,category,category_ai,category_google")
+          .neq("status", "filtered").neq("status", "merged")
+          .gte("lat", GEO.lat_min).lte("lat", GEO.lat_max)
+          .gte("lng", GEO.lng_min).lte("lng", GEO.lng_max)
+          .or("nearby_pois_data.is.null,nearby_pois_data.eq.[]")
+          .limit(PROXIMITY_BATCH);
 
-        await supabase.from("medina_pois").update({
-          nearby_restaurants: nearbyRestaurants,
-          nearby_pois_data: nearbyPois,
-        }).eq("id", poi.id);
-        proxUpdated++;
+        const restaurantCats = ["restaurant", "cafe"];
+        let proxUpdated = 0;
+
+        for (const poi of batch ?? []) {
+          if (!poi.lat || !poi.lng) continue;
+          const distances = (allPois ?? [])
+            .filter(p => p.id !== poi.id && p.lat && p.lng)
+            .map(p => ({
+              id: p.id, name: p.name,
+              category: p.category_ai ?? p.category,
+              distance_m: Math.round(haversineM(poi.lat!, poi.lng!, p.lat!, p.lng!)),
+            }))
+            .filter(d => d.distance_m <= 200)
+            .sort((a, b) => a.distance_m - b.distance_m);
+
+          const nearbyRestaurants = distances.filter(d => restaurantCats.includes(d.category)).slice(0, 5);
+          const nearbyPois = distances.filter(d => !restaurantCats.includes(d.category)).slice(0, 8);
+
+          await supabase.from("medina_pois").update({
+            nearby_restaurants: nearbyRestaurants,
+            nearby_pois_data: nearbyPois,
+          }).eq("id", poi.id);
+          proxUpdated++;
+        }
+        logs.push(`📍 Proximity updated: ${proxUpdated}`);
+        results.phases.push("proximity");
+        results.proximity = proxUpdated;
+      } else {
+        // ALL DONE
+        const { count: cls } = await activeFilter(
+          supabase.from("medina_pois").select("*", { count: "exact", head: true })
+        ).not("category_ai", "is", null);
+        const { count: enr } = await activeFilter(
+          supabase.from("medina_pois").select("*", { count: "exact", head: true })
+        ).eq("enrichment_status", "enriched");
+        const { count: hrd } = await activeFilter(
+          supabase.from("medina_pois").select("*", { count: "exact", head: true })
+        ).not("riddle_hard", "is", null);
+
+        logs.push(`🎉 PIPELINE COMPLETE: ${cls}/${totalActive} classified, ${enr}/${totalActive} enriched, ${hrd} with riddle_hard`);
+        results.phases.push("idle");
       }
-      logs.push(`📍 Proximity updated: ${proxUpdated}`);
-      return respond(logs, { phase: "proximity", updated: proxUpdated }, startTime);
     }
 
-    // ── ALL DONE ──
-    const { count: totalActive } = await geoBase();
-    const { count: cls } = await geoBase().not("category_ai", "is", null);
-    const { count: enr } = await geoBase().eq("enrichment_status", "enriched");
-    const { count: hrd } = await geoBase().not("riddle_hard", "is", null);
+    // Summary log
+    const remaining = (unclassified ?? 0) - classifiedThisRun;
+    logs.push(`📈 Remaining unclassified: ~${Math.max(0, remaining)} | Remaining raw: ~${Math.max(0, (rawNow ?? 0) - enrichedThisRun)}`);
 
-    logs.push(`🎉 PIPELINE COMPLETE: ${cls}/${totalActive} classified, ${enr}/${totalActive} enriched, ${hrd} with riddle_hard`);
-
-    return respond(logs, { phase: "idle", classified: cls, enriched: enr, riddle_hard: hrd, total: totalActive }, startTime);
+    return respond(logs, results, startTime);
   } catch (e) {
     console.error("poi-autopipeline error:", e);
     logs.push(`❌ Fatal: ${e instanceof Error ? e.message : String(e)}`);
