@@ -1,74 +1,49 @@
 
-# Plan: Expert IA Médina — analyze-marker
+Objectif: corriger le cas “rien ne s’ouvre” sur **Approuver + Bibliothèque**.
 
-## Status: ✅ Implémenté
+Constat confirmé (runtime + code)
+- Côté réseau, il n’y a **aucun appel** à la fonction backend de promotion au moment du clic.
+- Côté code (`RouteReconStep.tsx`), la fonction `handleApproveAndPromote` fait un retour silencieux:
+  - `if (!analysis || !marker) return;`
+- Résultat: après refresh (ou si l’analyse n’est pas en mémoire), le clic ne lance rien visiblement.
 
-## Ce qui a été créé
+Plan d’implémentation
+1) Rendre la promotion possible même sans analyse en mémoire  
+- Fichier: `src/components/intake/RouteReconStep.tsx`
+- Modifier `handleApproveAndPromote`:
+  - Ne bloquer que si `marker` est absent.
+  - Si `analysis` existe: garder l’enrichissement de note actuel.
+  - Si `analysis` n’existe pas: ne pas enrichir, mais appeler quand même la promotion avec `marker_id` seul.
+- Ajouter un toast explicite en fallback (ex: “Promotion effectuée sans enrichissement IA”).
 
-### Edge Function `analyze-marker`
-- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
-- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
-- Tool calling pour sortie JSON structurée avec 17 champs d'analyse
-- Gestion erreurs 429/402
+2) Éviter les fermetures silencieuses du panneau détail  
+- Fichier: `src/components/intake/RouteReconStep.tsx`
+- Faire retourner un booléen de succès par `handleApproveAndPromote`.
+- Dans le callback `onApproveAndPromote` du `MarkerDetailSheet`, fermer la sheet **uniquement en cas de succès**.
 
-### Capacités (17 fonctions)
-1. ✅ Identification lieu + catégorie + tags
-2. ✅ Restaurants proches (nom, spécialité, prix, avis, **lien carte/menu**, **5 avis Google résumés**)
-3. ✅ Anecdote historique
-4. ✅ Description guide multilingue (fr/en/ar/es/ary)
-5. ✅ Résumé bibliothèque multilingue
-6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
-7. ✅ Classification automatique catégorie/sous-catégorie
-8. ✅ Estimation difficulté + intérêt par public cible
-9. ✅ Suggestions step_config (types, validations)
-10. ✅ Génération énigmes (QCM + énigme + défi terrain)
-11. ✅ Transcription audio enrichie + données structurées
-12. ✅ Détection doublons vs bibliothèque existante
-13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags, **posts Instagram réels avec URLs**)
-14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
-15. ✅ **POIs proches avec billets, tarifs et horaires** (musées, monuments)
-16. ✅ **Narration contextuelle** (suit le parcours, interdit les introductions génériques)
-17. ✅ **Liens web/Instagram/Maps** pour chaque restaurant et POI
+3) Fiabiliser la séquence Save → Promote dans la sheet  
+- Fichier: `src/components/intake/MarkerDetailSheet.tsx`
+- Faire retourner un booléen à `handleSave` (succès/échec).
+- Dans `handleApprove`, arrêter le flux si `handleSave` échoue.
+- Ajouter un état de chargement dédié à “Approuver + Bibliothèque” pour éviter les doubles clics.
 
-### Enrichissement des connaissances
-- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
-- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
-- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
+4) Améliorer le feedback utilisateur  
+- Toujours afficher un message clair pour les cas:
+  - analyse absente,
+  - promotion réussie,
+  - promotion échouée (avec message backend).
 
-### Intégration Frontend
-- Analyse automatique après chaque marqueur rapide sauvegardé
-- Panel IA dans le drawer avec résultats structurés
-- Bouton "Appliquer à la note" pour enrichir le marqueur
-- Bouton "Ignorer" pour fermer sans appliquer
-- Marqueurs proches du même projet envoyés comme contexte additionnel
-- ✅ **Affichage enrichi** : avis Google, liens carte/menu, billets/tarifs, posts Instagram avec URLs
+Vérification prévue (end-to-end)
+1. Cas avec analyse disponible: clic → note enrichie + promotion + `promoted=true`.  
+2. Cas sans analyse (après refresh): clic → promotion quand même, sans no-op.  
+3. Cas erreur save (coordonnées invalides): pas de promotion, message d’erreur visible.  
+4. Vérifier qu’un enregistrement `medina_pois` est créé avec `metadata.source_marker_id`.
 
-## Marqueur rapide — Améliorations terrain (✅ Implémenté)
+Détail technique (résumé)
+```text
+Avant:
+click -> handleApproveAndPromote -> if !analysis return (silencieux)
 
-### Multi-photos
-- ✅ Colonne `photo_urls text[]` ajoutée à `route_markers`
-- ✅ `useRouteRecorder` supporte `photoUrls[]`
-- ✅ UI : ajout de photos multiples avec miniatures + suppression individuelle
-- ✅ Plus d'auto-save à la première photo — validation manuelle requise
-
-### Notes vocales fiables
-- ✅ `useVoiceRecorder` : détection dynamique du mimeType (webm → mp4 → défaut navigateur)
-- ✅ Upload avec extension adaptée (.webm ou .mp4)
-
-### IA différée
-- ✅ `triggerAiAnalysis` supprimé du `handleQuickMarkerSave`
-- ✅ Drawer se ferme immédiatement après sauvegarde (toast "Marqueur sauvegardé ✓")
-- ✅ Analyse IA accessible dans la liste des marqueurs après STOP (bouton "Analyser" + "Analyser tous")
-
-## Promotion en bibliothèque (✅ Enrichi)
-
-### Flux "Approuver + Bibliothèque"
-- ✅ Note enrichie avec restaurants (carte, avis), POIs (billets, tarifs, horaires)
-- ✅ Analyse IA complète stockée dans `medina_pois.metadata.ai_analysis`
-- ✅ Photos Instagram de référence extraites dans `metadata.reference_photos`
-- ✅ Nom et catégorie du POI déduits de l'analyse IA (au lieu de "POI terrain")
-
-### Narration de guide contextuelle
-- ✅ Interdiction des introductions génériques ("Oubliez les souks...")
-- ✅ Transitions de parcours obligatoires ("Nous voilà maintenant devant...")
-- ✅ Contexte marques/enseignes (pourquoi elles sont là, leur histoire)
+Après:
+click -> save (si OK) -> promote (avec ou sans analysis) -> toast clair -> fermer sheet si succès
+```
