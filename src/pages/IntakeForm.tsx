@@ -32,6 +32,7 @@ const TYPE_STEPS: Record<ProjectType, { id: string; label: string; component: Re
     { id: 'route_recon', label: 'Parcours', component: RouteReconStep },
   ],
   route_recon: [{ id: 'route_recon', label: 'Parcours', component: RouteReconStep }],
+  library: [{ id: 'route_recon', label: 'Parcours', component: RouteReconStep }],
 };
 
 // Common steps that are always visible
