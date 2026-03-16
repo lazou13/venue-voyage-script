@@ -2074,6 +2074,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                 markers={markers}
                 liveCoords={isRecording ? coords : undefined}
                 lastPosition={isRecording ? lastPosition : undefined}
+                onMarkerClick={(id) => setDetailMarkerId(id)}
                 className="h-72 w-full rounded-md overflow-hidden border"
               />
             ) : null}

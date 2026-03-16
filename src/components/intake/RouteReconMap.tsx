@@ -9,6 +9,7 @@ interface RouteReconMapProps {
   markers: RouteMarker[];
   liveCoords?: RouteCoord[];
   lastPosition?: RouteCoord | null;
+  onMarkerClick?: (markerId: string) => void;
   className?: string;
 }
 
@@ -23,7 +24,7 @@ function FitBounds({ bounds }: { bounds: LatLngBoundsExpression | null }) {
   return null;
 }
 
-export function RouteReconMap({ trace, markers, liveCoords, lastPosition, className }: RouteReconMapProps) {
+export function RouteReconMap({ trace, markers, liveCoords, lastPosition, onMarkerClick, className }: RouteReconMapProps) {
   const { tracePositions, bounds, center } = useMemo(() => {
     const positions: LatLngTuple[] = [];
 
@@ -98,6 +99,7 @@ export function RouteReconMap({ trace, markers, liveCoords, lastPosition, classN
               fillOpacity: 0.9,
               weight: 2,
             }}
+            eventHandlers={{ click: () => onMarkerClick?.(marker.id) }}
           >
             <Popup>
               <div className="max-w-[200px]">
