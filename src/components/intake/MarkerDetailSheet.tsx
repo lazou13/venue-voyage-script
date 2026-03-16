@@ -212,7 +212,6 @@ export function MarkerDetailSheet({
     }
   };
 
-  const [isApproving, setIsApproving] = useState(false);
 
   const handleApprove = async () => {
     const saved = await handleSave();
