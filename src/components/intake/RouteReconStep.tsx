@@ -154,6 +154,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   const [expandedAnalysisId, setExpandedAnalysisId] = useState<string | null>(null);
   const quickMarkerFileRef = useRef<HTMLInputElement>(null);
   const quickMarkerFileBrowseRef = useRef<HTMLInputElement>(null);
+  const markersListRef = useRef<HTMLDivElement>(null);
   
   // Departure marker state
   const [departureMarked, setDepartureMarked] = useState(false);
@@ -1323,7 +1324,10 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                   {traces.map(trace => (
                     <div 
                       key={trace.id}
-                      onClick={() => setSelectedTraceId(trace.id)}
+                      onClick={() => {
+                        setSelectedTraceId(trace.id);
+                        setTimeout(() => markersListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+                      }}
                       className={`flex items-center justify-between p-2 rounded-md border cursor-pointer transition-colors ${
                         selectedTraceId === trace.id ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
                       }`}
@@ -1410,7 +1414,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
 
             {/* Markers for selected trace */}
             {selectedTrace && markers.length > 0 && (
-              <div className="space-y-2">
+              <div ref={markersListRef} className="space-y-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <Label className="text-sm font-medium">Marqueurs ({markers.length})</Label>
                   <div className="flex items-center gap-2 flex-wrap">
