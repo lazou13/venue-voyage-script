@@ -408,6 +408,9 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
             timestamp: position.timestamp,
             accuracy,
           };
+
+          // Always track raw position (for quick marker even with poor GPS)
+          rawLastPositionRef.current = newCoord;
           
           const lastKept = lastKeptPointRef.current;
           const isFirstPoint = lastKept === null;
