@@ -1,74 +1,25 @@
 
-# Plan: Expert IA Médina — analyze-marker
 
-## Status: ✅ Implémenté
+## Plan : Ajouter le type de projet "Bibliothèque"
 
-## Ce qui a été créé
+### Objectif
+Nouveau type de projet dédié uniquement à l'enrichissement de la bibliothèque de POIs. Il n'affiche que l'onglet **Parcours** (RouteReconStep) — pas de Core, pas de Terrain, pas d'Étapes, pas de Règles, pas d'Exports.
 
-### Edge Function `analyze-marker`
-- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
-- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
-- Tool calling pour sortie JSON structurée avec 17 champs d'analyse
-- Gestion erreurs 429/402
+### Modifications
 
-### Capacités (17 fonctions)
-1. ✅ Identification lieu + catégorie + tags
-2. ✅ Restaurants proches (nom, spécialité, prix, avis, **lien carte/menu**, **5 avis Google résumés**)
-3. ✅ Anecdote historique
-4. ✅ Description guide multilingue (fr/en/ar/es/ary)
-5. ✅ Résumé bibliothèque multilingue
-6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
-7. ✅ Classification automatique catégorie/sous-catégorie
-8. ✅ Estimation difficulté + intérêt par public cible
-9. ✅ Suggestions step_config (types, validations)
-10. ✅ Génération énigmes (QCM + énigme + défi terrain)
-11. ✅ Transcription audio enrichie + données structurées
-12. ✅ Détection doublons vs bibliothèque existante
-13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags, **posts Instagram réels avec URLs**)
-14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
-15. ✅ **POIs proches avec billets, tarifs et horaires** (musées, monuments)
-16. ✅ **Narration contextuelle** (suit le parcours, interdit les introductions génériques)
-17. ✅ **Liens web/Instagram/Maps** pour chaque restaurant et POI
+**1. `src/types/intake.ts`**
+- Ajouter `'library'` au type `ProjectType`
+- Ajouter l'entrée dans `PROJECT_TYPE_LABELS` : `library: 'Bibliothèque'`
 
-### Enrichissement des connaissances
-- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
-- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
-- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
+**2. `src/pages/IntakeForm.tsx`**
+- Ajouter `library` dans `TYPE_STEPS` : `library: [{ id: 'route_recon', label: 'Parcours', component: RouteReconStep }]`
+- Conditionner l'affichage : pour le type `library`, ne pas afficher `CORE_STEPS` ni `COMMON_STEPS` — seulement l'onglet Parcours
+- Ajuster le `useMemo` pour que `steps` soit uniquement `TYPE_STEPS[projectType]` quand `projectType === 'library'`, sinon la logique actuelle
+- Définir `activeTab` par défaut à `'route_recon'` quand le type est `library`
 
-### Intégration Frontend
-- Analyse automatique après chaque marqueur rapide sauvegardé
-- Panel IA dans le drawer avec résultats structurés
-- Bouton "Appliquer à la note" pour enrichir le marqueur
-- Bouton "Ignorer" pour fermer sans appliquer
-- Marqueurs proches du même projet envoyés comme contexte additionnel
-- ✅ **Affichage enrichi** : avis Google, liens carte/menu, billets/tarifs, posts Instagram avec URLs
+**3. `src/components/CreateProjectDialog.tsx`**
+- Ajouter l'icône `Library` (lucide-react) pour le type `library` dans `TYPE_ICONS`
 
-## Marqueur rapide — Améliorations terrain (✅ Implémenté)
+**4. Base de données (app_configs)**
+- Ajouter `{ id: 'library', label: 'Bibliothèque', name_label: 'Nom de la bibliothèque' }` dans `enums.project_types` du payload capabilities publié
 
-### Multi-photos
-- ✅ Colonne `photo_urls text[]` ajoutée à `route_markers`
-- ✅ `useRouteRecorder` supporte `photoUrls[]`
-- ✅ UI : ajout de photos multiples avec miniatures + suppression individuelle
-- ✅ Plus d'auto-save à la première photo — validation manuelle requise
-
-### Notes vocales fiables
-- ✅ `useVoiceRecorder` : détection dynamique du mimeType (webm → mp4 → défaut navigateur)
-- ✅ Upload avec extension adaptée (.webm ou .mp4)
-
-### IA différée
-- ✅ `triggerAiAnalysis` supprimé du `handleQuickMarkerSave`
-- ✅ Drawer se ferme immédiatement après sauvegarde (toast "Marqueur sauvegardé ✓")
-- ✅ Analyse IA accessible dans la liste des marqueurs après STOP (bouton "Analyser" + "Analyser tous")
-
-## Promotion en bibliothèque (✅ Enrichi)
-
-### Flux "Approuver + Bibliothèque"
-- ✅ Note enrichie avec restaurants (carte, avis), POIs (billets, tarifs, horaires)
-- ✅ Analyse IA complète stockée dans `medina_pois.metadata.ai_analysis`
-- ✅ Photos Instagram de référence extraites dans `metadata.reference_photos`
-- ✅ Nom et catégorie du POI déduits de l'analyse IA (au lieu de "POI terrain")
-
-### Narration de guide contextuelle
-- ✅ Interdiction des introductions génériques ("Oubliez les souks...")
-- ✅ Transitions de parcours obligatoires ("Nous voilà maintenant devant...")
-- ✅ Contexte marques/enseignes (pourquoi elles sont là, leur histoire)
