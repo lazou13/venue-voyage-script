@@ -119,54 +119,117 @@ export type Database = {
       }
       medina_pois: {
         Row: {
+          address: string | null
           category: string
+          category_ai: string | null
+          category_google: string | null
+          challenge: string | null
           created_at: string
+          description_short: string | null
+          district: string | null
+          enrichment_status: string | null
+          google_raw: Json | null
+          history_context: string | null
           hub_theme: string | null
           id: string
+          instagram_spot: boolean | null
           is_active: boolean
           is_start_hub: boolean
           lat: number | null
           lng: number | null
+          local_anecdote: string | null
           metadata: Json
           name: string
+          nearby_pois_data: Json | null
+          nearby_restaurants: Json | null
+          phone: string | null
+          place_id: string | null
           radius_m: number
+          rating: number | null
+          reviews_count: number | null
+          riddle_easy: string | null
+          riddle_medium: string | null
+          souks_nearby: string[] | null
           status: string
           step_config: Json
           updated_at: string
+          website: string | null
           zone: string
         }
         Insert: {
+          address?: string | null
           category?: string
+          category_ai?: string | null
+          category_google?: string | null
+          challenge?: string | null
           created_at?: string
+          description_short?: string | null
+          district?: string | null
+          enrichment_status?: string | null
+          google_raw?: Json | null
+          history_context?: string | null
           hub_theme?: string | null
           id?: string
+          instagram_spot?: boolean | null
           is_active?: boolean
           is_start_hub?: boolean
           lat?: number | null
           lng?: number | null
+          local_anecdote?: string | null
           metadata?: Json
           name: string
+          nearby_pois_data?: Json | null
+          nearby_restaurants?: Json | null
+          phone?: string | null
+          place_id?: string | null
           radius_m?: number
+          rating?: number | null
+          reviews_count?: number | null
+          riddle_easy?: string | null
+          riddle_medium?: string | null
+          souks_nearby?: string[] | null
           status?: string
           step_config?: Json
           updated_at?: string
+          website?: string | null
           zone?: string
         }
         Update: {
+          address?: string | null
           category?: string
+          category_ai?: string | null
+          category_google?: string | null
+          challenge?: string | null
           created_at?: string
+          description_short?: string | null
+          district?: string | null
+          enrichment_status?: string | null
+          google_raw?: Json | null
+          history_context?: string | null
           hub_theme?: string | null
           id?: string
+          instagram_spot?: boolean | null
           is_active?: boolean
           is_start_hub?: boolean
           lat?: number | null
           lng?: number | null
+          local_anecdote?: string | null
           metadata?: Json
           name?: string
+          nearby_pois_data?: Json | null
+          nearby_restaurants?: Json | null
+          phone?: string | null
+          place_id?: string | null
           radius_m?: number
+          rating?: number | null
+          reviews_count?: number | null
+          riddle_easy?: string | null
+          riddle_medium?: string | null
+          souks_nearby?: string[] | null
           status?: string
           step_config?: Json
           updated_at?: string
+          website?: string | null
           zone?: string
         }
         Relationships: []

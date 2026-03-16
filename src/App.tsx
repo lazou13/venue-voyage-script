@@ -25,6 +25,7 @@ import PublicExperienceDetail from "./pages/PublicExperienceDetail";
 import AdminCatalog from "./pages/admin/AdminCatalog";
 import AdminHealth from "./pages/admin/AdminHealth";
 import AdminExperiencePage from "./pages/admin/AdminExperiencePage";
+import AdminPOIPipeline from "./pages/admin/AdminPOIPipeline";
 import PublicExperienceWizard from "./pages/PublicExperienceWizard";
 
 const queryClient = new QueryClient();
@@ -56,6 +57,7 @@ const App = () => (
             <Route path="catalog" element={<AdminCatalog />} />
             <Route path="health" element={<AdminHealth />} />
             <Route path="experience-page" element={<AdminExperiencePage />} />
+            <Route path="poi-pipeline" element={<AdminPOIPipeline />} />
           </Route>
           
           <Route path="/creez-votre-experience" element={<PublicExperienceWizard />} />

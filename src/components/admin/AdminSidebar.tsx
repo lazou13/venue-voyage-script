@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { List, Rocket, LayoutDashboard, Sliders, Settings2, ShieldCheck, Languages, BookOpen, MapPin, ShoppingCart, Wand2, Store, HeartPulse, Sparkles } from 'lucide-react';
+import { List, Rocket, LayoutDashboard, Sliders, Settings2, ShieldCheck, Languages, BookOpen, MapPin, ShoppingCart, Wand2, Store, HeartPulse, Sparkles, Database } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
@@ -21,6 +21,7 @@ const navItems = [
   { to: '/admin/catalog', label: 'Catalogue', icon: Store },
   { to: '/admin/health', label: 'Santé', icon: HeartPulse },
   { to: '/admin/experience-page', label: 'Page Expérience', icon: Sparkles },
+  { to: '/admin/poi-pipeline', label: 'Pipeline POI', icon: Database },
 ];
 
 export function AdminSidebar({ hasUnsavedChanges }: AdminSidebarProps) {
