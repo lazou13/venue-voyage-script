@@ -1,4 +1,3 @@
-
 # Plan: Expert IA Médina — analyze-marker
 
 ## Status: ✅ Implémenté
@@ -72,3 +71,21 @@
 - ✅ Interdiction des introductions génériques ("Oubliez les souks...")
 - ✅ Transitions de parcours obligatoires ("Nous voilà maintenant devant...")
 - ✅ Contexte marques/enseignes (pourquoi elles sont là, leur histoire)
+
+## Pipeline POI Google Places (✅ Implémenté)
+
+### Migration SQL
+- ✅ 21 colonnes ajoutées à `medina_pois` : `place_id`, `category_google`, `category_ai`, `address`, `rating`, `reviews_count`, `website`, `phone`, `district`, `souks_nearby`, `description_short`, `history_context`, `local_anecdote`, `instagram_spot`, `nearby_restaurants`, `nearby_pois_data`, `riddle_easy`, `riddle_medium`, `challenge`, `google_raw`, `enrichment_status`
+- ✅ Index sur `place_id` (unique) et `enrichment_status`
+
+### Edge Functions
+- ✅ `poi-extract` : Google Places Nearby Search (8 types, rayon 1500m) + Place Details (website, phone, reviews, photos)
+- ✅ `poi-enrich` : Classification IA (Gemini 2.5 Flash via tool calling), enrichissement culturel, génération d'énigmes
+- ✅ `poi-proximity` : Calcul Haversine → 5 restaurants + 5 POI proches
+- ✅ `poi-pipeline` : Orchestrateur (extract → enrich → proximity)
+
+### Page Admin
+- ✅ `/admin/poi-pipeline` avec boutons par étape + pipeline complet
+- ✅ Compteurs par statut (pending/raw/enriched/error)
+- ✅ Logs en temps réel
+- ✅ Lien dans la sidebar admin
