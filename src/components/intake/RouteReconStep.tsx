@@ -2058,91 +2058,16 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
               onClose={() => setLightboxOpen(false)}
             />
 
-            {/* Simple map placeholder */}
-            {selectedTrace && selectedTrace.geojson.coordinates.length > 0 && (
-              <div className="border rounded-md p-4 bg-muted/20">
-                <p className="text-xs text-muted-foreground mb-2">Aperçu trace (simplifié)</p>
-                <svg 
-                  viewBox="0 0 200 100" 
-                  className="w-full h-24 border rounded bg-background"
-                >
-                  {(() => {
-                    const coords = selectedTrace.geojson.coordinates;
-                    if (coords.length < 2) return null;
-                    
-                    // Normalize coordinates to fit SVG
-                    const lngs = coords.map(c => c[0]);
-                    const lats = coords.map(c => c[1]);
-                    const minLng = Math.min(...lngs);
-                    const maxLng = Math.max(...lngs);
-                    const minLat = Math.min(...lats);
-                    const maxLat = Math.max(...lats);
-                    const rangeLng = maxLng - minLng || 0.001;
-                    const rangeLat = maxLat - minLat || 0.001;
-                    
-                    const points = coords.map(c => {
-                      const x = ((c[0] - minLng) / rangeLng) * 180 + 10;
-                      const y = 90 - ((c[1] - minLat) / rangeLat) * 80;
-                      return `${x},${y}`;
-                    }).join(' ');
-                    
-                    return (
-                      <>
-                        <polyline
-                          points={points}
-                          fill="none"
-                          stroke="hsl(var(--primary))"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        {/* Start point */}
-                        <circle
-                          cx={((coords[0][0] - minLng) / rangeLng) * 180 + 10}
-                          cy={90 - ((coords[0][1] - minLat) / rangeLat) * 80}
-                          r="4"
-                          fill="hsl(var(--primary))"
-                        />
-                        {/* End point */}
-                        <circle
-                          cx={((coords[coords.length-1][0] - minLng) / rangeLng) * 180 + 10}
-                          cy={90 - ((coords[coords.length-1][1] - minLat) / rangeLat) * 80}
-                          r="4"
-                          fill="hsl(var(--destructive))"
-                        />
-                        {/* Markers */}
-                        {markers.map((marker, i) => {
-                          const x = ((marker.lng - minLng) / rangeLng) * 180 + 10;
-                          const y = 90 - ((marker.lat - minLat) / rangeLat) * 80;
-                          return (
-                            <circle
-                              key={marker.id}
-                              cx={x}
-                              cy={y}
-                              r="3"
-                              fill="hsl(var(--chart-1))"
-                              stroke="white"
-                              strokeWidth="1"
-                            />
-                          );
-                        })}
-                      </>
-                    );
-                  })()}
-                </svg>
-                <div className="flex gap-4 text-xs text-muted-foreground mt-2">
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-primary" /> Départ
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-destructive" /> Arrivée
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-chart-1" /> Marqueurs
-                  </span>
-                </div>
-              </div>
-            )}
+            {/* Interactive Leaflet map */}
+            {(selectedTrace && selectedTrace.geojson.coordinates.length > 0) || (isRecording && coords.length > 0) ? (
+              <RouteReconMap
+                trace={selectedTrace || null}
+                markers={markers}
+                liveCoords={isRecording ? coords : undefined}
+                lastPosition={isRecording ? lastPosition : undefined}
+                className="h-72 w-full rounded-md overflow-hidden border"
+              />
+            ) : null}
           </CardContent>
         </Card>
 
