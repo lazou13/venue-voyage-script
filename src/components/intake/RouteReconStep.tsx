@@ -107,10 +107,12 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     traces,
     isLoadingTraces,
     useTraceMarkers,
+    allMarkers,
     startRecording,
     stopRecording,
     addMarker,
     addMarkerAtLastCoord,
+    addStandaloneMarker,
     deleteTrace,
     deleteMarker,
     updateMarker,
@@ -142,6 +144,8 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
   const [quickMarkerNumber, setQuickMarkerNumber] = useState(1);
   const [isSavingQuickMarker, setIsSavingQuickMarker] = useState(false);
   const [quickMarkerSaved, setQuickMarkerSaved] = useState(false);
+  const [isSavingStandalone, setIsSavingStandalone] = useState(false);
+  const [standaloneQuickOpen, setStandaloneQuickOpen] = useState(false);
   
   // AI analysis state
   const [aiAnalysis, setAiAnalysis] = useState<any>(null);
@@ -770,6 +774,25 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
     setEditPhotoUrl(marker.photo_url || '');
     setEditAudioUrl(marker.audio_url || '');
   };
+  // Standalone quick marker (no recording needed)
+  const handleStandaloneMarker = async () => {
+    setIsSavingStandalone(true);
+    try {
+      await addStandaloneMarker({
+        note: `Point terrain #${allMarkers.length + 1}`,
+      });
+      toast({ title: '📍 Marqueur sauvegardé ✓', description: 'Point ajouté via GPS navigateur' });
+    } catch (err) {
+      // Persistent error toast
+      toast({
+        title: '❌ Échec sauvegarde marqueur',
+        description: (err as Error).message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSavingStandalone(false);
+    }
+  };
 
 
   const handleQuickMarkerPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1132,7 +1155,29 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                   Marqueur rapide
                 </Button>
               )}
+
+              {/* Standalone marker button — available even without recording */}
+              {!isRecording && (
+                <Button
+                  onClick={handleStandaloneMarker}
+                  variant="secondary"
+                  className="gap-2"
+                  disabled={isSavingStandalone}
+                >
+                  <MapPin className="w-4 h-4" />
+                  {isSavingStandalone ? 'GPS...' : '📍 Ajouter un point ici'}
+                </Button>
+              )}
             </div>
+
+            {/* Global marker counter */}
+            {allMarkers.length > 0 && (
+              <div className="flex items-center gap-2 text-sm">
+                <MapPin className="w-4 h-4 text-primary" />
+                <span className="font-medium">{allMarkers.length} marqueur{allMarkers.length !== 1 ? 's' : ''} total</span>
+                <span className="text-muted-foreground">sur {traces.length} trace{traces.length !== 1 ? 's' : ''}</span>
+              </div>
+            )}
             
             {/* GPS quality indicator */}
             {isRecording && lastPosition && (

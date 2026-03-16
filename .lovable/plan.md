@@ -1,37 +1,129 @@
+# Plan: Expert IA Médina — LYRA V3
 
+## Status: ✅ Implémenté
 
-# Diagnostic : Pourquoi un seul marqueur est visible
+## Prompt LYRA V3 — Intégration complète
 
-## Constat
+### Fichiers modifiés (6 Edge Functions)
 
-La base de données ne contient **qu'un seul marqueur** (le "Parvis de la Koutoubia" sur la trace 27341a49). Les 5 traces GPS existent, mais aucun autre marqueur n'a été persisté. Ce n'est pas un problème d'affichage — les points n'ont simplement pas été enregistrés en base.
+| Fonction | Action | Modèle |
+|---|---|---|
+| `poi-autopipeline` | Prompts classify (`LYRA_CLASSIFY`) + enrich (`LYRA_ENRICH`) remplacés | flash-lite / flash |
+| `poi-enrich` | `SYSTEM_PROMPT` remplacé par LYRA V3 blocs 1-9+12 | flash |
+| `poi-worker` | `SYSTEM_PROMPT` remplacé par LYRA V3 blocs 1-9+12 | flash |
+| `poi-classify-worker` | Prompt classify remplacé par LYRA condensé | flash-lite |
+| `analyze-marker` | Fusionné : LYRA V3 blocs 1-3 + encyclopédie existante + blocs 8-9-12 | pro |
+| `public-generate-quest` | `systemPrompt` enrichi avec blocs 6-7-9-11-12 | gpt-5-mini |
 
-## Cause probable
+### Contenu LYRA V3 intégré
 
-Le bouton "Marqueur rapide" (le moyen principal d'ajouter des points sur le terrain) n'est disponible que **pendant un enregistrement actif**. Voici le scénario probable :
+- **Bloc 1** (Rôle) : LYRA-MEDINA-GRAPH, moteur d'intelligence urbaine
+- **Bloc 2** (Médina) : dense, labyrinthique, structurée
+- **Bloc 3** (Graphe urbain) : POI = nœud, analyse distance/cohérence/diversité
+- **Bloc 4** (Types) : 20 catégories (hammam → spa)
+- **Bloc 5** (Évaluation) : intérêt touristique, potentiel visuel, potentiel d'énigme
+- **Bloc 6** (Parcours) : 800m-2km, 5-8 POI, diversité obligatoire
+- **Bloc 7** (Chasse au trésor) : départ → exploration → culture → fun → final
+- **Bloc 8** (Énigmes) : easy/medium/hard par POI
+- **Bloc 9** (Narration) : immersive, concise, informative
+- **Blocs 10-11** (Structure/Cohérence) : JSON structuré, logique géographique
+- **Bloc 12** (Contraintes) : anti-hallucination, "à vérifier"
 
-1. Vous avez lancé l'enregistrement (trace 1), marqué le départ (Koutoubia) → **sauvegardé OK**
-2. Vous avez stoppé l'enregistrement, puis relancé (trace 2, 3, 4, 5)
-3. Entre les arrêts/redémarrages, ou si le GPS était indisponible, les tentatives de marquage ont échoué silencieusement
+### Encyclopédie préservée (analyze-marker uniquement)
+- ✅ Coordonnées GPS des souks (13 souks)
+- ✅ Quartiers historiques (6 quartiers)
+- ✅ Monuments majeurs (10+ avec dates)
+- ✅ Restaurants par zone (~20 restaurants)
+- ✅ Artisanat par quartier
+- ✅ Spots Instagram + tips photo
+- ✅ Boutiques et commerces
+- ✅ Vocabulaire local
+- ✅ Comptes Instagram connus
 
-Le problème principal : **quand une sauvegarde de marqueur échoue, l'erreur peut ne pas être visible** si le toast disparaît rapidement ou si le navigateur est en arrière-plan.
+## Ce qui a été créé
 
-## Plan de correction
+### Edge Function `analyze-marker`
+- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
+- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
+- Tool calling pour sortie JSON structurée avec 17 champs d'analyse
+- Gestion erreurs 429/402
 
-### 1. Afficher les marqueurs de TOUTES les traces (pas seulement la trace sélectionnée)
-Actuellement, les marqueurs ne s'affichent que pour la trace sélectionnée. Modifier la section "Marqueurs" pour agréger les marqueurs de toutes les traces du projet, avec un indicateur de trace pour chacun.
+### Capacités (17 fonctions)
+1. ✅ Identification lieu + catégorie + tags
+2. ✅ Restaurants proches (nom, spécialité, prix, avis, **lien carte/menu**, **5 avis Google résumés**)
+3. ✅ Anecdote historique
+4. ✅ Description guide multilingue (fr/en/ar/es/ary)
+5. ✅ Résumé bibliothèque multilingue
+6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
+7. ✅ Classification automatique catégorie/sous-catégorie
+8. ✅ Estimation difficulté + intérêt par public cible
+9. ✅ Suggestions step_config (types, validations)
+10. ✅ Génération énigmes (QCM + énigme + défi terrain)
+11. ✅ Transcription audio enrichie + données structurées
+12. ✅ Détection doublons vs bibliothèque existante
+13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags, **posts Instagram réels avec URLs**)
+14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
+15. ✅ **POIs proches avec billets, tarifs et horaires** (musées, monuments)
+16. ✅ **Narration contextuelle** (suit le parcours, interdit les introductions génériques)
+17. ✅ **Liens web/Instagram/Maps** pour chaque restaurant et POI
 
-### 2. Permettre d'ajouter des marqueurs même sans enregistrement actif
-Ajouter un bouton "Marqueur rapide" accessible hors enregistrement, qui utilise la géolocalisation du navigateur et crée/réutilise une trace automatiquement.
+### Enrichissement des connaissances
+- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
+- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
+- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
 
-### 3. Renforcer le feedback d'erreur
-- Ajouter un toast persistant (pas auto-dismiss) en cas d'échec de sauvegarde de marqueur
-- Ajouter un indicateur visuel de confirmation plus visible (vibration, son, animation)
+### Intégration Frontend
+- Analyse automatique après chaque marqueur rapide sauvegardé
+- Panel IA dans le drawer avec résultats structurés
+- Bouton "Appliquer à la note" pour enrichir le marqueur
+- Bouton "Ignorer" pour fermer sans appliquer
+- Marqueurs proches du même projet envoyés comme contexte additionnel
+- ✅ **Affichage enrichi** : avis Google, liens carte/menu, billets/tarifs, posts Instagram avec URLs
 
-### 4. Ajouter un compteur global de marqueurs dans l'en-tête
-Afficher "X marqueurs total" en haut de la page, pas seulement par trace, pour que l'utilisateur voie immédiatement si ses points ont été sauvegardés.
+## Marqueur rapide — Améliorations terrain (✅ Implémenté)
 
-## Fichiers impactés
-- `src/components/intake/RouteReconStep.tsx` — affichage agrégé des marqueurs + bouton hors-recording
-- `src/hooks/useRouteRecorder.ts` — nouvelle méthode pour ajouter un marqueur sans recording actif
+### Multi-photos
+- ✅ Colonne `photo_urls text[]` ajoutée à `route_markers`
+- ✅ `useRouteRecorder` supporte `photoUrls[]`
+- ✅ UI : ajout de photos multiples avec miniatures + suppression individuelle
+- ✅ Plus d'auto-save à la première photo — validation manuelle requise
 
+### Notes vocales fiables
+- ✅ `useVoiceRecorder` : détection dynamique du mimeType (webm → mp4 → défaut navigateur)
+- ✅ Upload avec extension adaptée (.webm ou .mp4)
+
+### IA différée
+- ✅ `triggerAiAnalysis` supprimé du `handleQuickMarkerSave`
+- ✅ Drawer se ferme immédiatement après sauvegarde (toast "Marqueur sauvegardé ✓")
+- ✅ Analyse IA accessible dans la liste des marqueurs après STOP (bouton "Analyser" + "Analyser tous")
+
+## Promotion en bibliothèque (✅ Enrichi)
+
+### Flux "Approuver + Bibliothèque"
+- ✅ Note enrichie avec restaurants (carte, avis), POIs (billets, tarifs, horaires)
+- ✅ Analyse IA complète stockée dans `medina_pois.metadata.ai_analysis`
+- ✅ Photos Instagram de référence extraites dans `metadata.reference_photos`
+- ✅ Nom et catégorie du POI déduits de l'analyse IA (au lieu de "POI terrain")
+
+### Narration de guide contextuelle
+- ✅ Interdiction des introductions génériques ("Oubliez les souks...")
+- ✅ Transitions de parcours obligatoires ("Nous voilà maintenant devant...")
+- ✅ Contexte marques/enseignes (pourquoi elles sont là, leur histoire)
+
+## Pipeline POI Google Places (✅ Implémenté)
+
+### Migration SQL
+- ✅ 21 colonnes ajoutées à `medina_pois` : `place_id`, `category_google`, `category_ai`, `address`, `rating`, `reviews_count`, `website`, `phone`, `district`, `souks_nearby`, `description_short`, `history_context`, `local_anecdote`, `instagram_spot`, `nearby_restaurants`, `nearby_pois_data`, `riddle_easy`, `riddle_medium`, `challenge`, `google_raw`, `enrichment_status`
+- ✅ Index sur `place_id` (unique) et `enrichment_status`
+
+### Edge Functions
+- ✅ `poi-extract` : Google Places Nearby Search (8 types, rayon 1500m) + Place Details (website, phone, reviews, photos)
+- ✅ `poi-enrich` : Classification IA (Gemini 2.5 Flash via tool calling), enrichissement culturel, génération d'énigmes
+- ✅ `poi-proximity` : Calcul Haversine → 5 restaurants + 5 POI proches
+- ✅ `poi-pipeline` : Orchestrateur (extract → enrich → proximity)
+
+### Page Admin
+- ✅ `/admin/poi-pipeline` avec boutons par étape + pipeline complet
+- ✅ Compteurs par statut (pending/raw/enriched/error)
+- ✅ Logs en temps réel
+- ✅ Lien dans la sidebar admin

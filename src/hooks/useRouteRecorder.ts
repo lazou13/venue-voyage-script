@@ -143,6 +143,26 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     });
   };
 
+  // Fetch ALL markers across all traces for this project
+  const allMarkersQuery = useQuery({
+    queryKey: ['route-markers-all', projectId],
+    queryFn: async () => {
+      if (!projectId) return [];
+      // Get all trace IDs for project
+      const traceIds = (tracesQuery.data || []).map(t => t.id);
+      if (traceIds.length === 0) return [];
+      const { data, error } = await supabase
+        .from('route_markers')
+        .select('*')
+        .in('trace_id', traceIds)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return (data || []) as RouteMarker[];
+    },
+    enabled: !!projectId && (tracesQuery.data || []).length > 0,
+  });
+
+
   // Create new trace
   const createTrace = useMutation({
     mutationFn: async () => {
@@ -221,6 +241,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['route-markers', variables.traceId] });
+      queryClient.invalidateQueries({ queryKey: ['route-markers-all', projectId] });
       toast({ title: 'Marqueur ajouté' });
     },
   });
@@ -237,6 +258,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     },
     onSuccess: async (traceId) => {
       queryClient.invalidateQueries({ queryKey: ['route-markers', traceId] });
+      queryClient.invalidateQueries({ queryKey: ['route-markers-all', projectId] });
       // Rebuild trace geojson from remaining markers
       await rebuildTraceGeojson(traceId);
       toast({ title: 'Marqueur supprimé' });
@@ -261,6 +283,80 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     
     queryClient.invalidateQueries({ queryKey: ['route-traces', projectId] });
   };
+
+  // Add a marker without active recording — uses browser geolocation + auto-creates trace
+  const addStandaloneMarker = useCallback(async (opts: {
+    note?: string;
+    photoUrl?: string;
+    photoUrls?: string[];
+    audioUrl?: string;
+  }) => {
+    return new Promise<RouteMarker>((resolve, reject) => {
+      if (!('geolocation' in navigator)) {
+        reject(new Error('Géolocalisation non disponible'));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            // Find or create a trace for standalone markers
+            let traceId: string | null = null;
+            const existingTraces = tracesQuery.data || [];
+            const standaloneTrace = existingTraces.find(t => t.name === 'Marqueurs terrain');
+            if (standaloneTrace) {
+              traceId = standaloneTrace.id;
+            } else {
+              const { data, error } = await supabase
+                .from('route_traces')
+                .insert({
+                  project_id: projectId!,
+                  name: 'Marqueurs terrain',
+                  geojson: { type: 'LineString', coordinates: [] },
+                })
+                .select()
+                .single();
+              if (error) throw error;
+              traceId = data.id;
+              queryClient.invalidateQueries({ queryKey: ['route-traces', projectId] });
+            }
+
+            const result = await addMarker.mutateAsync({
+              traceId: traceId!,
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+              note: opts.note || undefined,
+              photoUrl: opts.photoUrl || undefined,
+              photoUrls: opts.photoUrls || undefined,
+              audioUrl: opts.audioUrl || undefined,
+            });
+
+            // Rebuild geojson & refresh all markers
+            await rebuildTraceGeojson(traceId!);
+            queryClient.invalidateQueries({ queryKey: ['route-markers-all', projectId] });
+
+            resolve(result);
+          } catch (err) {
+            reject(err);
+          }
+        },
+        (geoError) => {
+          let message: string;
+          switch (geoError.code) {
+            case geoError.PERMISSION_DENIED:
+              message = 'Permission GPS refusée';
+              break;
+            case geoError.POSITION_UNAVAILABLE:
+              message = 'Position GPS indisponible';
+              break;
+            default:
+              message = 'Erreur GPS: ' + geoError.message;
+          }
+          reject(new Error(message));
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+      );
+    });
+  }, [projectId, tracesQuery.data, addMarker, queryClient, rebuildTraceGeojson]);
 
   // Create manual trace
   const createManualTrace = useMutation({
@@ -637,12 +733,15 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
     traces: tracesQuery.data || [],
     isLoadingTraces: tracesQuery.isLoading,
     useTraceMarkers,
+    allMarkers: allMarkersQuery.data || [],
+    isLoadingAllMarkers: allMarkersQuery.isLoading,
     
     // Actions
     startRecording,
     stopRecording,
     addMarker,
     addMarkerAtLastCoord,
+    addStandaloneMarker,
     deleteTrace,
     deleteMarker,
     updateMarker,
