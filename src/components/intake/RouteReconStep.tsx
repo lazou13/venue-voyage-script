@@ -939,8 +939,8 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
           </CardTitle>
         </CardHeader>
         
-        {/* Bandeau Guidage proéminent - toujours visible */}
-        {(() => {
+        {/* Bandeau Guidage proéminent - masqué en mode bibliothèque */}
+        {!isLibraryMode && (() => {
           const validTraceCount = traces.filter(t => t.geojson.coordinates.length >= 2).length;
           const hasValidTraces = validTraceCount > 0;
           
