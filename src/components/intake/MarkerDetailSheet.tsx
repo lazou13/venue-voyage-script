@@ -505,15 +505,22 @@ export function MarkerDetailSheet({
                     {action.label}
                   </button>
                 ))}
-                {analysis && (
-                  <button
-                    className="text-[10px] px-2 py-1 rounded-full border bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-medium"
-                    disabled={isBusy}
-                    onClick={handleAnalyze}
-                  >
-                    🔄 Réanalyser la fiche
-                  </button>
-                )}
+                <button
+                  className="text-[10px] px-2 py-1 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
+                  disabled={isBusy}
+                  onClick={handleAnalyze}
+                >
+                  🔄 Réanalyser la fiche
+                </button>
+                <button
+                  className="text-[10px] px-2 py-1 rounded-full border border-primary bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-medium"
+                  disabled={isBusy}
+                  onClick={() => {
+                    handleSendChat('Mets à jour la fiche du marqueur avec toutes les corrections et informations discutées dans ce chat.');
+                  }}
+                >
+                  📝 Mettre à jour la fiche
+                </button>
               </div>
 
               {/* Pending images preview */}
