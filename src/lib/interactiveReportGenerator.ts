@@ -22,8 +22,9 @@ export interface ReportPOI {
   stopMinutes: number;
   // Phase 2 fields
   name: string;
-  functionType: 'passage' | 'pause_the' | 'briefing' | 'repas' | 'visite' | 'arret' | 'qr_code' | 'photo' | 'objet_trouve' | 'final';
-  action: '' | 'enigme' | 'qr_code' | 'photo_requise' | 'defi' | 'objet_trouve' | 'final';
+  functionType: 'story' | 'information' | 'mcq' | 'enigme' | 'code' | 'hangman' | 'memory' | 'photo' | 'terrain' | 'defi' | 'transition' | 'qr_code' | 'info_qr' | 'countdown';
+  action: '' | 'story' | 'information' | 'mcq' | 'enigme' | 'code' | 'hangman' | 'memory' | 'photo' | 'terrain' | 'defi' | 'transition' | 'qr_code' | 'info_qr' | 'countdown';
+  isVirtual?: boolean;
   validationType: '' | 'qr_code' | 'photo' | 'code' | 'manuel' | 'libre';
   risk: 'low' | 'medium' | 'high';
   wifi: 'good' | 'weak' | 'none';
@@ -227,7 +228,7 @@ export function buildReportPayload(
       stopMinutes: 0,
       // Phase 2 fields with defaults
       name: '',
-      functionType: 'passage' as const,
+      functionType: 'transition' as const,
       action: '' as const,
       validationType: '' as const,
       risk: 'low' as const,
@@ -510,6 +511,21 @@ export function generateInteractiveReportHTML(
     }
     .poi-photo-thumb:hover { transform: scale(1.1); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
     
+    /* Insert row button */
+    .insert-row-tr td { padding: 0 !important; border: none !important; background: transparent !important; }
+    .insert-row-btn {
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+      width: 100%; padding: 2px 0; cursor: pointer;
+      color: #9ca3af; font-size: 0.7rem; border: none; background: none;
+      transition: color 0.15s, background 0.15s; border-radius: 4px;
+    }
+    .insert-row-btn:hover { color: #2563eb; background: #eff6ff; }
+    .insert-row-btn svg { width: 14px; height: 14px; }
+    tr.virtual-row { background: #fefce8 !important; }
+    tr.virtual-row td:first-child { position: relative; }
+    tr.virtual-row td:first-child::before { content: '✦'; position: absolute; left: 2px; top: 50%; transform: translateY(-50%); font-size: 0.6rem; color: #ca8a04; }
+    .delete-row-btn { cursor: pointer; color: #dc2626; background: none; border: none; font-size: 0.8rem; padding: 2px 4px; border-radius: 3px; }
+    .delete-row-btn:hover { background: #fef2f2; }
     /* Photo Gallery */
     .photo-gallery { 
       background: white;
@@ -1235,8 +1251,9 @@ export function generateInteractiveReportHTML(
               <th>Notes</th>
             </tr>
           </thead>
-          <tbody>
-            ${payload.pois.map((poi) => `
+          <tbody id="poi-tbody">
+            ${payload.pois.map((poi, idx) => `
+              ${idx > 0 ? `<tr class="insert-row-tr"><td colspan="12"><button class="insert-row-btn" onclick="insertRowAfter('${escapeHtml(payload.pois[idx - 1].id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Insérer</button></td></tr>` : ''}
               <tr data-poi-id="${escapeHtml(poi.id)}">
                 <td>${poi.order}</td>
                 <td>
@@ -1244,27 +1261,39 @@ export function generateInteractiveReportHTML(
                 </td>
                 <td>
                   <select class="poi-select" data-poi-id="${escapeHtml(poi.id)}" data-field="functionType">
-                    <option value="passage" ${poi.functionType === 'passage' ? 'selected' : ''}>Passage</option>
-                    <option value="pause_the" ${poi.functionType === 'pause_the' ? 'selected' : ''}>Pause thé</option>
-                    <option value="briefing" ${poi.functionType === 'briefing' ? 'selected' : ''}>Briefing</option>
-                    <option value="repas" ${poi.functionType === 'repas' ? 'selected' : ''}>Repas</option>
-                    <option value="visite" ${poi.functionType === 'visite' ? 'selected' : ''}>Visite</option>
-                    <option value="arret" ${poi.functionType === 'arret' ? 'selected' : ''}>Arrêt</option>
-                    <option value="qr_code" ${poi.functionType === 'qr_code' ? 'selected' : ''}>QR Code</option>
+                    <option value="story" ${poi.functionType === 'story' ? 'selected' : ''}>Narration</option>
+                    <option value="information" ${poi.functionType === 'information' ? 'selected' : ''}>Information</option>
+                    <option value="mcq" ${poi.functionType === 'mcq' ? 'selected' : ''}>QCM</option>
+                    <option value="enigme" ${poi.functionType === 'enigme' ? 'selected' : ''}>Énigme</option>
+                    <option value="code" ${poi.functionType === 'code' ? 'selected' : ''}>Code secret</option>
+                    <option value="hangman" ${poi.functionType === 'hangman' ? 'selected' : ''}>Pendu</option>
+                    <option value="memory" ${poi.functionType === 'memory' ? 'selected' : ''}>Memory</option>
                     <option value="photo" ${poi.functionType === 'photo' ? 'selected' : ''}>Photo</option>
-                    <option value="objet_trouve" ${poi.functionType === 'objet_trouve' ? 'selected' : ''}>Objet trouvé</option>
-                    <option value="final" ${poi.functionType === 'final' ? 'selected' : ''}>Final</option>
+                    <option value="terrain" ${poi.functionType === 'terrain' ? 'selected' : ''}>Terrain</option>
+                    <option value="defi" ${poi.functionType === 'defi' ? 'selected' : ''}>Défi</option>
+                    <option value="transition" ${poi.functionType === 'transition' ? 'selected' : ''}>Transition</option>
+                    <option value="qr_code" ${poi.functionType === 'qr_code' ? 'selected' : ''}>QR Code</option>
+                    <option value="info_qr" ${poi.functionType === 'info_qr' ? 'selected' : ''}>Info QR</option>
+                    <option value="countdown" ${poi.functionType === 'countdown' ? 'selected' : ''}>Compte à rebours</option>
                   </select>
                 </td>
                 <td>
                   <select class="poi-select" data-poi-id="${escapeHtml(poi.id)}" data-field="action">
                     <option value="" ${poi.action === '' ? 'selected' : ''}>—</option>
+                    <option value="story" ${poi.action === 'story' ? 'selected' : ''}>Narration</option>
+                    <option value="information" ${poi.action === 'information' ? 'selected' : ''}>Information</option>
+                    <option value="mcq" ${poi.action === 'mcq' ? 'selected' : ''}>QCM</option>
                     <option value="enigme" ${poi.action === 'enigme' ? 'selected' : ''}>Énigme</option>
-                    <option value="qr_code" ${poi.action === 'qr_code' ? 'selected' : ''}>QR Code</option>
-                    <option value="photo_requise" ${poi.action === 'photo_requise' ? 'selected' : ''}>Photo</option>
+                    <option value="code" ${poi.action === 'code' ? 'selected' : ''}>Code secret</option>
+                    <option value="hangman" ${poi.action === 'hangman' ? 'selected' : ''}>Pendu</option>
+                    <option value="memory" ${poi.action === 'memory' ? 'selected' : ''}>Memory</option>
+                    <option value="photo" ${poi.action === 'photo' ? 'selected' : ''}>Photo</option>
+                    <option value="terrain" ${poi.action === 'terrain' ? 'selected' : ''}>Terrain</option>
                     <option value="defi" ${poi.action === 'defi' ? 'selected' : ''}>Défi</option>
-                    <option value="objet_trouve" ${poi.action === 'objet_trouve' ? 'selected' : ''}>Objet trouvé</option>
-                    <option value="final" ${poi.action === 'final' ? 'selected' : ''}>Final</option>
+                    <option value="transition" ${poi.action === 'transition' ? 'selected' : ''}>Transition</option>
+                    <option value="qr_code" ${poi.action === 'qr_code' ? 'selected' : ''}>QR Code</option>
+                    <option value="info_qr" ${poi.action === 'info_qr' ? 'selected' : ''}>Info QR</option>
+                    <option value="countdown" ${poi.action === 'countdown' ? 'selected' : ''}>Compte à rebours</option>
                   </select>
                 </td>
                 <td>
@@ -1295,13 +1324,13 @@ export function generateInteractiveReportHTML(
                   </select>
                 </td>
                 <td>
-                  <input type="text" class="poi-input gps" data-poi-id="${escapeHtml(poi.id)}" data-field="gps" value="${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}" readonly>
+                  <input type="text" class="poi-input gps" data-poi-id="${escapeHtml(poi.id)}" data-field="gps" value="${poi.lat ? poi.lat.toFixed(5) + ', ' + poi.lng.toFixed(5) : '—'}" readonly>
                 </td>
                 <td>
                   <textarea class="poi-textarea" data-poi-id="${escapeHtml(poi.id)}" data-field="hints" rows="2">${escapeHtml(poi.hints)}</textarea>
                 </td>
                 <td>
-                  ${poi.photoUrl ? `<img src="${escapeHtml(poi.photoUrl)}" alt="Photo POI ${poi.order}" class="poi-photo-thumb" onclick="openReportLightbox('${escapeHtml(poi.photoUrl)}', '${escapeHtml(poi.note || '')}', '${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}')" />` : ''}
+                  ${poi.photoUrl ? `<img src="${escapeHtml(poi.photoUrl)}" alt="Photo POI ${poi.order}" class="poi-photo-thumb" onclick="openReportLightbox('${escapeHtml(poi.photoUrl)}', '${escapeHtml(poi.note || '')}', '${poi.lat ? poi.lat.toFixed(5) + ', ' + poi.lng.toFixed(5) : ''}')" />` : ''}
                   ${poi.audioUrl ? `<audio controls style="width:120px;height:28px;margin-top:4px;display:block;"><source src="${escapeHtml(poi.audioUrl)}" type="audio/webm" /></audio>` : ''}
                   ${!poi.photoUrl && !poi.audioUrl ? '—' : ''}
                 </td>
@@ -1394,7 +1423,7 @@ export function generateInteractiveReportHTML(
         lat: p.lat,
         lng: p.lng,
         name: p.name || '',
-        functionType: p.functionType || 'passage',
+        functionType: p.functionType || 'transition',
         action: p.action || '',
         validationType: p.validationType || '',
         stopMinutes: p.stopMinutes || 0,
@@ -1446,15 +1475,27 @@ export function generateInteractiveReportHTML(
         if (parsed.config) {
           Object.assign(STATE.config, parsed.config);
         }
-        // Merge POIs by id
+        // Merge POIs by id + restore virtual rows
         if (parsed.pois && Array.isArray(parsed.pois)) {
           const savedMap = {};
           parsed.pois.forEach(p => { savedMap[p.id] = p; });
+          // Update existing POIs
           STATE.pois.forEach((poi, idx) => {
             if (savedMap[poi.id]) {
               Object.assign(STATE.pois[idx], savedMap[poi.id]);
+              delete savedMap[poi.id];
             }
           });
+          // Re-insert virtual rows at correct positions
+          const virtualPois = parsed.pois.filter(p => p.isVirtual || (p.id && p.id.startsWith('virtual-')));
+          virtualPois.forEach(vp => {
+            // Find insert position by order
+            let insertIdx = STATE.pois.findIndex(p => p.order > vp.order);
+            if (insertIdx === -1) insertIdx = STATE.pois.length;
+            STATE.pois.splice(insertIdx, 0, vp);
+          });
+          // Re-number
+          STATE.pois.forEach((p, i) => { p.order = i + 1; });
         }
         // Merge project sheet state
         if (parsed.project) {
@@ -1770,6 +1811,83 @@ export function generateInteractiveReportHTML(
     // Event delegation: both 'input' and 'change' for inputs, selects, textareas
     document.addEventListener('input', function(e) { handleFieldUpdate(e.target); });
     document.addEventListener('change', function(e) { handleFieldUpdate(e.target); });
+    
+    // Step type options HTML (shared by insert)
+    const STEP_TYPE_OPTIONS = [
+      {v:'story',l:'Narration'},{v:'information',l:'Information'},{v:'mcq',l:'QCM'},{v:'enigme',l:'Énigme'},
+      {v:'code',l:'Code secret'},{v:'hangman',l:'Pendu'},{v:'memory',l:'Memory'},{v:'photo',l:'Photo'},
+      {v:'terrain',l:'Terrain'},{v:'defi',l:'Défi'},{v:'transition',l:'Transition'},{v:'qr_code',l:'QR Code'},
+      {v:'info_qr',l:'Info QR'},{v:'countdown',l:'Compte à rebours'}
+    ];
+    const VALIDATION_OPTIONS = [
+      {v:'',l:'—'},{v:'qr_code',l:'QR Code'},{v:'photo',l:'Photo'},{v:'code',l:'Code'},
+      {v:'manuel',l:'Manuel'},{v:'libre',l:'Libre'}
+    ];
+    
+    function makeOptions(opts, selected) {
+      return opts.map(o => '<option value="'+o.v+'"'+(o.v===selected?' selected':'')+'>'+o.l+'</option>').join('');
+    }
+    
+    // Insert a virtual row after a given POI id
+    function insertRowAfter(afterId) {
+      const idx = STATE.pois.findIndex(p => p.id === afterId);
+      if (idx === -1) return;
+      const newId = 'virtual-' + Date.now() + '-' + Math.random().toString(36).slice(2,8);
+      const newPoi = {
+        id: newId, order: 0, lat: 0, lng: 0,
+        name: '', functionType: 'transition', action: '', validationType: '',
+        stopMinutes: 0, risk: 'low', wifi: 'none', hints: '', notes: '',
+        photoUrl: null, isVirtual: true
+      };
+      STATE.pois.splice(idx + 1, 0, newPoi);
+      renumberAndRerenderTable();
+    }
+    
+    // Delete a virtual row
+    function deleteVirtualRow(poiId) {
+      const idx = STATE.pois.findIndex(p => p.id === poiId);
+      if (idx === -1) return;
+      STATE.pois.splice(idx, 1);
+      renumberAndRerenderTable();
+    }
+    
+    // Re-number orders and re-render table body
+    function renumberAndRerenderTable() {
+      STATE.pois.forEach((p, i) => { p.order = i + 1; });
+      saveState();
+      const tbody = document.getElementById('poi-tbody');
+      if (!tbody) return;
+      let html = '';
+      STATE.pois.forEach((poi, idx) => {
+        // Insert button between rows
+        if (idx > 0) {
+          html += '<tr class="insert-row-tr"><td colspan="12"><button class="insert-row-btn" onclick="insertRowAfter(\\''+STATE.pois[idx-1].id+'\\')">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Insérer</button></td></tr>';
+        }
+        const isVirtual = poi.isVirtual || poi.id.startsWith('virtual-');
+        const gpsVal = (poi.lat && poi.lng) ? poi.lat.toFixed(5) + ', ' + poi.lng.toFixed(5) : '—';
+        html += '<tr data-poi-id="'+poi.id+'"'+(isVirtual?' class="virtual-row"':'')+'>';
+        html += '<td>'+poi.order+(isVirtual?'<button class="delete-row-btn" onclick="deleteVirtualRow(\\''+poi.id+'\\')" title="Supprimer">✕</button>':'')+'</td>';
+        html += '<td><input type="text" class="poi-input name" data-poi-id="'+poi.id+'" data-field="name" value="'+(poi.name||'')+'" placeholder="POI #'+poi.order+'"></td>';
+        html += '<td><select class="poi-select" data-poi-id="'+poi.id+'" data-field="functionType">'+makeOptions(STEP_TYPE_OPTIONS, poi.functionType)+'</select></td>';
+        html += '<td><select class="poi-select" data-poi-id="'+poi.id+'" data-field="action">'+makeOptions([{v:"",l:"—"}].concat(STEP_TYPE_OPTIONS), poi.action)+'</select></td>';
+        html += '<td><select class="poi-select" data-poi-id="'+poi.id+'" data-field="validationType">'+makeOptions(VALIDATION_OPTIONS, poi.validationType)+'</select></td>';
+        html += '<td><input type="number" class="poi-input stop" data-poi-id="'+poi.id+'" data-field="stopMinutes" value="'+poi.stopMinutes+'" min="0" max="120"></td>';
+        html += '<td><select class="poi-select" data-poi-id="'+poi.id+'" data-field="risk"><option value="low"'+(poi.risk==='low'?' selected':'')+'>Faible</option><option value="medium"'+(poi.risk==='medium'?' selected':'')+'>Moyen</option><option value="high"'+(poi.risk==='high'?' selected':'')+'>Élevé</option></select></td>';
+        html += '<td><select class="poi-select" data-poi-id="'+poi.id+'" data-field="wifi"><option value="none"'+(poi.wifi==='none'?' selected':'')+'>Aucun</option><option value="weak"'+(poi.wifi==='weak'?' selected':'')+'>Faible</option><option value="good"'+(poi.wifi==='good'?' selected':'')+'>Bon</option></select></td>';
+        html += '<td><input type="text" class="poi-input gps" data-poi-id="'+poi.id+'" data-field="gps" value="'+gpsVal+'" readonly></td>';
+        html += '<td><textarea class="poi-textarea" data-poi-id="'+poi.id+'" data-field="hints" rows="2">'+(poi.hints||'')+'</textarea></td>';
+        html += '<td>'+(poi.photoUrl ? '<img src="'+poi.photoUrl+'" alt="Photo" class="poi-photo-thumb" />' : '—')+'</td>';
+        html += '<td><textarea class="poi-textarea" data-poi-id="'+poi.id+'" data-field="notes" rows="2">'+(poi.notes||'')+'</textarea></td>';
+        html += '</tr>';
+      });
+      tbody.innerHTML = html;
+      // Update POI count
+      const countEl = document.getElementById('pois-count');
+      if (countEl) countEl.textContent = STATE.pois.length + ' POI' + (STATE.pois.length > 1 ? 's' : '');
+      updateMarkersDisplay();
+      recalculate();
+    }
     
     // Project sheet field handlers
     document.querySelectorAll('[data-sheet-field]').forEach(el => {
@@ -2104,6 +2222,10 @@ export function generateInteractiveReportHTML(
     
     // Init on load
     loadState();
+    // If virtual rows exist, re-render the full table
+    if (STATE.pois.some(p => p.isVirtual || (p.id && p.id.startsWith('virtual-')))) {
+      renumberAndRerenderTable();
+    }
     applyStateToDOM();
     initMap();
     recalculate();
