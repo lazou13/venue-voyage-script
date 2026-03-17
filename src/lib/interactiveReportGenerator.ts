@@ -1245,16 +1245,20 @@ export function generateInteractiveReportHTML(
                 </td>
                 <td>
                   <select class="poi-select" data-poi-id="${escapeHtml(poi.id)}" data-field="functionType">
-                    <option value="passage" ${poi.functionType === 'passage' ? 'selected' : ''}>Passage</option>
-                    <option value="pause_the" ${poi.functionType === 'pause_the' ? 'selected' : ''}>Pause thé</option>
-                    <option value="briefing" ${poi.functionType === 'briefing' ? 'selected' : ''}>Briefing</option>
-                    <option value="repas" ${poi.functionType === 'repas' ? 'selected' : ''}>Repas</option>
-                    <option value="visite" ${poi.functionType === 'visite' ? 'selected' : ''}>Visite</option>
-                    <option value="arret" ${poi.functionType === 'arret' ? 'selected' : ''}>Arrêt</option>
-                    <option value="qr_code" ${poi.functionType === 'qr_code' ? 'selected' : ''}>QR Code</option>
+                    <option value="story" ${poi.functionType === 'story' ? 'selected' : ''}>Narration</option>
+                    <option value="information" ${poi.functionType === 'information' ? 'selected' : ''}>Information</option>
+                    <option value="mcq" ${poi.functionType === 'mcq' ? 'selected' : ''}>QCM</option>
+                    <option value="enigme" ${poi.functionType === 'enigme' ? 'selected' : ''}>Énigme</option>
+                    <option value="code" ${poi.functionType === 'code' ? 'selected' : ''}>Code secret</option>
+                    <option value="hangman" ${poi.functionType === 'hangman' ? 'selected' : ''}>Pendu</option>
+                    <option value="memory" ${poi.functionType === 'memory' ? 'selected' : ''}>Memory</option>
                     <option value="photo" ${poi.functionType === 'photo' ? 'selected' : ''}>Photo</option>
-                    <option value="objet_trouve" ${poi.functionType === 'objet_trouve' ? 'selected' : ''}>Objet trouvé</option>
-                    <option value="final" ${poi.functionType === 'final' ? 'selected' : ''}>Final</option>
+                    <option value="terrain" ${poi.functionType === 'terrain' ? 'selected' : ''}>Terrain</option>
+                    <option value="defi" ${poi.functionType === 'defi' ? 'selected' : ''}>Défi</option>
+                    <option value="transition" ${poi.functionType === 'transition' ? 'selected' : ''}>Transition</option>
+                    <option value="qr_code" ${poi.functionType === 'qr_code' ? 'selected' : ''}>QR Code</option>
+                    <option value="info_qr" ${poi.functionType === 'info_qr' ? 'selected' : ''}>Info QR</option>
+                    <option value="countdown" ${poi.functionType === 'countdown' ? 'selected' : ''}>Compte à rebours</option>
                   </select>
                 </td>
                 <td>
