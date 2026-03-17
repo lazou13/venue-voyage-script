@@ -221,14 +221,16 @@ export default function AdminMediaLibrary() {
           </Button>
 
           {selectedIds.size > 0 && (
-            <Button size="sm" onClick={downloadZip} disabled={isDownloading}>
-              {isDownloading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
-              Télécharger ({selectedIds.size})
-            </Button>
-            <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)} disabled={isDeleting}>
-              {isDeleting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
-              Supprimer ({selectedIds.size})
-            </Button>
+            <>
+              <Button size="sm" onClick={downloadZip} disabled={isDownloading}>
+                {isDownloading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+                Télécharger ({selectedIds.size})
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)} disabled={isDeleting}>
+                {isDeleting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
+                Supprimer ({selectedIds.size})
+              </Button>
+            </>
           )}
         </div>
       </div>
