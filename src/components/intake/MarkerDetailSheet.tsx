@@ -245,6 +245,15 @@ export function MarkerDetailSheet({
 
       const reply = data?.reply || 'Pas de réponse.';
       setChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+
+      // Auto-detect update requests → trigger re-analysis automatically
+      const lowerMsg = message.toLowerCase();
+      const updateKeywords = ['mets à jour', 'met a jour', 'met à jour', 'actualise', 'corrige la fiche', 'update', 'mettre à jour', 'mettre a jour', 'applique'];
+      if (updateKeywords.some(kw => lowerMsg.includes(kw))) {
+        setChatMessages(prev => [...prev, { role: 'assistant', content: '📋 Je lance la mise à jour de la fiche avec les corrections discutées...' }]);
+        // Trigger re-analysis with chat context
+        setTimeout(() => handleAnalyze(), 500);
+      }
     } catch (err) {
       const errMsg = (err as Error).message || 'Erreur inconnue';
       setChatMessages(prev => [...prev, { role: 'assistant', content: `❌ Erreur : ${errMsg}` }]);
@@ -505,15 +514,22 @@ export function MarkerDetailSheet({
                     {action.label}
                   </button>
                 ))}
-                {analysis && (
-                  <button
-                    className="text-[10px] px-2 py-1 rounded-full border bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-medium"
-                    disabled={isBusy}
-                    onClick={handleAnalyze}
-                  >
-                    🔄 Réanalyser la fiche
-                  </button>
-                )}
+                <button
+                  className="text-[10px] px-2 py-1 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
+                  disabled={isBusy}
+                  onClick={handleAnalyze}
+                >
+                  🔄 Réanalyser la fiche
+                </button>
+                <button
+                  className="text-[10px] px-2 py-1 rounded-full border border-primary bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-medium"
+                  disabled={isBusy}
+                  onClick={() => {
+                    handleSendChat('Mets à jour la fiche du marqueur avec toutes les corrections et informations discutées dans ce chat.');
+                  }}
+                >
+                  📝 Mettre à jour la fiche
+                </button>
               </div>
 
               {/* Pending images preview */}
