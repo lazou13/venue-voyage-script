@@ -49,54 +49,58 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
       setReportError(null);
 
       try {
-        // Query 1: Get the most recent trace with at least 2 coordinates
+        // Query 1: Get ALL traces for this project
         const { data: traces, error: tracesError } = await supabase
           .from('route_traces')
           .select('*')
           .eq('project_id', projectId)
-          .order('created_at', { ascending: false })
-          .limit(20);
+          .order('created_at', { ascending: true });
 
         if (tracesError) throw tracesError;
         
-        // Find first trace with valid coordinates
-        const validTrace = traces?.find(t => {
+        // Filter traces with valid coordinates
+        const validTraces = (traces || []).filter(t => {
           const geojson = t.geojson as unknown as LineString;
           return geojson?.coordinates?.length >= 2;
         });
 
         if (!isMounted) return;
 
-        if (!validTrace) {
+        if (validTraces.length === 0) {
           setReportTrace(null);
           setReportMarkers([]);
           setReportLoading(false);
           return;
         }
 
-        // Cast geojson properly
-        const typedTrace: RouteTrace = {
-          id: validTrace.id,
-          project_id: validTrace.project_id,
-          name: validTrace.name,
-          geojson: validTrace.geojson as unknown as LineString,
-          distance_meters: validTrace.distance_meters ? Number(validTrace.distance_meters) : null,
-          started_at: validTrace.started_at,
-          ended_at: validTrace.ended_at,
-          created_at: validTrace.created_at,
+        // Build merged trace from ALL valid traces
+        const allCoords = validTraces.flatMap(t => (t.geojson as unknown as LineString).coordinates);
+        const totalDistance = validTraces.reduce((sum, t) => sum + (t.distance_meters ? Number(t.distance_meters) : 0), 0);
+        const allStartedAts = validTraces.map(t => t.started_at).filter(Boolean) as string[];
+        const allEndedAts = validTraces.map(t => t.ended_at).filter(Boolean) as string[];
+
+        const mergedTrace: RouteTrace = {
+          id: 'merged',
+          project_id: projectId,
+          name: validTraces.length === 1 ? validTraces[0].name : `${validTraces.length} traces fusionnées`,
+          geojson: { type: 'LineString', coordinates: allCoords },
+          distance_meters: totalDistance || null,
+          started_at: allStartedAts.length ? allStartedAts.sort()[0] : null,
+          ended_at: allEndedAts.length ? allEndedAts.sort().reverse()[0] : null,
+          created_at: validTraces[0].created_at,
         };
 
-        // Query 2: Get markers for this trace
+        // Query 2: Get markers for ALL traces
+        const allTraceIds = validTraces.map(t => t.id);
         const { data: markers, error: markersError } = await supabase
           .from('route_markers')
           .select('*')
-          .eq('trace_id', validTrace.id)
+          .in('trace_id', allTraceIds)
           .order('created_at', { ascending: true });
 
         if (markersError) throw markersError;
         if (!isMounted) return;
 
-        // Cast markers properly
         const typedMarkers: RouteMarker[] = (markers || []).map(m => ({
           id: m.id,
           trace_id: m.trace_id,
@@ -104,13 +108,13 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
           lng: Number(m.lng),
           note: m.note,
           photo_url: m.photo_url,
-          photo_urls: (m as any).photo_urls || [],
-          audio_url: (m as any).audio_url || null,
+          photo_urls: m.photo_urls || [],
+          audio_url: m.audio_url || null,
           created_at: m.created_at,
-          promoted: (m as any).promoted ?? false,
+          promoted: m.promoted ?? false,
         }));
 
-        setReportTrace(typedTrace);
+        setReportTrace(mergedTrace);
         setReportMarkers(typedMarkers);
       } catch (err) {
         if (isMounted) {
