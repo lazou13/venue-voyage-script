@@ -1475,15 +1475,27 @@ export function generateInteractiveReportHTML(
         if (parsed.config) {
           Object.assign(STATE.config, parsed.config);
         }
-        // Merge POIs by id
+        // Merge POIs by id + restore virtual rows
         if (parsed.pois && Array.isArray(parsed.pois)) {
           const savedMap = {};
           parsed.pois.forEach(p => { savedMap[p.id] = p; });
+          // Update existing POIs
           STATE.pois.forEach((poi, idx) => {
             if (savedMap[poi.id]) {
               Object.assign(STATE.pois[idx], savedMap[poi.id]);
+              delete savedMap[poi.id];
             }
           });
+          // Re-insert virtual rows at correct positions
+          const virtualPois = parsed.pois.filter(p => p.isVirtual || (p.id && p.id.startsWith('virtual-')));
+          virtualPois.forEach(vp => {
+            // Find insert position by order
+            let insertIdx = STATE.pois.findIndex(p => p.order > vp.order);
+            if (insertIdx === -1) insertIdx = STATE.pois.length;
+            STATE.pois.splice(insertIdx, 0, vp);
+          });
+          // Re-number
+          STATE.pois.forEach((p, i) => { p.order = i + 1; });
         }
         // Merge project sheet state
         if (parsed.project) {
