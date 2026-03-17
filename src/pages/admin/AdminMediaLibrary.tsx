@@ -133,6 +133,49 @@ export default function AdminMediaLibrary() {
     }
   };
 
+  const deleteSelected = async () => {
+    const urls = Array.from(selectedIds);
+    if (urls.length === 0) return;
+    setIsDeleting(true);
+    try {
+      const byMarker = new Map<string, string[]>();
+      for (const url of urls) {
+        const photo = photos.find(p => p.url === url);
+        if (!photo) continue;
+        const existing = byMarker.get(photo.markerId) || [];
+        existing.push(url);
+        byMarker.set(photo.markerId, existing);
+      }
+
+      for (const [markerId, urlsToRemove] of byMarker) {
+        const marker = markers.find(m => m.id === markerId);
+        if (!marker) continue;
+        const currentUrls: string[] = Array.isArray(marker.photo_urls) ? [...marker.photo_urls] : [];
+        const newUrls = currentUrls.filter(u => !urlsToRemove.includes(u));
+        const newPhotoUrl = urlsToRemove.includes(marker.photo_url || '') ? (newUrls[0] || null) : marker.photo_url;
+        await supabase.from('route_markers').update({ photo_urls: newUrls, photo_url: newPhotoUrl }).eq('id', markerId);
+      }
+
+      const paths = urls.map(url => {
+        try {
+          const u = new URL(url);
+          const match = u.pathname.match(/\/storage\/v1\/object\/public\/fieldwork\/(.+)/);
+          return match?.[1] || null;
+        } catch { return null; }
+      }).filter(Boolean) as string[];
+      if (paths.length > 0) await supabase.storage.from('fieldwork').remove(paths);
+
+      await queryClient.invalidateQueries({ queryKey: ['media-library-markers'] });
+      setSelectedIds(new Set());
+      setShowDeleteDialog(false);
+      toast({ title: `${urls.length} photo(s) supprimée(s)` });
+    } catch {
+      toast({ title: 'Erreur lors de la suppression', variant: 'destructive' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const lightboxPhotos: LightboxPhoto[] = filtered.map(p => ({
     url: p.url,
     note: p.note,
