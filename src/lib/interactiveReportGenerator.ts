@@ -2222,6 +2222,10 @@ export function generateInteractiveReportHTML(
     
     // Init on load
     loadState();
+    // If virtual rows exist, re-render the full table
+    if (STATE.pois.some(p => p.isVirtual || (p.id && p.id.startsWith('virtual-')))) {
+      renumberAndRerenderTable();
+    }
     applyStateToDOM();
     initMap();
     recalculate();
