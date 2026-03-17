@@ -59,6 +59,7 @@ const App = () => (
             <Route path="health" element={<AdminHealth />} />
             <Route path="experience-page" element={<AdminExperiencePage />} />
             <Route path="poi-pipeline" element={<AdminPOIPipeline />} />
+            <Route path="media-library" element={<AdminMediaLibrary />} />
           </Route>
           
           <Route path="/creez-votre-experience" element={<PublicExperienceWizard />} />
