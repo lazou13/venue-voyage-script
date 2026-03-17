@@ -1,13 +1,14 @@
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PhotoLightbox, LightboxPhoto } from '@/components/intake/shared/PhotoLightbox';
-import { Download, Image, MapPin, Calendar, CheckSquare, Loader2 } from 'lucide-react';
+import { Download, Image, MapPin, Calendar, CheckSquare, Loader2, Trash2 } from 'lucide-react';
 import JSZip from 'jszip';
 import { useToast } from '@/hooks/use-toast';
 
@@ -24,11 +25,14 @@ interface PhotoItem {
 
 export default function AdminMediaLibrary() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filterTrace, setFilterTrace] = useState<string>('all');
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const { data: markers = [], isLoading } = useQuery({
     queryKey: ['media-library-markers'],
@@ -129,6 +133,49 @@ export default function AdminMediaLibrary() {
     }
   };
 
+  const deleteSelected = async () => {
+    const urls = Array.from(selectedIds);
+    if (urls.length === 0) return;
+    setIsDeleting(true);
+    try {
+      const byMarker = new Map<string, string[]>();
+      for (const url of urls) {
+        const photo = photos.find(p => p.url === url);
+        if (!photo) continue;
+        const existing = byMarker.get(photo.markerId) || [];
+        existing.push(url);
+        byMarker.set(photo.markerId, existing);
+      }
+
+      for (const [markerId, urlsToRemove] of byMarker) {
+        const marker = markers.find(m => m.id === markerId);
+        if (!marker) continue;
+        const currentUrls: string[] = Array.isArray(marker.photo_urls) ? [...marker.photo_urls] : [];
+        const newUrls = currentUrls.filter(u => !urlsToRemove.includes(u));
+        const newPhotoUrl = urlsToRemove.includes(marker.photo_url || '') ? (newUrls[0] || null) : marker.photo_url;
+        await supabase.from('route_markers').update({ photo_urls: newUrls, photo_url: newPhotoUrl }).eq('id', markerId);
+      }
+
+      const paths = urls.map(url => {
+        try {
+          const u = new URL(url);
+          const match = u.pathname.match(/\/storage\/v1\/object\/public\/fieldwork\/(.+)/);
+          return match?.[1] || null;
+        } catch { return null; }
+      }).filter(Boolean) as string[];
+      if (paths.length > 0) await supabase.storage.from('fieldwork').remove(paths);
+
+      await queryClient.invalidateQueries({ queryKey: ['media-library-markers'] });
+      setSelectedIds(new Set());
+      setShowDeleteDialog(false);
+      toast({ title: `${urls.length} photo(s) supprimée(s)` });
+    } catch {
+      toast({ title: 'Erreur lors de la suppression', variant: 'destructive' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const lightboxPhotos: LightboxPhoto[] = filtered.map(p => ({
     url: p.url,
     note: p.note,
@@ -174,10 +221,16 @@ export default function AdminMediaLibrary() {
           </Button>
 
           {selectedIds.size > 0 && (
-            <Button size="sm" onClick={downloadZip} disabled={isDownloading}>
-              {isDownloading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
-              Télécharger ({selectedIds.size})
-            </Button>
+            <>
+              <Button size="sm" onClick={downloadZip} disabled={isDownloading}>
+                {isDownloading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+                Télécharger ({selectedIds.size})
+              </Button>
+              <Button size="sm" variant="destructive" onClick={() => setShowDeleteDialog(true)} disabled={isDeleting}>
+                {isDeleting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
+                Supprimer ({selectedIds.size})
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -245,6 +298,24 @@ export default function AdminMediaLibrary() {
         open={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
       />
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer {selectedIds.size} photo(s) ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Les fichiers seront supprimés définitivement du stockage.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteSelected} disabled={isDeleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {isDeleting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
