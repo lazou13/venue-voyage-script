@@ -511,6 +511,21 @@ export function generateInteractiveReportHTML(
     }
     .poi-photo-thumb:hover { transform: scale(1.1); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
     
+    /* Insert row button */
+    .insert-row-tr td { padding: 0 !important; border: none !important; background: transparent !important; }
+    .insert-row-btn {
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+      width: 100%; padding: 2px 0; cursor: pointer;
+      color: #9ca3af; font-size: 0.7rem; border: none; background: none;
+      transition: color 0.15s, background 0.15s; border-radius: 4px;
+    }
+    .insert-row-btn:hover { color: #2563eb; background: #eff6ff; }
+    .insert-row-btn svg { width: 14px; height: 14px; }
+    tr.virtual-row { background: #fefce8 !important; }
+    tr.virtual-row td:first-child { position: relative; }
+    tr.virtual-row td:first-child::before { content: '✦'; position: absolute; left: 2px; top: 50%; transform: translateY(-50%); font-size: 0.6rem; color: #ca8a04; }
+    .delete-row-btn { cursor: pointer; color: #dc2626; background: none; border: none; font-size: 0.8rem; padding: 2px 4px; border-radius: 3px; }
+    .delete-row-btn:hover { background: #fef2f2; }
     /* Photo Gallery */
     .photo-gallery { 
       background: white;
