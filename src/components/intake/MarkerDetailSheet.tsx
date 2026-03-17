@@ -245,6 +245,15 @@ export function MarkerDetailSheet({
 
       const reply = data?.reply || 'Pas de réponse.';
       setChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+
+      // Auto-detect update requests → trigger re-analysis automatically
+      const lowerMsg = message.toLowerCase();
+      const updateKeywords = ['mets à jour', 'met a jour', 'met à jour', 'actualise', 'corrige la fiche', 'update', 'mettre à jour', 'mettre a jour', 'applique'];
+      if (updateKeywords.some(kw => lowerMsg.includes(kw))) {
+        setChatMessages(prev => [...prev, { role: 'assistant', content: '📋 Je lance la mise à jour de la fiche avec les corrections discutées...' }]);
+        // Trigger re-analysis with chat context
+        setTimeout(() => handleAnalyze(), 500);
+      }
     } catch (err) {
       const errMsg = (err as Error).message || 'Erreur inconnue';
       setChatMessages(prev => [...prev, { role: 'assistant', content: `❌ Erreur : ${errMsg}` }]);

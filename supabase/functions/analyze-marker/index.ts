@@ -592,8 +592,8 @@ Tu es maintenant en mode conversation libre. Réponds naturellement en français
       }
 
       const CHAT_MODELS = [
-        "google/gemini-2.5-flash",
         "google/gemini-2.5-pro",
+        "google/gemini-2.5-flash",
         "openai/gpt-5-mini",
       ];
 
