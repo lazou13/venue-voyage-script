@@ -500,7 +500,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { photo_url, audio_url, lat, lng, note, existing_pois, nearby_markers, custom_instruction, previous_analysis } = await req.json();
+    const { photo_url, audio_url, lat, lng, note, existing_pois, nearby_markers, custom_instruction, previous_analysis, chat_history } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
