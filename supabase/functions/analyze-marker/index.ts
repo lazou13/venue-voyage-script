@@ -525,7 +525,9 @@ Tu es maintenant en mode conversation libre. Réponds naturellement en français
 - Si l'utilisateur demande des restaurants, donne des infos détaillées avec prix, liens, avis
 - Si l'utilisateur envoie une photo, analyse-la pour identifier le lieu
 - Tu peux poser des questions pour clarifier
-- Ne produis PAS de JSON structuré, réponds en texte libre`;
+- Ne produis PAS de JSON structuré, réponds en texte libre
+- Si l'utilisateur te demande de mettre à jour, corriger ou actualiser la fiche, fais-le en texte et informe-le que la mise à jour de la fiche va être lancée automatiquement
+- IMPORTANT : La Fondation Dar Bellarj est un ancien hôpital pour cigognes (XVIIe siècle), PAS un caravansérail. Les cigognes y nichent encore.`;
 
       const chatMessages: any[] = [
         { role: "system", content: CHAT_SYSTEM },
