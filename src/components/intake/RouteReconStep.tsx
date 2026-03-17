@@ -1602,7 +1602,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                       size="sm"
                       className="gap-2"
                       onClick={() => setShowReport(true)}
-                      disabled={!selectedTraceId || !selectedTrace || selectedTrace.geojson.coordinates.length < 2}
+                      disabled={!traces.some(t => t.geojson?.coordinates?.length >= 2)}
                     >
                       📊 Rapport
                     </Button>
