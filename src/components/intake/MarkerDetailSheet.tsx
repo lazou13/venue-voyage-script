@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Camera, MapPin, Check, Trash2, Volume2, Navigation, Send, Search, Utensils, Globe, History, Sparkles } from 'lucide-react';
+import { X, Camera, MapPin, Check, Trash2, Volume2, Navigation, Send, Image, Sparkles, RefreshCw } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +27,7 @@ interface MarkerDetailSheetProps {
   onAnalysisUpdate: (markerId: string, analysis: any) => void;
 }
 
-type ChatMessage = { role: 'user' | 'assistant'; content: string };
+type ChatMessage = { role: 'user' | 'assistant'; content: string; images?: { url: string }[] };
 
 // Helper to build enriched note from analysis
 function buildEnrichedNote(a: any): string {
@@ -75,25 +76,12 @@ function buildEnrichedNote(a: any): string {
   return parts.join('\n');
 }
 
-// Summarize analysis for chat display
-function summarizeAnalysis(a: any): string {
-  const lines: string[] = [];
-  if (a.location_guess) lines.push(`📍 **${a.location_guess}**`);
-  if (a.category) lines.push(`📂 ${a.category}${a.sub_category ? ` / ${a.sub_category}` : ''}`);
-  if (a.guide_narration?.fr) lines.push(`\n${a.guide_narration.fr.slice(0, 300)}${a.guide_narration.fr.length > 300 ? '...' : ''}`);
-  if (a.historical_anecdote) lines.push(`\n🏛️ ${a.historical_anecdote.slice(0, 200)}${a.historical_anecdote.length > 200 ? '...' : ''}`);
-  return lines.join('\n') || 'Analyse terminée.';
-}
-
 // Lightweight previous_analysis for chat context
 function lightAnalysis(a: any) {
   return {
     location_guess: a.location_guess,
     category: a.category,
     sub_category: a.sub_category,
-    summary_library: a.summary_library,
-    historical_anecdote: a.historical_anecdote?.slice(0, 200),
-    guide_narration_fr: a.guide_narration?.fr?.slice(0, 300),
     website_url: a.website_url,
   };
 }
@@ -122,6 +110,7 @@ export function MarkerDetailSheet({
   const { toast } = useToast();
   const { uploadFile, isUploading } = useFileUpload();
   const photoRef = useRef<HTMLInputElement>(null);
+  const chatPhotoRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -137,7 +126,9 @@ export function MarkerDetailSheet({
   // Chat
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
+  const [pendingImages, setPendingImages] = useState<{ url: string }[]>([]);
   const [isAiThinking, setIsAiThinking] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Sync fields when marker changes
   useEffect(() => {
@@ -154,13 +145,17 @@ export function MarkerDetailSheet({
       setAudioUrl(marker.audio_url || '');
       setChatMessages([]);
       setChatInput('');
+      setPendingImages([]);
     }
   }, [marker?.id, open]);
 
   // When initial analysis arrives, seed chat with summary
   useEffect(() => {
     if (analysis && marker && chatMessages.length === 0) {
-      setChatMessages([{ role: 'assistant', content: summarizeAnalysis(analysis) }]);
+      const summary = analysis.location_guess
+        ? `J'ai identifié ce lieu comme **${analysis.location_guess}** (${analysis.category || 'generic'}). Que voulez-vous savoir ou corriger ?`
+        : `Analyse terminée. Que voulez-vous savoir ou corriger ?`;
+      setChatMessages([{ role: 'assistant', content: summary }]);
       setNote(buildEnrichedNote(analysis));
     }
   }, [analysis]);
@@ -200,42 +195,46 @@ export function MarkerDetailSheet({
     e.target.value = '';
   };
 
-  const handleSendChat = async (message: string) => {
-    if (!message.trim() || isAiThinking) return;
+  // Upload image for chat
+  const handleChatPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = await uploadFile(file, `route-markers/${projectId}/chat`);
+    if (url) {
+      setPendingImages(prev => [...prev, { url }]);
+    }
+    e.target.value = '';
+  };
 
-    const userMsg: ChatMessage = { role: 'user', content: message.trim() };
+  // Send chat message in CHAT mode (free-text LLM)
+  const handleSendChat = async (message: string) => {
+    if ((!message.trim() && pendingImages.length === 0) || isAiThinking) return;
+
+    const userMsg: ChatMessage = {
+      role: 'user',
+      content: message.trim() || '(photo envoyée)',
+      images: pendingImages.length > 0 ? [...pendingImages] : undefined,
+    };
     setChatMessages(prev => [...prev, userMsg]);
     setChatInput('');
+    setPendingImages([]);
     setIsAiThinking(true);
 
     try {
-      // Build chat_history from existing messages
-      const history = [...chatMessages, userMsg].map(m => ({ role: m.role, content: m.content }));
-
-      const { data: existingPois } = await supabase
-        .from('medina_pois')
-        .select('name, category, zone, lat, lng')
-        .eq('is_active', true)
-        .limit(50);
-
-      const nearbyMarkers = allMarkers
-        .filter(m => {
-          const dlat = m.lat - marker.lat;
-          const dlng = m.lng - marker.lng;
-          const distApprox = Math.sqrt(dlat * dlat + dlng * dlng) * 111000;
-          return distApprox < 200 && m.note && m.id !== marker.id;
-        })
-        .slice(0, 5)
-        .map(m => ({ lat: m.lat, lng: m.lng, note: m.note }));
+      // Build chat_history with images embedded
+      const history = [...chatMessages, userMsg].map(m => ({
+        role: m.role,
+        content: m.content,
+        images: m.images,
+      }));
 
       const body: any = {
+        mode: 'chat',
         photo_url: photoUrl || undefined,
         audio_url: audioUrl || undefined,
         lat: marker.lat,
         lng: marker.lng,
-        note: note || undefined,
-        existing_pois: existingPois || [],
-        nearby_markers: nearbyMarkers,
+        note: note ? note.slice(0, 500) : undefined,
         chat_history: history,
         previous_analysis: analysis ? lightAnalysis(analysis) : undefined,
       };
@@ -244,13 +243,8 @@ export function MarkerDetailSheet({
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      // Update analysis and note
-      onAnalysisUpdate(marker.id, data.analysis);
-      setNote(buildEnrichedNote(data.analysis));
-
-      // Add assistant response to chat
-      setChatMessages(prev => [...prev, { role: 'assistant', content: summarizeAnalysis(data.analysis) }]);
-      toast({ title: 'Analyse mise à jour ✓' });
+      const reply = data?.reply || 'Pas de réponse.';
+      setChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
     } catch (err) {
       const errMsg = (err as Error).message || 'Erreur inconnue';
       setChatMessages(prev => [...prev, { role: 'assistant', content: `❌ Erreur : ${errMsg}` }]);
@@ -260,9 +254,10 @@ export function MarkerDetailSheet({
     }
   };
 
-  const handleInitialEnrich = async () => {
-    setIsAiThinking(true);
-    setChatMessages(prev => [...prev, { role: 'user', content: '🧠 Lance l\'analyse complète de ce marqueur.' }]);
+  // Full structured analysis (mode: analyze)
+  const handleAnalyze = async () => {
+    setIsAnalyzing(true);
+    setChatMessages(prev => [...prev, { role: 'user', content: '🔄 Lancement de l\'analyse structurée complète...' }]);
     try {
       const { data: existingPois } = await supabase
         .from('medina_pois')
@@ -280,8 +275,12 @@ export function MarkerDetailSheet({
         .slice(0, 5)
         .map(m => ({ lat: m.lat, lng: m.lng, note: m.note }));
 
+      // Include chat history for context in re-analysis
+      const history = chatMessages.map(m => ({ role: m.role, content: m.content }));
+
       const { data, error } = await supabase.functions.invoke('analyze-marker', {
         body: {
+          mode: 'analyze',
           photo_url: photoUrl || undefined,
           audio_url: audioUrl || undefined,
           lat: marker.lat,
@@ -289,6 +288,8 @@ export function MarkerDetailSheet({
           note: note || undefined,
           existing_pois: existingPois || [],
           nearby_markers: nearbyMarkers,
+          chat_history: history.length > 0 ? history : undefined,
+          previous_analysis: analysis ? lightAnalysis(analysis) : undefined,
         },
       });
       if (error) throw error;
@@ -296,14 +297,17 @@ export function MarkerDetailSheet({
 
       onAnalysisUpdate(marker.id, data.analysis);
       setNote(buildEnrichedNote(data.analysis));
-      setChatMessages(prev => [...prev, { role: 'assistant', content: summarizeAnalysis(data.analysis) }]);
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `✅ Analyse mise à jour ! Lieu : **${data.analysis.location_guess}** (${data.analysis.category}). La note a été actualisée.`
+      }]);
       toast({ title: 'Analyse IA terminée ✓' });
     } catch (err) {
       const errMsg = (err as Error).message || 'Erreur inconnue';
-      setChatMessages(prev => [...prev, { role: 'assistant', content: `❌ Erreur : ${errMsg}` }]);
+      setChatMessages(prev => [...prev, { role: 'assistant', content: `❌ Erreur d'analyse : ${errMsg}` }]);
       toast({ title: 'Erreur IA', description: errMsg, variant: 'destructive' });
     } finally {
-      setIsAiThinking(false);
+      setIsAnalyzing(false);
     }
   };
 
@@ -325,6 +329,8 @@ export function MarkerDetailSheet({
     }
   };
 
+  const isBusy = isAiThinking || isAnalyzing;
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto p-0">
@@ -341,7 +347,6 @@ export function MarkerDetailSheet({
           <div className="grid grid-cols-1 md:grid-cols-[240px_1fr_340px] gap-4">
             {/* LEFT: coords, photo, audio */}
             <div className="space-y-3">
-              {/* GPS */}
               <div className="space-y-2">
                 <Label className="text-xs font-medium text-muted-foreground">Coordonnées GPS</Label>
                 <div className="grid grid-cols-2 gap-2">
@@ -359,7 +364,6 @@ export function MarkerDetailSheet({
                 </a>
               </div>
 
-              {/* Photo */}
               <div className="space-y-2">
                 <Label className="text-xs font-medium text-muted-foreground">Photo</Label>
                 <input type="file" accept="image/*" ref={photoRef} onChange={handlePhotoUpload} className="hidden" />
@@ -383,7 +387,6 @@ export function MarkerDetailSheet({
                 )}
               </div>
 
-              {/* Audio */}
               {audioUrl && (
                 <div className="space-y-1">
                   <Label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
@@ -395,7 +398,6 @@ export function MarkerDetailSheet({
                 </div>
               )}
 
-              {/* AI analysis badge */}
               {analysis?.location_guess && (
                 <div className="flex items-center gap-2 p-2 rounded-md bg-muted">
                   <MapPin className="w-3 h-3 text-primary shrink-0" />
@@ -404,13 +406,17 @@ export function MarkerDetailSheet({
                 </div>
               )}
 
-              {/* Initial enrich button */}
-              {!analysis && (
-                <Button variant="outline" size="sm" className="w-full gap-2" disabled={isAiThinking} onClick={handleInitialEnrich}>
-                  {isAiThinking ? <span className="animate-spin">⏳</span> : <Sparkles className="w-4 h-4" />}
-                  {isAiThinking ? 'Analyse en cours...' : 'Enrichir avec l\'IA'}
-                </Button>
-              )}
+              {/* Analyze / Re-analyze button */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-2"
+                disabled={isBusy}
+                onClick={handleAnalyze}
+              >
+                {isAnalyzing ? <span className="animate-spin">⏳</span> : analysis ? <RefreshCw className="w-4 h-4" /> : <Sparkles className="w-4 h-4" />}
+                {isAnalyzing ? 'Analyse en cours...' : analysis ? 'Réanalyser (fiche)' : 'Enrichir avec l\'IA'}
+              </Button>
             </div>
 
             {/* CENTER: editable note */}
@@ -423,7 +429,7 @@ export function MarkerDetailSheet({
                 placeholder="Note du marqueur... L'analyse IA viendra enrichir ce champ."
               />
               <p className="text-xs text-muted-foreground">
-                Vous pouvez éditer librement. L'IA pré-remplit avec son analyse, mais vous avez le dernier mot.
+                Discutez dans le chat à droite, puis cliquez "Réanalyser" pour mettre à jour cette fiche.
               </p>
             </div>
 
@@ -432,7 +438,7 @@ export function MarkerDetailSheet({
               <div className="px-3 py-2 border-b flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-primary" />
                 <span className="text-sm font-medium">Chat IA</span>
-                {isAiThinking && <span className="text-xs text-muted-foreground animate-pulse">réflexion...</span>}
+                {isBusy && <span className="text-xs text-muted-foreground animate-pulse">réflexion...</span>}
               </div>
 
               {/* Messages */}
@@ -440,25 +446,39 @@ export function MarkerDetailSheet({
                 <div className="space-y-3">
                   {chatMessages.length === 0 && !analysis && (
                     <p className="text-xs text-muted-foreground text-center py-8">
-                      Lancez l'analyse IA puis discutez ici pour corriger, approfondir ou poser des questions.
+                      Envoyez un message ou lancez l'analyse. L'IA répond comme ChatGPT — posez vos questions, envoyez des photos, corrigez.
                     </p>
                   )}
                   {chatMessages.map((msg, i) => (
                     <div key={i} className={cn('flex', msg.role === 'user' ? 'justify-end' : 'justify-start')}>
                       <div className={cn(
-                        'max-w-[90%] rounded-lg px-3 py-2 text-xs whitespace-pre-wrap',
+                        'max-w-[90%] rounded-lg px-3 py-2 text-xs',
                         msg.role === 'user'
                           ? 'bg-primary text-primary-foreground'
                           : 'bg-background border'
                       )}>
-                        {msg.content}
+                        {/* User images */}
+                        {msg.images && msg.images.length > 0 && (
+                          <div className="flex gap-1 mb-2">
+                            {msg.images.map((img, j) => (
+                              <img key={j} src={img.url} alt="chat" className="w-16 h-16 rounded object-cover border" />
+                            ))}
+                          </div>
+                        )}
+                        {msg.role === 'assistant' ? (
+                          <div className="prose prose-xs prose-neutral dark:prose-invert max-w-none [&_p]:my-1 [&_ul]:my-1 [&_li]:my-0.5">
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <span className="whitespace-pre-wrap">{msg.content}</span>
+                        )}
                       </div>
                     </div>
                   ))}
-                  {isAiThinking && (
+                  {isBusy && (
                     <div className="flex justify-start">
                       <div className="bg-background border rounded-lg px-3 py-2 text-xs">
-                        <span className="animate-pulse">🧠 Analyse en cours...</span>
+                        <span className="animate-pulse">🧠 {isAnalyzing ? 'Analyse structurée...' : 'Réflexion...'}</span>
                       </div>
                     </div>
                   )}
@@ -467,41 +487,81 @@ export function MarkerDetailSheet({
               </ScrollArea>
 
               {/* Quick actions */}
-              {analysis && (
-                <div className="px-3 py-1.5 border-t flex flex-wrap gap-1">
-                  {QUICK_ACTIONS.map((action, i) => (
-                    <button
-                      key={i}
-                      className="text-[10px] px-2 py-1 rounded-full border bg-background hover:bg-accent transition-colors"
-                      disabled={isAiThinking}
-                      onClick={() => {
-                        if (action.prompt.endsWith(': ')) {
-                          setChatInput(action.prompt);
-                          chatInputRef.current?.focus();
-                        } else {
-                          handleSendChat(action.prompt);
-                        }
-                      }}
-                    >
-                      {action.label}
-                    </button>
+              <div className="px-3 py-1.5 border-t flex flex-wrap gap-1">
+                {QUICK_ACTIONS.map((action, i) => (
+                  <button
+                    key={i}
+                    className="text-[10px] px-2 py-1 rounded-full border bg-background hover:bg-accent transition-colors"
+                    disabled={isBusy}
+                    onClick={() => {
+                      if (action.prompt.endsWith(': ')) {
+                        setChatInput(action.prompt);
+                        chatInputRef.current?.focus();
+                      } else {
+                        handleSendChat(action.prompt);
+                      }
+                    }}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+                {analysis && (
+                  <button
+                    className="text-[10px] px-2 py-1 rounded-full border bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-medium"
+                    disabled={isBusy}
+                    onClick={handleAnalyze}
+                  >
+                    🔄 Réanalyser la fiche
+                  </button>
+                )}
+              </div>
+
+              {/* Pending images preview */}
+              {pendingImages.length > 0 && (
+                <div className="px-3 py-1 border-t flex gap-1 items-center">
+                  {pendingImages.map((img, i) => (
+                    <div key={i} className="relative">
+                      <img src={img.url} alt="" className="w-10 h-10 rounded object-cover border" />
+                      <button
+                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-destructive-foreground text-[8px] flex items-center justify-center"
+                        onClick={() => setPendingImages(prev => prev.filter((_, j) => j !== i))}
+                      >
+                        ×
+                      </button>
+                    </div>
                   ))}
+                  <span className="text-[10px] text-muted-foreground ml-1">{pendingImages.length} photo(s)</span>
                 </div>
               )}
 
               {/* Input */}
               <div className="px-3 py-2 border-t flex gap-2">
+                <input type="file" accept="image/*" ref={chatPhotoRef} onChange={handleChatPhotoUpload} className="hidden" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  disabled={isUploading || isBusy}
+                  onClick={() => chatPhotoRef.current?.click()}
+                >
+                  <Image className="w-4 h-4" />
+                </Button>
                 <textarea
                   ref={chatInputRef}
                   value={chatInput}
                   onChange={e => setChatInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Corrigez, demandez une recherche..."
+                  placeholder="Posez une question, corrigez, envoyez une photo..."
                   className="flex-1 text-xs bg-background border rounded-md px-2 py-1.5 resize-none min-h-[36px] max-h-[80px] focus:outline-none focus:ring-1 focus:ring-ring"
                   rows={1}
-                  disabled={isAiThinking}
+                  disabled={isBusy}
                 />
-                <Button size="icon" className="h-9 w-9 shrink-0" disabled={isAiThinking || !chatInput.trim()} onClick={() => handleSendChat(chatInput)}>
+                <Button
+                  size="icon"
+                  className="h-9 w-9 shrink-0"
+                  disabled={isBusy || (!chatInput.trim() && pendingImages.length === 0)}
+                  onClick={() => handleSendChat(chatInput)}
+                >
                   <Send className="w-4 h-4" />
                 </Button>
               </div>
