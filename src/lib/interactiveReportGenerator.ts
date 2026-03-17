@@ -1407,7 +1407,7 @@ export function generateInteractiveReportHTML(
         lat: p.lat,
         lng: p.lng,
         name: p.name || '',
-        functionType: p.functionType || 'passage',
+        functionType: p.functionType || 'transition',
         action: p.action || '',
         validationType: p.validationType || '',
         stopMinutes: p.stopMinutes || 0,
