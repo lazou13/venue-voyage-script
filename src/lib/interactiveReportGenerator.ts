@@ -1264,12 +1264,20 @@ export function generateInteractiveReportHTML(
                 <td>
                   <select class="poi-select" data-poi-id="${escapeHtml(poi.id)}" data-field="action">
                     <option value="" ${poi.action === '' ? 'selected' : ''}>—</option>
+                    <option value="story" ${poi.action === 'story' ? 'selected' : ''}>Narration</option>
+                    <option value="information" ${poi.action === 'information' ? 'selected' : ''}>Information</option>
+                    <option value="mcq" ${poi.action === 'mcq' ? 'selected' : ''}>QCM</option>
                     <option value="enigme" ${poi.action === 'enigme' ? 'selected' : ''}>Énigme</option>
-                    <option value="qr_code" ${poi.action === 'qr_code' ? 'selected' : ''}>QR Code</option>
-                    <option value="photo_requise" ${poi.action === 'photo_requise' ? 'selected' : ''}>Photo</option>
+                    <option value="code" ${poi.action === 'code' ? 'selected' : ''}>Code secret</option>
+                    <option value="hangman" ${poi.action === 'hangman' ? 'selected' : ''}>Pendu</option>
+                    <option value="memory" ${poi.action === 'memory' ? 'selected' : ''}>Memory</option>
+                    <option value="photo" ${poi.action === 'photo' ? 'selected' : ''}>Photo</option>
+                    <option value="terrain" ${poi.action === 'terrain' ? 'selected' : ''}>Terrain</option>
                     <option value="defi" ${poi.action === 'defi' ? 'selected' : ''}>Défi</option>
-                    <option value="objet_trouve" ${poi.action === 'objet_trouve' ? 'selected' : ''}>Objet trouvé</option>
-                    <option value="final" ${poi.action === 'final' ? 'selected' : ''}>Final</option>
+                    <option value="transition" ${poi.action === 'transition' ? 'selected' : ''}>Transition</option>
+                    <option value="qr_code" ${poi.action === 'qr_code' ? 'selected' : ''}>QR Code</option>
+                    <option value="info_qr" ${poi.action === 'info_qr' ? 'selected' : ''}>Info QR</option>
+                    <option value="countdown" ${poi.action === 'countdown' ? 'selected' : ''}>Compte à rebours</option>
                   </select>
                 </td>
                 <td>
