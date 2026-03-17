@@ -500,7 +500,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { photo_url, audio_url, lat, lng, note, existing_pois, nearby_markers, custom_instruction, previous_analysis, chat_history } = await req.json();
+    const { photo_url, audio_url, lat, lng, note, existing_pois, nearby_markers, custom_instruction, previous_analysis, chat_history, mode, chat_images } = await req.json();
+
+    const requestMode = mode || 'analyze'; // 'chat' or 'analyze'
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -509,6 +511,152 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // ── CHAT MODE: free-text LLM conversation ──
+    if (requestMode === 'chat') {
+      const CHAT_SYSTEM = `${SYSTEM_PROMPT}
+
+## MODE CONVERSATION
+Tu es maintenant en mode conversation libre. Réponds naturellement en français, comme un vrai expert de la médina de Marrakech.
+- Réponds de manière concise mais complète
+- Utilise du markdown (gras, listes, liens)
+- Si l'utilisateur corrige le nom d'un lieu, accepte immédiatement et fournis les infos correctes
+- Si l'utilisateur demande des restaurants, donne des infos détaillées avec prix, liens, avis
+- Si l'utilisateur envoie une photo, analyse-la pour identifier le lieu
+- Tu peux poser des questions pour clarifier
+- Ne produis PAS de JSON structuré, réponds en texte libre`;
+
+      const chatMessages: any[] = [
+        { role: "system", content: CHAT_SYSTEM },
+      ];
+
+      // Add context about the marker
+      const contextParts: string[] = [];
+      if (lat !== undefined && lng !== undefined) {
+        contextParts.push(`📍 Position GPS : ${lat}°N, ${lng}°W`);
+      }
+      if (note) {
+        contextParts.push(`📝 Note terrain : "${note.slice(0, 500)}"`);
+      }
+      if (previous_analysis) {
+        const light = {
+          location_guess: previous_analysis.location_guess,
+          category: previous_analysis.category,
+          sub_category: previous_analysis.sub_category,
+          website_url: previous_analysis.website_url,
+        };
+        contextParts.push(`🧠 Analyse précédente : ${JSON.stringify(light)}`);
+      }
+      if (photo_url) {
+        contextParts.push(`📷 Photo du marqueur disponible`);
+      }
+
+      if (contextParts.length > 0) {
+        chatMessages.push({
+          role: "system",
+          content: `Contexte du marqueur en cours de discussion :\n${contextParts.join('\n')}`
+        });
+      }
+
+      // Add chat history
+      if (chat_history && Array.isArray(chat_history)) {
+        for (const msg of chat_history) {
+          if (msg.role === 'user' || msg.role === 'assistant') {
+            // Check if user message has images
+            if (msg.role === 'user' && msg.images && Array.isArray(msg.images) && msg.images.length > 0) {
+              const content: any[] = [{ type: "text", text: msg.content }];
+              for (const img of msg.images) {
+                content.push({ type: "image_url", image_url: { url: img.url } });
+              }
+              chatMessages.push({ role: "user", content });
+            } else {
+              chatMessages.push({ role: msg.role, content: msg.content });
+            }
+          }
+        }
+      }
+
+      // Add current images to the last user message if needed
+      // (chat_images are already embedded in chat_history messages)
+
+      // Also add the marker photo for context if available and no chat history
+      if (photo_url && (!chat_history || chat_history.length <= 1)) {
+        // Add photo as context in a system-like way
+        chatMessages.push({
+          role: "user",
+          content: [
+            { type: "text", text: "Voici la photo du marqueur terrain pour contexte." },
+            { type: "image_url", image_url: { url: photo_url } }
+          ]
+        });
+      }
+
+      const CHAT_MODELS = [
+        "google/gemini-2.5-flash",
+        "google/gemini-2.5-pro",
+        "openai/gpt-5-mini",
+      ];
+
+      let response: Response | null = null;
+      let lastError = "";
+
+      for (const model of CHAT_MODELS) {
+        console.log(`Chat mode - trying model: ${model}`);
+        const attemptResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            messages: chatMessages,
+            // No tools, no tool_choice — free text response
+          }),
+        });
+
+        if (attemptResponse.ok) {
+          response = attemptResponse;
+          break;
+        }
+
+        const errText = await attemptResponse.text();
+        console.error(`Chat AI error (${model}):`, attemptResponse.status, errText);
+        lastError = errText;
+
+        if (attemptResponse.status === 429) {
+          return new Response(JSON.stringify({ error: "Trop de requêtes, réessayez dans quelques secondes." }), {
+            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (attemptResponse.status === 402) {
+          return new Response(JSON.stringify({ error: "Crédits IA épuisés." }), {
+            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (attemptResponse.status >= 400 && attemptResponse.status < 500 && attemptResponse.status !== 403) {
+          return new Response(JSON.stringify({ error: "Erreur du service IA" }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        continue;
+      }
+
+      if (!response) {
+        return new Response(JSON.stringify({ error: "Tous les modèles IA sont indisponibles." }), {
+          status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const result = await response.json();
+      const reply = result.choices?.[0]?.message?.content || "Je n'ai pas pu générer de réponse.";
+
+      return new Response(JSON.stringify({ reply }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── ANALYZE MODE: structured JSON output (existing behavior) ──
 
     // Build user prompt
     const parts: string[] = [];
@@ -529,12 +677,10 @@ Deno.serve(async (req) => {
       parts.push(`\n🔄 Marqueurs proches déjà posés (contexte terrain, corrections humaines = vérité) :\n${nearby_markers.map((m: any) => `- [${m.lat}°N, ${m.lng}°W] ${m.note || '(sans note)'}${m.photo_url ? ' 📷' : ''}${m.audio_url ? ' 🎙️' : ''}`).join('\n')}`);
     }
 
-    // If no previous analysis, ask for full analysis
     if (!previous_analysis) {
       parts.push("\nAnalyse ce marqueur terrain et produis l'analyse complète.");
     }
 
-    // If custom_instruction without previous_analysis, add it to the main prompt
     if (custom_instruction && !previous_analysis) {
       parts.push(`\n💬 Instruction de l'utilisateur : "${custom_instruction}"`);
     }
@@ -544,7 +690,6 @@ Deno.serve(async (req) => {
       { role: "system", content: SYSTEM_PROMPT },
     ];
 
-    // If there's a photo, use multimodal message
     if (photo_url) {
       messages.push({
         role: "user",
@@ -560,17 +705,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    // If there's audio, add it as a second message
     if (audio_url) {
       messages.push({
         role: "user",
-        content: `🎙️ Note vocale enregistrée sur le terrain : ${audio_url}\nTranscris et enrichis cette note vocale. Corrige les noms propres locaux et extrais les données structurées (prix, lieux mentionnés).`
+        content: `🎙️ Note vocale enregistrée sur le terrain : ${audio_url}\nTranscris et enrichis cette note vocale.`
       });
     }
 
-    // Multi-turn chat mode: inject chat history
+    // Multi-turn: inject chat history for re-analyze
     if (chat_history && Array.isArray(chat_history) && chat_history.length > 0) {
-      // Inject lightweight previous analysis as assistant context
       if (previous_analysis) {
         const light = {
           location_guess: previous_analysis.location_guess,
@@ -587,20 +730,17 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Add chat history (skip first assistant msg if it's just analysis summary)
       for (const msg of chat_history) {
         if (msg.role === 'user' || msg.role === 'assistant') {
           messages.push({ role: msg.role, content: msg.content });
         }
       }
 
-      // Add instruction to re-analyze
       messages.push({
         role: "user",
         content: "Reprends ton analyse complète en tenant compte de toute la conversation ci-dessus. Produis une nouvelle analyse structurée corrigée."
       });
     }
-    // Legacy conversational mode: inject previous analysis + user correction
     else if (previous_analysis && custom_instruction) {
       const light = {
         location_guess: previous_analysis.location_guess,
@@ -613,11 +753,10 @@ Deno.serve(async (req) => {
       });
       messages.push({
         role: "user",
-        content: `⚠️ CORRECTION : ${custom_instruction}\n\nReprends ton analyse en tenant compte de cette correction. Produis une nouvelle analyse complète corrigée.`
+        content: `⚠️ CORRECTION : ${custom_instruction}\n\nReprends ton analyse. Produis une nouvelle analyse complète corrigée.`
       });
     }
 
-    // Models to try in order (failover chain)
     const MODELS = [
       "google/gemini-2.5-pro",
       "google/gemini-2.5-flash",
@@ -628,7 +767,7 @@ Deno.serve(async (req) => {
     let lastError = "";
 
     for (const model of MODELS) {
-      console.log(`Trying model: ${model}`);
+      console.log(`Analyze mode - trying model: ${model}`);
       const attemptResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -652,46 +791,38 @@ Deno.serve(async (req) => {
       console.error(`AI gateway error (${model}):`, attemptResponse.status, errText);
       lastError = errText;
 
-      // Don't failover on client errors (except 402/403/429)
       if (attemptResponse.status === 429) {
         return new Response(JSON.stringify({ error: "Trop de requêtes, réessayez dans quelques secondes." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (attemptResponse.status === 402) {
         return new Response(JSON.stringify({ error: "Crédits IA épuisés." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (attemptResponse.status >= 400 && attemptResponse.status < 500 && attemptResponse.status !== 403) {
         return new Response(JSON.stringify({ error: "Erreur du service IA" }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      // 5xx or 403 → try next model
       continue;
     }
 
     if (!response) {
       console.error("All AI models failed. Last error:", lastError);
-      return new Response(JSON.stringify({ error: "Tous les modèles IA sont indisponibles, réessayez dans un moment." }), {
-        status: 503,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return new Response(JSON.stringify({ error: "Tous les modèles IA sont indisponibles." }), {
+        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const result = await response.json();
 
-    // Extract tool call result
     const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall || toolCall.function.name !== "analyze_marker") {
       console.error("No tool call in response:", JSON.stringify(result));
       return new Response(JSON.stringify({ error: "L'IA n'a pas produit d'analyse structurée" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -701,8 +832,7 @@ Deno.serve(async (req) => {
     } catch {
       console.error("Failed to parse tool call args:", toolCall.function.arguments);
       return new Response(JSON.stringify({ error: "Réponse IA invalide" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
