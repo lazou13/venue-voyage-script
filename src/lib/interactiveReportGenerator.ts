@@ -22,8 +22,9 @@ export interface ReportPOI {
   stopMinutes: number;
   // Phase 2 fields
   name: string;
-  functionType: 'passage' | 'pause_the' | 'briefing' | 'repas' | 'visite' | 'arret' | 'qr_code' | 'photo' | 'objet_trouve' | 'final';
-  action: '' | 'enigme' | 'qr_code' | 'photo_requise' | 'defi' | 'objet_trouve' | 'final';
+  functionType: 'story' | 'information' | 'mcq' | 'enigme' | 'code' | 'hangman' | 'memory' | 'photo' | 'terrain' | 'defi' | 'transition' | 'qr_code' | 'info_qr' | 'countdown';
+  action: '' | 'story' | 'information' | 'mcq' | 'enigme' | 'code' | 'hangman' | 'memory' | 'photo' | 'terrain' | 'defi' | 'transition' | 'qr_code' | 'info_qr' | 'countdown';
+  isVirtual?: boolean;
   validationType: '' | 'qr_code' | 'photo' | 'code' | 'manuel' | 'libre';
   risk: 'low' | 'medium' | 'high';
   wifi: 'good' | 'weak' | 'none';
