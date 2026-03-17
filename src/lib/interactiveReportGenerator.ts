@@ -1251,8 +1251,9 @@ export function generateInteractiveReportHTML(
               <th>Notes</th>
             </tr>
           </thead>
-          <tbody>
-            ${payload.pois.map((poi) => `
+          <tbody id="poi-tbody">
+            ${payload.pois.map((poi, idx) => `
+              ${idx > 0 ? `<tr class="insert-row-tr"><td colspan="12"><button class="insert-row-btn" onclick="insertRowAfter('${escapeHtml(payload.pois[idx - 1].id)}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Insérer</button></td></tr>` : ''}
               <tr data-poi-id="${escapeHtml(poi.id)}">
                 <td>${poi.order}</td>
                 <td>
@@ -1323,13 +1324,13 @@ export function generateInteractiveReportHTML(
                   </select>
                 </td>
                 <td>
-                  <input type="text" class="poi-input gps" data-poi-id="${escapeHtml(poi.id)}" data-field="gps" value="${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}" readonly>
+                  <input type="text" class="poi-input gps" data-poi-id="${escapeHtml(poi.id)}" data-field="gps" value="${poi.lat ? poi.lat.toFixed(5) + ', ' + poi.lng.toFixed(5) : '—'}" readonly>
                 </td>
                 <td>
                   <textarea class="poi-textarea" data-poi-id="${escapeHtml(poi.id)}" data-field="hints" rows="2">${escapeHtml(poi.hints)}</textarea>
                 </td>
                 <td>
-                  ${poi.photoUrl ? `<img src="${escapeHtml(poi.photoUrl)}" alt="Photo POI ${poi.order}" class="poi-photo-thumb" onclick="openReportLightbox('${escapeHtml(poi.photoUrl)}', '${escapeHtml(poi.note || '')}', '${poi.lat.toFixed(5)}, ${poi.lng.toFixed(5)}')" />` : ''}
+                  ${poi.photoUrl ? `<img src="${escapeHtml(poi.photoUrl)}" alt="Photo POI ${poi.order}" class="poi-photo-thumb" onclick="openReportLightbox('${escapeHtml(poi.photoUrl)}', '${escapeHtml(poi.note || '')}', '${poi.lat ? poi.lat.toFixed(5) + ', ' + poi.lng.toFixed(5) : ''}')" />` : ''}
                   ${poi.audioUrl ? `<audio controls style="width:120px;height:28px;margin-top:4px;display:block;"><source src="${escapeHtml(poi.audioUrl)}" type="audio/webm" /></audio>` : ''}
                   ${!poi.photoUrl && !poi.audioUrl ? '—' : ''}
                 </td>
