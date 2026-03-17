@@ -555,7 +555,7 @@ function POICard({
                 {poi.zone || 'Zone non définie'}
               </Badge>
               <Badge variant="outline" className="rounded-lg font-normal">
-                {INTERACTION_LABELS[poi.interaction]}
+                {STEP_TYPE_LABELS[(poi.step_config as any)?.final_step_type as StepType] || INTERACTION_LABELS[poi.interaction] || 'Non défini'}
               </Badge>
               <Badge 
                 variant="outline" 
