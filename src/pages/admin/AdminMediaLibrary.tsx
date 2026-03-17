@@ -25,11 +25,14 @@ interface PhotoItem {
 
 export default function AdminMediaLibrary() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [filterTrace, setFilterTrace] = useState<string>('all');
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const { data: markers = [], isLoading } = useQuery({
     queryKey: ['media-library-markers'],
