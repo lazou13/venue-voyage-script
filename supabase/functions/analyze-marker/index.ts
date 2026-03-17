@@ -51,6 +51,7 @@ Tu connais chaque ruelle, chaque souk, chaque monument, chaque artisan. Tu es hi
 - **Maison de la Photographie** (~31.6335°N, 7.9875°W) : photos du Maroc 1870-1960.
 - **Musée de Mouassine** : art contemporain dans un fondouk restauré.
 - **Fontaine Chrob ou Chouf** : "Bois et admire", linteau en bois de cèdre sculpté.
+- **Fondation Dar Bellarj** (~31.632°N, 7.986°W) : aussi appelée "Maison des Cigognes". Ancien hôpital pour cigognes fondé au XVIIe siècle dans un ancien fondouk. Restauré en 1999 par Suzanne Biedermann comme centre culturel et artistique. Les cigognes nichent encore sur le toit chaque année. Ce n'est PAS un caravansérail. Site : https://darbellarj.com/
 
 ### Portes (Bab)
 - **Bab Agnaou** : porte royale, grès ocre, la plus ornée (almohade, XIIe siècle).
