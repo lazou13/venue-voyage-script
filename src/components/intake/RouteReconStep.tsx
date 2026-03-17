@@ -2371,18 +2371,34 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
       )}
       
       {/* Interactive Report Dialog */}
-      {selectedTrace && (
-        <InteractiveReportViewer
-          open={showReport}
-          onOpenChange={setShowReport}
-          trace={selectedTrace}
-          markers={markers}
-          projectName={project?.hotel_name || 'Parcours'}
-          projectCity={project?.city}
-          questConfig={project?.quest_config as Record<string, unknown>}
-          poisCount={markers.length}
-        />
-      )}
+      {(() => {
+        // Merge all traces into one for the report
+        const mergedCoords = traces.flatMap(t => t.geojson?.coordinates || []);
+        const mergedDistance = traces.reduce((sum, t) => sum + (t.distance_meters || 0), 0);
+        const mergedTrace: RouteTrace | null = mergedCoords.length >= 2 ? {
+          id: 'merged',
+          project_id: projectId,
+          name: 'Toutes les traces',
+          geojson: { type: 'LineString' as const, coordinates: mergedCoords },
+          distance_meters: mergedDistance,
+          started_at: traces.reduce((min, t) => !min || (t.started_at && t.started_at < min) ? t.started_at : min, null as string | null),
+          ended_at: traces.reduce((max, t) => !max || (t.ended_at && t.ended_at > max) ? t.ended_at : max, null as string | null),
+          created_at: traces[0]?.created_at || new Date().toISOString(),
+        } : null;
+        
+        return mergedTrace ? (
+          <InteractiveReportViewer
+            open={showReport}
+            onOpenChange={setShowReport}
+            trace={mergedTrace}
+            markers={allMarkers}
+            projectName={project?.hotel_name || 'Parcours'}
+            projectCity={project?.city}
+            questConfig={project?.quest_config as Record<string, unknown>}
+            poisCount={allMarkers.length}
+          />
+        ) : null;
+      })()}
       {/* Delete Marker Confirmation */}
       <AlertDialog open={!!markerToDelete} onOpenChange={(open) => { if (!open) setMarkerToDelete(null); }}>
         <AlertDialogContent>
