@@ -1,51 +1,129 @@
+# Plan: Expert IA Médina — LYRA V3
 
+## Status: ✅ Implémenté
 
-# Plan : Vrai LLM conversationnel + envoi de photos dans le chat
+## Prompt LYRA V3 — Intégration complète
 
-## Probleme racine
+### Fichiers modifiés (6 Edge Functions)
 
-Le chat actuel n'est **pas un vrai LLM**. Chaque message force `tool_choice: analyze_marker`, ce qui oblige l'IA a produire un JSON structuré de 30+ champs au lieu de répondre naturellement. C'est lent, rigide, et ne permet pas de vraie conversation.
+| Fonction | Action | Modèle |
+|---|---|---|
+| `poi-autopipeline` | Prompts classify (`LYRA_CLASSIFY`) + enrich (`LYRA_ENRICH`) remplacés | flash-lite / flash |
+| `poi-enrich` | `SYSTEM_PROMPT` remplacé par LYRA V3 blocs 1-9+12 | flash |
+| `poi-worker` | `SYSTEM_PROMPT` remplacé par LYRA V3 blocs 1-9+12 | flash |
+| `poi-classify-worker` | Prompt classify remplacé par LYRA condensé | flash-lite |
+| `analyze-marker` | Fusionné : LYRA V3 blocs 1-3 + encyclopédie existante + blocs 8-9-12 | pro |
+| `public-generate-quest` | `systemPrompt` enrichi avec blocs 6-7-9-11-12 | gpt-5-mini |
 
-## Architecture cible
+### Contenu LYRA V3 intégré
 
-Deux modes dans l'edge function :
-- **Mode `chat`** (nouveau, par défaut dans le chat) : l'IA répond librement en texte, comme ChatGPT. Rapide, conversationnel.
-- **Mode `analyze`** (existant) : l'IA produit le JSON structuré complet. Déclenché uniquement par le bouton "Enrichir" ou un bouton "Réanalyser".
+- **Bloc 1** (Rôle) : LYRA-MEDINA-GRAPH, moteur d'intelligence urbaine
+- **Bloc 2** (Médina) : dense, labyrinthique, structurée
+- **Bloc 3** (Graphe urbain) : POI = nœud, analyse distance/cohérence/diversité
+- **Bloc 4** (Types) : 20 catégories (hammam → spa)
+- **Bloc 5** (Évaluation) : intérêt touristique, potentiel visuel, potentiel d'énigme
+- **Bloc 6** (Parcours) : 800m-2km, 5-8 POI, diversité obligatoire
+- **Bloc 7** (Chasse au trésor) : départ → exploration → culture → fun → final
+- **Bloc 8** (Énigmes) : easy/medium/hard par POI
+- **Bloc 9** (Narration) : immersive, concise, informative
+- **Blocs 10-11** (Structure/Cohérence) : JSON structuré, logique géographique
+- **Bloc 12** (Contraintes) : anti-hallucination, "à vérifier"
 
-## Modifications
+### Encyclopédie préservée (analyze-marker uniquement)
+- ✅ Coordonnées GPS des souks (13 souks)
+- ✅ Quartiers historiques (6 quartiers)
+- ✅ Monuments majeurs (10+ avec dates)
+- ✅ Restaurants par zone (~20 restaurants)
+- ✅ Artisanat par quartier
+- ✅ Spots Instagram + tips photo
+- ✅ Boutiques et commerces
+- ✅ Vocabulaire local
+- ✅ Comptes Instagram connus
 
-### 1. Edge function `analyze-marker/index.ts`
+## Ce qui a été créé
 
-- Nouveau paramètre `mode: 'chat' | 'analyze'` (défaut: `analyze` pour compatibilité)
-- Nouveau paramètre `chat_images: { url: string }[]` pour les photos envoyées dans le chat
-- En mode `chat` :
-  - Pas de `tools` ni `tool_choice` -- réponse libre
-  - System prompt allégé : contexte médina + instruction "réponds naturellement, tu es un expert de la médina"
-  - Retourne `{ reply: string }` au lieu de `{ analysis: {...} }`
-  - Les images du chat sont incluses comme `image_url` dans le dernier message user
-- En mode `analyze` : comportement actuel inchangé (tool_choice structuré)
+### Edge Function `analyze-marker`
+- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
+- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
+- Tool calling pour sortie JSON structurée avec 17 champs d'analyse
+- Gestion erreurs 429/402
 
-### 2. `MarkerDetailSheet.tsx` -- Chat conversationnel
+### Capacités (17 fonctions)
+1. ✅ Identification lieu + catégorie + tags
+2. ✅ Restaurants proches (nom, spécialité, prix, avis, **lien carte/menu**, **5 avis Google résumés**)
+3. ✅ Anecdote historique
+4. ✅ Description guide multilingue (fr/en/ar/es/ary)
+5. ✅ Résumé bibliothèque multilingue
+6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
+7. ✅ Classification automatique catégorie/sous-catégorie
+8. ✅ Estimation difficulté + intérêt par public cible
+9. ✅ Suggestions step_config (types, validations)
+10. ✅ Génération énigmes (QCM + énigme + défi terrain)
+11. ✅ Transcription audio enrichie + données structurées
+12. ✅ Détection doublons vs bibliothèque existante
+13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags, **posts Instagram réels avec URLs**)
+14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
+15. ✅ **POIs proches avec billets, tarifs et horaires** (musées, monuments)
+16. ✅ **Narration contextuelle** (suit le parcours, interdit les introductions génériques)
+17. ✅ **Liens web/Instagram/Maps** pour chaque restaurant et POI
 
-- **`handleSendChat`** appelle le mode `chat` (pas `analyze`) :
-  - Envoie `mode: 'chat'`, `chat_history`, `chat_images`
-  - Reçoit `data.reply` (texte libre) et l'affiche comme bulle assistant
-  - Ne met PAS à jour la note/analyse automatiquement (c'est une conversation)
-- **Envoi de photos dans le chat** :
-  - Bouton 📷 dans la barre d'input du chat
-  - Upload vers storage `fieldwork/chat-images/...`
-  - Affiche la miniature dans la bulle user
-  - Envoie l'URL au LLM via `chat_images`
-- **Bouton "Réanalyser"** (nouveau chip) : déclenche le mode `analyze` classique pour mettre à jour le JSON structuré et la note
-- Le bouton "Enrichir avec l'IA" (initial) reste en mode `analyze`
+### Enrichissement des connaissances
+- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
+- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
+- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
 
-### 3. UX du chat
+### Intégration Frontend
+- Analyse automatique après chaque marqueur rapide sauvegardé
+- Panel IA dans le drawer avec résultats structurés
+- Bouton "Appliquer à la note" pour enrichir le marqueur
+- Bouton "Ignorer" pour fermer sans appliquer
+- Marqueurs proches du même projet envoyés comme contexte additionnel
+- ✅ **Affichage enrichi** : avis Google, liens carte/menu, billets/tarifs, posts Instagram avec URLs
 
-- Les photos envoyées dans le chat s'affichent comme miniatures dans les bulles user
-- L'IA répond en texte libre, avec markdown (gras, listes, etc.)
-- Un chip "🔄 Réanalyser" permet de forcer une nouvelle analyse structurée quand on est satisfait de la conversation
+## Marqueur rapide — Améliorations terrain (✅ Implémenté)
 
-## Fichiers impactés
-- `supabase/functions/analyze-marker/index.ts` (ajout mode chat)
-- `src/components/intake/MarkerDetailSheet.tsx` (mode chat + upload photos dans chat)
+### Multi-photos
+- ✅ Colonne `photo_urls text[]` ajoutée à `route_markers`
+- ✅ `useRouteRecorder` supporte `photoUrls[]`
+- ✅ UI : ajout de photos multiples avec miniatures + suppression individuelle
+- ✅ Plus d'auto-save à la première photo — validation manuelle requise
 
+### Notes vocales fiables
+- ✅ `useVoiceRecorder` : détection dynamique du mimeType (webm → mp4 → défaut navigateur)
+- ✅ Upload avec extension adaptée (.webm ou .mp4)
+
+### IA différée
+- ✅ `triggerAiAnalysis` supprimé du `handleQuickMarkerSave`
+- ✅ Drawer se ferme immédiatement après sauvegarde (toast "Marqueur sauvegardé ✓")
+- ✅ Analyse IA accessible dans la liste des marqueurs après STOP (bouton "Analyser" + "Analyser tous")
+
+## Promotion en bibliothèque (✅ Enrichi)
+
+### Flux "Approuver + Bibliothèque"
+- ✅ Note enrichie avec restaurants (carte, avis), POIs (billets, tarifs, horaires)
+- ✅ Analyse IA complète stockée dans `medina_pois.metadata.ai_analysis`
+- ✅ Photos Instagram de référence extraites dans `metadata.reference_photos`
+- ✅ Nom et catégorie du POI déduits de l'analyse IA (au lieu de "POI terrain")
+
+### Narration de guide contextuelle
+- ✅ Interdiction des introductions génériques ("Oubliez les souks...")
+- ✅ Transitions de parcours obligatoires ("Nous voilà maintenant devant...")
+- ✅ Contexte marques/enseignes (pourquoi elles sont là, leur histoire)
+
+## Pipeline POI Google Places (✅ Implémenté)
+
+### Migration SQL
+- ✅ 21 colonnes ajoutées à `medina_pois` : `place_id`, `category_google`, `category_ai`, `address`, `rating`, `reviews_count`, `website`, `phone`, `district`, `souks_nearby`, `description_short`, `history_context`, `local_anecdote`, `instagram_spot`, `nearby_restaurants`, `nearby_pois_data`, `riddle_easy`, `riddle_medium`, `challenge`, `google_raw`, `enrichment_status`
+- ✅ Index sur `place_id` (unique) et `enrichment_status`
+
+### Edge Functions
+- ✅ `poi-extract` : Google Places Nearby Search (8 types, rayon 1500m) + Place Details (website, phone, reviews, photos)
+- ✅ `poi-enrich` : Classification IA (Gemini 2.5 Flash via tool calling), enrichissement culturel, génération d'énigmes
+- ✅ `poi-proximity` : Calcul Haversine → 5 restaurants + 5 POI proches
+- ✅ `poi-pipeline` : Orchestrateur (extract → enrich → proximity)
+
+### Page Admin
+- ✅ `/admin/poi-pipeline` avec boutons par étape + pipeline complet
+- ✅ Compteurs par statut (pending/raw/enriched/error)
+- ✅ Logs en temps réel
+- ✅ Lien dans la sidebar admin
