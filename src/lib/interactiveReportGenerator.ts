@@ -228,7 +228,7 @@ export function buildReportPayload(
       stopMinutes: 0,
       // Phase 2 fields with defaults
       name: '',
-      functionType: 'passage' as const,
+      functionType: 'transition' as const,
       action: '' as const,
       validationType: '' as const,
       risk: 'low' as const,
