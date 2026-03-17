@@ -819,11 +819,20 @@ Tu es maintenant en mode conversation libre. Réponds naturellement en français
       });
     }
 
-    const result = await response.json();
+    const responseText = await response.text();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      console.error("Failed to parse AI response as JSON. Length:", responseText.length, "Preview:", responseText.substring(0, 500));
+      return new Response(JSON.stringify({ error: "Réponse IA tronquée ou invalide. Réessayez." }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall || toolCall.function.name !== "analyze_marker") {
-      console.error("No tool call in response:", JSON.stringify(result));
+      console.error("No tool call in response:", JSON.stringify(result).substring(0, 500));
       return new Response(JSON.stringify({ error: "L'IA n'a pas produit d'analyse structurée" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -833,10 +842,25 @@ Tu es maintenant en mode conversation libre. Réponds naturellement en français
     try {
       analysis = JSON.parse(toolCall.function.arguments);
     } catch {
-      console.error("Failed to parse tool call args:", toolCall.function.arguments);
-      return new Response(JSON.stringify({ error: "Réponse IA invalide" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      // Try to repair truncated JSON
+      const args = toolCall.function.arguments || "";
+      console.error("Failed to parse tool call args. Length:", args.length, "Preview:", args.substring(0, 500));
+      const lastBrace = args.lastIndexOf("}");
+      if (lastBrace > 0) {
+        try {
+          const repaired = args.substring(0, lastBrace + 1);
+          analysis = JSON.parse(repaired);
+          console.warn("Recovered analysis from truncated JSON");
+        } catch {
+          return new Response(JSON.stringify({ error: "Réponse IA tronquée. Réessayez." }), {
+            status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } else {
+        return new Response(JSON.stringify({ error: "Réponse IA invalide" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     return new Response(JSON.stringify({ analysis }), {
