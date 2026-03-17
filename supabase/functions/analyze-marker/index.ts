@@ -568,11 +568,48 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Conversational mode: inject previous analysis + user correction
-    if (previous_analysis && custom_instruction) {
+    // Multi-turn chat mode: inject chat history
+    if (chat_history && Array.isArray(chat_history) && chat_history.length > 0) {
+      // Inject lightweight previous analysis as assistant context
+      if (previous_analysis) {
+        const light = {
+          location_guess: previous_analysis.location_guess,
+          category: previous_analysis.category,
+          sub_category: previous_analysis.sub_category,
+          summary_library: previous_analysis.summary_library,
+          historical_anecdote: typeof previous_analysis.historical_anecdote === 'string' ? previous_analysis.historical_anecdote.slice(0, 200) : '',
+          guide_narration_fr: typeof previous_analysis.guide_narration_fr === 'string' ? previous_analysis.guide_narration_fr.slice(0, 300) : (previous_analysis.guide_narration?.fr || '').slice(0, 300),
+          website_url: previous_analysis.website_url,
+        };
+        messages.push({
+          role: "assistant",
+          content: `Mon analyse précédente : ${JSON.stringify(light)}`
+        });
+      }
+
+      // Add chat history (skip first assistant msg if it's just analysis summary)
+      for (const msg of chat_history) {
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          messages.push({ role: msg.role, content: msg.content });
+        }
+      }
+
+      // Add instruction to re-analyze
+      messages.push({
+        role: "user",
+        content: "Reprends ton analyse complète en tenant compte de toute la conversation ci-dessus. Produis une nouvelle analyse structurée corrigée."
+      });
+    }
+    // Legacy conversational mode: inject previous analysis + user correction
+    else if (previous_analysis && custom_instruction) {
+      const light = {
+        location_guess: previous_analysis.location_guess,
+        category: previous_analysis.category,
+        summary_library: previous_analysis.summary_library,
+      };
       messages.push({
         role: "assistant",
-        content: `Voici mon analyse précédente :\n${JSON.stringify(previous_analysis, null, 2)}`
+        content: `Mon analyse précédente : ${JSON.stringify(light)}`
       });
       messages.push({
         role: "user",
