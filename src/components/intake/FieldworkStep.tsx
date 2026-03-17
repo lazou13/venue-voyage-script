@@ -422,16 +422,21 @@ function POICard({
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <Label className="text-xs font-medium mb-1.5 block">Interaction</Label>
+                  <Label className="text-xs font-medium mb-1.5 block">Type d'étape</Label>
                   <Select
-                    value={poi.interaction}
-                    onValueChange={(v) => onUpdate({ interaction: v as InteractionType })}
+                    value={(poi.step_config as any)?.final_step_type || ''}
+                    onValueChange={(v) => onUpdate({ 
+                      step_config: { 
+                        ...(poi.step_config as any), 
+                        final_step_type: v as StepType 
+                      } 
+                    })}
                   >
                     <SelectTrigger className="bg-background rounded-lg">
-                      <SelectValue />
+                      <SelectValue placeholder="Sélectionner..." />
                     </SelectTrigger>
                     <SelectContent className="bg-popover z-50">
-                      {Object.entries(INTERACTION_LABELS).map(([key, label]) => (
+                      {Object.entries(STEP_TYPE_LABELS).map(([key, label]) => (
                         <SelectItem key={key} value={key}>
                           {label}
                         </SelectItem>
