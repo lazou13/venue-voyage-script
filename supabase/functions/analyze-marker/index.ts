@@ -495,15 +495,138 @@ const ANALYSIS_TOOL = {
   }
 };
 
+function stripControlChars(value: string): string {
+  return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "");
+}
+
+function parseGatewayJson(raw: string): any {
+  const base = stripControlChars((raw ?? "").trim());
+  if (!base) throw new Error("Empty AI response body");
+
+  const candidates = new Set<string>();
+  candidates.add(base);
+
+  const withoutFence = base.replace(/```json\s*/gi, "").replace(/```/g, "").trim();
+  if (withoutFence) candidates.add(withoutFence);
+
+  const jsonStart = withoutFence.search(/[\{\[]/);
+  if (jsonStart !== -1) {
+    const endObj = withoutFence.lastIndexOf("}");
+    const endArr = withoutFence.lastIndexOf("]");
+    const jsonEnd = Math.max(endObj, endArr);
+    if (jsonEnd > jsonStart) {
+      candidates.add(withoutFence.substring(jsonStart, jsonEnd + 1));
+    }
+  }
+
+  if (base.includes("data:")) {
+    for (const rawLine of base.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      candidates.add(payload);
+      try {
+        const parsed = JSON.parse(payload);
+        if (parsed?.choices) return parsed;
+      } catch {
+        // keep trying with other payloads/candidates
+      }
+    }
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      const fixed = candidate.replace(/,\s*([}\]])/g, "$1");
+      if (fixed !== candidate) {
+        try {
+          return JSON.parse(fixed);
+        } catch {
+          // continue
+        }
+      }
+    }
+  }
+
+  throw new Error("Unable to parse AI gateway JSON payload");
+}
+
+function parseToolArguments(rawArgs: unknown): Record<string, unknown> {
+  if (typeof rawArgs !== "string") {
+    throw new Error("Tool arguments are not a string");
+  }
+
+  const normalized = stripControlChars(rawArgs)
+    .replace(/```json\s*/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  const candidates = new Set<string>([normalized]);
+
+  const start = normalized.indexOf("{");
+  const end = normalized.lastIndexOf("}");
+  if (start !== -1 && end > start) {
+    candidates.add(normalized.slice(start, end + 1));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      const fixed = candidate.replace(/,\s*([}\]])/g, "$1");
+      try {
+        return JSON.parse(fixed);
+      } catch {
+        const openBraces = (fixed.match(/\{/g) || []).length;
+        const closeBraces = (fixed.match(/\}/g) || []).length;
+        if (openBraces > closeBraces) {
+          const repaired = `${fixed}${"}".repeat(openBraces - closeBraces)}`;
+          try {
+            return JSON.parse(repaired);
+          } catch {
+            // continue
+          }
+        }
+      }
+    }
+  }
+
+  throw new Error("Unable to parse tool arguments");
+}
+
+function compactPoiName(name: unknown): string {
+  const raw = typeof name === "string" ? name : "POI";
+  const firstLine = raw.split("\n")[0]?.replace(/^📍\s*/, "").trim() || "POI";
+  return firstLine.slice(0, 90);
+}
+
+function extractMessageText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "text" in item && typeof item.text === "string") return item.text;
+        return "";
+      })
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+  }
+  return "";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { photo_url, audio_url, lat, lng, note, existing_pois, nearby_markers, custom_instruction, previous_analysis, chat_history, mode, chat_images } = await req.json();
+    const { photo_url, audio_url, lat, lng, note, existing_pois, nearby_markers, custom_instruction, previous_analysis, chat_history, mode } = await req.json();
 
-    const requestMode = mode || 'analyze'; // 'chat' or 'analyze'
+    const requestMode = mode || "analyze";
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
@@ -513,8 +636,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── CHAT MODE: free-text LLM conversation ──
-    if (requestMode === 'chat') {
+    if (requestMode === "chat") {
       const CHAT_SYSTEM = `${SYSTEM_PROMPT}
 
 ## MODE CONVERSATION
@@ -529,18 +651,11 @@ Tu es maintenant en mode conversation libre. Réponds naturellement en français
 - Si l'utilisateur te demande de mettre à jour, corriger ou actualiser la fiche, fais-le en texte et informe-le que la mise à jour de la fiche va être lancée automatiquement
 - IMPORTANT : La Fondation Dar Bellarj est un ancien hôpital pour cigognes (XVIIe siècle), PAS un caravansérail. Les cigognes y nichent encore.`;
 
-      const chatMessages: any[] = [
-        { role: "system", content: CHAT_SYSTEM },
-      ];
+      const chatMessages: any[] = [{ role: "system", content: CHAT_SYSTEM }];
 
-      // Add context about the marker
       const contextParts: string[] = [];
-      if (lat !== undefined && lng !== undefined) {
-        contextParts.push(`📍 Position GPS : ${lat}°N, ${lng}°W`);
-      }
-      if (note) {
-        contextParts.push(`📝 Note terrain : "${note.slice(0, 500)}"`);
-      }
+      if (lat !== undefined && lng !== undefined) contextParts.push(`📍 Position GPS : ${lat}°N, ${lng}°W`);
+      if (note) contextParts.push(`📝 Note terrain : "${String(note).slice(0, 500)}"`);
       if (previous_analysis) {
         const light = {
           location_guess: previous_analysis.location_guess,
@@ -550,57 +665,40 @@ Tu es maintenant en mode conversation libre. Réponds naturellement en français
         };
         contextParts.push(`🧠 Analyse précédente : ${JSON.stringify(light)}`);
       }
-      if (photo_url) {
-        contextParts.push(`📷 Photo du marqueur disponible`);
-      }
+      if (photo_url) contextParts.push("📷 Photo du marqueur disponible");
 
       if (contextParts.length > 0) {
-        chatMessages.push({
-          role: "system",
-          content: `Contexte du marqueur en cours de discussion :\n${contextParts.join('\n')}`
-        });
+        chatMessages.push({ role: "system", content: `Contexte du marqueur en cours de discussion :\n${contextParts.join("\n")}` });
       }
 
-      // Add chat history
       if (chat_history && Array.isArray(chat_history)) {
-        for (const msg of chat_history) {
-          if (msg.role === 'user' || msg.role === 'assistant') {
-            // Check if user message has images
-            if (msg.role === 'user' && msg.images && Array.isArray(msg.images) && msg.images.length > 0) {
-              const content: any[] = [{ type: "text", text: msg.content }];
-              for (const img of msg.images) {
-                content.push({ type: "image_url", image_url: { url: img.url } });
-              }
-              chatMessages.push({ role: "user", content });
-            } else {
-              chatMessages.push({ role: msg.role, content: msg.content });
+        for (const msg of chat_history.slice(-20)) {
+          if (msg.role !== "user" && msg.role !== "assistant") continue;
+          if (msg.role === "user" && msg.images && Array.isArray(msg.images) && msg.images.length > 0) {
+            const text = extractMessageText(msg.content).slice(0, 1200);
+            const content: any[] = [{ type: "text", text }];
+            for (const img of msg.images.slice(0, 3)) {
+              if (img?.url) content.push({ type: "image_url", image_url: { url: img.url } });
             }
+            chatMessages.push({ role: "user", content });
+          } else {
+            const text = extractMessageText(msg.content).slice(0, 1200);
+            if (text) chatMessages.push({ role: msg.role, content: text });
           }
         }
       }
 
-      // Add current images to the last user message if needed
-      // (chat_images are already embedded in chat_history messages)
-
-      // Also add the marker photo for context if available and no chat history
       if (photo_url && (!chat_history || chat_history.length <= 1)) {
-        // Add photo as context in a system-like way
         chatMessages.push({
           role: "user",
           content: [
             { type: "text", text: "Voici la photo du marqueur terrain pour contexte." },
-            { type: "image_url", image_url: { url: photo_url } }
-          ]
+            { type: "image_url", image_url: { url: photo_url } },
+          ],
         });
       }
 
-      const CHAT_MODELS = [
-        "google/gemini-2.5-pro",
-        "google/gemini-2.5-flash",
-        "openai/gpt-5-mini",
-      ];
-
-      let response: Response | null = null;
+      const CHAT_MODELS = ["google/gemini-2.5-pro", "google/gemini-2.5-flash", "openai/gpt-5-mini"];
       let lastError = "";
 
       for (const model of CHAT_MODELS) {
@@ -613,71 +711,94 @@ Tu es maintenant en mode conversation libre. Réponds naturellement en français
           },
           body: JSON.stringify({
             model,
+            stream: false,
             messages: chatMessages,
-            // No tools, no tool_choice — free text response
           }),
         });
 
-        if (attemptResponse.ok) {
-          response = attemptResponse;
-          break;
+        if (!attemptResponse.ok) {
+          const errText = await attemptResponse.text();
+          console.error(`Chat AI error (${model}):`, attemptResponse.status, errText);
+          lastError = errText;
+
+          if (attemptResponse.status === 429) {
+            return new Response(JSON.stringify({ error: "Trop de requêtes, réessayez dans quelques secondes." }), {
+              status: 429,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          if (attemptResponse.status === 402) {
+            return new Response(JSON.stringify({ error: "Crédits IA épuisés." }), {
+              status: 402,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          if (attemptResponse.status >= 400 && attemptResponse.status < 500 && attemptResponse.status !== 403) {
+            return new Response(JSON.stringify({ error: "Erreur du service IA" }), {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+          continue;
         }
 
-        const errText = await attemptResponse.text();
-        console.error(`Chat AI error (${model}):`, attemptResponse.status, errText);
-        lastError = errText;
-
-        if (attemptResponse.status === 429) {
-          return new Response(JSON.stringify({ error: "Trop de requêtes, réessayez dans quelques secondes." }), {
-            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+        const raw = await attemptResponse.text();
+        try {
+          const result = parseGatewayJson(raw);
+          const reply = result.choices?.[0]?.message?.content;
+          if (typeof reply === "string" && reply.trim()) {
+            return new Response(JSON.stringify({ reply }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`Chat parse error (${model}):`, msg, "Raw preview:", JSON.stringify(raw.slice(0, 300)));
+          lastError = msg;
+          continue;
         }
-        if (attemptResponse.status === 402) {
-          return new Response(JSON.stringify({ error: "Crédits IA épuisés." }), {
-            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        if (attemptResponse.status >= 400 && attemptResponse.status < 500 && attemptResponse.status !== 403) {
-          return new Response(JSON.stringify({ error: "Erreur du service IA" }), {
-            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        continue;
       }
 
-      if (!response) {
-        return new Response(JSON.stringify({ error: "Tous les modèles IA sont indisponibles." }), {
-          status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const result = await response.json();
-      const reply = result.choices?.[0]?.message?.content || "Je n'ai pas pu générer de réponse.";
-
-      return new Response(JSON.stringify({ reply }), {
+      console.error("Chat failed across models:", lastError);
+      return new Response(JSON.stringify({ error: "Tous les modèles IA sont indisponibles." }), {
+        status: 503,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // ── ANALYZE MODE: structured JSON output (existing behavior) ──
-
-    // Build user prompt
     const parts: string[] = [];
-    
+
     if (lat !== undefined && lng !== undefined) {
       parts.push(`📍 Position GPS : ${lat}°N, ${lng}°W`);
     }
-    
+
     if (note) {
-      parts.push(`📝 Note terrain : "${note}"`);
+      parts.push(`📝 Note terrain : "${String(note).slice(0, 1200)}"`);
     }
 
-    if (existing_pois && existing_pois.length > 0) {
-      parts.push(`\n📚 POIs existants dans la bibliothèque (vérifie les doublons) :\n${existing_pois.map((p: any) => `- ${p.name} (${p.category}, ${p.zone}${p.lat ? `, ${p.lat}°N ${p.lng}°W` : ''})`).join('\n')}`);
+    if (existing_pois && Array.isArray(existing_pois) && existing_pois.length > 0) {
+      const compactPois = existing_pois.slice(0, 30).map((p: any) => {
+        const poiName = compactPoiName(p?.name);
+        const category = typeof p?.category === "string" ? p.category : "unknown";
+        const zone = typeof p?.zone === "string" ? p.zone : "unknown";
+        const coords = typeof p?.lat === "number" && typeof p?.lng === "number" ? `, ${p.lat}°N ${p.lng}°W` : "";
+        return `- ${poiName} (${category}, ${zone}${coords})`;
+      });
+      parts.push(`\n📚 POIs existants dans la bibliothèque (échantillon compact, vérifie les doublons) :\n${compactPois.join("\n")}`);
+      if (existing_pois.length > 30) {
+        parts.push(`\n…et ${existing_pois.length - 30} POIs supplémentaires.`);
+      }
     }
 
-    if (nearby_markers && nearby_markers.length > 0) {
-      parts.push(`\n🔄 Marqueurs proches déjà posés (contexte terrain, corrections humaines = vérité) :\n${nearby_markers.map((m: any) => `- [${m.lat}°N, ${m.lng}°W] ${m.note || '(sans note)'}${m.photo_url ? ' 📷' : ''}${m.audio_url ? ' 🎙️' : ''}`).join('\n')}`);
+    if (nearby_markers && Array.isArray(nearby_markers) && nearby_markers.length > 0) {
+      const compactMarkers = nearby_markers.slice(0, 20).map((m: any) => {
+        const noteText = typeof m?.note === "string" ? m.note.slice(0, 140) : "(sans note)";
+        return `- [${m?.lat}°N, ${m?.lng}°W] ${noteText}${m?.photo_url ? " 📷" : ""}${m?.audio_url ? " 🎙️" : ""}`;
+      });
+      parts.push(`\n🔄 Marqueurs proches déjà posés (contexte terrain, corrections humaines = vérité) :\n${compactMarkers.join("\n")}`);
+      if (nearby_markers.length > 20) {
+        parts.push(`\n…et ${nearby_markers.length - 20} marqueurs supplémentaires.`);
+      }
     }
 
     if (!previous_analysis) {
@@ -685,37 +806,30 @@ Tu es maintenant en mode conversation libre. Réponds naturellement en français
     }
 
     if (custom_instruction && !previous_analysis) {
-      parts.push(`\n💬 Instruction de l'utilisateur : "${custom_instruction}"`);
+      parts.push(`\n💬 Instruction de l'utilisateur : "${String(custom_instruction).slice(0, 1000)}"`);
     }
 
-    // Build messages
-    const messages: any[] = [
-      { role: "system", content: SYSTEM_PROMPT },
-    ];
+    const messages: any[] = [{ role: "system", content: SYSTEM_PROMPT }];
 
     if (photo_url) {
       messages.push({
         role: "user",
         content: [
-          { type: "text", text: parts.join('\n') },
-          { type: "image_url", image_url: { url: photo_url } }
-        ]
+          { type: "text", text: parts.join("\n") },
+          { type: "image_url", image_url: { url: photo_url } },
+        ],
       });
     } else {
-      messages.push({
-        role: "user",
-        content: parts.join('\n')
-      });
+      messages.push({ role: "user", content: parts.join("\n") });
     }
 
     if (audio_url) {
       messages.push({
         role: "user",
-        content: `🎙️ Note vocale enregistrée sur le terrain : ${audio_url}\nTranscris et enrichis cette note vocale.`
+        content: `🎙️ Note vocale enregistrée sur le terrain : ${audio_url}\nTranscris et enrichis cette note vocale.`,
       });
     }
 
-    // Multi-turn: inject chat history for re-analyze
     if (chat_history && Array.isArray(chat_history) && chat_history.length > 0) {
       if (previous_analysis) {
         const light = {
@@ -723,50 +837,41 @@ Tu es maintenant en mode conversation libre. Réponds naturellement en français
           category: previous_analysis.category,
           sub_category: previous_analysis.sub_category,
           summary_library: previous_analysis.summary_library,
-          historical_anecdote: typeof previous_analysis.historical_anecdote === 'string' ? previous_analysis.historical_anecdote.slice(0, 200) : '',
-          guide_narration_fr: typeof previous_analysis.guide_narration_fr === 'string' ? previous_analysis.guide_narration_fr.slice(0, 300) : (previous_analysis.guide_narration?.fr || '').slice(0, 300),
+          historical_anecdote: typeof previous_analysis.historical_anecdote === "string" ? previous_analysis.historical_anecdote.slice(0, 200) : "",
+          guide_narration_fr:
+            typeof previous_analysis.guide_narration_fr === "string"
+              ? previous_analysis.guide_narration_fr.slice(0, 300)
+              : (previous_analysis.guide_narration?.fr || "").slice(0, 300),
           website_url: previous_analysis.website_url,
         };
-        messages.push({
-          role: "assistant",
-          content: `Mon analyse précédente : ${JSON.stringify(light)}`
-        });
+        messages.push({ role: "assistant", content: `Mon analyse précédente : ${JSON.stringify(light)}` });
       }
 
-      for (const msg of chat_history) {
-        if (msg.role === 'user' || msg.role === 'assistant') {
-          messages.push({ role: msg.role, content: msg.content });
-        }
+      for (const msg of chat_history.slice(-12)) {
+        if (msg.role !== "user" && msg.role !== "assistant") continue;
+        const content = extractMessageText(msg.content).slice(0, 1200);
+        if (!content) continue;
+        messages.push({ role: msg.role, content });
       }
 
       messages.push({
         role: "user",
-        content: "Reprends ton analyse complète en tenant compte de toute la conversation ci-dessus. Produis une nouvelle analyse structurée corrigée."
+        content: "Reprends ton analyse complète en tenant compte de toute la conversation ci-dessus. Produis une nouvelle analyse structurée corrigée.",
       });
-    }
-    else if (previous_analysis && custom_instruction) {
+    } else if (previous_analysis && custom_instruction) {
       const light = {
         location_guess: previous_analysis.location_guess,
         category: previous_analysis.category,
         summary_library: previous_analysis.summary_library,
       };
-      messages.push({
-        role: "assistant",
-        content: `Mon analyse précédente : ${JSON.stringify(light)}`
-      });
+      messages.push({ role: "assistant", content: `Mon analyse précédente : ${JSON.stringify(light)}` });
       messages.push({
         role: "user",
-        content: `⚠️ CORRECTION : ${custom_instruction}\n\nReprends ton analyse. Produis une nouvelle analyse complète corrigée.`
+        content: `⚠️ CORRECTION : ${String(custom_instruction).slice(0, 1000)}\n\nReprends ton analyse. Produis une nouvelle analyse complète corrigée.`,
       });
     }
 
-    const MODELS = [
-      "google/gemini-2.5-pro",
-      "google/gemini-2.5-flash",
-      "openai/gpt-5",
-    ];
-
-    let response: Response | null = null;
+    const MODELS = ["google/gemini-2.5-pro", "google/gemini-2.5-flash", "openai/gpt-5"];
     let lastError = "";
 
     for (const model of MODELS) {
@@ -779,91 +884,74 @@ Tu es maintenant en mode conversation libre. Réponds naturellement en français
         },
         body: JSON.stringify({
           model,
+          stream: false,
           messages,
           tools: [ANALYSIS_TOOL],
           tool_choice: { type: "function", function: { name: "analyze_marker" } },
         }),
       });
 
-      if (attemptResponse.ok) {
-        response = attemptResponse;
-        break;
-      }
+      if (!attemptResponse.ok) {
+        const errText = await attemptResponse.text();
+        console.error(`AI gateway error (${model}):`, attemptResponse.status, errText);
+        lastError = errText;
 
-      const errText = await attemptResponse.text();
-      console.error(`AI gateway error (${model}):`, attemptResponse.status, errText);
-      lastError = errText;
-
-      if (attemptResponse.status === 429) {
-        return new Response(JSON.stringify({ error: "Trop de requêtes, réessayez dans quelques secondes." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (attemptResponse.status === 402) {
-        return new Response(JSON.stringify({ error: "Crédits IA épuisés." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (attemptResponse.status >= 400 && attemptResponse.status < 500 && attemptResponse.status !== 403) {
-        return new Response(JSON.stringify({ error: "Erreur du service IA" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      continue;
-    }
-
-    if (!response) {
-      console.error("All AI models failed. Last error:", lastError);
-      return new Response(JSON.stringify({ error: "Tous les modèles IA sont indisponibles." }), {
-        status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const responseText = await response.text();
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      console.error("Failed to parse AI response as JSON. Length:", responseText.length, "Preview:", responseText.substring(0, 500));
-      return new Response(JSON.stringify({ error: "Réponse IA tronquée ou invalide. Réessayez." }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall || toolCall.function.name !== "analyze_marker") {
-      console.error("No tool call in response:", JSON.stringify(result).substring(0, 500));
-      return new Response(JSON.stringify({ error: "L'IA n'a pas produit d'analyse structurée" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    let analysis;
-    try {
-      analysis = JSON.parse(toolCall.function.arguments);
-    } catch {
-      // Try to repair truncated JSON
-      const args = toolCall.function.arguments || "";
-      console.error("Failed to parse tool call args. Length:", args.length, "Preview:", args.substring(0, 500));
-      const lastBrace = args.lastIndexOf("}");
-      if (lastBrace > 0) {
-        try {
-          const repaired = args.substring(0, lastBrace + 1);
-          analysis = JSON.parse(repaired);
-          console.warn("Recovered analysis from truncated JSON");
-        } catch {
-          return new Response(JSON.stringify({ error: "Réponse IA tronquée. Réessayez." }), {
-            status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        if (attemptResponse.status === 429) {
+          return new Response(JSON.stringify({ error: "Trop de requêtes, réessayez dans quelques secondes." }), {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
-      } else {
-        return new Response(JSON.stringify({ error: "Réponse IA invalide" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        if (attemptResponse.status === 402) {
+          return new Response(JSON.stringify({ error: "Crédits IA épuisés." }), {
+            status: 402,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (attemptResponse.status >= 400 && attemptResponse.status < 500 && attemptResponse.status !== 403) {
+          return new Response(JSON.stringify({ error: "Erreur du service IA" }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        continue;
+      }
+
+      const rawResponse = await attemptResponse.text();
+      let result: any;
+      try {
+        result = parseGatewayJson(rawResponse);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`Analyze parse error (${model}):`, msg, "Raw preview:", JSON.stringify(rawResponse.slice(0, 300)));
+        lastError = msg;
+        continue;
+      }
+
+      const toolCall = result?.choices?.[0]?.message?.tool_calls?.[0];
+      if (!toolCall || toolCall?.function?.name !== "analyze_marker") {
+        console.error(`Analyze missing tool call (${model})`, JSON.stringify(result).slice(0, 500));
+        lastError = "Missing analyze_marker tool call";
+        continue;
+      }
+
+      try {
+        const analysis = parseToolArguments(toolCall.function.arguments);
+        return new Response(JSON.stringify({ analysis }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const argsPreview = typeof toolCall?.function?.arguments === "string" ? toolCall.function.arguments.slice(0, 300) : "";
+        console.error(`Analyze tool-args parse error (${model}):`, msg, "Args preview:", JSON.stringify(argsPreview));
+        lastError = msg;
+        continue;
       }
     }
 
-    return new Response(JSON.stringify({ analysis }), {
+    console.error("All analyze models failed. Last error:", lastError);
+    return new Response(JSON.stringify({ error: "Réponse IA tronquée ou invalide. Réessayez." }), {
+      status: 502,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
