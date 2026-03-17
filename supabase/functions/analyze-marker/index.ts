@@ -580,38 +580,68 @@ Deno.serve(async (req) => {
       });
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-pro",
-        messages,
-        tools: [ANALYSIS_TOOL],
-        tool_choice: { type: "function", function: { name: "analyze_marker" } },
-      }),
-    });
+    // Models to try in order (failover chain)
+    const MODELS = [
+      "google/gemini-2.5-pro",
+      "google/gemini-2.5-flash",
+      "openai/gpt-5",
+    ];
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("AI gateway error:", response.status, errText);
+    let response: Response | null = null;
+    let lastError = "";
 
-      if (response.status === 429) {
+    for (const model of MODELS) {
+      console.log(`Trying model: ${model}`);
+      const attemptResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          tools: [ANALYSIS_TOOL],
+          tool_choice: { type: "function", function: { name: "analyze_marker" } },
+        }),
+      });
+
+      if (attemptResponse.ok) {
+        response = attemptResponse;
+        break;
+      }
+
+      const errText = await attemptResponse.text();
+      console.error(`AI gateway error (${model}):`, attemptResponse.status, errText);
+      lastError = errText;
+
+      // Don't failover on client errors (except 402/403/429)
+      if (attemptResponse.status === 429) {
         return new Response(JSON.stringify({ error: "Trop de requêtes, réessayez dans quelques secondes." }), {
           status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
+      if (attemptResponse.status === 402) {
         return new Response(JSON.stringify({ error: "Crédits IA épuisés." }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify({ error: "Erreur du service IA" }), {
-        status: 500,
+      if (attemptResponse.status >= 400 && attemptResponse.status < 500 && attemptResponse.status !== 403) {
+        return new Response(JSON.stringify({ error: "Erreur du service IA" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      // 5xx or 403 → try next model
+      continue;
+    }
+
+    if (!response) {
+      console.error("All AI models failed. Last error:", lastError);
+      return new Response(JSON.stringify({ error: "Tous les modèles IA sont indisponibles, réessayez dans un moment." }), {
+        status: 503,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
