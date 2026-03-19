@@ -260,6 +260,10 @@ export default function AdminPOIPipeline() {
             <Button variant="outline" size="sm" onClick={() => refetchStats()} className="gap-1">
               <RefreshCw className="w-3 h-3" /> Rafraîchir
             </Button>
+            <Button onClick={() => runStep("fetch-photos")} disabled={!!running} variant="secondary" size="sm" className="gap-1">
+              {running === "fetch-photos" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
+              Fetch Google Photos
+            </Button>
           </div>
         </CardContent>
       </Card>
