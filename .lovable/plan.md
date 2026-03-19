@@ -1,129 +1,54 @@
-# Plan: Expert IA Médina — LYRA V3
 
-## Status: ✅ Implémenté
 
-## Prompt LYRA V3 — Intégration complète
+## Plan : Auto-fetch des photos Google Places pour les POIs
 
-### Fichiers modifiés (6 Edge Functions)
+### Objectif
+Créer une edge function qui, pour chaque POI ayant un `photo_reference` dans `google_raw` mais aucune photo dans `poi_media`, télécharge automatiquement la première photo Google Places et la stocke dans le bucket `poi-media`.
 
-| Fonction | Action | Modèle |
-|---|---|---|
-| `poi-autopipeline` | Prompts classify (`LYRA_CLASSIFY`) + enrich (`LYRA_ENRICH`) remplacés | flash-lite / flash |
-| `poi-enrich` | `SYSTEM_PROMPT` remplacé par LYRA V3 blocs 1-9+12 | flash |
-| `poi-worker` | `SYSTEM_PROMPT` remplacé par LYRA V3 blocs 1-9+12 | flash |
-| `poi-classify-worker` | Prompt classify remplacé par LYRA condensé | flash-lite |
-| `analyze-marker` | Fusionné : LYRA V3 blocs 1-3 + encyclopédie existante + blocs 8-9-12 | pro |
-| `public-generate-quest` | `systemPrompt` enrichi avec blocs 6-7-9-11-12 | gpt-5-mini |
+### Architecture
 
-### Contenu LYRA V3 intégré
+```text
+AdminPOIPipeline (bouton "Fetch Photos")
+  → Edge Function poi-fetch-photos
+    → Pour chaque POI sans photo :
+      1. Extraire photo_reference de google_raw.details.photos[0] (priorité) ou nearby.photos[0]
+      2. GET Google Places Photo API (maxwidth=800)
+      3. Upload image dans poi-media bucket : poi-media/{poi_id}/google_cover.jpg
+      4. INSERT dans poi_media (media_type=photo, is_cover=true, role_tags=["repere"])
+    → Retourner { fetched: N, skipped: N, errors: N }
+```
 
-- **Bloc 1** (Rôle) : LYRA-MEDINA-GRAPH, moteur d'intelligence urbaine
-- **Bloc 2** (Médina) : dense, labyrinthique, structurée
-- **Bloc 3** (Graphe urbain) : POI = nœud, analyse distance/cohérence/diversité
-- **Bloc 4** (Types) : 20 catégories (hammam → spa)
-- **Bloc 5** (Évaluation) : intérêt touristique, potentiel visuel, potentiel d'énigme
-- **Bloc 6** (Parcours) : 800m-2km, 5-8 POI, diversité obligatoire
-- **Bloc 7** (Chasse au trésor) : départ → exploration → culture → fun → final
-- **Bloc 8** (Énigmes) : easy/medium/hard par POI
-- **Bloc 9** (Narration) : immersive, concise, informative
-- **Blocs 10-11** (Structure/Cohérence) : JSON structuré, logique géographique
-- **Bloc 12** (Contraintes) : anti-hallucination, "à vérifier"
+### Fichiers à créer / modifier
 
-### Encyclopédie préservée (analyze-marker uniquement)
-- ✅ Coordonnées GPS des souks (13 souks)
-- ✅ Quartiers historiques (6 quartiers)
-- ✅ Monuments majeurs (10+ avec dates)
-- ✅ Restaurants par zone (~20 restaurants)
-- ✅ Artisanat par quartier
-- ✅ Spots Instagram + tips photo
-- ✅ Boutiques et commerces
-- ✅ Vocabulaire local
-- ✅ Comptes Instagram connus
+**1. `supabase/functions/poi-fetch-photos/index.ts`** (nouveau)
+- Edge function batch : traite jusqu'à 20 POIs par appel (éviter timeout)
+- Query : `medina_pois` avec `google_raw` non vide, LEFT JOIN `poi_media` pour exclure ceux qui ont déjà une photo
+- Pour chaque POI éligible :
+  - Extraire `photo_reference` (details > nearby, premier élément)
+  - Fetch `https://maps.googleapis.com/maps/api/place/photo?maxwidth=800&photo_reference=...&key=...`
+  - La réponse est un redirect vers l'image (suivre le redirect, récupérer le blob)
+  - Upload dans storage bucket `poi-media` sous `{poi_id}/google_cover.jpg`
+  - Insert `poi_media` row avec `is_cover=true`, `media_type='photo'`, `role_tags='["repere"]'`
+- Auth : admin only (vérifier JWT + has_role)
+- CORS headers standard
 
-## Ce qui a été créé
+**2. `supabase/config.toml`** — ne pas modifier (auto-géré)
 
-### Edge Function `analyze-marker`
-- Modèle : `google/gemini-2.5-pro` via Lovable AI Gateway
-- Prompt système ~6000 tokens de connaissances encyclopédiques sur la médina de Marrakech
-- Tool calling pour sortie JSON structurée avec 17 champs d'analyse
-- Gestion erreurs 429/402
+**3. `src/pages/admin/AdminPOIPipeline.tsx`** (modification)
+- Ajouter un bouton "Fetch Google Photos" dans la section existante du dashboard pipeline
+- Appel `supabase.functions.invoke('poi-fetch-photos')` 
+- Afficher le résultat (fetched / skipped / errors) dans un toast
+- Bouton disabled pendant le loading
 
-### Capacités (17 fonctions)
-1. ✅ Identification lieu + catégorie + tags
-2. ✅ Restaurants proches (nom, spécialité, prix, avis, **lien carte/menu**, **5 avis Google résumés**)
-3. ✅ Anecdote historique
-4. ✅ Description guide multilingue (fr/en/ar/es/ary)
-5. ✅ Résumé bibliothèque multilingue
-6. ✅ Conseils pratiques (horaires, photo, sécurité, accessibilité)
-7. ✅ Classification automatique catégorie/sous-catégorie
-8. ✅ Estimation difficulté + intérêt par public cible
-9. ✅ Suggestions step_config (types, validations)
-10. ✅ Génération énigmes (QCM + énigme + défi terrain)
-11. ✅ Transcription audio enrichie + données structurées
-12. ✅ Détection doublons vs bibliothèque existante
-13. ✅ **Potentiel Instagram** (score 1-5, angle, heure, hashtags, **posts Instagram réels avec URLs**)
-14. ✅ **Contexte terrain** (marqueurs proches avec notes humaines injectés comme vérité terrain)
-15. ✅ **POIs proches avec billets, tarifs et horaires** (musées, monuments)
-16. ✅ **Narration contextuelle** (suit le parcours, interdit les introductions génériques)
-17. ✅ **Liens web/Instagram/Maps** pour chaque restaurant et POI
+### Détails techniques
 
-### Enrichissement des connaissances
-- ✅ **Stratégie A** : Boucle de retour terrain — marqueurs proches (< 200m) envoyés comme contexte
-- 🔲 **Stratégie B** : Table `medina_knowledge` — fiches éditables par l'admin
-- 🔲 **Stratégie C** : Recherche web temps réel (Perplexity/Firecrawl)
+- **Batch de 20** : la Google Places Photo API a un quota, et l'edge function a un timeout de ~60s. 20 photos avec download + upload ≈ 30-40s.
+- **Idempotent** : si un POI a déjà une entrée `poi_media` de type `photo`, il est skip.
+- **Pas de migration DB** : on utilise les tables existantes (`medina_pois`, `poi_media`, storage `poi-media`).
+- **photo_reference expiration** : les références Google expirent après quelques mois, d'où l'intérêt de télécharger et stocker maintenant.
 
-### Intégration Frontend
-- Analyse automatique après chaque marqueur rapide sauvegardé
-- Panel IA dans le drawer avec résultats structurés
-- Bouton "Appliquer à la note" pour enrichir le marqueur
-- Bouton "Ignorer" pour fermer sans appliquer
-- Marqueurs proches du même projet envoyés comme contexte additionnel
-- ✅ **Affichage enrichi** : avis Google, liens carte/menu, billets/tarifs, posts Instagram avec URLs
+### Résultat attendu
+- Un bouton dans le pipeline dashboard
+- En ~5-6 clics (20 POIs par batch), les 360 POIs éligibles ont leur cover photo
+- Les photos sont visibles immédiatement dans l'éditeur POI (MediaSection)
 
-## Marqueur rapide — Améliorations terrain (✅ Implémenté)
-
-### Multi-photos
-- ✅ Colonne `photo_urls text[]` ajoutée à `route_markers`
-- ✅ `useRouteRecorder` supporte `photoUrls[]`
-- ✅ UI : ajout de photos multiples avec miniatures + suppression individuelle
-- ✅ Plus d'auto-save à la première photo — validation manuelle requise
-
-### Notes vocales fiables
-- ✅ `useVoiceRecorder` : détection dynamique du mimeType (webm → mp4 → défaut navigateur)
-- ✅ Upload avec extension adaptée (.webm ou .mp4)
-
-### IA différée
-- ✅ `triggerAiAnalysis` supprimé du `handleQuickMarkerSave`
-- ✅ Drawer se ferme immédiatement après sauvegarde (toast "Marqueur sauvegardé ✓")
-- ✅ Analyse IA accessible dans la liste des marqueurs après STOP (bouton "Analyser" + "Analyser tous")
-
-## Promotion en bibliothèque (✅ Enrichi)
-
-### Flux "Approuver + Bibliothèque"
-- ✅ Note enrichie avec restaurants (carte, avis), POIs (billets, tarifs, horaires)
-- ✅ Analyse IA complète stockée dans `medina_pois.metadata.ai_analysis`
-- ✅ Photos Instagram de référence extraites dans `metadata.reference_photos`
-- ✅ Nom et catégorie du POI déduits de l'analyse IA (au lieu de "POI terrain")
-
-### Narration de guide contextuelle
-- ✅ Interdiction des introductions génériques ("Oubliez les souks...")
-- ✅ Transitions de parcours obligatoires ("Nous voilà maintenant devant...")
-- ✅ Contexte marques/enseignes (pourquoi elles sont là, leur histoire)
-
-## Pipeline POI Google Places (✅ Implémenté)
-
-### Migration SQL
-- ✅ 21 colonnes ajoutées à `medina_pois` : `place_id`, `category_google`, `category_ai`, `address`, `rating`, `reviews_count`, `website`, `phone`, `district`, `souks_nearby`, `description_short`, `history_context`, `local_anecdote`, `instagram_spot`, `nearby_restaurants`, `nearby_pois_data`, `riddle_easy`, `riddle_medium`, `challenge`, `google_raw`, `enrichment_status`
-- ✅ Index sur `place_id` (unique) et `enrichment_status`
-
-### Edge Functions
-- ✅ `poi-extract` : Google Places Nearby Search (8 types, rayon 1500m) + Place Details (website, phone, reviews, photos)
-- ✅ `poi-enrich` : Classification IA (Gemini 2.5 Flash via tool calling), enrichissement culturel, génération d'énigmes
-- ✅ `poi-proximity` : Calcul Haversine → 5 restaurants + 5 POI proches
-- ✅ `poi-pipeline` : Orchestrateur (extract → enrich → proximity)
-
-### Page Admin
-- ✅ `/admin/poi-pipeline` avec boutons par étape + pipeline complet
-- ✅ Compteurs par statut (pending/raw/enriched/error)
-- ✅ Logs en temps réel
-- ✅ Lien dans la sidebar admin
