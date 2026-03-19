@@ -123,7 +123,7 @@ export default function QuestResult({ result, onRestart }: QuestResultProps) {
 
       {/* ── SECTION 3 — Timeline ── */}
       <div className="relative border-l-2 border-muted ml-4 pl-6 flex flex-col gap-4">
-        {result.stops.map((stop, idx) => (
+        {stops.map((stop, idx) => (
           <div key={stop.poi_id} className="relative">
             {/* Circle */}
             <div className="absolute -left-[calc(1.5rem+1px)] top-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold">
@@ -134,7 +134,7 @@ export default function QuestResult({ result, onRestart }: QuestResultProps) {
               {stop.category}
             </Badge>
             {/* Walk segment */}
-            {idx < result.stops.length - 1 && (
+            {idx < stops.length - 1 && (
               <div className="text-xs text-muted-foreground mt-2">
                 🚶 {stop.walk_time_min} min · {stop.distance_from_prev_m}m
               </div>
