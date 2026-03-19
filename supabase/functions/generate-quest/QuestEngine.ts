@@ -122,7 +122,7 @@ const VISIT_TIME_GUIDED: Record<string, number> = {
   monument: 12, palace: 18, museum: 25, medersa: 15,
   mosque: 8, tomb: 10, gate_bab: 6, fountain: 5,
   fondouk: 10, souk: 15, market: 15,
-  craft_shop: 10, restaurant: 30, cafe: 20, hammam: 8,
+  craft_shop: 10, restaurant: 15, cafe: 12, hammam: 8,
   garden: 12, plaza: 8, hotel: 5, riad: 5,
   shrine_zaouia: 8, gallery: 15, other: 6,
 };
@@ -287,10 +287,18 @@ function selectPOIs(candidates: ScoredPOI[], input: EngineInput): ScoredPOI[] {
   }
 
   // Phase 2: fill up to max_stops with max 2 per category
+  // If include_food_break, limit food POIs to 1 total (restaurant or cafe)
   for (const poi of sorted) {
     if (selected.length >= input.max_stops) break;
     if (usedIds.has(poi.id)) continue;
     if ((catCount[poi.category_ai] ?? 0) >= 2) continue;
+
+    // Limit food POIs to max 1 when food_break is on
+    if (input.include_food_break && (poi.category_ai === "restaurant" || poi.category_ai === "cafe")) {
+      const foodCount = (catCount["restaurant"] ?? 0) + (catCount["cafe"] ?? 0);
+      if (foodCount >= 1) continue;
+    }
+
     selected.push(poi);
     usedIds.add(poi.id);
     catCount[poi.category_ai] = (catCount[poi.category_ai] ?? 0) + 1;
@@ -455,10 +463,13 @@ function trimToFitDuration(
   pois: ScoredPOI[],
   maxDurationMin: number,
   circular: boolean,
-  mode: EngineMode
+  mode: EngineMode,
+  maxStops: number
 ): ScoredPOI[] {
   let current = [...pois];
+  const removed: ScoredPOI[] = [];
 
+  // Phase 1: trim POIs that push us over budget
   while (current.length > 3) {
     const { totalMin } = calcTotalTime(startLat, startLng, current, circular, mode);
     if (totalMin <= maxDurationMin - 5) break;
@@ -472,8 +483,23 @@ function trimToFitDuration(
         minIdx = i;
       }
     }
-    current.splice(minIdx, 1);
+    removed.push(current.splice(minIdx, 1)[0]);
     current = twoOptImprove(startLat, startLng, current, circular);
+  }
+
+  // Phase 2: if under maxStops and under budget, try re-injecting removed POIs
+  if (removed.length > 0 && current.length < maxStops) {
+    // Sort removed by score descending — best first
+    removed.sort((a, b) => b.score - a.score);
+    for (const poi of removed) {
+      if (current.length >= maxStops) break;
+      const candidate = [...current, poi];
+      const reopt = twoOptImprove(startLat, startLng, candidate, circular);
+      const { totalMin } = calcTotalTime(startLat, startLng, reopt, circular, mode);
+      if (totalMin <= maxDurationMin - 5) {
+        current = reopt;
+      }
+    }
   }
 
   return current;
@@ -627,7 +653,7 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
   route = enforceConsecutiveDiversity(route);
 
   // Step 5: Trim to fit duration
-  route = trimToFitDuration(input.start_lat, input.start_lng, route, input.max_duration_min, input.circular, input.mode);
+  route = trimToFitDuration(input.start_lat, input.start_lng, route, input.max_duration_min, input.circular, input.mode, input.max_stops);
 
   // Step 6: Calculate totals
   const timing = calcTotalTime(input.start_lat, input.start_lng, route, input.circular, input.mode);
