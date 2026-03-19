@@ -122,7 +122,7 @@ const VISIT_TIME_GUIDED: Record<string, number> = {
   monument: 12, palace: 18, museum: 25, medersa: 15,
   mosque: 8, tomb: 10, gate_bab: 6, fountain: 5,
   fondouk: 10, souk: 15, market: 15,
-  craft_shop: 10, restaurant: 30, cafe: 20, hammam: 8,
+  craft_shop: 10, restaurant: 15, cafe: 12, hammam: 8,
   garden: 12, plaza: 8, hotel: 5, riad: 5,
   shrine_zaouia: 8, gallery: 15, other: 6,
 };
