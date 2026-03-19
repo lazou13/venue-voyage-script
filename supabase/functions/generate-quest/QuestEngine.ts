@@ -109,13 +109,22 @@ export interface EngineOutput {
 
 const WALKING_SPEED_MS = 0.83; // 3 km/h realistic medina pace
 
-const VISIT_TIME_BY_CATEGORY: Record<string, number> = {
-  monument: 10, palace: 15, museum: 20, medersa: 12,
-  mosque: 8, tomb: 8, gate_bab: 5, fountain: 4,
-  fondouk: 8, souk: 10, market: 10,
-  craft_shop: 7, restaurant: 30, cafe: 15, hammam: 5,
-  garden: 10, plaza: 6, hotel: 3, riad: 3,
-  shrine_zaouia: 6, gallery: 10, other: 5,
+const VISIT_TIME_TREASURE: Record<string, number> = {
+  monument: 7, palace: 10, museum: 12, medersa: 8,
+  mosque: 5, tomb: 5, gate_bab: 3, fountain: 3,
+  fondouk: 5, souk: 7, market: 7,
+  craft_shop: 5, restaurant: 10, cafe: 8, hammam: 4,
+  garden: 6, plaza: 4, hotel: 3, riad: 3,
+  shrine_zaouia: 5, gallery: 7, other: 4,
+};
+
+const VISIT_TIME_GUIDED: Record<string, number> = {
+  monument: 12, palace: 18, museum: 25, medersa: 15,
+  mosque: 8, tomb: 10, gate_bab: 6, fountain: 5,
+  fondouk: 10, souk: 15, market: 15,
+  craft_shop: 10, restaurant: 30, cafe: 20, hammam: 8,
+  garden: 12, plaza: 8, hotel: 5, riad: 5,
+  shrine_zaouia: 8, gallery: 15, other: 6,
 };
 
 const POINTS_BY_CATEGORY: Record<string, number> = {
