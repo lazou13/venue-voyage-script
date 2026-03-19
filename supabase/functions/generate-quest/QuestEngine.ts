@@ -630,7 +630,7 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
   route = trimToFitDuration(input.start_lat, input.start_lng, route, input.max_duration_min, input.circular, input.mode);
 
   // Step 6: Calculate totals
-  const timing = calcTotalTime(input.start_lat, input.start_lng, route, input.circular);
+  const timing = calcTotalTime(input.start_lat, input.start_lng, route, input.circular, input.mode);
 
   // Step 7: Build stops
   const stops = buildStops(input.start_lat, input.start_lng, route, input);
