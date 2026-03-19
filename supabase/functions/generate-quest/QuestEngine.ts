@@ -454,13 +454,14 @@ function trimToFitDuration(
   startLng: number,
   pois: ScoredPOI[],
   maxDurationMin: number,
-  circular: boolean
+  circular: boolean,
+  mode: EngineMode
 ): ScoredPOI[] {
   let current = [...pois];
 
   while (current.length > 3) {
-    const { totalMin } = calcTotalTime(startLat, startLng, current, circular);
-    if (totalMin <= maxDurationMin) break;
+    const { totalMin } = calcTotalTime(startLat, startLng, current, circular, mode);
+    if (totalMin <= maxDurationMin - 5) break;
 
     // Remove lowest-scoring POI
     let minIdx = 0;
