@@ -62,3 +62,6 @@ verify_jwt = false
 
 [functions.poi-autopipeline]
 verify_jwt = false
+
+[functions.generate-quest]
+verify_jwt = false
