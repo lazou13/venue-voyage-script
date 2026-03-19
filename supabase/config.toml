@@ -57,8 +57,6 @@ verify_jwt = false
 [functions.poi-classify-worker]
 verify_jwt = false
 
-[functions.generate-medina-quest]
-verify_jwt = false
 
 [functions.poi-autopipeline]
 verify_jwt = false

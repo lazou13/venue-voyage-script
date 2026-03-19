@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { useMedinaPOIs } from '@/hooks/useMedinaPOIs';
 import { supabase } from '@/integrations/supabase/client';
-import { generateMedinaItinerary, type StartHub } from '@/lib/generateMedinaItinerary';
+import { generateMedinaItinerary } from '@/lib/generateMedinaItinerary';
+import { type StartHub } from '@/hooks/useQuestEngine';
 import { toast } from 'sonner';
 import { Copy, Wand2, Loader2, ExternalLink, Check, Navigation, Sparkles } from 'lucide-react';
 import QuestBuilder from '@/components/quest/QuestBuilder';
