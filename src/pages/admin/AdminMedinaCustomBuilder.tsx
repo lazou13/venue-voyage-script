@@ -321,6 +321,37 @@ export default function AdminMedinaCustomBuilder() {
           </CardContent>
         </Card>
       </div>
+
+      {showNewEngine && !questResult && (
+        <Card className="mt-6">
+          <CardContent className="py-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary" />
+                QuestEngine v3.0
+              </h2>
+              <Button variant="ghost" size="sm" onClick={() => setShowNewEngine(false)}>
+                ← Retour ancien moteur
+              </Button>
+            </div>
+            <QuestBuilder
+              startLat={startHub?.lat ?? 0}
+              startLng={startHub?.lng ?? 0}
+              startName={startHub?.name}
+              onQuestGenerated={(r) => setQuestResult(r)}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {showNewEngine && questResult && (
+        <div className="mt-6">
+          <QuestResultDisplay
+            result={questResult}
+            onRestart={() => setQuestResult(null)}
+          />
+        </div>
+      )}
     </div>
   );
 }
