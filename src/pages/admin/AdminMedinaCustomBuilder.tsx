@@ -36,6 +36,8 @@ export default function AdminMedinaCustomBuilder() {
   const [previewIds, setPreviewIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [result, setResult] = useState<{ token: string; projectId: string } | null>(null);
+  const [questResult, setQuestResult] = useState<QuestResultType | null>(null);
+  const [showNewEngine, setShowNewEngine] = useState(false);
 
   // Derived lists
   const zones = useMemo(() => [...new Set(medinaPois.filter(p => p.zone).map(p => p.zone))].sort(), [medinaPois]);
