@@ -511,7 +511,8 @@ function buildStops(
     const prevLng = i === 0 ? startLng : pois[i - 1].lng;
     const distM = Math.round(haversineM(prevLat, prevLng, poi.lat, poi.lng));
     const walkMin = walkTimeMin(distM);
-    const visitMin = VISIT_TIME_BY_CATEGORY[poi.category_ai] ?? 5;
+    const VISIT_TIME = input.mode === "treasure_hunt" ? VISIT_TIME_TREASURE : VISIT_TIME_GUIDED;
+    const visitMin = VISIT_TIME[poi.category_ai] ?? 5;
     cumulative += walkMin + visitMin;
 
     const basePoints = POINTS_BY_CATEGORY[poi.category_ai] ?? 8;
