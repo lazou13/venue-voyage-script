@@ -627,7 +627,7 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
   route = enforceConsecutiveDiversity(route);
 
   // Step 5: Trim to fit duration
-  route = trimToFitDuration(input.start_lat, input.start_lng, route, input.max_duration_min, input.circular);
+  route = trimToFitDuration(input.start_lat, input.start_lng, route, input.max_duration_min, input.circular, input.mode);
 
   // Step 6: Calculate totals
   const timing = calcTotalTime(input.start_lat, input.start_lng, route, input.circular);
