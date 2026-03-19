@@ -10,7 +10,10 @@ import { useMedinaPOIs } from '@/hooks/useMedinaPOIs';
 import { supabase } from '@/integrations/supabase/client';
 import { generateMedinaItinerary, type StartHub } from '@/lib/generateMedinaItinerary';
 import { toast } from 'sonner';
-import { Copy, Wand2, Loader2, ExternalLink, Check, Navigation } from 'lucide-react';
+import { Copy, Wand2, Loader2, ExternalLink, Check, Navigation, Sparkles } from 'lucide-react';
+import QuestBuilder from '@/components/quest/QuestBuilder';
+import QuestResultDisplay from '@/components/quest/QuestResult';
+import { type QuestResult as QuestResultType } from '@/hooks/useQuestEngine';
 
 const HUB_THEMES = ['museums', 'architecture', 'artisan', 'family', 'exploration'] as const;
 
