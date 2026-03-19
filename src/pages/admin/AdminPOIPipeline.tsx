@@ -79,12 +79,14 @@ export default function AdminPOIPipeline() {
       const fnName = step === "worker" ? "poi-worker"
         : step === "classify" ? "poi-classify-worker"
         : step === "autopipeline" ? "poi-autopipeline"
+        : step === "fetch-photos" ? "poi-fetch-photos"
         : step === "all" ? "poi-pipeline"
         : step === "clean" || step === "merge" ? "poi-pipeline"
         : `poi-${step}`;
       const fnBody = step === "worker" ? {}
         : step === "classify" ? {}
         : step === "autopipeline" ? {}
+        : step === "fetch-photos" ? {}
         : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
         : step === "extract" ? { limit: 500 }
         : step === "enrich" ? { batch_size: 10 }
