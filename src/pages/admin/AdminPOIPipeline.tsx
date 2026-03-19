@@ -5,10 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2 } from "lucide-react";
+import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2, Camera } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
-type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline";
+type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos";
 
 export default function AdminPOIPipeline() {
   const { toast } = useToast();
@@ -79,12 +79,14 @@ export default function AdminPOIPipeline() {
       const fnName = step === "worker" ? "poi-worker"
         : step === "classify" ? "poi-classify-worker"
         : step === "autopipeline" ? "poi-autopipeline"
+        : step === "fetch-photos" ? "poi-fetch-photos"
         : step === "all" ? "poi-pipeline"
         : step === "clean" || step === "merge" ? "poi-pipeline"
         : `poi-${step}`;
       const fnBody = step === "worker" ? {}
         : step === "classify" ? {}
         : step === "autopipeline" ? {}
+        : step === "fetch-photos" ? {}
         : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
         : step === "extract" ? { limit: 500 }
         : step === "enrich" ? { batch_size: 10 }
@@ -257,6 +259,10 @@ export default function AdminPOIPipeline() {
             </Button>
             <Button variant="outline" size="sm" onClick={() => refetchStats()} className="gap-1">
               <RefreshCw className="w-3 h-3" /> Rafraîchir
+            </Button>
+            <Button onClick={() => runStep("fetch-photos")} disabled={!!running} variant="secondary" size="sm" className="gap-1">
+              {running === "fetch-photos" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
+              Fetch Google Photos
             </Button>
           </div>
         </CardContent>
