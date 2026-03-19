@@ -426,9 +426,12 @@ function calcTotalTime(
   startLat: number,
   startLng: number,
   pois: ScoredPOI[],
-  circular: boolean
+  circular: boolean,
+  mode: EngineMode
 ): { walkingMin: number; visitMin: number; totalMin: number; totalDistM: number } {
   if (pois.length === 0) return { walkingMin: 0, visitMin: 0, totalMin: 0, totalDistM: 0 };
+
+  const VISIT_TIME = mode === "treasure_hunt" ? VISIT_TIME_TREASURE : VISIT_TIME_GUIDED;
 
   let totalDistM = haversineM(startLat, startLng, pois[0].lat, pois[0].lng);
   for (let i = 1; i < pois.length; i++) {
@@ -440,7 +443,7 @@ function calcTotalTime(
 
   const walkingMin = walkTimeMin(totalDistM);
   const visitMin = pois.reduce(
-    (sum, p) => sum + (VISIT_TIME_BY_CATEGORY[p.category_ai] ?? 5),
+    (sum, p) => sum + (VISIT_TIME[p.category_ai] ?? 5),
     0
   );
   return { walkingMin, visitMin, totalMin: walkingMin + visitMin, totalDistM };
