@@ -43,6 +43,7 @@ export default function QuestResult({ result, onRestart }: QuestResultProps) {
 
   if (!result) return null;
 
+  const stops = result.stops ?? [];
   const isTreasure = result.mode === "treasure_hunt";
 
   const handleShare = async () => {
