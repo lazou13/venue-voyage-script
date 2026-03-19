@@ -463,10 +463,13 @@ function trimToFitDuration(
   pois: ScoredPOI[],
   maxDurationMin: number,
   circular: boolean,
-  mode: EngineMode
+  mode: EngineMode,
+  maxStops: number
 ): ScoredPOI[] {
   let current = [...pois];
+  const removed: ScoredPOI[] = [];
 
+  // Phase 1: trim POIs that push us over budget
   while (current.length > 3) {
     const { totalMin } = calcTotalTime(startLat, startLng, current, circular, mode);
     if (totalMin <= maxDurationMin - 5) break;
@@ -480,8 +483,23 @@ function trimToFitDuration(
         minIdx = i;
       }
     }
-    current.splice(minIdx, 1);
+    removed.push(current.splice(minIdx, 1)[0]);
     current = twoOptImprove(startLat, startLng, current, circular);
+  }
+
+  // Phase 2: if under maxStops and under budget, try re-injecting removed POIs
+  if (removed.length > 0 && current.length < maxStops) {
+    // Sort removed by score descending — best first
+    removed.sort((a, b) => b.score - a.score);
+    for (const poi of removed) {
+      if (current.length >= maxStops) break;
+      const candidate = [...current, poi];
+      const reopt = twoOptImprove(startLat, startLng, candidate, circular);
+      const { totalMin } = calcTotalTime(startLat, startLng, reopt, circular, mode);
+      if (totalMin <= maxDurationMin - 5) {
+        current = reopt;
+      }
+    }
   }
 
   return current;
