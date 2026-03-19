@@ -219,6 +219,28 @@ export default function AdminMedinaCustomBuilder() {
             <Button onClick={handleGenerate} disabled={loadingPois || !zone} className="w-full">
               <Wand2 className="w-4 h-4 mr-2" /> Générer l'itinéraire ({count} POIs)
             </Button>
+
+            {!showNewEngine && startHub && (
+              <Card className="mt-4 border-dashed border-primary/40 bg-primary/5">
+                <CardContent className="py-4 space-y-2">
+                  <p className="text-sm font-medium flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    Nouveau moteur QuestEngine v3.0
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Génère chasse au trésor ET visite guidée depuis ce hub.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => { setShowNewEngine(true); setQuestResult(null); }}
+                  >
+                    Utiliser le nouveau moteur →
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </CardContent>
         </Card>
 
