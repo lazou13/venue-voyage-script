@@ -144,13 +144,13 @@ export default function QuestResult({ result, onRestart }: QuestResultProps) {
       </div>
 
       {/* ── SECTION 4 — Accordéon détails ── */}
-      {result.stops.length === 0 ? (
+      {stops.length === 0 ? (
         <p className="text-sm text-muted-foreground text-center py-4">
           Aucune étape générée
         </p>
       ) : (
         <Accordion type="single" collapsible defaultValue="stop-1">
-          {result.stops.map((stop) => (
+          {stops.map((stop) => (
             <AccordionItem key={stop.poi_id} value={`stop-${stop.order}`}>
               <AccordionTrigger className="hover:no-underline">
                 <div className="flex items-center gap-2 flex-wrap text-left">
