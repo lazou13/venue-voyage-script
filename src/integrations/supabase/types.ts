@@ -117,6 +117,60 @@ export type Database = {
           },
         ]
       }
+      generated_quests: {
+        Row: {
+          difficulty: string
+          generated_at: string | null
+          id: string
+          mode: string
+          played_at: string | null
+          player_session_id: string | null
+          start_lat: number
+          start_lng: number
+          start_name: string | null
+          stops_data: Json | null
+          theme: string
+          total_distance_m: number | null
+          total_points: number | null
+          total_stops: number | null
+          total_time_min: number | null
+        }
+        Insert: {
+          difficulty: string
+          generated_at?: string | null
+          id: string
+          mode: string
+          played_at?: string | null
+          player_session_id?: string | null
+          start_lat: number
+          start_lng: number
+          start_name?: string | null
+          stops_data?: Json | null
+          theme: string
+          total_distance_m?: number | null
+          total_points?: number | null
+          total_stops?: number | null
+          total_time_min?: number | null
+        }
+        Update: {
+          difficulty?: string
+          generated_at?: string | null
+          id?: string
+          mode?: string
+          played_at?: string | null
+          player_session_id?: string | null
+          start_lat?: number
+          start_lng?: number
+          start_name?: string | null
+          stops_data?: Json | null
+          theme?: string
+          total_distance_m?: number | null
+          total_points?: number | null
+          total_stops?: number | null
+          total_time_min?: number | null
+        }
+        Relationships: []
+      }
       medina_pois: {
         Row: {
           address: string | null
