@@ -10,7 +10,10 @@ import { useMedinaPOIs } from '@/hooks/useMedinaPOIs';
 import { supabase } from '@/integrations/supabase/client';
 import { generateMedinaItinerary, type StartHub } from '@/lib/generateMedinaItinerary';
 import { toast } from 'sonner';
-import { Copy, Wand2, Loader2, ExternalLink, Check, Navigation } from 'lucide-react';
+import { Copy, Wand2, Loader2, ExternalLink, Check, Navigation, Sparkles } from 'lucide-react';
+import QuestBuilder from '@/components/quest/QuestBuilder';
+import QuestResultDisplay from '@/components/quest/QuestResult';
+import { type QuestResult as QuestResultType } from '@/hooks/useQuestEngine';
 
 const HUB_THEMES = ['museums', 'architecture', 'artisan', 'family', 'exploration'] as const;
 
@@ -33,6 +36,8 @@ export default function AdminMedinaCustomBuilder() {
   const [previewIds, setPreviewIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [result, setResult] = useState<{ token: string; projectId: string } | null>(null);
+  const [questResult, setQuestResult] = useState<QuestResultType | null>(null);
+  const [showNewEngine, setShowNewEngine] = useState(false);
 
   // Derived lists
   const zones = useMemo(() => [...new Set(medinaPois.filter(p => p.zone).map(p => p.zone))].sort(), [medinaPois]);
@@ -214,6 +219,28 @@ export default function AdminMedinaCustomBuilder() {
             <Button onClick={handleGenerate} disabled={loadingPois || !zone} className="w-full">
               <Wand2 className="w-4 h-4 mr-2" /> Générer l'itinéraire ({count} POIs)
             </Button>
+
+            {!showNewEngine && startHub && (
+              <Card className="mt-4 border-dashed border-primary/40 bg-primary/5">
+                <CardContent className="py-4 space-y-2">
+                  <p className="text-sm font-medium flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    Nouveau moteur QuestEngine v3.0
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Génère chasse au trésor ET visite guidée depuis ce hub.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => { setShowNewEngine(true); setQuestResult(null); }}
+                  >
+                    Utiliser le nouveau moteur →
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </CardContent>
         </Card>
 
@@ -294,6 +321,37 @@ export default function AdminMedinaCustomBuilder() {
           </CardContent>
         </Card>
       </div>
+
+      {showNewEngine && !questResult && (
+        <Card className="mt-6">
+          <CardContent className="py-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary" />
+                QuestEngine v3.0
+              </h2>
+              <Button variant="ghost" size="sm" onClick={() => setShowNewEngine(false)}>
+                ← Retour ancien moteur
+              </Button>
+            </div>
+            <QuestBuilder
+              startLat={startHub?.lat ?? 0}
+              startLng={startHub?.lng ?? 0}
+              startName={startHub?.name}
+              onQuestGenerated={(r) => setQuestResult(r)}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {showNewEngine && questResult && (
+        <div className="mt-6">
+          <QuestResultDisplay
+            result={questResult}
+            onRestart={() => setQuestResult(null)}
+          />
+        </div>
+      )}
     </div>
   );
 }
