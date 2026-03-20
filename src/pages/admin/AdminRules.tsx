@@ -124,7 +124,7 @@ export default function AdminRules() {
     if (!confirm('Supprimer cette règle ?')) return;
     
     updateDraft((prev) => {
-      const currentRules: Rule[] = ((prev as Record<string, unknown>).rules as Rule[] | undefined) || [];
+      const currentRules: Rule[] = ((prev as unknown as Record<string, unknown>).rules as Rule[] | undefined) || [];
       return { ...prev, rules: currentRules.filter(r => r.id !== ruleId) } as typeof prev;
     });
     
