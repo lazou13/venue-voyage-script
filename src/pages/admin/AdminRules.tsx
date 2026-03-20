@@ -101,7 +101,7 @@ export default function AdminRules() {
     }
     
     updateDraft((prev) => {
-      const currentRules: Rule[] = ((prev as Record<string, unknown>).rules as Rule[] | undefined) || [];
+      const currentRules: Rule[] = ((prev as unknown as Record<string, unknown>).rules as Rule[] | undefined) || [];
       const existingIndex = currentRules.findIndex(r => r.id === editingRule.id);
 
       let newRules: Rule[];
