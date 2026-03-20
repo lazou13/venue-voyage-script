@@ -132,7 +132,7 @@ export default function AdminPresets() {
     if (!confirm('Supprimer ce préréglage ?')) return;
     
     updateDraft((prev) => {
-      const currentPresets: Preset[] = ((prev as Record<string, unknown>).presets as Preset[] | undefined) || [];
+      const currentPresets: Preset[] = ((prev as unknown as Record<string, unknown>).presets as Preset[] | undefined) || [];
       return { ...prev, presets: currentPresets.filter(p => p.id !== presetId) } as typeof prev;
     });
     
