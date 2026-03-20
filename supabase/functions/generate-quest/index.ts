@@ -98,8 +98,121 @@ serve(async (req) => {
       metadata: (p.metadata ?? {}) as POI["metadata"],
     }));
 
-    // Generate quest
+    // Generate quest (haversine-based initial route)
     const result = generateQuest(input, pois);
+
+    // ── pgRouting enhancement pass ─────────────────────────────
+    // If street_nodes / streets tables are populated, replace
+    // euclidean distances with real pedestrian walking distances.
+    let routeEnhanced = false;
+    try {
+      // 1. Gather all points (start + stops)
+      const points: { lat: number; lng: number }[] = [
+        { lat: input.start_lat, lng: input.start_lng },
+        ...result.stops.map((s) => ({ lat: s.lat, lng: s.lng })),
+      ];
+
+      // 2. Find nearest graph node for each point
+      const nodeIds: (number | null)[] = await Promise.all(
+        points.map(async (pt) => {
+          const { data } = await supabase.rpc("nearby_nodes_knn", {
+            p_lat: pt.lat,
+            p_lng: pt.lng,
+            p_limit: 1,
+          }).single();
+          return (data as { id: number } | null)?.id ?? null;
+        })
+      );
+
+      const allNodeIds = nodeIds.filter((id): id is number => id !== null);
+
+      // Only proceed if we have nodes for all points
+      if (allNodeIds.length === points.length) {
+        // 3. Build cost matrix via pgr_dijkstraCostMatrix
+        const { data: costRows, error: costErr } = await supabase.rpc(
+          "get_walking_cost_matrix",
+          { node_ids: allNodeIds }
+        );
+
+        if (!costErr && costRows && Array.isArray(costRows) && costRows.length > 0) {
+          // Build lookup: [from_idx][to_idx] → cost_seconds
+          const n = allNodeIds.length;
+          const nodeToIdx = new Map(allNodeIds.map((id, i) => [id, i]));
+          const costMatrix: number[][] = Array.from({ length: n }, () =>
+            new Array(n).fill(Infinity)
+          );
+          for (let i = 0; i < n; i++) costMatrix[i][i] = 0;
+          for (const row of costRows as { start_vid: number; end_vid: number; agg_cost: number }[]) {
+            const i = nodeToIdx.get(row.start_vid);
+            const j = nodeToIdx.get(row.end_vid);
+            if (i !== undefined && j !== undefined) {
+              costMatrix[i][j] = row.agg_cost; // seconds
+            }
+          }
+
+          // 4. Update each stop's distance and walk_time with real values
+          let totalDistM = 0;
+          let totalWalkSec = 0;
+          let cumMin = 0;
+
+          for (let i = 0; i < result.stops.length; i++) {
+            const fromIdx = i; // 0 = start, i = stop i-1
+            const toIdx = i + 1; // i+1 = stop i
+            const walkSec = costMatrix[fromIdx][toIdx];
+
+            if (walkSec !== Infinity) {
+              const walkMin = Math.ceil(walkSec / 60);
+              // Approx distance: cost_sec × 0.83 m/s
+              const distM = Math.round(walkSec * 0.83);
+              result.stops[i].distance_from_prev_m = distM;
+              result.stops[i].walk_time_min = walkMin;
+              totalDistM += distM;
+              totalWalkSec += walkSec;
+            } else {
+              // Fallback: keep haversine value
+              totalDistM += result.stops[i].distance_from_prev_m;
+              totalWalkSec += result.stops[i].walk_time_min * 60;
+            }
+
+            // Adaptive validation radius based on street type around the stop
+            // (derb/covered: 50m, open plaza: 15m, default: 30m)
+            const { data: nearPoi } = await supabase
+              .from("medina_pois")
+              .select("street_type, radius_m")
+              .eq("id", result.stops[i].poi_id)
+              .single();
+
+            if (nearPoi) {
+              const streetType = (nearPoi as { street_type?: string }).street_type;
+              const baseRadius = (nearPoi as { radius_m?: number }).radius_m ?? 30;
+              const adaptiveRadius =
+                streetType === "derb" || streetType === "covered_passage" ? Math.max(baseRadius, 50) :
+                streetType === "plaza" || streetType === "main_street" ? Math.min(baseRadius, 20) :
+                baseRadius;
+              result.stops[i].validation_radius_m = adaptiveRadius;
+            }
+
+            cumMin = result.stops[i - 1]?.cumulative_time_min ?? 0;
+            cumMin += result.stops[i].walk_time_min + result.stops[i].visit_time_min;
+            result.stops[i].cumulative_time_min = cumMin;
+          }
+
+          // 5. Recalculate totals
+          const totalWalkMin = Math.ceil(totalWalkSec / 60);
+          result.total_distance_m = totalDistM;
+          result.walking_time_min = totalWalkMin;
+          result.total_time_min = totalWalkMin + result.visit_time_min;
+
+          routeEnhanced = true;
+        }
+      }
+    } catch {
+      // pgRouting not available or graph not populated — silently use haversine
+    }
+
+    // Add routing metadata
+    (result as Record<string, unknown>).routing_method = routeEnhanced ? "pgrouting" : "haversine";
+    (result as Record<string, unknown>).algorithm_version = routeEnhanced ? "4.0.0-spatial" : "3.0.0";
 
     // Try to save to generated_quests (ignore if table doesn't exist yet)
     try {
@@ -108,12 +221,14 @@ serve(async (req) => {
         mode: result.mode,
         theme: result.theme,
         difficulty: result.difficulty,
-        language: result.language,
+        start_lat: input.start_lat,
+        start_lng: input.start_lng,
+        start_name: input.start_name,
         total_stops: result.total_stops,
         total_distance_m: result.total_distance_m,
         total_time_min: result.total_time_min,
         total_points: result.total_points,
-        quest_data: result,
+        stops_data: result.stops,
       });
     } catch {
       // Table may not exist yet — silently ignore

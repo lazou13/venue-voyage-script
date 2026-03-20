@@ -31,7 +31,7 @@ interface ProjectRow {
   hotel_name: string;
   city: string;
   title_i18n: Record<string, string>;
-  quest_config: Record<string, any>;
+  quest_config: Record<string, unknown>;
 }
 
 const DEFAULT_CATALOG: CatalogData = {
@@ -59,15 +59,15 @@ export default function AdminCatalog() {
       setProjects((data as unknown as ProjectRow[]) ?? []);
       const initial: Record<string, CatalogData> = {};
       for (const p of data ?? []) {
-        const qc = (p as any).quest_config as Record<string, any>;
-        initial[p.id] = { ...DEFAULT_CATALOG, ...(qc?.catalog ?? {}) };
+        const qc = p.quest_config;
+        initial[p.id] = { ...DEFAULT_CATALOG, ...((qc?.catalog as Partial<CatalogData>) ?? {}) };
       }
       setEdits(initial);
       setLoading(false);
     })();
   }, []);
 
-  const updateField = (id: string, field: keyof CatalogData, value: any) => {
+  const updateField = (id: string, field: keyof CatalogData, value: unknown) => {
     setEdits((prev) => ({
       ...prev,
       [id]: { ...prev[id], [field]: value },
@@ -83,11 +83,11 @@ export default function AdminCatalog() {
       return;
     }
     // Sync catalog.mode with experience_mode (source of truth)
-    const syncedCatalog = { ...catalog, mode: catalog.mode || project.quest_config.experience_mode || "visit" };
+    const syncedCatalog = { ...catalog, mode: catalog.mode || (project.quest_config.experience_mode as string | undefined) || "visit" };
     const newQuestConfig = { ...project.quest_config, catalog: syncedCatalog, experience_mode: syncedCatalog.mode };
     const { error } = await supabase
       .from("projects")
-      .update({ quest_config: newQuestConfig as any })
+      .update({ quest_config: newQuestConfig as Record<string, unknown> })
       .eq("id", project.id);
     if (error) {
       toast({ title: "Erreur", description: error.message, variant: "destructive" });
@@ -104,7 +104,7 @@ export default function AdminCatalog() {
   };
 
   const title = (p: ProjectRow) =>
-    (p.title_i18n as any)?.fr || p.hotel_name || "Sans titre";
+    (p.title_i18n as Record<string, string> | undefined)?.fr || p.hotel_name || "Sans titre";
 
   if (loading) {
     return (

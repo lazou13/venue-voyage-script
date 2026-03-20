@@ -10,20 +10,49 @@ const GOOGLE_API_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// GPS grid covering the médina of Marrakech
-const MEDINA_POINTS = [
-  { lat: 31.630, lng: -7.990 },
-  { lat: 31.632, lng: -7.988 },
-  { lat: 31.628, lng: -7.992 },
-  { lat: 31.634, lng: -7.995 },
-  { lat: 31.626, lng: -7.987 },
-];
+// GPS grid covering the médina of Marrakech — maille 200m systématique
+// Bbox: south=31.624, west=-7.995, north=31.638, east=-7.975
+// Généré avec pas lat=0.0018° (~200m), pas lng=0.0025° (~200m)
+const MEDINA_POINTS = (() => {
+  const points: { lat: number; lng: number }[] = [];
+  // Grille systématique 200m × 200m sur la médina
+  for (let lat = 31.6245; lat <= 31.638; lat += 0.0018) {
+    for (let lng = -7.995; lng <= -7.975; lng += 0.0025) {
+      points.push({
+        lat: Math.round(lat * 10000) / 10000,
+        lng: Math.round(lng * 10000) / 10000,
+      });
+    }
+  }
+  // Points supplémentaires sur les zones clés non couvertes par la grille
+  const keyPoints = [
+    { lat: 31.6258, lng: -7.9890 }, // Jemaa el-Fna
+    { lat: 31.6241, lng: -7.9843 }, // Mellah / Palais Bahia
+    { lat: 31.6320, lng: -7.9879 }, // Souk Semmarine
+    { lat: 31.6285, lng: -7.9873 }, // Ben Youssef / Derb el Cadi
+    { lat: 31.6215, lng: -7.9872 }, // Kasbah / Tombeaux Saadiens
+    { lat: 31.6238, lng: -7.9921 }, // Bab Doukkala
+    { lat: 31.6305, lng: -7.9950 }, // Bab el-Khemis
+    { lat: 31.6199, lng: -7.9857 }, // Bab Agnaou / Bab er-Robb
+    { lat: 31.6270, lng: -7.9812 }, // Mellah central
+    { lat: 31.6348, lng: -7.9918 }, // Bab el-Khemis nord
+  ];
+  // Éviter doublons exacts
+  const seen = new Set(points.map(p => `${p.lat},${p.lng}`));
+  for (const kp of keyPoints) {
+    const key = `${kp.lat},${kp.lng}`;
+    if (!seen.has(key)) { points.push(kp); seen.add(key); }
+  }
+  return points;
+})();
 
-const RADIUS = 800;
+const RADIUS = 300; // Réduit à 300m (grille dense = moins de recouvrement)
 
 const TYPES = [
   "tourist_attraction", "museum", "restaurant", "cafe",
-  "lodging", "store", "art_gallery", "shopping_mall", "spa",
+  "lodging", "store", "art_gallery", "mosque", "spa",
+  "library", "jewelry_store", "clothing_store", "shoe_store",
+  "book_store", "bakery", "food", "bar", "night_club",
 ];
 
 const MAX_PAGES = 3; // Google returns max 20 results per page → 60 max per type+point
@@ -161,7 +190,7 @@ serve(async (req) => {
 
     totalSkipped = totalDuplicates;
     logs.push(
-      `--- DONE: ${totalInserted} inserted, ${totalSkipped} duplicates skipped, ${seenPlaceIds.size} unique place_ids seen ---`
+      `--- DONE: ${totalInserted} inserted, ${totalSkipped} duplicates skipped, ${seenPlaceIds.size} unique place_ids seen (${MEDINA_POINTS.length} grid points × ${TYPES.length} types) ---`
     );
 
     return new Response(
@@ -169,6 +198,7 @@ serve(async (req) => {
         success: true,
         types_processed: TYPES.length,
         points_processed: MEDINA_POINTS.length,
+      grid_size: MEDINA_POINTS.length,
         total_inserted: totalInserted,
         total_skipped: totalSkipped,
         unique_places: seenPlaceIds.size,

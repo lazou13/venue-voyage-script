@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { useMedinaPOIs, type MedinaPOI } from '@/hooks/useMedinaPOIs';
 import { usePOIMedia, type POIMedia } from '@/hooks/usePOIMedia';
 import { useToast } from '@/hooks/use-toast';
@@ -16,9 +16,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink, MapPin, StickyNote, Navigation, CheckCircle, RotateCcw,
+  Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink, MapPin, StickyNote, Navigation, CheckCircle, RotateCcw, Map as MapIcon, List,
 } from 'lucide-react';
 import POIFeaturesSection, { type POIFeatures, emptyFeatures } from '@/components/admin/POIFeaturesSection';
+
+// Lazy-load Leaflet map to avoid SSR/build issues
+const MedinaMap = lazy(() => import('@/components/admin/MedinaMap'));
 
 // ─── Role tags ──────────────────────────────────────────────
 const ROLE_TAG_OPTIONS = ['repere', 'detail', 'instruction', 'ambiance'] as const;
@@ -139,8 +142,8 @@ function MediaSection({
     try {
       const url = await getSignedUrl(m.storage_path);
       window.open(url, '_blank');
-    } catch (err: any) {
-      toast({ title: 'Erreur', description: err.message, variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
     }
   };
 
@@ -156,8 +159,8 @@ function MediaSection({
       try {
         await uploadMedia.mutateAsync({ file, mediaType });
         toast({ title: `${mediaType} ajouté` });
-      } catch (err: any) {
-        toast({ title: 'Erreur upload', description: err.message, variant: 'destructive' });
+      } catch (err: unknown) {
+        toast({ title: 'Erreur upload', description: (err as Error).message, variant: 'destructive' });
       }
     }
     if (inputRef.current) inputRef.current.value = '';
@@ -303,7 +306,7 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
       },
       (err) => {
         setGeoLoading(false);
-        toast({ title: 'Erreur GPS', description: err.message, variant: 'destructive' });
+        toast({ title: 'Erreur GPS', description: (err as Error).message, variant: 'destructive' });
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
@@ -480,21 +483,47 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
   );
 }
 
+// ─── Stats bar ──────────────────────────────────────────────
+function StatsBar({ pois }: { pois: MedinaPOI[] }) {
+  const validated = pois.filter(p => p.status === 'validated').length;
+  const withGps = pois.filter(p => p.lat != null && p.lng != null).length;
+  const hubs = pois.filter(p => p.is_start_hub).length;
+  const active = pois.filter(p => p.is_active).length;
+  return (
+    <div className="flex gap-4 text-xs text-muted-foreground px-1 pb-2">
+      <span><strong className="text-foreground">{pois.length}</strong> POIs</span>
+      <span><strong className="text-emerald-600">{validated}</strong> validés</span>
+      <span><strong className="text-foreground">{withGps}</strong> géolocalisés</span>
+      <span><strong className="text-amber-500">{hubs}</strong> hubs</span>
+      <span><strong className="text-foreground">{active}</strong> actifs</span>
+    </div>
+  );
+}
+
 // ─── Main Page ──────────────────────────────────────────────
 export default function AdminMedinaPOIs() {
   const { pois, isLoading, create, update, remove } = useMedinaPOIs();
   const { toast } = useToast();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [placeMode, setPlaceMode] = useState(false);
+  const [search, setSearch] = useState('');
 
   const selectedPOI = pois.find((p) => p.id === selectedId) ?? null;
+
+  const filteredPois = pois.filter(p =>
+    !search || p.name.toLowerCase().includes(search.toLowerCase()) ||
+    (p.zone && p.zone.toLowerCase().includes(search.toLowerCase())) ||
+    (p.category && p.category.toLowerCase().includes(search.toLowerCase()))
+  );
 
   const handleCreate = async () => {
     try {
       const result = await create.mutateAsync({});
       setSelectedId(result.id);
       toast({ title: 'POI créé' });
-    } catch (err: any) {
-      toast({ title: 'Erreur', description: err.message, variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
     }
   };
 
@@ -506,8 +535,8 @@ export default function AdminMedinaPOIs() {
       } else if (data.status === 'draft') {
         toast({ title: 'POI repassé en brouillon.' });
       }
-    } catch (err: any) {
-      toast({ title: 'Erreur', description: err.message, variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
     }
   };
 
@@ -516,43 +545,134 @@ export default function AdminMedinaPOIs() {
       await remove.mutateAsync(id);
       if (selectedId === id) setSelectedId(null);
       toast({ title: 'POI supprimé' });
-    } catch (err: any) {
-      toast({ title: 'Erreur', description: err.message, variant: 'destructive' });
+    } catch (err: unknown) {
+      toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
     }
   };
 
+  const handleMapClick = useCallback(async (lat: number, lng: number) => {
+    if (!placeMode || !selectedId) return;
+    await handleUpdate(selectedId, { lat, lng });
+    setPlaceMode(false);
+    toast({ title: 'Position enregistrée', description: `${lat.toFixed(5)}, ${lng.toFixed(5)}` });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placeMode, selectedId]);
+
   return (
-    <div className="flex gap-6 h-[calc(100vh-8rem)]">
-      {/* Left: POI list */}
-      <Card className="w-72 flex flex-col">
-        <div className="p-3 border-b border-border flex items-center justify-between">
-          <h2 className="font-semibold text-sm">Bibliothèque Médina</h2>
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleCreate} disabled={create.isPending}>
-            <Plus className="w-4 h-4" />
+    <div className="flex flex-col h-[calc(100vh-8rem)] gap-3">
+      {/* Top bar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <h2 className="font-semibold text-sm shrink-0">Bibliothèque Médina</h2>
+        <Input
+          placeholder="Rechercher POI, zone, catégorie..."
+          className="h-8 text-sm max-w-xs"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        <div className="flex items-center gap-1 ml-auto">
+          <Button
+            size="sm"
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            className="h-8 gap-1"
+            onClick={() => setViewMode('list')}
+          >
+            <List className="w-3.5 h-3.5" /> Liste
+          </Button>
+          <Button
+            size="sm"
+            variant={viewMode === 'map' ? 'default' : 'outline'}
+            className="h-8 gap-1"
+            onClick={() => setViewMode('map')}
+          >
+            <MapIcon className="w-3.5 h-3.5" /> Carte
+          </Button>
+          <Button size="sm" className="h-8 gap-1" onClick={handleCreate} disabled={create.isPending}>
+            <Plus className="w-3.5 h-3.5" /> Nouveau POI
           </Button>
         </div>
-        <ScrollArea className="flex-1 p-2">
-          {isLoading ? (
-            <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
-          ) : pois.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">Aucun POI. Cliquez + pour commencer.</p>
+      </div>
+
+      <StatsBar pois={pois} />
+
+      {/* Main layout */}
+      <div className="flex gap-4 flex-1 min-h-0">
+        {/* Left: List or Map */}
+        <div className={`flex flex-col ${selectedPOI ? 'w-[55%]' : 'flex-1'} min-h-0`}>
+          {viewMode === 'list' ? (
+            <Card className="flex-1 flex flex-col min-h-0">
+              <ScrollArea className="flex-1 p-2">
+                {isLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : filteredPois.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    {search ? 'Aucun résultat' : 'Aucun POI. Cliquez "Nouveau POI".'}
+                  </p>
+                ) : (
+                  <div className="space-y-1">
+                    {filteredPois.map((p) => (
+                      <POIListItem
+                        key={p.id}
+                        poi={p}
+                        isSelected={p.id === selectedId}
+                        onSelect={() => setSelectedId(p.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </Card>
           ) : (
-            <div className="space-y-1">
-              {pois.map((p) => (
-                <POIListItem key={p.id} poi={p} isSelected={p.id === selectedId} onSelect={() => setSelectedId(p.id)} />
-              ))}
+            <div className="flex-1 min-h-0">
+              <Suspense fallback={
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" /> Chargement carte…
+                </div>
+              }>
+                <MedinaMap
+                  pois={filteredPois.filter(p => p.lat != null && p.lng != null)}
+                  selectedId={selectedId}
+                  onSelectPOI={(id) => { setSelectedId(id); }}
+                  onMapClick={handleMapClick}
+                  placeMode={placeMode}
+                />
+              </Suspense>
             </div>
           )}
-        </ScrollArea>
-      </Card>
+        </div>
 
-      {/* Right: Editor */}
-      <div className="flex-1 overflow-auto">
-        {selectedPOI ? (
-          <POIEditorPanel poi={selectedPOI} onUpdate={handleUpdate} onDelete={handleDelete} />
-        ) : (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            <p>Sélectionnez un POI ou créez-en un nouveau</p>
+        {/* Right: Editor */}
+        {selectedPOI && (
+          <Card className="flex-1 min-h-0 overflow-auto">
+            <div className="p-4 space-y-1 border-b border-border flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-sm truncate">{selectedPOI.name}</h3>
+                <p className="text-xs text-muted-foreground">{selectedPOI.category} · {selectedPOI.zone}</p>
+              </div>
+              {viewMode === 'map' && (
+                <Button
+                  size="sm"
+                  variant={placeMode ? 'default' : 'outline'}
+                  className={`h-7 gap-1 text-xs ${placeMode ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
+                  onClick={() => setPlaceMode(v => !v)}
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  {placeMode ? 'Annuler placement' : 'Placer sur carte'}
+                </Button>
+              )}
+            </div>
+            <ScrollArea className="h-[calc(100%-4rem)]">
+              <div className="p-4">
+                <POIEditorPanel poi={selectedPOI} onUpdate={handleUpdate} onDelete={handleDelete} />
+              </div>
+            </ScrollArea>
+          </Card>
+        )}
+
+        {!selectedPOI && viewMode === 'list' && (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground border border-dashed border-border rounded-lg">
+            <p className="text-sm">Sélectionnez un POI pour l'éditer</p>
           </div>
         )}
       </div>

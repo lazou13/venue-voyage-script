@@ -53,7 +53,7 @@ export default function AdminRules() {
   const [requireJson, setRequireJson] = useState('');
   const [jsonError, setJsonError] = useState<string | null>(null);
 
-  const rules: Rule[] = (draftPayload as any)?.rules || [];
+  const rules: Rule[] = ((draftPayload as Record<string, unknown>)?.rules as Rule[] | undefined) || [];
 
   const handleAddRule = () => {
     const newRule: Rule = {
@@ -101,9 +101,9 @@ export default function AdminRules() {
     }
     
     updateDraft((prev) => {
-      const currentRules: Rule[] = (prev as any).rules || [];
+      const currentRules: Rule[] = ((prev as Record<string, unknown>).rules as Rule[] | undefined) || [];
       const existingIndex = currentRules.findIndex(r => r.id === editingRule.id);
-      
+
       let newRules: Rule[];
       if (existingIndex >= 0) {
         newRules = [...currentRules];
@@ -111,8 +111,8 @@ export default function AdminRules() {
       } else {
         newRules = [...currentRules, editingRule];
       }
-      
-      return { ...prev, rules: newRules } as any;
+
+      return { ...prev, rules: newRules } as typeof prev;
     });
     
     setIsDialogOpen(false);
@@ -124,8 +124,8 @@ export default function AdminRules() {
     if (!confirm('Supprimer cette règle ?')) return;
     
     updateDraft((prev) => {
-      const currentRules: Rule[] = (prev as any).rules || [];
-      return { ...prev, rules: currentRules.filter(r => r.id !== ruleId) } as any;
+      const currentRules: Rule[] = ((prev as Record<string, unknown>).rules as Rule[] | undefined) || [];
+      return { ...prev, rules: currentRules.filter(r => r.id !== ruleId) } as typeof prev;
     });
     
     toast({ title: 'Règle supprimée' });
@@ -133,11 +133,11 @@ export default function AdminRules() {
 
   const handleToggleEnabled = (ruleId: string, enabled: boolean) => {
     updateDraft((prev) => {
-      const currentRules: Rule[] = (prev as any).rules || [];
+      const currentRules: Rule[] = ((prev as Record<string, unknown>).rules as Rule[] | undefined) || [];
       return {
         ...prev,
         rules: currentRules.map(r => r.id === ruleId ? { ...r, enabled } : r),
-      } as any;
+      } as typeof prev;
     });
   };
 
