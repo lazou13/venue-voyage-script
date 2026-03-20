@@ -70,7 +70,7 @@ export default function AdminPresets() {
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [defaultsJson, setDefaultsJson] = useState('');
 
-  const presets: Preset[] = ((draftPayload as Record<string, unknown>)?.presets as Preset[] | undefined) || [];
+  const presets: Preset[] = ((draftPayload as unknown as Record<string, unknown>)?.presets as Preset[] | undefined) || [];
 
   const handleAddPreset = () => {
     const newPreset: Preset = {
