@@ -53,7 +53,7 @@ export default function AdminRules() {
   const [requireJson, setRequireJson] = useState('');
   const [jsonError, setJsonError] = useState<string | null>(null);
 
-  const rules: Rule[] = ((draftPayload as Record<string, unknown>)?.rules as Rule[] | undefined) || [];
+  const rules: Rule[] = ((draftPayload as unknown as Record<string, unknown>)?.rules as Rule[] | undefined) || [];
 
   const handleAddRule = () => {
     const newRule: Rule = {
