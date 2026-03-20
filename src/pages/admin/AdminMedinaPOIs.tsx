@@ -306,7 +306,7 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
       },
       (err) => {
         setGeoLoading(false);
-        toast({ title: 'Erreur GPS', description: (err as Error).message, variant: 'destructive' });
+        toast({ title: 'Erreur GPS', description: (err as unknown as Error).message, variant: 'destructive' });
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );

@@ -133,7 +133,7 @@ export default function AdminRules() {
 
   const handleToggleEnabled = (ruleId: string, enabled: boolean) => {
     updateDraft((prev) => {
-      const currentRules: Rule[] = ((prev as Record<string, unknown>).rules as Rule[] | undefined) || [];
+      const currentRules: Rule[] = ((prev as unknown as Record<string, unknown>).rules as Rule[] | undefined) || [];
       return {
         ...prev,
         rules: currentRules.map(r => r.id === ruleId ? { ...r, enabled } : r),

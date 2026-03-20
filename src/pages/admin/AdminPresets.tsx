@@ -141,7 +141,7 @@ export default function AdminPresets() {
 
   const handleToggleEnabled = (presetId: string, enabled: boolean) => {
     updateDraft((prev) => {
-      const currentPresets: Preset[] = ((prev as Record<string, unknown>).presets as Preset[] | undefined) || [];
+      const currentPresets: Preset[] = ((prev as unknown as Record<string, unknown>).presets as Preset[] | undefined) || [];
       return {
         ...prev,
         presets: currentPresets.map(p => p.id === presetId ? { ...p, enabled } : p),
