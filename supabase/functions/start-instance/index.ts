@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { access_token, device_id } = body;
+    const { access_token, device_id, device_fingerprint } = body;
 
     if (!access_token || typeof access_token !== "string" || !access_token.trim()) {
       return json({ error: "access_token requis" }, 400, corsHeaders);
@@ -62,6 +62,14 @@ Deno.serve(async (req) => {
     if (!device_id || typeof device_id !== "string" || !device_id.trim()) {
       return json({ error: "device_id requis" }, 400, corsHeaders);
     }
+
+    // Fingerprint est optionnel (rétrocompatibilité anciens clients)
+    const fingerprint: string | null =
+      device_fingerprint && typeof device_fingerprint === "string"
+        ? device_fingerprint.slice(0, 64)
+        : null;
+
+    const userAgent = req.headers.get("user-agent")?.slice(0, 300) ?? null;
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -109,37 +117,92 @@ Deno.serve(async (req) => {
     const devicesAllowed = instance.devices_allowed ?? 1;
     const trimmedDeviceId = device_id.trim();
 
-    // Upsert this device (idempotent)
-    const { error: upsertErr } = await supabaseAdmin
-      .from("quest_instance_devices")
-      .upsert(
-        { quest_instance_id: instance.id, device_id: trimmedDeviceId },
-        { onConflict: "quest_instance_id,device_id" }
-      );
-    if (upsertErr) {
-      console.error("Device upsert error:", upsertErr);
-      return json({ error: "Erreur enregistrement appareil" }, 500, corsHeaders);
+    // ── Fingerprint cross-instance abuse check ──────────────────────────────
+    // Si ce fingerprint est déjà associé à UNE AUTRE instance non expirée,
+    // c'est suspect (partage de lien + même appareil). On refuse silencieusement.
+    if (fingerprint) {
+      const { data: existingFingerprint } = await supabaseAdmin
+        .from("quest_instance_devices")
+        .select("quest_instance_id")
+        .eq("fingerprint_hash", fingerprint)
+        .neq("quest_instance_id", instance.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingFingerprint) {
+        // Même appareil, instance différente → peut être légitime (client récurrent)
+        // On log mais on ne bloque PAS (politique: 1 instance active par appareil OK)
+        console.warn(
+          `[device-lock] fingerprint=${fingerprint} used on multiple instances. ` +
+          `Current: ${instance.id}, Previous: ${existingFingerprint.quest_instance_id}`
+        );
+      }
     }
 
-    // Count distinct devices for this instance
-    const { count: deviceCount, error: countErr } = await supabaseAdmin
+    // ── Vérifier si ce device_id est déjà enregistré pour cette instance ────
+    const { data: existingDevice } = await supabaseAdmin
       .from("quest_instance_devices")
-      .select("id", { count: "exact", head: true })
-      .eq("quest_instance_id", instance.id);
+      .select("id, fingerprint_hash")
+      .eq("quest_instance_id", instance.id)
+      .eq("device_id", trimmedDeviceId)
+      .maybeSingle();
 
-    if (countErr) {
-      console.error("Device count error:", countErr);
-      return json({ error: "Erreur vérification appareils" }, 500, corsHeaders);
-    }
+    if (existingDevice) {
+      // Device déjà connu — vérifier si le fingerprint a changé (clonage suspect)
+      if (
+        fingerprint &&
+        existingDevice.fingerprint_hash &&
+        existingDevice.fingerprint_hash !== fingerprint
+      ) {
+        // Fingerprint différent pour le même device_id → possible vol de device_id
+        // On refuse et on log pour investigation
+        console.error(
+          `[device-lock] fingerprint mismatch for device_id=${trimmedDeviceId}. ` +
+          `Stored: ${existingDevice.fingerprint_hash}, Received: ${fingerprint}`
+        );
+        return json({ error: "Nombre maximum d'appareils atteint" }, 403, corsHeaders);
+      }
 
-    if ((deviceCount ?? 0) > devicesAllowed) {
-      // Too many devices — remove the one we just inserted and reject
+      // Mise à jour last_seen_at (le trigger s'en charge)
       await supabaseAdmin
         .from("quest_instance_devices")
-        .delete()
-        .eq("quest_instance_id", instance.id)
-        .eq("device_id", trimmedDeviceId);
-      return json({ error: "Nombre maximum d'appareils atteint" }, 403, corsHeaders);
+        .update({ fingerprint_hash: fingerprint, user_agent: userAgent })
+        .eq("id", existingDevice.id);
+    } else {
+      // Nouveau device pour cette instance — vérifier la limite avant d'insérer
+      const { count: deviceCount, error: countErr } = await supabaseAdmin
+        .from("quest_instance_devices")
+        .select("id", { count: "exact", head: true })
+        .eq("quest_instance_id", instance.id);
+
+      if (countErr) {
+        console.error("Device count error:", countErr);
+        return json({ error: "Erreur vérification appareils" }, 500, corsHeaders);
+      }
+
+      if ((deviceCount ?? 0) >= devicesAllowed) {
+        return json({ error: "Nombre maximum d'appareils atteint" }, 403, corsHeaders);
+      }
+
+      // Insérer le nouvel appareil
+      const { error: insertErr } = await supabaseAdmin
+        .from("quest_instance_devices")
+        .insert({
+          quest_instance_id: instance.id,
+          device_id: trimmedDeviceId,
+          fingerprint_hash: fingerprint,
+          user_agent: userAgent,
+        });
+
+      if (insertErr) {
+        // Gestion de la race condition (deux requêtes simultanées du même device)
+        if (insertErr.code === "23505") {
+          // Duplicate key → le device vient d'être inséré en parallèle → OK
+        } else {
+          console.error("Device insert error:", insertErr);
+          return json({ error: "Erreur enregistrement appareil" }, 500, corsHeaders);
+        }
+      }
     }
 
     // 4. Start if pending
