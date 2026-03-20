@@ -60,7 +60,7 @@ export default function AdminCatalog() {
       const initial: Record<string, CatalogData> = {};
       for (const p of data ?? []) {
         const qc = p.quest_config;
-        initial[p.id] = { ...DEFAULT_CATALOG, ...((qc?.catalog as Partial<CatalogData>) ?? {}) };
+        initial[p.id] = { ...DEFAULT_CATALOG, ...(((qc as unknown as Record<string, unknown>)?.catalog as Partial<CatalogData>) ?? {}) };
       }
       setEdits(initial);
       setLoading(false);
@@ -87,7 +87,7 @@ export default function AdminCatalog() {
     const newQuestConfig = { ...project.quest_config, catalog: syncedCatalog, experience_mode: syncedCatalog.mode };
     const { error } = await supabase
       .from("projects")
-      .update({ quest_config: newQuestConfig as Record<string, unknown> })
+      .update({ quest_config: newQuestConfig as unknown as import('@/integrations/supabase/types').Json })
       .eq("id", project.id);
     if (error) {
       toast({ title: "Erreur", description: error.message, variant: "destructive" });

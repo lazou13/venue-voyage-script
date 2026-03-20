@@ -88,7 +88,7 @@ async function buildFingerprint(): Promise<string> {
     nav.language,
     nav.languages?.join(',') ?? '',
     String(nav.hardwareConcurrency ?? 0),
-    String(nav.deviceMemory ?? 0),
+    String((nav as unknown as Record<string, unknown>).deviceMemory ?? 0),
     String(screen.width),
     String(screen.height),
     String(screen.colorDepth),

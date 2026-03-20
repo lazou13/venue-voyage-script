@@ -70,7 +70,7 @@ export default function AdminPresets() {
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [defaultsJson, setDefaultsJson] = useState('');
 
-  const presets: Preset[] = ((draftPayload as Record<string, unknown>)?.presets as Preset[] | undefined) || [];
+  const presets: Preset[] = ((draftPayload as unknown as Record<string, unknown>)?.presets as Preset[] | undefined) || [];
 
   const handleAddPreset = () => {
     const newPreset: Preset = {
@@ -109,7 +109,7 @@ export default function AdminPresets() {
     }
     
     updateDraft((prev) => {
-      const currentPresets: Preset[] = ((prev as Record<string, unknown>).presets as Preset[] | undefined) || [];
+      const currentPresets: Preset[] = ((prev as unknown as Record<string, unknown>).presets as Preset[] | undefined) || [];
       const existingIndex = currentPresets.findIndex(p => p.id === editingPreset.id);
 
       let newPresets: Preset[];
@@ -132,7 +132,7 @@ export default function AdminPresets() {
     if (!confirm('Supprimer ce préréglage ?')) return;
     
     updateDraft((prev) => {
-      const currentPresets: Preset[] = ((prev as Record<string, unknown>).presets as Preset[] | undefined) || [];
+      const currentPresets: Preset[] = ((prev as unknown as Record<string, unknown>).presets as Preset[] | undefined) || [];
       return { ...prev, presets: currentPresets.filter(p => p.id !== presetId) } as typeof prev;
     });
     
@@ -141,7 +141,7 @@ export default function AdminPresets() {
 
   const handleToggleEnabled = (presetId: string, enabled: boolean) => {
     updateDraft((prev) => {
-      const currentPresets: Preset[] = ((prev as Record<string, unknown>).presets as Preset[] | undefined) || [];
+      const currentPresets: Preset[] = ((prev as unknown as Record<string, unknown>).presets as Preset[] | undefined) || [];
       return {
         ...prev,
         presets: currentPresets.map(p => p.id === presetId ? { ...p, enabled } : p),

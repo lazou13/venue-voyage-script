@@ -53,7 +53,7 @@ export default function AdminRules() {
   const [requireJson, setRequireJson] = useState('');
   const [jsonError, setJsonError] = useState<string | null>(null);
 
-  const rules: Rule[] = ((draftPayload as Record<string, unknown>)?.rules as Rule[] | undefined) || [];
+  const rules: Rule[] = ((draftPayload as unknown as Record<string, unknown>)?.rules as Rule[] | undefined) || [];
 
   const handleAddRule = () => {
     const newRule: Rule = {
@@ -101,7 +101,7 @@ export default function AdminRules() {
     }
     
     updateDraft((prev) => {
-      const currentRules: Rule[] = ((prev as Record<string, unknown>).rules as Rule[] | undefined) || [];
+      const currentRules: Rule[] = ((prev as unknown as Record<string, unknown>).rules as Rule[] | undefined) || [];
       const existingIndex = currentRules.findIndex(r => r.id === editingRule.id);
 
       let newRules: Rule[];
@@ -124,7 +124,7 @@ export default function AdminRules() {
     if (!confirm('Supprimer cette règle ?')) return;
     
     updateDraft((prev) => {
-      const currentRules: Rule[] = ((prev as Record<string, unknown>).rules as Rule[] | undefined) || [];
+      const currentRules: Rule[] = ((prev as unknown as Record<string, unknown>).rules as Rule[] | undefined) || [];
       return { ...prev, rules: currentRules.filter(r => r.id !== ruleId) } as typeof prev;
     });
     
@@ -133,7 +133,7 @@ export default function AdminRules() {
 
   const handleToggleEnabled = (ruleId: string, enabled: boolean) => {
     updateDraft((prev) => {
-      const currentRules: Rule[] = ((prev as Record<string, unknown>).rules as Rule[] | undefined) || [];
+      const currentRules: Rule[] = ((prev as unknown as Record<string, unknown>).rules as Rule[] | undefined) || [];
       return {
         ...prev,
         rules: currentRules.map(r => r.id === ruleId ? { ...r, enabled } : r),
