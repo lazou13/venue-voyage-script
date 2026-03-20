@@ -60,7 +60,7 @@ export default function AdminCatalog() {
       const initial: Record<string, CatalogData> = {};
       for (const p of data ?? []) {
         const qc = p.quest_config;
-        initial[p.id] = { ...DEFAULT_CATALOG, ...((qc?.catalog as Partial<CatalogData>) ?? {}) };
+        initial[p.id] = { ...DEFAULT_CATALOG, ...(((qc as unknown as Record<string, unknown>)?.catalog as Partial<CatalogData>) ?? {}) };
       }
       setEdits(initial);
       setLoading(false);
