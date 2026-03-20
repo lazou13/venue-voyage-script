@@ -1,10 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { usePlayInstance, type PlayData, getPriorityMediaIds } from '@/hooks/usePlayInstance';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Play, Clock, MapPin, AlertTriangle, Eye, ChevronRight, List, ArrowLeft, CheckCircle2, Smartphone, MessageCircle } from 'lucide-react';
+import { Play, Clock, MapPin, AlertTriangle, Eye, ChevronRight, ArrowLeft, CheckCircle2, Smartphone, MessageCircle, Map as MapIcon, List } from 'lucide-react';
+
+const QuestMap = lazy(() => import('@/components/quest/QuestMap'));
 
 function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
@@ -20,6 +22,7 @@ export default function QuestPlay() {
   const [selectedPoiId, setSelectedPoiId] = useState<string | null>(null);
   const [visitedIds, setVisitedIds] = useState<Set<string>>(new Set());
   const [mobileShowList, setMobileShowList] = useState(true);
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
 
   // Auto-call start on mount if we have a token (idempotent)
   useEffect(() => {
@@ -113,6 +116,17 @@ export default function QuestPlay() {
   const selectPoi = (id: string) => {
     setSelectedPoiId(id);
     setMobileShowList(false);
+    if (viewMode === 'map') setViewMode('list');
+  };
+
+  const handleCheckin = (poiId: string) => {
+    setVisitedIds((prev) => {
+      const next = new Set(prev);
+      next.add(poiId);
+      return next;
+    });
+    setSelectedPoiId(poiId);
+    setMobileShowList(false);
   };
 
   // Not started yet → show start screen
@@ -178,7 +192,28 @@ export default function QuestPlay() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              className="h-7 w-7 p-0"
+              onClick={() => setViewMode('list')}
+              title="Liste"
+            >
+              <List className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              size="sm"
+              variant={viewMode === 'map' ? 'default' : 'ghost'}
+              className="h-7 w-7 p-0"
+              onClick={() => setViewMode('map')}
+              title="Carte"
+            >
+              <MapIcon className="w-3.5 h-3.5" />
+            </Button>
+          </div>
           {/* Visit: next recommended */}
           {isVisit && nextUnvisited && !selectedPoi && (
             <Button size="sm" variant="outline" onClick={() => selectPoi(nextUnvisited.id)} className="hidden md:flex">
@@ -194,32 +229,36 @@ export default function QuestPlay() {
         </div>
       </header>
 
-      {/* Desktop layout */}
+      {/* Main layout */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Desktop sidebar */}
-        <aside className="w-64 border-r bg-card overflow-y-auto shrink-0 hidden md:block">
-          <POIList
-            pois={pois}
-            selectedPoiId={selectedPoiId}
-            visitedIds={visitedIds}
-            coverUrls={coverUrls}
-            isVisit={isVisit}
-            onSelect={selectPoi}
-          />
-        </aside>
 
-        {/* Mobile: toggle list/detail */}
-        <div className="md:hidden flex-1 flex flex-col overflow-hidden">
-          {mobileShowList ? (
-            <div className="flex-1 overflow-y-auto">
-              {/* Visit: next recommended button */}
-              {isVisit && nextUnvisited && (
-                <div className="p-3 border-b">
-                  <Button size="sm" className="w-full" onClick={() => selectPoi(nextUnvisited.id)}>
-                    <ChevronRight className="w-4 h-4 mr-1" /> Suivant recommandé: {nextUnvisited.name}
-                  </Button>
+        {/* ── MAP MODE ──────────────────────────────────────── */}
+        {viewMode === 'map' && (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 min-h-0">
+              <Suspense fallback={
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  <span className="animate-pulse">Chargement carte…</span>
                 </div>
-              )}
+              }>
+                <QuestMap
+                  pois={pois}
+                  selectedPoiId={selectedPoiId}
+                  visitedIds={visitedIds}
+                  coverUrls={coverUrls}
+                  onSelectPOI={selectPoi}
+                  onCheckin={handleCheckin}
+                />
+              </Suspense>
+            </div>
+          </div>
+        )}
+
+        {/* ── LIST MODE ─────────────────────────────────────── */}
+        {viewMode === 'list' && (
+          <>
+            {/* Desktop sidebar */}
+            <aside className="w-64 border-r bg-card overflow-y-auto shrink-0 hidden md:block">
               <POIList
                 pois={pois}
                 selectedPoiId={selectedPoiId}
@@ -228,26 +267,49 @@ export default function QuestPlay() {
                 isVisit={isVisit}
                 onSelect={selectPoi}
               />
+            </aside>
+
+            {/* Mobile: toggle list/detail */}
+            <div className="md:hidden flex-1 flex flex-col overflow-hidden">
+              {mobileShowList ? (
+                <div className="flex-1 overflow-y-auto">
+                  {isVisit && nextUnvisited && (
+                    <div className="p-3 border-b">
+                      <Button size="sm" className="w-full" onClick={() => selectPoi(nextUnvisited.id)}>
+                        <ChevronRight className="w-4 h-4 mr-1" /> Suivant: {nextUnvisited.name}
+                      </Button>
+                    </div>
+                  )}
+                  <POIList
+                    pois={pois}
+                    selectedPoiId={selectedPoiId}
+                    visitedIds={visitedIds}
+                    coverUrls={coverUrls}
+                    isVisit={isVisit}
+                    onSelect={selectPoi}
+                  />
+                </div>
+              ) : (
+                <main className="flex-1 overflow-y-auto p-4">
+                  {selectedPoi ? (
+                    <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} isVisit={isVisit} />
+                  ) : (
+                    <EmptyState />
+                  )}
+                </main>
+              )}
             </div>
-          ) : (
-            <main className="flex-1 overflow-y-auto p-4">
+
+            {/* Desktop main */}
+            <main className="flex-1 overflow-y-auto p-4 hidden md:block">
               {selectedPoi ? (
                 <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} isVisit={isVisit} />
               ) : (
                 <EmptyState />
               )}
             </main>
-          )}
-        </div>
-
-        {/* Desktop main */}
-        <main className="flex-1 overflow-y-auto p-4 hidden md:block">
-          {selectedPoi ? (
-            <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} isVisit={isVisit} />
-          ) : (
-            <EmptyState />
-          )}
-        </main>
+          </>
+        )}
       </div>
     </div>
   );
