@@ -109,7 +109,7 @@ export default function AdminPresets() {
     }
     
     updateDraft((prev) => {
-      const currentPresets: Preset[] = ((prev as Record<string, unknown>).presets as Preset[] | undefined) || [];
+      const currentPresets: Preset[] = ((prev as unknown as Record<string, unknown>).presets as Preset[] | undefined) || [];
       const existingIndex = currentPresets.findIndex(p => p.id === editingPreset.id);
 
       let newPresets: Preset[];
