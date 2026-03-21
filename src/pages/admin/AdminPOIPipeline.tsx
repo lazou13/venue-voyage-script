@@ -7,6 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2, Camera } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import EnrichmentPipelineCard from "@/components/admin/EnrichmentPipelineCard";
 
 type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos";
 
@@ -157,6 +158,8 @@ export default function AdminPOIPipeline() {
           )}
         </div>
       </div>
+
+      <EnrichmentPipelineCard />
 
       {/* Pipeline Progress */}
       <Card>
