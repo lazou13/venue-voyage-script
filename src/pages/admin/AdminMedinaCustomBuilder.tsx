@@ -61,7 +61,7 @@ function TriggerDialog({
       .single();
     const current = (data?.step_config as Record<string, unknown>) ?? {};
     const merged = { ...current, ...patch };
-    const { error } = await supabase.from('medina_pois').update({ step_config: merged }).eq('id', poi.id);
+    const { error } = await supabase.from('medina_pois').update({ step_config: merged as any }).eq('id', poi.id);
     if (error) {
       toast.error('Erreur de sauvegarde', { description: error.message });
     }
