@@ -46,17 +46,9 @@ export function TriggerSection({ poiId, config, onUpdateConfig }: TriggerSection
   const cameraFileRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
-  // Fresh-read patch: read current step_config from DB, merge, save
   const freshPatch = useCallback(async (patch: Record<string, unknown>) => {
-    const { data } = await supabase
-      .from('pois')
-      .select('step_config')
-      .eq('id', poiId)
-      .single();
-    const current = (data?.step_config as Record<string, unknown>) ?? {};
-    const merged = { ...current, ...patch };
-    onUpdateConfig(merged as Partial<StepConfig>);
-  }, [poiId, onUpdateConfig]);
+    onUpdateConfig(patch as Partial<StepConfig>);
+  }, [onUpdateConfig]);
 
   // Upload helper
   const uploadFile = async (file: Blob, path: string, kind: 'photo' | 'video'): Promise<string | null> => {
