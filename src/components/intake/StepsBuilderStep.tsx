@@ -310,6 +310,7 @@ function StepConfigCard({
                 ✓ {stepTypeLabels[config.final_step_type]}
               </Badge>
             )}
+            <TriggerStatusBadge config={config} />
             <Button 
               variant="ghost" 
               size="icon"
