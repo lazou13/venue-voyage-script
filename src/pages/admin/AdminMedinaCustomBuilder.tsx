@@ -73,11 +73,10 @@ function TriggerDialog({
     await patchStepConfig({ validation_type: v });
   };
 
-  /* ─ Upload helper ─ */
+  /* ─ Upload helper (upload only, caller does the patch) ─ */
   const uploadFile = async (
     file: Blob,
     path: string,
-    patchFields: Record<string, any>,
     kind: 'photo' | 'video',
   ) => {
     setUploading(kind);
@@ -87,10 +86,7 @@ function TriggerDialog({
         .upload(path, file, { upsert: true });
       if (upErr) throw upErr;
       const { data: urlData } = supabase.storage.from('poi-media').getPublicUrl(path);
-      const url = urlData.publicUrl;
-      await patchStepConfig(patchFields instanceof Function ? patchFields(url) : { ...patchFields });
-      // We need the url in patchFields, so we use a callback pattern
-      return url;
+      return urlData.publicUrl;
     } catch (err: any) {
       toast.error(`Erreur upload ${kind}`, { description: err.message });
       return null;
