@@ -93,10 +93,16 @@ export default function HomePage() {
         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
       );
 
-      const { data, error: fnError } = await externalSupabase.functions.invoke('quest-ai-assistant', {
+      const { data, error: fnError } = await supabase.functions.invoke('generate-quest', {
         body: {
           start_lat: position.coords.latitude,
           start_lng: position.coords.longitude,
+          mode: 'treasure_hunt',
+          theme: 'complete',
+          max_duration_min: 90,
+          radius_m: 800,
+          max_stops: 6,
+          language: 'fr',
         },
       });
 
