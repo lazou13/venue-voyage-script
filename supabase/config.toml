@@ -72,3 +72,6 @@ verify_jwt = false
 
 [functions.photo-fetcher]
 verify_jwt = false
+
+[functions.wiki-name-enricher]
+verify_jwt = false
