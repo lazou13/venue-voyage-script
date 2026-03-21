@@ -1,4 +1,4 @@
-// anecdote-enricher — Hunt Planer Pro
+// anecdote-enricher — Hunt Planer Pro (Lovable AI)
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -7,8 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-haiku-4-5-20251001";
+const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
 function resolveName(name: any): string {
   if (typeof name === 'object' && name !== null) return name.fr ?? name.en ?? Object.values(name)[0] ?? 'POI';
@@ -54,23 +53,34 @@ JSON UNIQUEMENT:
 POIs:
 ${poiList}`;
 
-  const resp = await fetch(ANTHROPIC_API, {
+  const resp = await fetch(AI_URL, {
     method: 'POST',
-    headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-    body: JSON.stringify({ model: MODEL, max_tokens: 6000, messages: [{ role: 'user', content: prompt }] }),
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages: [{ role: 'user', content: prompt }],
+    }),
   });
-  if (!resp.ok) throw new Error(`Anthropic error ${resp.status}: ${await resp.text()}`);
+
+  if (resp.status === 429) throw new Error('Rate limited — réessayez dans quelques secondes');
+  if (resp.status === 402) throw new Error('Crédits Lovable AI épuisés — rechargez dans Settings > Workspace > Usage');
+  if (!resp.ok) throw new Error(`AI gateway error ${resp.status}: ${await resp.text()}`);
+
   const data = await resp.json();
-  const jsonMatch = (data.content?.[0]?.text ?? '').match(/\{[\s\S]+\}/);
-  if (!jsonMatch) throw new Error('Pas de JSON dans la réponse');
+  const text = data.choices?.[0]?.message?.content ?? '';
+  const jsonMatch = text.match(/\{[\s\S]+\}/);
+  if (!jsonMatch) throw new Error('Pas de JSON dans la réponse AI');
   return JSON.parse(jsonMatch[0]);
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
-  const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!ANTHROPIC_API_KEY) {
-    return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY non configurée.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  if (!LOVABLE_API_KEY) {
+    return new Response(JSON.stringify({ error: 'LOVABLE_API_KEY non configurée.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
   try {
@@ -98,7 +108,7 @@ serve(async (req) => {
     let totalUpdated = 0;
     for (let i = 0; i < pois.length; i += CHUNK) {
       const chunk = pois.slice(i, i + CHUNK);
-      const anecdotes = await generateAnecdotes(chunk, ANTHROPIC_API_KEY);
+      const anecdotes = await generateAnecdotes(chunk, LOVABLE_API_KEY);
       for (const poi of chunk) {
         const a = anecdotes[poi.id];
         if (!a) continue;
@@ -115,6 +125,8 @@ serve(async (req) => {
           if (!updErr) totalUpdated++;
         }
       }
+      // Rate limit between chunks
+      if (i + CHUNK < pois.length) await new Promise(r => setTimeout(r, 1500));
     }
     return new Response(JSON.stringify({ processed: pois.length, updated: totalUpdated }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
