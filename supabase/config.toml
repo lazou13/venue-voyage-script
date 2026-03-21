@@ -78,3 +78,6 @@ verify_jwt = false
 
 [functions.enrichment-pipeline]
 verify_jwt = false
+
+[functions.anecdote-enricher]
+verify_jwt = false
