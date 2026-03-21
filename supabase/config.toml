@@ -81,3 +81,6 @@ verify_jwt = false
 
 [functions.anecdote-enricher]
 verify_jwt = false
+
+[functions.riddle-generator]
+verify_jwt = false
