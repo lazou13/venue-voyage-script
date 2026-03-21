@@ -507,48 +507,120 @@ export type Database = {
       }
       pois: {
         Row: {
+          accessibility_notes: string | null
+          best_time: string | null
           created_at: string
+          crowd_level: string | null
+          enriched_at: string | null
+          enrichment_status: string | null
+          fun_fact_en: string | null
+          fun_fact_fr: string | null
+          history_context: string | null
           id: string
           interaction: Database["public"]["Enums"]["interaction_type"]
           library_poi_id: string | null
+          local_anecdote: string | null
+          local_anecdote_en: string | null
+          local_anecdote_fr: string | null
           minutes_from_prev: number | null
           name: string
+          name_ar: string | null
+          name_en: string | null
+          name_fr: string | null
           notes: string | null
+          opening_hours: Json | null
           photo_url: string | null
+          poi_score: number | null
           project_id: string
+          riddle_easy: string | null
+          riddle_hard: string | null
+          riddle_medium: string | null
           risk: Database["public"]["Enums"]["risk_level"]
           sort_order: number
           step_config: Json
+          themes: string[] | null
+          visit_duration_min: number | null
+          wikidata_id: string | null
+          wikimedia_photo_url: string | null
+          wikipedia_summary: string | null
           zone: string
         }
         Insert: {
+          accessibility_notes?: string | null
+          best_time?: string | null
           created_at?: string
+          crowd_level?: string | null
+          enriched_at?: string | null
+          enrichment_status?: string | null
+          fun_fact_en?: string | null
+          fun_fact_fr?: string | null
+          history_context?: string | null
           id?: string
           interaction?: Database["public"]["Enums"]["interaction_type"]
           library_poi_id?: string | null
+          local_anecdote?: string | null
+          local_anecdote_en?: string | null
+          local_anecdote_fr?: string | null
           minutes_from_prev?: number | null
           name: string
+          name_ar?: string | null
+          name_en?: string | null
+          name_fr?: string | null
           notes?: string | null
+          opening_hours?: Json | null
           photo_url?: string | null
+          poi_score?: number | null
           project_id: string
+          riddle_easy?: string | null
+          riddle_hard?: string | null
+          riddle_medium?: string | null
           risk?: Database["public"]["Enums"]["risk_level"]
           sort_order?: number
           step_config?: Json
+          themes?: string[] | null
+          visit_duration_min?: number | null
+          wikidata_id?: string | null
+          wikimedia_photo_url?: string | null
+          wikipedia_summary?: string | null
           zone: string
         }
         Update: {
+          accessibility_notes?: string | null
+          best_time?: string | null
           created_at?: string
+          crowd_level?: string | null
+          enriched_at?: string | null
+          enrichment_status?: string | null
+          fun_fact_en?: string | null
+          fun_fact_fr?: string | null
+          history_context?: string | null
           id?: string
           interaction?: Database["public"]["Enums"]["interaction_type"]
           library_poi_id?: string | null
+          local_anecdote?: string | null
+          local_anecdote_en?: string | null
+          local_anecdote_fr?: string | null
           minutes_from_prev?: number | null
           name?: string
+          name_ar?: string | null
+          name_en?: string | null
+          name_fr?: string | null
           notes?: string | null
+          opening_hours?: Json | null
           photo_url?: string | null
+          poi_score?: number | null
           project_id?: string
+          riddle_easy?: string | null
+          riddle_hard?: string | null
+          riddle_medium?: string | null
           risk?: Database["public"]["Enums"]["risk_level"]
           sort_order?: number
           step_config?: Json
+          themes?: string[] | null
+          visit_duration_min?: number | null
+          wikidata_id?: string | null
+          wikimedia_photo_url?: string | null
+          wikipedia_summary?: string | null
           zone?: string
         }
         Relationships: [
@@ -1138,6 +1210,54 @@ export type Database = {
           instance_ids: string[] | null
           last_seen: string | null
           total_accesses: number | null
+        }
+        Relationships: []
+      }
+      v_top_pois: {
+        Row: {
+          content_level: string | null
+          enrichment_status: string | null
+          fun_fact_fr: string | null
+          history_context: string | null
+          id: string | null
+          local_anecdote_fr: string | null
+          name: string | null
+          photo_url: string | null
+          poi_score: number | null
+          riddle_easy: string | null
+          riddle_hard: string | null
+          riddle_medium: string | null
+          visit_duration_min: number | null
+        }
+        Insert: {
+          content_level?: never
+          enrichment_status?: string | null
+          fun_fact_fr?: string | null
+          history_context?: string | null
+          id?: string | null
+          local_anecdote_fr?: string | null
+          name?: string | null
+          photo_url?: string | null
+          poi_score?: number | null
+          riddle_easy?: string | null
+          riddle_hard?: string | null
+          riddle_medium?: string | null
+          visit_duration_min?: number | null
+        }
+        Update: {
+          content_level?: never
+          enrichment_status?: string | null
+          fun_fact_fr?: string | null
+          history_context?: string | null
+          id?: string | null
+          local_anecdote_fr?: string | null
+          name?: string | null
+          photo_url?: string | null
+          poi_score?: number | null
+          riddle_easy?: string | null
+          riddle_hard?: string | null
+          riddle_medium?: string | null
+          visit_duration_min?: number | null
         }
         Relationships: []
       }
@@ -1979,6 +2099,7 @@ export type Database = {
       }
       geomfromewkt: { Args: { "": string }; Returns: unknown }
       get_graph_stats: { Args: never; Returns: Json }
+      get_poi_enrichment_stats: { Args: never; Returns: Json }
       get_walking_cost_matrix: {
         Args: { node_ids: number[] }
         Returns: {
