@@ -66,3 +66,6 @@ verify_jwt = false
 
 [functions.wikidata-finder]
 verify_jwt = false
+
+[functions.poi-enricher]
+verify_jwt = false
