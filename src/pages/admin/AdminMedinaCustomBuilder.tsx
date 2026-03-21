@@ -155,7 +155,7 @@ function TriggerDialog({
   /* ─ File uploads ─ */
   const handlePhotoFile = async (file: File) => {
     const path = `triggers/${poi.id}/reference.jpg`;
-    const url = await uploadFile(file, path, {}, 'photo');
+    const url = await uploadFile(file, path, 'photo');
     if (url) {
       await patchStepConfig({ reference_image_url: url, photo_reference_required: true });
       setRefImageUrl(url);
