@@ -63,3 +63,6 @@ verify_jwt = false
 
 [functions.generate-quest]
 verify_jwt = false
+
+[functions.wikidata-finder]
+verify_jwt = false
