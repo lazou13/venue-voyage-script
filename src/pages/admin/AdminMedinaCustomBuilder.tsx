@@ -368,10 +368,10 @@ function TriggerBadge({ stepConfig }: { stepConfig: Record<string, any> }) {
   const hasVideo = !!cfg.trigger_video_url;
 
   if (hasRef && hasVideo) {
-    return <Badge variant="outline" className="text-[10px] border-green-500 text-green-600 px-1.5 py-0">✓ déclencheur actif</Badge>;
+    return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-primary/10 text-primary border-primary/30">✓ déclencheur actif</Badge>;
   }
   if ((vt === 'photo_place' || vt === 'photo_object') && !hasVideo) {
-    return <Badge variant="outline" className="text-[10px] border-orange-400 text-orange-500 px-1.5 py-0">📷 sans vidéo</Badge>;
+    return <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-destructive/10 text-destructive border-destructive/30">📷 sans vidéo</Badge>;
   }
   return null;
 }
