@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { externalSupabase } from '@/lib/externalSupabase';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2, MapPin, Navigation, X, ChevronRight, ChevronLeft } from 'lucide-react';
@@ -92,10 +93,16 @@ export default function HomePage() {
         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
       );
 
-      const { data, error: fnError } = await externalSupabase.functions.invoke('quest-ai-assistant', {
+      const { data, error: fnError } = await supabase.functions.invoke('generate-quest', {
         body: {
           start_lat: position.coords.latitude,
           start_lng: position.coords.longitude,
+          mode: 'treasure_hunt',
+          theme: 'complete',
+          max_duration_min: 90,
+          radius_m: 800,
+          max_stops: 6,
+          language: 'fr',
         },
       });
 
