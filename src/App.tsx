@@ -39,7 +39,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/" element={<HomePage />} />
+          <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/intake/:projectId" element={<IntakeForm />} />
           <Route path="/admin/config" element={<Navigate to="/admin/enums" replace />} />
           
