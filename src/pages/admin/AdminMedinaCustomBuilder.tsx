@@ -53,13 +53,19 @@ function TriggerDialog({
   const cameraFileRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
-  const patchStepConfig = useCallback(async (patch: Record<string, any>) => {
-    const merged = { ...cfg, ...patch };
-    const { error } = await supabase.from('pois').update({ step_config: merged }).eq('id', poi.id);
+  const patchStepConfig = useCallback(async (patch: Record<string, unknown>) => {
+    const { data } = await supabase
+      .from('medina_pois')
+      .select('step_config')
+      .eq('id', poi.id)
+      .single();
+    const current = (data?.step_config as Record<string, unknown>) ?? {};
+    const merged = { ...current, ...patch };
+    const { error } = await supabase.from('medina_pois').update({ step_config: merged as any }).eq('id', poi.id);
     if (error) {
       toast.error('Erreur de sauvegarde', { description: error.message });
     }
-  }, [cfg, poi.id]);
+  }, [poi.id]);
 
   /* ─ Validation type ─ */
   const handleValidationType = async (v: ValidationType) => {
@@ -67,11 +73,10 @@ function TriggerDialog({
     await patchStepConfig({ validation_type: v });
   };
 
-  /* ─ Upload helper ─ */
+  /* ─ Upload helper (upload only, caller does the patch) ─ */
   const uploadFile = async (
     file: Blob,
     path: string,
-    patchFields: Record<string, any>,
     kind: 'photo' | 'video',
   ) => {
     setUploading(kind);
@@ -81,10 +86,7 @@ function TriggerDialog({
         .upload(path, file, { upsert: true });
       if (upErr) throw upErr;
       const { data: urlData } = supabase.storage.from('poi-media').getPublicUrl(path);
-      const url = urlData.publicUrl;
-      await patchStepConfig(patchFields instanceof Function ? patchFields(url) : { ...patchFields });
-      // We need the url in patchFields, so we use a callback pattern
-      return url;
+      return urlData.publicUrl;
     } catch (err: any) {
       toast.error(`Erreur upload ${kind}`, { description: err.message });
       return null;
@@ -135,7 +137,7 @@ function TriggerDialog({
   const useCapture = async () => {
     if (!capturedBlob) return;
     const path = `triggers/${poi.id}/reference.jpg`;
-    const url = await uploadFile(capturedBlob, path, {}, 'photo');
+    const url = await uploadFile(capturedBlob, path, 'photo');
     if (url) {
       await patchStepConfig({ reference_image_url: url, photo_reference_required: true });
       setRefImageUrl(url);
@@ -153,7 +155,7 @@ function TriggerDialog({
   /* ─ File uploads ─ */
   const handlePhotoFile = async (file: File) => {
     const path = `triggers/${poi.id}/reference.jpg`;
-    const url = await uploadFile(file, path, {}, 'photo');
+    const url = await uploadFile(file, path, 'photo');
     if (url) {
       await patchStepConfig({ reference_image_url: url, photo_reference_required: true });
       setRefImageUrl(url);
@@ -167,7 +169,7 @@ function TriggerDialog({
     }
     const ext = file.name.split('.').pop() || 'mp4';
     const path = `triggers/${poi.id}/video.${ext}`;
-    const url = await uploadFile(file, path, {}, 'video');
+    const url = await uploadFile(file, path, 'video');
     if (url) {
       await patchStepConfig({ trigger_video_url: url });
       setTriggerVideoUrl(url);
