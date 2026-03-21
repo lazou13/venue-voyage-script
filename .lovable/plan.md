@@ -1,32 +1,37 @@
 
 
-## Import du schéma et données dans le projet externe
+## Plan: Add enrichment pipeline launcher to AdminPOIPipeline
 
-### Contrainte technique
-Je n'ai accès qu'à la base Lovable Cloud (`dtwqmrmtzfhczvjggmct`). Je **ne peux pas** écrire directement dans le projet externe `xaccaoedtbwywjotqhih` — il n'est pas connecté à cet environnement.
+The enrichment pipeline button and progress UI will be added directly to the existing `AdminPOIPipeline.tsx` page (already at `/admin/poi-pipeline`), since that's the natural home for this functionality.
 
-### Ce que je peux faire
+### What will be built
 
-**Option A — Vous guider étape par étape** (recommandé)
+1. **"Lancer l'enrichissement" button** in the AdminPOIPipeline page that calls `supabase.functions.invoke('enrichment-pipeline', { body: { steps: [...] } })`
 
-Les fichiers sont déjà prêts dans `/mnt/documents/` :
-1. Ouvrir le SQL Editor du dashboard Supabase de `xaccaoedtbwywjotqhih`
-2. Activer les extensions : `postgis`, `pgrouting`, `uuid-ossp` (Database > Extensions)
-3. Copier-coller le contenu de `schema_export.sql` dans le SQL Editor → Run
-4. Pour les données, exécuter depuis un terminal local :
-   ```
-   psql "postgresql://postgres:MOT_DE_PASSE@db.xaccaoedtbwywjotqhih.supabase.co:5432/postgres" -f data_import.sql
-   ```
+2. **Step-by-step progress display** showing all 6 steps with status indicators:
+   - Pending (gray), Running (blue spinner), Success (green check), Error (orange warning)
+   - A progress bar showing overall completion (0% → 100% as steps complete)
 
-**Option B — Script d'import via edge function**
+3. **Final summary card** after completion showing per-step results (counts enriched, errors) and overall stats
 
-Je peux créer une edge function dans Lovable Cloud qui :
-1. Lit les données depuis la base Lovable Cloud
-2. Les envoie via l'API REST du projet externe (nécessite la `service_role_key` du projet cible)
+### Technical approach
 
-Cela nécessiterait que vous me fournissiez la clé `service_role_key` du projet `xaccaoedtbwywjotqhih`.
+Since the edge function runs synchronously and returns all results at once (it's not streaming), the UI will:
+- Show all 6 steps as "pending" when launched
+- Animate them to "running" state sequentially (estimated timing based on typical durations)
+- On response, mark each step as success/error based on the `results` object
+- Display errors in orange, successes in green
+- Show the `log` array and `results` summary
 
-### Recommandation
+### Changes
 
-L'Option A est la plus simple et sécurisée. Les fichiers sont déjà générés — il suffit de les exécuter dans le dashboard Supabase externe.
+**`src/pages/admin/AdminPOIPipeline.tsx`**:
+- Add a new `EnrichmentPipelineCard` section at the top of the page
+- New state: `enrichmentRunning`, `enrichmentSteps` (array of step statuses), `enrichmentResults`
+- The 6 steps: `wikidata`, `poi_enricher`, `photo`, `wiki_name`, `anecdote`, `riddle` with French labels
+- On click: invoke the function, simulate step progression with timers, then reconcile with actual results
+- Display errors per step in orange (`text-orange-500`), continue showing remaining steps
+- Show final summary with counts from `results` object
+
+No database changes needed. No new files needed.
 
