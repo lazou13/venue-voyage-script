@@ -75,3 +75,6 @@ verify_jwt = false
 
 [functions.wiki-name-enricher]
 verify_jwt = false
+
+[functions.enrichment-pipeline]
+verify_jwt = false
