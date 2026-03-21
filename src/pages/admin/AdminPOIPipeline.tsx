@@ -159,6 +159,8 @@ export default function AdminPOIPipeline() {
         </div>
       </div>
 
+      <EnrichmentPipelineCard />
+
       {/* Pipeline Progress */}
       <Card>
         <CardHeader className="pb-3">
