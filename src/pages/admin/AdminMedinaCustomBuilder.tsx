@@ -53,13 +53,19 @@ function TriggerDialog({
   const cameraFileRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
-  const patchStepConfig = useCallback(async (patch: Record<string, any>) => {
-    const merged = { ...cfg, ...patch };
-    const { error } = await supabase.from('pois').update({ step_config: merged }).eq('id', poi.id);
+  const patchStepConfig = useCallback(async (patch: Record<string, unknown>) => {
+    const { data } = await supabase
+      .from('medina_pois')
+      .select('step_config')
+      .eq('id', poi.id)
+      .single();
+    const current = (data?.step_config as Record<string, unknown>) ?? {};
+    const merged = { ...current, ...patch };
+    const { error } = await supabase.from('medina_pois').update({ step_config: merged }).eq('id', poi.id);
     if (error) {
       toast.error('Erreur de sauvegarde', { description: error.message });
     }
-  }, [cfg, poi.id]);
+  }, [poi.id]);
 
   /* ─ Validation type ─ */
   const handleValidationType = async (v: ValidationType) => {
