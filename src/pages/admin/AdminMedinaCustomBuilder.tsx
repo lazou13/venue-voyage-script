@@ -169,7 +169,7 @@ function TriggerDialog({
     }
     const ext = file.name.split('.').pop() || 'mp4';
     const path = `triggers/${poi.id}/video.${ext}`;
-    const url = await uploadFile(file, path, {}, 'video');
+    const url = await uploadFile(file, path, 'video');
     if (url) {
       await patchStepConfig({ trigger_video_url: url });
       setTriggerVideoUrl(url);
