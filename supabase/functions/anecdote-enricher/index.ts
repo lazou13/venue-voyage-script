@@ -9,19 +9,18 @@ const corsHeaders = {
 
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
-function resolveName(name: any): string {
-  if (typeof name === 'object' && name !== null) return name.fr ?? name.en ?? Object.values(name)[0] ?? 'POI';
-  return String(name ?? 'POI');
+function resolveName(row: any): string {
+  return row.name_fr ?? row.name_en ?? row.name ?? 'POI';
 }
 
 async function generateAnecdotes(pois: any[], apiKey: string): Promise<Record<string, any>> {
   const poiList = pois.map((p) => {
     const info = [
-      `Nom: ${resolveName(p.name)}`,
-      `Catégorie: ${p.category ?? ''}`,
+      `Nom: ${resolveName(p)}`,
+      `Catégorie: ${p.category_ai ?? p.category ?? ''}`,
       p.zone ? `Zone: ${p.zone}` : null,
       p.description_short ? `Description: ${p.description_short}` : null,
-      p.wikipedia_summary ? `Wikipedia: ${p.wikipedia_summary.substring(0, 300)}` : null,
+      p.history_context ? `Histoire: ${p.history_context.substring(0, 300)}` : null,
     ].filter(Boolean).join('\n');
     return `=== POI (ID: ${p.id}) ===\n${info}`;
   }).join('\n\n');
@@ -30,23 +29,15 @@ async function generateAnecdotes(pois: any[], apiKey: string): Promise<Record<st
 
 Pour chaque POI, génère en JSON:
 - history_context: Contexte historique riche (150-250 mots français).
-- local_anecdote_fr: Anecdote locale authentique (80-120 mots).
-- local_anecdote_en: Même anecdote en anglais.
+- local_anecdote: Anecdote locale authentique en français (80-120 mots).
 - fun_fact_fr: Fait surprenant (30-50 mots). Format: "Le saviez-vous ? ..."
-- fun_fact_en: "Did you know? ..."
-- crowd_level: "quiet" | "moderate" | "busy" | "very_busy"
-- accessibility_notes: Accessibilité en 1 phrase.
 
 JSON UNIQUEMENT:
 {
   "ID_POI": {
     "history_context":"...",
-    "local_anecdote_fr":"...",
-    "local_anecdote_en":"...",
-    "fun_fact_fr":"...",
-    "fun_fact_en":"...",
-    "crowd_level":"...",
-    "accessibility_notes":"..."
+    "local_anecdote":"...",
+    "fun_fact_fr":"..."
   }
 }
 
@@ -66,7 +57,7 @@ ${poiList}`;
   });
 
   if (resp.status === 429) throw new Error('Rate limited — réessayez dans quelques secondes');
-  if (resp.status === 402) throw new Error('Crédits Lovable AI épuisés — rechargez dans Settings > Workspace > Usage');
+  if (resp.status === 402) throw new Error('Crédits Lovable AI épuisés');
   if (!resp.ok) throw new Error(`AI gateway error ${resp.status}: ${await resp.text()}`);
 
   const data = await resp.json();
@@ -87,24 +78,25 @@ serve(async (req) => {
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
     const batchSize = Math.min(body.batch_size ?? 20, 20);
     const minScore  = body.min_score ?? 2.0;
-    const category  = body.category ?? null;
     const CHUNK     = 10;
+
     let query = supabase
-      .from('pois')
-      .select('id, name, category, zone, description_short, wikipedia_summary, history_context')
-      .is('local_anecdote_fr', null)
-      .gte('poi_score', minScore)
-      .in('category', ['monument','museum','madrasa','mosque','hammam','fountain','gate_bab','tomb','souk','garden','place','palace'])
-      .order('poi_score', { ascending: false })
+      .from('medina_pois')
+      .select('id, name, name_fr, name_en, category, category_ai, zone, description_short, history_context')
+      .is('local_anecdote', null)
+      .gte('poi_quality_score', minScore)
+      .not('status', 'in', '("filtered","merged")')
+      .order('poi_quality_score', { ascending: false })
       .limit(batchSize);
-    if (category) query = query.eq('category', category);
+
     const { data: pois, error } = await query;
     if (error) throw error;
     if (!pois || pois.length === 0) {
-      return new Response(JSON.stringify({ message: 'Tous les POIs ont des anecdotes', processed: 0 }), {
+      return new Response(JSON.stringify({ message: 'Tous les POIs ont des anecdotes', updated: 0 }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
     let totalUpdated = 0;
     for (let i = 0; i < pois.length; i += CHUNK) {
       const chunk = pois.slice(i, i + CHUNK);
@@ -114,24 +106,19 @@ serve(async (req) => {
         if (!a) continue;
         const update: Record<string, any> = {};
         if (a.history_context && !poi.history_context) update.history_context = a.history_context;
-        if (a.local_anecdote_fr) { update.local_anecdote = a.local_anecdote_fr; update.local_anecdote_fr = a.local_anecdote_fr; }
-        if (a.local_anecdote_en) update.local_anecdote_en = a.local_anecdote_en;
-        if (a.fun_fact_fr)       update.fun_fact_fr = a.fun_fact_fr;
-        if (a.fun_fact_en)       update.fun_fact_en = a.fun_fact_en;
-        if (a.crowd_level)       update.crowd_level = a.crowd_level;
-        if (a.accessibility_notes) update.accessibility_notes = a.accessibility_notes;
+        if (a.local_anecdote) update.local_anecdote = a.local_anecdote;
         if (Object.keys(update).length > 0) {
-          const { error: updErr } = await supabase.from('pois').update(update).eq('id', poi.id);
+          const { error: updErr } = await supabase.from('medina_pois').update(update).eq('id', poi.id);
           if (!updErr) totalUpdated++;
         }
       }
-      // Rate limit between chunks
       if (i + CHUNK < pois.length) await new Promise(r => setTimeout(r, 1500));
     }
     return new Response(JSON.stringify({ processed: pois.length, updated: totalUpdated }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {
+    console.error('anecdote-enricher error:', e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : 'Unknown' }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

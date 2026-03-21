@@ -9,20 +9,18 @@ const corsHeaders = {
 
 const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
-function resolveName(name: any): string {
-  if (typeof name === 'object' && name !== null) return name.fr ?? name.en ?? Object.values(name)[0] ?? 'POI';
-  return String(name ?? 'POI');
+function resolveName(row: any): string {
+  return row.name_fr ?? row.name_en ?? row.name ?? 'POI';
 }
 
 async function generateRiddles(pois: any[], apiKey: string): Promise<Record<string, any>> {
   const poiList = pois.map((p) => {
     const info = [
-      `Nom: ${resolveName(p.name)}`,
-      `Catégorie: ${p.category ?? ''}`,
+      `Nom: ${resolveName(p)}`,
+      `Catégorie: ${p.category_ai ?? p.category ?? ''}`,
       p.zone ? `Zone: ${p.zone}` : null,
       p.description_short ? `Description: ${p.description_short}` : null,
       p.history_context ? `Histoire: ${p.history_context.substring(0, 300)}` : null,
-      p.wikipedia_summary ? `Wikipedia: ${p.wikipedia_summary.substring(0, 200)}` : null,
     ].filter(Boolean).join('\n');
     return `=== POI (ID: ${p.id}) ===\n${info}`;
   }).join('\n\n');
@@ -61,7 +59,7 @@ ${poiList}`;
   });
 
   if (resp.status === 429) throw new Error('Rate limited — réessayez dans quelques secondes');
-  if (resp.status === 402) throw new Error('Crédits Lovable AI épuisés — rechargez dans Settings > Workspace > Usage');
+  if (resp.status === 402) throw new Error('Crédits Lovable AI épuisés');
   if (!resp.ok) throw new Error(`AI gateway error ${resp.status}: ${await resp.text()}`);
 
   const data = await resp.json();
@@ -82,23 +80,25 @@ serve(async (req) => {
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
     const batchSize = Math.min(body.batch_size ?? 40, 40);
     const minScore  = body.min_score ?? 1.5;
-    const category  = body.category ?? null;
     const CHUNK     = 20;
+
     let query = supabase
-      .from('pois')
-      .select('id, name, category, zone, description_short, history_context, wikipedia_summary')
+      .from('medina_pois')
+      .select('id, name, name_fr, name_en, category, category_ai, zone, description_short, history_context')
       .is('riddle_easy', null)
-      .gte('poi_score', minScore)
-      .order('poi_score', { ascending: false })
+      .gte('poi_quality_score', minScore)
+      .not('status', 'in', '("filtered","merged")')
+      .order('poi_quality_score', { ascending: false })
       .limit(batchSize);
-    if (category) query = query.eq('category', category);
+
     const { data: pois, error } = await query;
     if (error) throw error;
     if (!pois || pois.length === 0) {
-      return new Response(JSON.stringify({ message: 'Tous les POIs ont des énigmes', processed: 0 }), {
+      return new Response(JSON.stringify({ message: 'Tous les POIs ont des énigmes', updated: 0 }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
     let totalUpdated = 0;
     for (let i = 0; i < pois.length; i += CHUNK) {
       const chunk = pois.slice(i, i + CHUNK);
@@ -106,7 +106,7 @@ serve(async (req) => {
       for (const poi of chunk) {
         const r = riddles[poi.id];
         if (!r) continue;
-        const { error: updErr } = await supabase.from('pois').update({
+        const { error: updErr } = await supabase.from('medina_pois').update({
           riddle_easy:   r.easy   ?? null,
           riddle_medium: r.medium ?? null,
           riddle_hard:   r.hard   ?? null,
@@ -119,6 +119,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {
+    console.error('riddle-generator error:', e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : 'Unknown' }), {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

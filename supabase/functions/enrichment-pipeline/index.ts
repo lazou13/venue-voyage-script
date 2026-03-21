@@ -83,7 +83,11 @@ serve(async (req) => {
     log.push(`  ✓ ${total} énigmes générées`);
   }
 
-  const { data: stats } = await supabase.rpc('get_poi_enrichment_stats').single().catch(() => ({ data: null }));
+  let stats = null;
+  try {
+    const { data } = await supabase.rpc('get_poi_enrichment_stats');
+    stats = data;
+  } catch (_) { /* ignore */ }
   return new Response(JSON.stringify({ success: true, log, results, stats }), {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
