@@ -137,7 +137,7 @@ function TriggerDialog({
   const useCapture = async () => {
     if (!capturedBlob) return;
     const path = `triggers/${poi.id}/reference.jpg`;
-    const url = await uploadFile(capturedBlob, path, {}, 'photo');
+    const url = await uploadFile(capturedBlob, path, 'photo');
     if (url) {
       await patchStepConfig({ reference_image_url: url, photo_reference_required: true });
       setRefImageUrl(url);
