@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp, Settings2, Copy } from 'lucide-react';
+import { TriggerSection, TriggerStatusBadge } from './TriggerSection';
 import { useCrossTabStats } from '@/hooks/useCrossTabStats';
 import { CrossTabSummary } from './CrossTabSummary';
 import { useProject } from '@/hooks/useProject';
@@ -309,6 +310,7 @@ function StepConfigCard({
                 ✓ {stepTypeLabels[config.final_step_type]}
               </Badge>
             )}
+            <TriggerStatusBadge config={config} />
             <Button 
               variant="ghost" 
               size="icon"
@@ -481,6 +483,13 @@ function StepConfigCard({
             rows={3}
             frRequired={false}
             placeholder="Décrivez l'énigme, l'instruction ou le contenu..."
+          />
+
+          {/* Trigger Section */}
+          <TriggerSection
+            poiId={poi.id}
+            config={config}
+            onUpdateConfig={onUpdateConfig}
           />
         </CardContent>
       )}
