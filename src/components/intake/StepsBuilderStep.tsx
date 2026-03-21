@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp, Settings2, Copy } from 'lucide-react';
+import { TriggerSection, TriggerStatusBadge } from './TriggerSection';
 import { useCrossTabStats } from '@/hooks/useCrossTabStats';
 import { CrossTabSummary } from './CrossTabSummary';
 import { useProject } from '@/hooks/useProject';
