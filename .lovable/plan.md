@@ -1,37 +1,45 @@
 
 
-## Plan: Add enrichment pipeline launcher to AdminPOIPipeline
+## Plan: Connect to external backend + New homepage with map and quest launcher
 
-The enrichment pipeline button and progress UI will be added directly to the existing `AdminPOIPipeline.tsx` page (already at `/admin/poi-pipeline`), since that's the natural home for this functionality.
+### Context
 
-### What will be built
+This project runs on Lovable Cloud (which provides its own backend). Since we cannot modify the auto-generated `.env` or `client.ts` files, we'll create a **secondary client** for the external project using the public anon key (safe to store in code since it's a publishable key).
 
-1. **"Lancer l'enrichissement" button** in the AdminPOIPipeline page that calls `supabase.functions.invoke('enrichment-pipeline', { body: { steps: [...] } })`
+### Architecture
 
-2. **Step-by-step progress display** showing all 6 steps with status indicators:
-   - Pending (gray), Running (blue spinner), Success (green check), Error (orange warning)
-   - A progress bar showing overall completion (0% → 100% as steps complete)
-
-3. **Final summary card** after completion showing per-step results (counts enriched, errors) and overall stats
-
-### Technical approach
-
-Since the edge function runs synchronously and returns all results at once (it's not streaming), the UI will:
-- Show all 6 steps as "pending" when launched
-- Animate them to "running" state sequentially (estimated timing based on typical durations)
-- On response, mark each step as success/error based on the `results` object
-- Display errors in orange, successes in green
-- Show the `log` array and `results` summary
+```text
+src/integrations/supabase/client.ts   ← Lovable Cloud (unchanged, auto-generated)
+src/lib/externalSupabase.ts           ← NEW: external project client
+```
 
 ### Changes
 
-**`src/pages/admin/AdminPOIPipeline.tsx`**:
-- Add a new `EnrichmentPipelineCard` section at the top of the page
-- New state: `enrichmentRunning`, `enrichmentSteps` (array of step statuses), `enrichmentResults`
-- The 6 steps: `wikidata`, `poi_enricher`, `photo`, `wiki_name`, `anecdote`, `riddle` with French labels
-- On click: invoke the function, simulate step progression with timers, then reconcile with actual results
-- Display errors per step in orange (`text-orange-500`), continue showing remaining steps
-- Show final summary with counts from `results` object
+#### 1. Create external Supabase client (`src/lib/externalSupabase.ts`)
+- Creates a standalone Supabase client pointing to `xaccaoedtbwywjotqhih.supabase.co` with the provided anon key
+- Used by the new homepage and quest features
 
-No database changes needed. No new files needed.
+#### 2. Replace homepage route (`/`) with a new `HomePage` component
+- **Map**: Full-screen Leaflet map centered on Marrakech medina (31.6295, -7.9811)
+- **POI markers**: Fetches enriched POIs from `pois` table on the external backend (name, photo_url, lat/lng, description_short)
+- Each marker shows a popup with name + photo thumbnail
+- **"Demarrer une quete" button**: Fixed at bottom of screen
+  - Requests browser geolocation
+  - Calls `quest-ai-assistant` edge function on the external project with `{ start_lat, start_lng }`
+  - Displays the generated quest steps in a bottom sheet/panel with step-by-step navigation
+
+#### 3. Update `App.tsx` routing
+- Change `/` route from `<Dashboard />` to `<HomePage />`
+- Keep all admin routes intact (they continue using the Lovable Cloud client)
+
+### Files to create/modify
+- **Create** `src/lib/externalSupabase.ts` — external client
+- **Create** `src/pages/HomePage.tsx` — map + POIs + quest launcher
+- **Modify** `src/App.tsx` — swap root route
+
+### Technical notes
+- The external anon key is a publishable key, safe to include in client code
+- POI queries use the external client; admin features continue using the Lovable Cloud client
+- The quest-ai-assistant edge function is called via `externalSupabase.functions.invoke('quest-ai-assistant', { body: { start_lat, start_lng } })`
+- Leaflet is already a dependency (used in QuestMap), so no new packages needed
 
