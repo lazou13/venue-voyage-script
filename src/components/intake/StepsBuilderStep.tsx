@@ -484,6 +484,13 @@ function StepConfigCard({
             frRequired={false}
             placeholder="Décrivez l'énigme, l'instruction ou le contenu..."
           />
+
+          {/* Trigger Section */}
+          <TriggerSection
+            poiId={poi.id}
+            config={config}
+            onUpdateConfig={onUpdateConfig}
+          />
         </CardContent>
       )}
     </Card>
