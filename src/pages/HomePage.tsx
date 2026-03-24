@@ -89,14 +89,29 @@ export default function HomePage() {
     setQuestLoading(true);
     setError(null);
     try {
-      const position = await new Promise<GeolocationPosition>((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
-      );
+      // Try geolocation, fall back to medina center if user is too far
+      let startLat = MARRAKECH_CENTER[0];
+      let startLng = MARRAKECH_CENTER[1];
+      try {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
+        );
+        const userLat = position.coords.latitude;
+        const userLng = position.coords.longitude;
+        // Only use real position if within ~2km of medina center
+        const dist = Math.sqrt(Math.pow(userLat - MARRAKECH_CENTER[0], 2) + Math.pow(userLng - MARRAKECH_CENTER[1], 2));
+        if (dist < 0.02) { // ~2km
+          startLat = userLat;
+          startLng = userLng;
+        }
+      } catch {
+        // Geolocation denied or unavailable — use medina center
+      }
 
       const { data, error: fnError } = await supabase.functions.invoke('generate-quest', {
         body: {
-          start_lat: position.coords.latitude,
-          start_lng: position.coords.longitude,
+          start_lat: startLat,
+          start_lng: startLng,
           mode: 'treasure_hunt',
           theme: 'complete',
           max_duration_min: 90,
