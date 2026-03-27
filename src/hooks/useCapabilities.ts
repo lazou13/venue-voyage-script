@@ -190,7 +190,6 @@ export function useCapabilities() {
       if (cached && isValidPayload(cached.payload)) {
         setCapabilities(cached.payload);
         setVersion(cached.version);
-        console.log('Falling back to cached capabilities v' + cached.version);
       }
     } finally {
       setIsLoading(false);
