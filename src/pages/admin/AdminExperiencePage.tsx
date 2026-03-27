@@ -33,7 +33,7 @@ export default function AdminExperiencePage() {
     async function load() {
       const { data } = await supabase
         .from('app_configs')
-        .select('*')
+        .select('id, created_at, updated_at, key, status, version, payload')
         .eq('key', 'experience_page_config')
         .order('updated_at', { ascending: false })
         .limit(1)

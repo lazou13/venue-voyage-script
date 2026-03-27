@@ -73,7 +73,7 @@ export function useAppConfig(): UseAppConfigReturn {
     try {
       const { data, error: fetchError } = await supabase
         .from('app_configs')
-        .select('*')
+        .select('id, created_at, updated_at, key, status, version, payload')
         .eq('key', CONFIG_KEY)
         .in('status', ['published', 'draft'])
         .order('version', { ascending: false });

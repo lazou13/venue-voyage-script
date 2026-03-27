@@ -19,7 +19,7 @@ export default function Dashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('projects')
-        .select('*')
+        .select('id, created_at, updated_at, hotel_name, city, floors, difficulty, theme, map_url, map_uploaded_at, visit_date, target_duration_mins, reset_time_mins, props_allowed, staff_available, is_complete, quest_config, title_i18n, story_i18n')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as Project[];

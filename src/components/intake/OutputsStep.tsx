@@ -52,7 +52,7 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
         // Query 1: Get ALL traces for this project
         const { data: traces, error: tracesError } = await supabase
           .from('route_traces')
-          .select('*')
+          .select('id, project_id, name, geojson, started_at, ended_at, distance_meters, created_at')
           .eq('project_id', projectId)
           .order('created_at', { ascending: true });
 
@@ -94,7 +94,7 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
         const allTraceIds = validTraces.map(t => t.id);
         const { data: markers, error: markersError } = await supabase
           .from('route_markers')
-          .select('*')
+          .select('id, trace_id, lat, lng, note, photo_url, photo_urls, audio_url, promoted, created_at')
           .in('trace_id', allTraceIds)
           .order('created_at', { ascending: true });
 

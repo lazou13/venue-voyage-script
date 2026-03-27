@@ -238,7 +238,7 @@ export function usePOIs(projectId: string | undefined) {
       // 1. Fetch medina POI
       const { data: mpoi, error: mErr } = await supabase
         .from('medina_pois')
-        .select('*')
+        .select('id, name, zone, category, lat, lng, radius_m, step_config')
         .eq('id', medinaPoiId)
         .single();
       if (mErr || !mpoi) throw mErr ?? new Error('POI introuvable');

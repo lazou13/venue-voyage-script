@@ -14,7 +14,7 @@ export function useProject(projectId: string | undefined) {
       if (!projectId) return null;
       const { data, error } = await supabase
         .from('projects')
-        .select('*')
+        .select('id, created_at, updated_at, hotel_name, city, floors, difficulty, theme, map_url, map_uploaded_at, visit_date, target_duration_mins, reset_time_mins, props_allowed, staff_available, is_complete, quest_config, title_i18n, story_i18n')
         .eq('id', projectId)
         .maybeSingle();
       if (error) throw error;
@@ -38,7 +38,7 @@ export function useProject(projectId: string | undefined) {
       if (!projectId) return [];
       const { data, error } = await supabase
         .from('pois')
-        .select('*')
+        .select('id, created_at, project_id, name, zone, interaction, risk, sort_order, minutes_from_prev, notes, photo_url, step_config, library_poi_id, enrichment_status, enriched_at')
         .eq('project_id', projectId)
         .order('sort_order');
       if (error) throw error;
@@ -57,7 +57,7 @@ export function useProject(projectId: string | undefined) {
       if (!projectId) return [];
       const { data, error } = await supabase
         .from('wifi_zones')
-        .select('*')
+        .select('id, project_id, zone, strength')
         .eq('project_id', projectId);
       if (error) throw error;
       return data as WifiZone[];
@@ -71,7 +71,7 @@ export function useProject(projectId: string | undefined) {
       if (!projectId) return [];
       const { data, error } = await supabase
         .from('forbidden_zones')
-        .select('*')
+        .select('id, project_id, zone, reason')
         .eq('project_id', projectId);
       if (error) throw error;
       return data as ForbiddenZone[];
@@ -196,7 +196,7 @@ export function useProject(projectId: string | undefined) {
       } else if (!tracesQuery.isLoading) {
         const traces = tracesQuery.data || [];
         const hasValidTrace = traces.some(t => {
-          const coords = (t.geojson as any)?.coordinates || [];
+          const coords = (t.geojson as { coordinates?: unknown[] } | null)?.coordinates || [];
           return coords.length >= 2;
         });
         if (!hasValidTrace) {

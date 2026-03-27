@@ -9,7 +9,7 @@ export function useOrders() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('orders')
-        .select('*')
+        .select('id, created_at, updated_at, project_id, customer_name, customer_email, experience_mode, party_size, locale, notes, status, payment_status, amount_total, currency, metadata')
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) throw error;

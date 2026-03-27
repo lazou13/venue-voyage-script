@@ -32,16 +32,11 @@ export function useMedinaPOIs() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('medina_pois')
-        .select('*')
+        .select('id, created_at, updated_at, name, zone, category, lat, lng, radius_m, step_config, metadata, is_active, is_start_hub, hub_theme, status')
+        .order('status')
         .order('name');
       if (error) throw error;
-      // Sort: draft first, then by name
-      const sorted = (data ?? []).sort((a: any, b: any) => {
-        if (a.status === 'draft' && b.status !== 'draft') return -1;
-        if (a.status !== 'draft' && b.status === 'draft') return 1;
-        return (a.name as string).localeCompare(b.name as string);
-      });
-      return sorted as MedinaPOI[];
+      return (data ?? []) as MedinaPOI[];
     },
   });
 

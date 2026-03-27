@@ -860,7 +860,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
       // Fetch markers for this trace
       const { data: traceMarkers, error: markersError } = await supabase
         .from('route_markers')
-        .select('*')
+        .select('id, trace_id, lat, lng, note, photo_url, photo_urls, audio_url, promoted, created_at')
         .eq('trace_id', traceToDuplicate.id)
         .order('created_at', { ascending: true });
       
@@ -1016,10 +1016,10 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                     
                     const { data: traceMarkers } = await supabase
                       .from('route_markers')
-                      .select('*')
+                      .select('id, trace_id, lat, lng, note, photo_url, photo_urls, audio_url, promoted, created_at')
                       .eq('trace_id', trace.id)
                       .order('created_at', { ascending: true });
-                    
+
                     setGuidanceMarkers((traceMarkers || []) as RouteMarker[]);
                     setGuidanceTrace(trace);
                   }}
@@ -1404,7 +1404,7 @@ export function RouteReconStep({ projectId, onNavigate }: RouteReconStepProps) {
                               e.stopPropagation();
                               const { data: traceMarkers } = await supabase
                                 .from('route_markers')
-                                .select('*')
+                                .select('id, trace_id, lat, lng, note, photo_url, photo_urls, audio_url, promoted, created_at')
                                 .eq('trace_id', trace.id)
                                 .order('created_at', { ascending: true });
                               setGuidanceMarkers((traceMarkers || []) as RouteMarker[]);

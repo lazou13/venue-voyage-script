@@ -152,7 +152,7 @@ export function useCapabilities() {
     try {
       const { data, error: fetchError } = await supabase
         .from('app_configs')
-        .select('*')
+        .select('id, created_at, updated_at, key, status, version, payload')
         .eq('key', 'capabilities')
         .eq('status', 'published')
         .order('version', { ascending: false })
