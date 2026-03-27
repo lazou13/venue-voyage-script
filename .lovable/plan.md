@@ -1,45 +1,29 @@
 
 
-## Plan: Connect to external backend + New homepage with map and quest launcher
+## Plan: Extract SMIT Metrics JSON
 
-### Context
+### Approach
+Run a Python script that queries both databases and generates a downloadable JSON file at `/mnt/documents/questrides_metrics_smit_2026.json`.
 
-This project runs on Lovable Cloud (which provides its own backend). Since we cannot modify the auto-generated `.env` or `client.ts` files, we'll create a **secondary client** for the external project using the public anon key (safe to store in code since it's a publishable key).
+### Data sources
+- **Hunt Planner Pro** (projects, pois, avatars, route_traces, etc.): Queried via `psql` against the Lovable Cloud DB
+- **PMS Partenaires** (qr_codes, partners, scans, conversions, etc.): Queried via HTTP REST API against the external project (`xaccaoedtbwywjotqhih`) using the anon key
 
-### Architecture
+### Script logic
+1. **Section 1 - Global DB**: Query `information_schema` and `pg_stat_user_tables` for table counts, sizes, enums, FK counts, indexes, RLS policies
+2. **Section 2 - Hunt Planner**: Query `projects`, `pois`, `wifi_zones`, `forbidden_zones`, `avatars`, `route_traces`, `route_markers` with all the aggregations (by city, difficulty, interaction type, play mode, etc.)
+3. **Section 3 - PMS**: HTTP GET to the external Supabase REST API for `qr_codes`, `partners`, `scans`, `conversions`, `commercials`, `alerts`, `audit_logs`, `commissions`, `reapprovisionnements`, `document_sends`, `whatsapp_templates`. Each query wrapped in try/except - if a table doesn't exist, that section shows `null` with an error note
+4. **Section 4 - Technical**: Edge functions count (from filesystem), JSONB columns count, indexes count
+5. Assemble everything into the JSON structure matching the user's template
+6. Write to `/mnt/documents/questrides_metrics_smit_2026.json`
 
-```text
-src/integrations/supabase/client.ts   ← Lovable Cloud (unchanged, auto-generated)
-src/lib/externalSupabase.ts           ← NEW: external project client
-```
+### Error handling
+- Missing PMS tables will be logged and their sections set to `{"error": "table not found"}`
+- All queries wrapped in try/except so partial data is still exported
 
-### Changes
+### Output
+Single file: `questrides_metrics_smit_2026.json` ready for download
 
-#### 1. Create external Supabase client (`src/lib/externalSupabase.ts`)
-- Creates a standalone Supabase client pointing to `xaccaoedtbwywjotqhih.supabase.co` with the provided anon key
-- Used by the new homepage and quest features
-
-#### 2. Replace homepage route (`/`) with a new `HomePage` component
-- **Map**: Full-screen Leaflet map centered on Marrakech medina (31.6295, -7.9811)
-- **POI markers**: Fetches enriched POIs from `pois` table on the external backend (name, photo_url, lat/lng, description_short)
-- Each marker shows a popup with name + photo thumbnail
-- **"Demarrer une quete" button**: Fixed at bottom of screen
-  - Requests browser geolocation
-  - Calls `quest-ai-assistant` edge function on the external project with `{ start_lat, start_lng }`
-  - Displays the generated quest steps in a bottom sheet/panel with step-by-step navigation
-
-#### 3. Update `App.tsx` routing
-- Change `/` route from `<Dashboard />` to `<HomePage />`
-- Keep all admin routes intact (they continue using the Lovable Cloud client)
-
-### Files to create/modify
-- **Create** `src/lib/externalSupabase.ts` — external client
-- **Create** `src/pages/HomePage.tsx` — map + POIs + quest launcher
-- **Modify** `src/App.tsx` — swap root route
-
-### Technical notes
-- The external anon key is a publishable key, safe to include in client code
-- POI queries use the external client; admin features continue using the Lovable Cloud client
-- The quest-ai-assistant edge function is called via `externalSupabase.functions.invoke('quest-ai-assistant', { body: { start_lat, start_lng } })`
-- Leaflet is already a dependency (used in QuestMap), so no new packages needed
+### Files changed
+None - this is a script-only data extraction task
 
