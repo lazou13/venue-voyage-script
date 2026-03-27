@@ -24,7 +24,7 @@ interface POI {
   history_context: string | null;
   local_anecdote: string | null;
   local_anecdote_fr: string | null;
-  step_config: any;
+  step_config: Record<string, unknown>;
 }
 
 interface QuestStop {
