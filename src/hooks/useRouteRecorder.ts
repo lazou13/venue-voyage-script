@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { haversineDistance } from '@/lib/routeGeometry';
 
 export type RecordingMode = 'walking' | 'scooter';
 export type RecordingStatus = 'idle' | 'recording' | 'error';
@@ -56,18 +57,6 @@ interface RecordingState {
   coords: RouteCoord[];
   currentTraceId: string | null;
   mode: RecordingMode;
-}
-
-// Calculate distance between two points using Haversine formula
-function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000; // Earth radius in meters
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
 }
 
 // Calculate total distance from coords array
