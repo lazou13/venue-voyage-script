@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { haversineDistance } from '@/lib/routeGeometry';
 
 export type RecordingMode = 'walking' | 'scooter';
 export type RecordingStatus = 'idle' | 'recording' | 'error';
@@ -58,18 +59,6 @@ interface RecordingState {
   mode: RecordingMode;
 }
 
-// Calculate distance between two points using Haversine formula
-function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000; // Earth radius in meters
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
-
 // Calculate total distance from coords array
 function calculateTotalDistance(coords: RouteCoord[]): number {
   let total = 0;
@@ -116,7 +105,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
       if (!projectId) return [];
       const { data, error } = await supabase
         .from('route_traces')
-        .select('*')
+        .select('id, project_id, name, geojson, started_at, ended_at, distance_meters, created_at')
         .eq('project_id', projectId)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -133,7 +122,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
         if (!traceId) return [];
         const { data, error } = await supabase
           .from('route_markers')
-          .select('*')
+          .select('id, trace_id, lat, lng, note, photo_url, photo_urls, audio_url, promoted, created_at')
           .eq('trace_id', traceId)
           .order('created_at', { ascending: true });
         if (error) throw error;
@@ -153,7 +142,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
       if (traceIds.length === 0) return [];
       const { data, error } = await supabase
         .from('route_markers')
-        .select('*')
+        .select('id, trace_id, lat, lng, note, photo_url, photo_urls, audio_url, promoted, created_at')
         .in('trace_id', traceIds)
         .order('created_at', { ascending: true });
       if (error) throw error;
@@ -233,8 +222,8 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
           photo_url: photoUrl || (photoUrls?.length ? photoUrls[0] : null),
           photo_urls: photoUrls || [],
           audio_url: audioUrl || null,
-        } as any)
-        .select()
+        })
+        .select('id, trace_id, lat, lng, note, photo_url, photo_urls, audio_url, promoted, created_at')
         .single();
       if (error) throw error;
       return data as RouteMarker;
@@ -450,7 +439,6 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
       if (error) throw error;
       
       lastSavedCountRef.current = coords.length;
-      console.log(`Autosave: ${coords.length} points saved`);
     } catch (err) {
       console.error('Autosave failed:', err);
     }
@@ -514,13 +502,7 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
           // Filter 1: For first point, accept even with poor accuracy (for departure marker)
           // For subsequent points, reject poor accuracy
           if (!isFirstPoint && accuracy > MAX_ACCURACY_METERS) {
-            console.log(`GPS filtered: accuracy ${accuracy.toFixed(1)}m > ${MAX_ACCURACY_METERS}m`);
             return;
-          }
-          
-          // Warn if first point has poor accuracy
-          if (isFirstPoint && accuracy > MAX_ACCURACY_METERS) {
-            console.warn(`First GPS point accepted despite poor accuracy: ${accuracy.toFixed(1)}m`);
           }
           
           // Always keep first point
@@ -544,7 +526,6 @@ export function useRouteRecorder(projectId: string | undefined, mode: RecordingM
             const speed = distanceFromLast / elapsedSec;
             const threshold = SPEED_THRESHOLDS[modeRef.current];
             if (speed > threshold) {
-              console.log(`GPS filtered: speed ${speed.toFixed(1)} m/s > ${threshold} m/s`);
               return;
             }
           }

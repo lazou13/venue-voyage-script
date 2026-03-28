@@ -114,18 +114,11 @@ export function usePOIs(projectId: string | undefined) {
 
   const reorderPOIs = useMutation({
     mutationFn: async (orderedIds: string[]) => {
-      const updates = orderedIds.map((id, index) => ({
-        id,
-        sort_order: index,
-      }));
-      
-      for (const update of updates) {
-        const { error } = await supabase
-          .from('pois')
-          .update({ sort_order: update.sort_order })
-          .eq('id', update.id);
-        if (error) throw error;
-      }
+      await Promise.all(
+        orderedIds.map((id, sort_order) =>
+          supabase.from('pois').update({ sort_order }).eq('id', id).throwOnError()
+        )
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pois', projectId] });
@@ -144,14 +137,13 @@ export function usePOIs(projectId: string | undefined) {
         .gt('sort_order', poi.sort_order)
         .order('sort_order', { ascending: false });
       
-      // Shift all subsequent steps down by 1
+      // Shift all subsequent steps down by 1 (parallel)
       if (allPois && allPois.length > 0) {
-        for (const p of allPois) {
-          await supabase
-            .from('pois')
-            .update({ sort_order: p.sort_order + 1 })
-            .eq('id', p.id);
-        }
+        await Promise.all(
+          allPois.map(p =>
+            supabase.from('pois').update({ sort_order: p.sort_order + 1 }).eq('id', p.id).throwOnError()
+          )
+        );
       }
       
       // Insert duplicate right after original
@@ -193,13 +185,11 @@ export function usePOIs(projectId: string | undefined) {
         .eq('project_id', projectId);
       if (fetchError) throw fetchError;
       
-      let updatedCount = 0;
-      for (const poi of allPois || []) {
+      const poisToUpdate = (allPois || []).flatMap(poi => {
         const config = (poi.step_config || {}) as StepConfig;
         const updatedConfig: StepConfig = { ...config };
         let needsUpdate = false;
-        
-        // Only apply checked fields where value is missing
+
         if (params.fields.stepType && !config.stepType && params.defaults.stepType) {
           updatedConfig.stepType = params.defaults.stepType;
           needsUpdate = true;
@@ -216,54 +206,16 @@ export function usePOIs(projectId: string | undefined) {
           updatedConfig.hints = params.defaults.hints;
           needsUpdate = true;
         }
-        
-        if (needsUpdate) {
-          const { error } = await supabase
-            .from('pois')
-            .update({ step_config: updatedConfig as unknown as Json })
-            .eq('id', poi.id);
-          if (error) throw error;
-          updatedCount++;
-        }
-      }
-      return updatedCount;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pois', projectId] });
-    },
-  });
 
-  // Legacy - kept for backwards compat
-  const applyDefaultsToAll = useMutation({
-    mutationFn: async (defaults: { stepType: StepConfig['stepType']; validationMode: StepConfig['validationMode']; scoring: StepConfig['scoring'] }) => {
-      if (!projectId) throw new Error('No project ID');
-      
-      const { data: allPois, error: fetchError } = await supabase
-        .from('pois')
-        .select('id, step_config')
-        .eq('project_id', projectId);
-      if (fetchError) throw fetchError;
-      
-      for (const poi of allPois || []) {
-        const config = (poi.step_config || {}) as StepConfig;
-        const needsUpdate = !config.stepType || !config.validationMode || !config.scoring;
-        
-        if (needsUpdate) {
-          const updatedConfig: StepConfig = {
-            ...config,
-            stepType: config.stepType || defaults.stepType,
-            validationMode: config.validationMode || defaults.validationMode,
-            scoring: config.scoring || defaults.scoring,
-            hints: config.hints || [],
-          };
-          
-          const { error } = await supabase
-            .from('pois')
-            .update({ step_config: updatedConfig as unknown as Json })
-            .eq('id', poi.id);
-          if (error) throw error;
-        }
-      }
+        return needsUpdate ? [{ id: poi.id, config: updatedConfig }] : [];
+      });
+
+      await Promise.all(
+        poisToUpdate.map(({ id, config }) =>
+          supabase.from('pois').update({ step_config: config as unknown as Json }).eq('id', id).throwOnError()
+        )
+      );
+      return poisToUpdate.length;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pois', projectId] });
@@ -286,7 +238,7 @@ export function usePOIs(projectId: string | undefined) {
       // 1. Fetch medina POI
       const { data: mpoi, error: mErr } = await supabase
         .from('medina_pois')
-        .select('*')
+        .select('id, name, zone, category, lat, lng, radius_m, step_config')
         .eq('id', medinaPoiId)
         .single();
       if (mErr || !mpoi) throw mErr ?? new Error('POI introuvable');
@@ -372,7 +324,6 @@ export function usePOIs(projectId: string | undefined) {
     deletePOI,
     reorderPOIs,
     duplicatePOI,
-    applyDefaultsToAll,
     applySelectiveDefaults,
     importFromMedina,
   };

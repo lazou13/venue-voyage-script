@@ -36,7 +36,7 @@ export function useAvatars(projectId: string | undefined) {
       if (!projectId) return [];
       const { data, error } = await supabase
         .from('avatars')
-        .select('*')
+        .select('id, created_at, project_id, name, style, age, persona, outfit, image_url')
         .or(`project_id.is.null,project_id.eq.${projectId}`)
         .order('created_at', { ascending: false });
       if (error) throw error;

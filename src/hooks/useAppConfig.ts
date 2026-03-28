@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CapabilitiesPayload } from './useCapabilities';
+import type { Json } from '@/integrations/supabase/types';
 
 // ============= Types =============
 interface AppConfigRow {
@@ -73,7 +74,7 @@ export function useAppConfig(): UseAppConfigReturn {
     try {
       const { data, error: fetchError } = await supabase
         .from('app_configs')
-        .select('*')
+        .select('id, created_at, updated_at, key, status, version, payload')
         .eq('key', CONFIG_KEY)
         .in('status', ['published', 'draft'])
         .order('version', { ascending: false });
@@ -129,8 +130,7 @@ export function useAppConfig(): UseAppConfigReturn {
         const { error: updateError } = await supabase
           .from('app_configs')
           .update({ 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            payload: localPayload as any,
+            payload: localPayload as unknown as Json,
             updated_at: new Date().toISOString()
           })
           .eq('id', draftRow.id);
@@ -148,8 +148,7 @@ export function useAppConfig(): UseAppConfigReturn {
             key: CONFIG_KEY,
             status: 'draft',
             version: newVersion,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            payload: localPayload as any,
+            payload: localPayload as unknown as Json,
           })
           .select()
           .single();
