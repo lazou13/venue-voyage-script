@@ -1,46 +1,37 @@
 
 
-# Auto-loop pour le backfill-details
+# Backfill ne produit plus — diagnostic et solution
 
-## Probleme
-Le backfill traite 10 POIs par clic. Avec ~350+ POIs sans `price_info`, il faut cliquer 35+ fois manuellement.
+## Diagnostic
 
-## Solution
-Meme pattern que l'extraction : ajouter un auto-loop dans `AdminPOIPipeline.tsx` qui relance automatiquement le backfill tant qu'il reste des POIs a traiter.
+Les chiffres actuels de la base :
+- **616 POIs `raw`** (nouvelles extractions, pas encore classifiees/enrichies)
+- **370 POIs `enriched`** avec `price_info` deja rempli
+- **0 POIs eligibles** au backfill (filtre: `enrichment_status = 'enriched' AND price_info IS NULL`)
 
-## Changement
+Le backfill ne trouve rien car les 616 nouveaux POIs sont encore au statut `raw`. Ils doivent d'abord passer par **classify → enrich** avant que le backfill puisse les traiter.
 
-**`src/pages/admin/AdminPOIPipeline.tsx`** — Sortir le backfill du flux generique et ajouter un auto-loop :
+## Solution en 2 temps
 
-```typescript
-if (step === "backfill-details") {
-  let totalUpdated = 0;
-  let round = 1;
-  
-  while (true) {
-    setExtractionProgress({ current: totalUpdated, total: active }); // reuse progress bar
-    setLogs(prev => [...prev, `📦 Backfill batch ${round}...`]);
-    
-    const { data, error } = await supabase.functions.invoke("poi-backfill-details", {
-      body: { limit: 10 },
-    });
-    
-    if (error) throw error;
-    if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
-    totalUpdated += data?.updated ?? 0;
-    
-    // Stop if nothing left to process
-    if ((data?.processed ?? 0) === 0 || (data?.updated ?? 0) === 0) break;
-    
-    round++;
-  }
-  
-  setLogs(prev => [...prev, `✅ Backfill terminé — ${totalUpdated} POIs mis à jour`]);
-  toast({ title: "Backfill terminé", description: `${totalUpdated} POIs enrichis.` });
-  refetchStats();
-  return;
-}
-```
+### Etape 1 : Lancer le pipeline complet sur les 616 POIs `raw`
+Depuis le dashboard, executer dans l'ordre :
+1. **Classify** — attribue `category_ai` et `poi_quality_score`
+2. **Enrich** (suite d'enrichissement) — passe le statut a `enriched`
+3. **Backfill details** — remplira `price_info` sur les nouveaux POIs enrichis
 
-La barre de progression existante sera reutilisee pour afficher l'avancement. Le loop s'arrete quand la function retourne `processed: 0` (plus de POIs sans `price_info`).
+### Etape 2 : Elargir le filtre du backfill (optionnel)
+Modifier `poi-backfill-details` pour aussi cibler les POIs `raw` qui ont deja un `name` et des coordonnees, sans attendre l'enrichissement complet. Cela permettrait de backfiller en parallele.
+
+**Changement dans `supabase/functions/poi-backfill-details/index.ts` :**
+- Remplacer `.eq("enrichment_status", "enriched")` par `.in("enrichment_status", ["enriched", "raw"])`
+- Garder le filtre `.is("price_info", null)`
+
+Cela permettra au backfill de traiter les 616 POIs `raw` directement, sans attendre classify+enrich.
+
+## Recommandation
+L'option 2 est plus rapide : un seul changement d'une ligne dans la function, et le backfill traitera immediatement les 616 POIs restants.
+
+| Fichier | Changement |
+|---------|-----------|
+| `supabase/functions/poi-backfill-details/index.ts` | Filtre `enrichment_status` : `"enriched"` → `["enriched", "raw"]` |
 
