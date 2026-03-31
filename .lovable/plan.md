@@ -1,29 +1,41 @@
 
 
-# Backfill ciblé des nouveaux champs POI
+# Doubler les POIs — Couverture 100% médina (même bbox)
 
-## Problème
-438 POIs sont déjà en statut `enriched` mais ont `price_info`, `must_try`, `must_see_details`, etc. tous à NULL. Le pipeline les ignore car ils ne sont plus `raw`.
+## Situation actuelle
+- **Bbox** : `lat [31.6245–31.638]`, `lng [-7.995–-7.975]`
+- **Grille** : pas de 200m (`0.0018° lat`, `0.0025° lng`) → ~72 points
+- **Rayon** : 300m
+- **Types** : 18
+- **Résultat** : ~448 POIs
 
-## Solution
+## Stratégie (même zone, plus de découvertes)
 
-### 1. Nouvelle edge function `poi-backfill-details`
-- Requête les POIs où `enrichment_status = 'enriched'` ET `price_info IS NULL`
-- Appel IA (Gemini 2.5 Flash) avec un prompt ciblé demandant UNIQUEMENT les champs pratiques : `price_info`, `opening_hours`, `must_see_details`, `must_try`, `must_visit_nearby`, `is_photo_spot`, `photo_tip`, `ruelle_etroite`
-- PATCH direct via REST API (même pattern que `poi-enrich`)
-- Batch de 10, délai 1.5s entre appels
-- Ne touche PAS aux champs existants (`history_context`, `riddle_*`, etc.)
+### 1. Densifier la grille : 200m → 100m
+Réduire le pas à `0.0009° lat` / `0.0012° lng` (~100m). Passe de ~72 à ~280 points de scan. Les ruelles et derbs cachés de la médina ont des POIs que la grille actuelle ne capte pas.
 
-### 2. Bouton dans le dashboard pipeline
-Ajouter un bouton "Backfill détails" dans `AdminPOIPipeline.tsx` qui appelle cette nouvelle function.
+### 2. Réduire le rayon : 300m → 150m
+Avec une grille 2× plus dense, un rayon plus petit donne des résultats plus ciblés et évite les doublons massifs.
 
-### 3. Compteur dans les stats
-Ajouter le compteur `with_price_info` dans les progress bars pour suivre l'avancement.
+### 3. Ajouter 8 types Google manquants
+```
+"park", "place_of_worship", "pharmacy", "market",
+"point_of_interest", "landmark", "travel_agency", "shopping_mall"
+```
+Total : 18 → 26 types. Beaucoup de fondouks, zaouïas et hammams sont classés `place_of_worship` ou `point_of_interest` chez Google.
 
-## Fichiers modifiés
+### 4. Ajouter 15 key points supplémentaires
+Couvrir les angles et zones denses non captées : Derb Dabachi, Riad Zitoun, Bab Debbagh, Dar el Bacha, Mouassine, etc.
+
+## Fichier modifié
 
 | Fichier | Changement |
 |---------|-----------|
-| `supabase/functions/poi-backfill-details/index.ts` | Nouvelle edge function |
-| `src/pages/admin/AdminPOIPipeline.tsx` | Bouton + compteur backfill |
+| `supabase/functions/poi-extract/index.ts` | Grille 100m, rayon 150m, 8 types ajoutés, 15 key points |
+
+## Impact
+- ~280 points × 26 types = ~7280 requêtes Google (vs ~1300 avant)
+- L'extraction prendra plus de temps (~20-30 min)
+- Les 448 POIs existants ne seront pas dupliqués (upsert sur `place_id`)
+- Objectif réaliste : **800-1000 POIs** sur la même emprise médina
 
