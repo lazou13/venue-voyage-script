@@ -9,7 +9,7 @@ import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tag
 import { useQuery } from "@tanstack/react-query";
 import EnrichmentPipelineCard from "@/components/admin/EnrichmentPipelineCard";
 
-type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details";
+type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details" | "reclassify";
 
 export default function AdminPOIPipeline() {
   const { toast } = useToast();
@@ -114,6 +114,41 @@ export default function AdminPOIPipeline() {
         return;
       }
 
+      if (step === "classify") {
+        let totalClassified = 0;
+        let round = 1;
+
+        while (true) {
+          setLogs(prev => [...prev, `📦 Classification batch ${round}...`]);
+
+          const { data, error } = await supabase.functions.invoke("poi-classify-worker", { body: {} });
+          if (error) throw error;
+          if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
+          totalClassified += data?.classified ?? 0;
+
+          if ((data?.classified ?? 0) === 0) break;
+          round++;
+        }
+
+        setLogs(prev => [...prev, `✅ Classification terminée — ${totalClassified} POIs classifiés`]);
+        toast({ title: "Classification terminée", description: `${totalClassified} POIs classifiés.` });
+        refetchStats();
+        return;
+      }
+
+      if (step === "reclassify") {
+        setLogs(prev => [...prev, `🔄 Reset category_ai et poi_quality_score...`]);
+        const { error } = await supabase
+          .from("medina_pois")
+          .update({ category_ai: null, poi_quality_score: null } as any)
+          .not("status", "in", '("filtered","merged")');
+        if (error) throw error;
+        setLogs(prev => [...prev, `✅ Reset effectué. Relancez "Classifier" pour re-classifier.`]);
+        toast({ title: "Reset effectué", description: "Relancez la classification." });
+        refetchStats();
+        return;
+      }
+
       if (step === "backfill-details") {
         let totalUpdated = 0;
         let round = 1;
@@ -142,14 +177,12 @@ export default function AdminPOIPipeline() {
       }
 
       const fnName = step === "worker" ? "poi-worker"
-        : step === "classify" ? "poi-classify-worker"
         : step === "autopipeline" ? "poi-autopipeline"
         : step === "fetch-photos" ? "poi-fetch-photos"
         : step === "all" ? "poi-pipeline"
         : step === "clean" || step === "merge" ? "poi-pipeline"
         : `poi-${step}`;
       const fnBody = step === "worker" ? {}
-        : step === "classify" ? {}
         : step === "autopipeline" ? {}
         : step === "fetch-photos" ? {}
         : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
@@ -323,7 +356,11 @@ export default function AdminPOIPipeline() {
             </Button>
             <Button onClick={() => runStep("classify")} disabled={!!running} variant="outline" size="sm" className="gap-1">
               {running === "classify" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Tags className="w-3 h-3" />}
-              Classifier
+              Classifier (auto-loop)
+            </Button>
+            <Button onClick={() => runStep("reclassify")} disabled={!!running} variant="destructive" size="sm" className="gap-1">
+              {running === "reclassify" ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              Re-classifier tout
             </Button>
             <Button onClick={() => runStep("worker")} disabled={!!running} variant="outline" size="sm" className="gap-1">
               {running === "worker" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Brain className="w-3 h-3" />}
