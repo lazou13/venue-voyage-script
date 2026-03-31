@@ -145,7 +145,6 @@ export default function AdminPOIPipeline() {
         : step === "classify" ? "poi-classify-worker"
         : step === "autopipeline" ? "poi-autopipeline"
         : step === "fetch-photos" ? "poi-fetch-photos"
-        : step === "backfill-details" ? "poi-backfill-details"
         : step === "all" ? "poi-pipeline"
         : step === "clean" || step === "merge" ? "poi-pipeline"
         : `poi-${step}`;
@@ -153,7 +152,6 @@ export default function AdminPOIPipeline() {
         : step === "classify" ? {}
         : step === "autopipeline" ? {}
         : step === "fetch-photos" ? {}
-        : step === "backfill-details" ? { limit: 10 }
         : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
         : step === "enrich" ? { batch_size: 10 }
         : step === "clean" ? { step: "clean" }
