@@ -236,11 +236,15 @@ export type Database = {
           id: string
           instagram_spot: boolean | null
           is_active: boolean
+          is_photo_spot: boolean | null
           is_start_hub: boolean
           lat: number | null
           lng: number | null
           local_anecdote: string | null
           metadata: Json
+          must_see_details: string | null
+          must_try: string | null
+          must_visit_nearby: string | null
           name: string
           name_ar: string | null
           name_en: string | null
@@ -248,17 +252,21 @@ export type Database = {
           nearby_pois_data: Json | null
           nearby_restaurants: Json | null
           nearest_node_id: number | null
+          opening_hours: Json | null
           osm_id: string | null
           phone: string | null
           photo_spot_score: number | null
+          photo_tip: string | null
           place_id: string | null
           poi_quality_score: number | null
+          price_info: string | null
           radius_m: number
           rating: number | null
           reviews_count: number | null
           riddle_easy: string | null
           riddle_hard: string | null
           riddle_medium: string | null
+          ruelle_etroite: boolean | null
           souks_nearby: string[] | null
           status: string
           step_config: Json
@@ -269,7 +277,9 @@ export type Database = {
           tourist_interest: string | null
           updated_at: string
           website: string | null
+          website_url: string | null
           wikidata_id: string | null
+          wikipedia_summary: string | null
           zone: string
         }
         Insert: {
@@ -291,11 +301,15 @@ export type Database = {
           id?: string
           instagram_spot?: boolean | null
           is_active?: boolean
+          is_photo_spot?: boolean | null
           is_start_hub?: boolean
           lat?: number | null
           lng?: number | null
           local_anecdote?: string | null
           metadata?: Json
+          must_see_details?: string | null
+          must_try?: string | null
+          must_visit_nearby?: string | null
           name: string
           name_ar?: string | null
           name_en?: string | null
@@ -303,17 +317,21 @@ export type Database = {
           nearby_pois_data?: Json | null
           nearby_restaurants?: Json | null
           nearest_node_id?: number | null
+          opening_hours?: Json | null
           osm_id?: string | null
           phone?: string | null
           photo_spot_score?: number | null
+          photo_tip?: string | null
           place_id?: string | null
           poi_quality_score?: number | null
+          price_info?: string | null
           radius_m?: number
           rating?: number | null
           reviews_count?: number | null
           riddle_easy?: string | null
           riddle_hard?: string | null
           riddle_medium?: string | null
+          ruelle_etroite?: boolean | null
           souks_nearby?: string[] | null
           status?: string
           step_config?: Json
@@ -324,7 +342,9 @@ export type Database = {
           tourist_interest?: string | null
           updated_at?: string
           website?: string | null
+          website_url?: string | null
           wikidata_id?: string | null
+          wikipedia_summary?: string | null
           zone?: string
         }
         Update: {
@@ -346,11 +366,15 @@ export type Database = {
           id?: string
           instagram_spot?: boolean | null
           is_active?: boolean
+          is_photo_spot?: boolean | null
           is_start_hub?: boolean
           lat?: number | null
           lng?: number | null
           local_anecdote?: string | null
           metadata?: Json
+          must_see_details?: string | null
+          must_try?: string | null
+          must_visit_nearby?: string | null
           name?: string
           name_ar?: string | null
           name_en?: string | null
@@ -358,17 +382,21 @@ export type Database = {
           nearby_pois_data?: Json | null
           nearby_restaurants?: Json | null
           nearest_node_id?: number | null
+          opening_hours?: Json | null
           osm_id?: string | null
           phone?: string | null
           photo_spot_score?: number | null
+          photo_tip?: string | null
           place_id?: string | null
           poi_quality_score?: number | null
+          price_info?: string | null
           radius_m?: number
           rating?: number | null
           reviews_count?: number | null
           riddle_easy?: string | null
           riddle_hard?: string | null
           riddle_medium?: string | null
+          ruelle_etroite?: boolean | null
           souks_nearby?: string[] | null
           status?: string
           step_config?: Json
@@ -379,7 +407,9 @@ export type Database = {
           tourist_interest?: string | null
           updated_at?: string
           website?: string | null
+          website_url?: string | null
           wikidata_id?: string | null
+          wikipedia_summary?: string | null
           zone?: string
         }
         Relationships: []
