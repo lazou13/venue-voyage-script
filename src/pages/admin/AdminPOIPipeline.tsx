@@ -79,8 +79,43 @@ export default function AdminPOIPipeline() {
   const runStep = async (step: StepKey) => {
     setRunning(step);
     setLogs([`▶ Lancement: ${step}...`]);
+    setExtractionProgress(null);
 
     try {
+      if (step === "extract") {
+        // Auto-loop: paginate by type batches
+        let offset = 0;
+        const perBatch = 3;
+        const totalTypes = 26;
+        let grandTotal = 0;
+
+        while (true) {
+          setExtractionProgress({ current: offset, total: totalTypes });
+          setLogs(prev => [...prev, `📦 Extraction types ${offset + 1}–${Math.min(offset + perBatch, totalTypes)}/${totalTypes}...`]);
+
+          const { data, error } = await supabase.functions.invoke("poi-extract", {
+            body: { type_offset: offset, types_per_batch: perBatch },
+          });
+
+          if (error) throw error;
+
+          if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
+          grandTotal += data?.total_inserted ?? 0;
+
+          if (data?.next_offset != null) {
+            offset = data.next_offset;
+          } else {
+            break;
+          }
+        }
+
+        setExtractionProgress({ current: totalTypes, total: totalTypes });
+        setLogs(prev => [...prev, `✅ Extraction terminée — ${grandTotal} POIs insérés au total`]);
+        toast({ title: "Extraction terminée", description: `${grandTotal} POIs insérés.` });
+        refetchStats();
+        return;
+      }
+
       const fnName = step === "worker" ? "poi-worker"
         : step === "classify" ? "poi-classify-worker"
         : step === "autopipeline" ? "poi-autopipeline"
@@ -95,7 +130,6 @@ export default function AdminPOIPipeline() {
         : step === "fetch-photos" ? {}
         : step === "backfill-details" ? { limit: 10 }
         : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
-        : step === "extract" ? { limit: 500 }
         : step === "enrich" ? { batch_size: 10 }
         : step === "clean" ? { step: "clean" }
         : step === "merge" ? { step: "merge" }
@@ -124,6 +158,7 @@ export default function AdminPOIPipeline() {
       toast({ title: "Erreur", description: msg, variant: "destructive" });
     } finally {
       setRunning(null);
+      setExtractionProgress(null);
     }
   };
 
