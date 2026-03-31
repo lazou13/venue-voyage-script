@@ -9,7 +9,7 @@ import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tag
 import { useQuery } from "@tanstack/react-query";
 import EnrichmentPipelineCard from "@/components/admin/EnrichmentPipelineCard";
 
-type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details";
+type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details" | "reclassify";
 
 export default function AdminPOIPipeline() {
   const { toast } = useToast();
