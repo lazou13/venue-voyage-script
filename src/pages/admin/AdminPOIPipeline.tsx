@@ -130,6 +130,7 @@ export default function AdminPOIPipeline() {
   const pctClassified = active > 0 ? Math.round((stats?.classified ?? 0) / active * 100) : 0;
   const pctEnriched = active > 0 ? Math.round((stats?.withDescription ?? 0) / active * 100) : 0;
   const pctProximity = active > 0 ? Math.round((stats?.withProximity ?? 0) / active * 100) : 0;
+  const pctPriceInfo = active > 0 ? Math.round((stats?.withPriceInfo ?? 0) / active * 100) : 0;
   const pipelineComplete = pctClassified === 100 && pctEnriched === 100 && pctProximity === 100;
 
   const statusColors: Record<string, string> = {
