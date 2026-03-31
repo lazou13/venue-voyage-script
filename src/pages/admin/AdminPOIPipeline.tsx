@@ -22,7 +22,7 @@ export default function AdminPOIPipeline() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("medina_pois")
-        .select("enrichment_status, status, category_ai, poi_quality_score, description_short, nearby_pois_data, riddle_easy, riddle_hard");
+        .select("enrichment_status, status, category_ai, poi_quality_score, description_short, nearby_pois_data, riddle_easy, riddle_hard, price_info");
       if (error) throw error;
 
       const counts: Record<string, number> = { total: 0, raw: 0, enriched: 0, error: 0, pending: 0, filtered: 0, merged: 0, processing: 0 };
