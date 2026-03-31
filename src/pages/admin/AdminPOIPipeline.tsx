@@ -84,6 +84,7 @@ export default function AdminPOIPipeline() {
         : step === "classify" ? "poi-classify-worker"
         : step === "autopipeline" ? "poi-autopipeline"
         : step === "fetch-photos" ? "poi-fetch-photos"
+        : step === "backfill-details" ? "poi-backfill-details"
         : step === "all" ? "poi-pipeline"
         : step === "clean" || step === "merge" ? "poi-pipeline"
         : `poi-${step}`;
