@@ -356,7 +356,11 @@ export default function AdminPOIPipeline() {
             </Button>
             <Button onClick={() => runStep("classify")} disabled={!!running} variant="outline" size="sm" className="gap-1">
               {running === "classify" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Tags className="w-3 h-3" />}
-              Classifier
+              Classifier (auto-loop)
+            </Button>
+            <Button onClick={() => runStep("reclassify")} disabled={!!running} variant="destructive" size="sm" className="gap-1">
+              {running === "reclassify" ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              Re-classifier tout
             </Button>
             <Button onClick={() => runStep("worker")} disabled={!!running} variant="outline" size="sm" className="gap-1">
               {running === "worker" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Brain className="w-3 h-3" />}
