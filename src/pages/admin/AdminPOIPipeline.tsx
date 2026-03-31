@@ -92,7 +92,7 @@ export default function AdminPOIPipeline() {
         : step === "classify" ? {}
         : step === "autopipeline" ? {}
         : step === "fetch-photos" ? {}
-        : step === "backfill-details" ? { limit: 50 }
+        : step === "backfill-details" ? { limit: 10 }
         : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
         : step === "extract" ? { limit: 500 }
         : step === "enrich" ? { batch_size: 10 }
