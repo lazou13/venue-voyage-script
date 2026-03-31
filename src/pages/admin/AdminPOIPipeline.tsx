@@ -83,7 +83,6 @@ export default function AdminPOIPipeline() {
 
     try {
       if (step === "extract") {
-        // Auto-loop: paginate by type batches
         let offset = 0;
         const perBatch = 3;
         const totalTypes = 26;
@@ -98,7 +97,6 @@ export default function AdminPOIPipeline() {
           });
 
           if (error) throw error;
-
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           grandTotal += data?.total_inserted ?? 0;
 
@@ -116,11 +114,37 @@ export default function AdminPOIPipeline() {
         return;
       }
 
+      if (step === "backfill-details") {
+        let totalUpdated = 0;
+        let round = 1;
+
+        while (true) {
+          setExtractionProgress({ current: totalUpdated, total: active });
+          setLogs(prev => [...prev, `📦 Backfill batch ${round}...`]);
+
+          const { data, error } = await supabase.functions.invoke("poi-backfill-details", {
+            body: { limit: 10 },
+          });
+
+          if (error) throw error;
+          if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
+          totalUpdated += data?.updated ?? 0;
+
+          if ((data?.processed ?? 0) === 0 || (data?.updated ?? 0) === 0) break;
+          round++;
+        }
+
+        setExtractionProgress({ current: totalUpdated, total: active });
+        setLogs(prev => [...prev, `✅ Backfill terminé — ${totalUpdated} POIs mis à jour`]);
+        toast({ title: "Backfill terminé", description: `${totalUpdated} POIs enrichis.` });
+        refetchStats();
+        return;
+      }
+
       const fnName = step === "worker" ? "poi-worker"
         : step === "classify" ? "poi-classify-worker"
         : step === "autopipeline" ? "poi-autopipeline"
         : step === "fetch-photos" ? "poi-fetch-photos"
-        : step === "backfill-details" ? "poi-backfill-details"
         : step === "all" ? "poi-pipeline"
         : step === "clean" || step === "merge" ? "poi-pipeline"
         : `poi-${step}`;
@@ -128,7 +152,6 @@ export default function AdminPOIPipeline() {
         : step === "classify" ? {}
         : step === "autopipeline" ? {}
         : step === "fetch-photos" ? {}
-        : step === "backfill-details" ? { limit: 10 }
         : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
         : step === "enrich" ? { batch_size: 10 }
         : step === "clean" ? { step: "clean" }
