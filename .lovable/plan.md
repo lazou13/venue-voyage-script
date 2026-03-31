@@ -1,18 +1,30 @@
 
 
-# Fix: Timeout du backfill-details
+# Fix: Extraction POI timeout — pagination par batch de types
 
 ## Probleme
-La function `poi-backfill-details` timeout quand elle traite 50 POIs (chaque POI = 1 appel IA ~3-5s + 1.5s délai = ~5 min total). La connexion HTTP se ferme avant la fin.
+La function `poi-extract` tente ~280 points × 26 types = ~7280 requetes Google en un seul appel. Timeout garanti.
 
 ## Solution
-Reduire le `limit` de 50 a **10** dans l'appel client. La function traitera 10 POIs par clic (~30s), bien dans les limites de timeout.
+Ajouter une pagination par types dans la function: accepter `type_offset` et `types_per_batch` (defaut: 3). Cote client, ajouter un mode auto-loop qui enchaine les appels automatiquement.
 
-## Fichier modifie
+### 1. `supabase/functions/poi-extract/index.ts`
+- Lire `type_offset` (defaut 0) et `types_per_batch` (defaut 3) depuis le body
+- Ne traiter que `TYPES.slice(type_offset, type_offset + types_per_batch)`
+- Retourner `next_offset` dans la reponse si il reste des types a traiter
+- ~280 points × 3 types = ~840 requetes par batch (~2-3 min, dans les limites)
+
+### 2. `src/pages/admin/AdminPOIPipeline.tsx`
+- Modifier le bouton "Extraire" pour boucler automatiquement:
+  - Appeler `poi-extract` avec `type_offset: 0, types_per_batch: 3`
+  - Si la reponse contient `next_offset`, relancer avec le nouvel offset
+  - Afficher la progression dans les logs (ex: "Types 1-3/26...")
+  - Ajouter un state `extractionProgress` pour la barre de progression
+
+## Fichiers modifies
 
 | Fichier | Changement |
 |---------|-----------|
-| `src/pages/admin/AdminPOIPipeline.tsx` | Ligne 95: `limit: 50` → `limit: 10` |
-
-Chaque clic traitera 10 POIs (~30s). Pour les ~350 restants, il faudra cliquer ~35 fois, ou on pourra ajouter un mode "auto-loop" dans un second temps.
+| `supabase/functions/poi-extract/index.ts` | Pagination par `type_offset` + `types_per_batch` |
+| `src/pages/admin/AdminPOIPipeline.tsx` | Auto-loop extraction avec progression |
 
