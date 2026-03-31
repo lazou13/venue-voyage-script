@@ -54,6 +54,7 @@ export default function AdminPOIPipeline() {
         if ((row as any).nearby_pois_data && isActive) withProximity++;
         if ((row as any).riddle_easy && isActive) withRiddleEasy++;
         if ((row as any).riddle_hard && isActive) withRiddleHard++;
+        if ((row as any).price_info && isActive) withPriceInfo++;
 
         const score = (row as any).poi_quality_score;
         if (score) { totalScore += Number(score); scoredCount++; }
