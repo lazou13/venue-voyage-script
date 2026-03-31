@@ -34,6 +34,7 @@ export default function AdminPOIPipeline() {
       let withProximity = 0;
       let withRiddleEasy = 0;
       let withRiddleHard = 0;
+      let withPriceInfo = 0;
       let active = 0;
 
       for (const row of data ?? []) {
