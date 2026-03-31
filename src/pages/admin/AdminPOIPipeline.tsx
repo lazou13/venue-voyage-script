@@ -9,7 +9,7 @@ import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tag
 import { useQuery } from "@tanstack/react-query";
 import EnrichmentPipelineCard from "@/components/admin/EnrichmentPipelineCard";
 
-type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos";
+type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details";
 
 export default function AdminPOIPipeline() {
   const { toast } = useToast();
@@ -22,7 +22,7 @@ export default function AdminPOIPipeline() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("medina_pois")
-        .select("enrichment_status, status, category_ai, poi_quality_score, description_short, nearby_pois_data, riddle_easy, riddle_hard");
+        .select("enrichment_status, status, category_ai, poi_quality_score, description_short, nearby_pois_data, riddle_easy, riddle_hard, price_info");
       if (error) throw error;
 
       const counts: Record<string, number> = { total: 0, raw: 0, enriched: 0, error: 0, pending: 0, filtered: 0, merged: 0, processing: 0 };
@@ -34,6 +34,7 @@ export default function AdminPOIPipeline() {
       let withProximity = 0;
       let withRiddleEasy = 0;
       let withRiddleHard = 0;
+      let withPriceInfo = 0;
       let active = 0;
 
       for (const row of data ?? []) {
@@ -53,6 +54,7 @@ export default function AdminPOIPipeline() {
         if ((row as any).nearby_pois_data && isActive) withProximity++;
         if ((row as any).riddle_easy && isActive) withRiddleEasy++;
         if ((row as any).riddle_hard && isActive) withRiddleHard++;
+        if ((row as any).price_info && isActive) withPriceInfo++;
 
         const score = (row as any).poi_quality_score;
         if (score) { totalScore += Number(score); scoredCount++; }
@@ -68,6 +70,7 @@ export default function AdminPOIPipeline() {
         withProximity,
         withRiddleEasy,
         withRiddleHard,
+        withPriceInfo,
       };
     },
   });
@@ -81,6 +84,7 @@ export default function AdminPOIPipeline() {
         : step === "classify" ? "poi-classify-worker"
         : step === "autopipeline" ? "poi-autopipeline"
         : step === "fetch-photos" ? "poi-fetch-photos"
+        : step === "backfill-details" ? "poi-backfill-details"
         : step === "all" ? "poi-pipeline"
         : step === "clean" || step === "merge" ? "poi-pipeline"
         : `poi-${step}`;
@@ -88,6 +92,7 @@ export default function AdminPOIPipeline() {
         : step === "classify" ? {}
         : step === "autopipeline" ? {}
         : step === "fetch-photos" ? {}
+        : step === "backfill-details" ? { limit: 50 }
         : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
         : step === "extract" ? { limit: 500 }
         : step === "enrich" ? { batch_size: 10 }
@@ -125,6 +130,7 @@ export default function AdminPOIPipeline() {
   const pctClassified = active > 0 ? Math.round((stats?.classified ?? 0) / active * 100) : 0;
   const pctEnriched = active > 0 ? Math.round((stats?.withDescription ?? 0) / active * 100) : 0;
   const pctProximity = active > 0 ? Math.round((stats?.withProximity ?? 0) / active * 100) : 0;
+  const pctPriceInfo = active > 0 ? Math.round((stats?.withPriceInfo ?? 0) / active * 100) : 0;
   const pipelineComplete = pctClassified === 100 && pctEnriched === 100 && pctProximity === 100;
 
   const statusColors: Record<string, string> = {
@@ -188,6 +194,13 @@ export default function AdminPOIPipeline() {
               <span className="font-medium text-foreground">{stats?.withProximity ?? 0}/{active} ({pctProximity}%)</span>
             </div>
             <Progress value={pctProximity} className="h-2" />
+          </div>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Infos pratiques (backfill)</span>
+              <span className="font-medium text-foreground">{stats?.withPriceInfo ?? 0}/{active} ({pctPriceInfo}%)</span>
+            </div>
+            <Progress value={pctPriceInfo} className="h-2" />
           </div>
           <div className="grid grid-cols-2 gap-4 pt-2 text-sm">
             <div><span className="text-muted-foreground">Énigmes faciles:</span> <span className="font-medium text-foreground">{stats?.withRiddleEasy ?? 0}/{active}</span></div>
@@ -266,6 +279,10 @@ export default function AdminPOIPipeline() {
             <Button onClick={() => runStep("fetch-photos")} disabled={!!running} variant="secondary" size="sm" className="gap-1">
               {running === "fetch-photos" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
               Fetch Google Photos
+            </Button>
+            <Button onClick={() => runStep("backfill-details")} disabled={!!running} variant="default" size="sm" className="gap-1 col-span-2">
+              {running === "backfill-details" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Rocket className="w-3 h-3" />}
+              Backfill détails pratiques ({stats?.withPriceInfo ?? 0}/{active})
             </Button>
           </div>
         </CardContent>

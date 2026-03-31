@@ -84,3 +84,6 @@ verify_jwt = false
 
 [functions.riddle-generator]
 verify_jwt = false
+
+[functions.poi-backfill-details]
+verify_jwt = false
