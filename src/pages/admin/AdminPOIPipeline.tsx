@@ -70,6 +70,7 @@ export default function AdminPOIPipeline() {
         withProximity,
         withRiddleEasy,
         withRiddleHard,
+        withPriceInfo,
       };
     },
   });
