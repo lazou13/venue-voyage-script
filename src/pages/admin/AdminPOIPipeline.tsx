@@ -195,6 +195,13 @@ export default function AdminPOIPipeline() {
             </div>
             <Progress value={pctProximity} className="h-2" />
           </div>
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Infos pratiques (backfill)</span>
+              <span className="font-medium text-foreground">{stats?.withPriceInfo ?? 0}/{active} ({pctPriceInfo}%)</span>
+            </div>
+            <Progress value={pctPriceInfo} className="h-2" />
+          </div>
           <div className="grid grid-cols-2 gap-4 pt-2 text-sm">
             <div><span className="text-muted-foreground">Énigmes faciles:</span> <span className="font-medium text-foreground">{stats?.withRiddleEasy ?? 0}/{active}</span></div>
             <div><span className="text-muted-foreground">Énigmes difficiles:</span> <span className="font-medium text-foreground">{stats?.withRiddleHard ?? 0}/{active}</span></div>
