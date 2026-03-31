@@ -35,7 +35,7 @@ serve(async (req) => {
     const { data: pois, error } = await supabase
       .from("medina_pois")
       .select("id, name, name_fr, name_en, category, category_ai, district, address, description_short, history_context, website, rating")
-      .eq("enrichment_status", "enriched")
+      .in("enrichment_status", ["enriched", "raw"])
       .is("price_info", null)
       .not("status", "in", "(filtered,merged)")
       .order("poi_quality_score", { ascending: false })
