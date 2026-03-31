@@ -10,17 +10,17 @@ const GOOGLE_API_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// GPS grid covering the médina of Marrakech — maille 200m systématique
-// Bbox: south=31.624, west=-7.995, north=31.638, east=-7.975
-// Généré avec pas lat=0.0018° (~200m), pas lng=0.0025° (~200m)
+// GPS grid covering the médina of Marrakech — maille 100m systématique
+// Bbox: south=31.6245, west=-7.995, north=31.638, east=-7.975
+// Généré avec pas lat=0.0009° (~100m), pas lng=0.0012° (~100m)
 const MEDINA_POINTS = (() => {
   const points: { lat: number; lng: number }[] = [];
-  // Grille systématique 200m × 200m sur la médina
-  for (let lat = 31.6245; lat <= 31.638; lat += 0.0018) {
-    for (let lng = -7.995; lng <= -7.975; lng += 0.0025) {
+  // Grille systématique 100m × 100m sur la médina
+  for (let lat = 31.6245; lat <= 31.638; lat += 0.0009) {
+    for (let lng = -7.995; lng <= -7.975; lng += 0.0012) {
       points.push({
-        lat: Math.round(lat * 10000) / 10000,
-        lng: Math.round(lng * 10000) / 10000,
+        lat: Math.round(lat * 100000) / 100000,
+        lng: Math.round(lng * 100000) / 100000,
       });
     }
   }
@@ -36,6 +36,22 @@ const MEDINA_POINTS = (() => {
     { lat: 31.6199, lng: -7.9857 }, // Bab Agnaou / Bab er-Robb
     { lat: 31.6270, lng: -7.9812 }, // Mellah central
     { lat: 31.6348, lng: -7.9918 }, // Bab el-Khemis nord
+    // 15 nouveaux key points — zones denses et derbs cachés
+    { lat: 31.6293, lng: -7.9905 }, // Mouassine
+    { lat: 31.6275, lng: -7.9850 }, // Derb Dabachi
+    { lat: 31.6250, lng: -7.9860 }, // Riad Zitoun el-Kedim
+    { lat: 31.6245, lng: -7.9880 }, // Riad Zitoun el-Jdid
+    { lat: 31.6310, lng: -7.9860 }, // Souk des teinturiers
+    { lat: 31.6335, lng: -7.9870 }, // Zaouia Sidi Bel Abbès
+    { lat: 31.6360, lng: -7.9850 }, // Bab Debbagh / Tanneries
+    { lat: 31.6300, lng: -7.9920 }, // Dar el Bacha
+    { lat: 31.6265, lng: -7.9935 }, // Bab Doukkala intérieur
+    { lat: 31.6280, lng: -7.9830 }, // Derb Jdid
+    { lat: 31.6225, lng: -7.9855 }, // Palais el-Badi
+    { lat: 31.6230, lng: -7.9830 }, // Mellah sud
+    { lat: 31.6315, lng: -7.9835 }, // Fondouk el-Amri
+    { lat: 31.6340, lng: -7.9900 }, // Bab Taghzout
+    { lat: 31.6255, lng: -7.9910 }, // Koutoubia environs
   ];
   // Éviter doublons exacts
   const seen = new Set(points.map(p => `${p.lat},${p.lng}`));
@@ -46,13 +62,16 @@ const MEDINA_POINTS = (() => {
   return points;
 })();
 
-const RADIUS = 300; // Réduit à 300m (grille dense = moins de recouvrement)
+const RADIUS = 150; // Réduit à 150m (grille dense 100m = couverture totale)
 
 const TYPES = [
   "tourist_attraction", "museum", "restaurant", "cafe",
   "lodging", "store", "art_gallery", "mosque", "spa",
   "library", "jewelry_store", "clothing_store", "shoe_store",
   "book_store", "bakery", "food", "bar", "night_club",
+  // 8 types ajoutés pour fondouks, zaouïas, hammams, etc.
+  "park", "place_of_worship", "pharmacy", "market",
+  "point_of_interest", "landmark", "travel_agency", "shopping_mall",
 ];
 
 const MAX_PAGES = 3; // Google returns max 20 results per page → 60 max per type+point
