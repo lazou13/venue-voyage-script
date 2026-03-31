@@ -1,30 +1,46 @@
 
 
-# Fix: Extraction POI timeout — pagination par batch de types
+# Auto-loop pour le backfill-details
 
 ## Probleme
-La function `poi-extract` tente ~280 points × 26 types = ~7280 requetes Google en un seul appel. Timeout garanti.
+Le backfill traite 10 POIs par clic. Avec ~350+ POIs sans `price_info`, il faut cliquer 35+ fois manuellement.
 
 ## Solution
-Ajouter une pagination par types dans la function: accepter `type_offset` et `types_per_batch` (defaut: 3). Cote client, ajouter un mode auto-loop qui enchaine les appels automatiquement.
+Meme pattern que l'extraction : ajouter un auto-loop dans `AdminPOIPipeline.tsx` qui relance automatiquement le backfill tant qu'il reste des POIs a traiter.
 
-### 1. `supabase/functions/poi-extract/index.ts`
-- Lire `type_offset` (defaut 0) et `types_per_batch` (defaut 3) depuis le body
-- Ne traiter que `TYPES.slice(type_offset, type_offset + types_per_batch)`
-- Retourner `next_offset` dans la reponse si il reste des types a traiter
-- ~280 points × 3 types = ~840 requetes par batch (~2-3 min, dans les limites)
+## Changement
 
-### 2. `src/pages/admin/AdminPOIPipeline.tsx`
-- Modifier le bouton "Extraire" pour boucler automatiquement:
-  - Appeler `poi-extract` avec `type_offset: 0, types_per_batch: 3`
-  - Si la reponse contient `next_offset`, relancer avec le nouvel offset
-  - Afficher la progression dans les logs (ex: "Types 1-3/26...")
-  - Ajouter un state `extractionProgress` pour la barre de progression
+**`src/pages/admin/AdminPOIPipeline.tsx`** — Sortir le backfill du flux generique et ajouter un auto-loop :
 
-## Fichiers modifies
+```typescript
+if (step === "backfill-details") {
+  let totalUpdated = 0;
+  let round = 1;
+  
+  while (true) {
+    setExtractionProgress({ current: totalUpdated, total: active }); // reuse progress bar
+    setLogs(prev => [...prev, `📦 Backfill batch ${round}...`]);
+    
+    const { data, error } = await supabase.functions.invoke("poi-backfill-details", {
+      body: { limit: 10 },
+    });
+    
+    if (error) throw error;
+    if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
+    totalUpdated += data?.updated ?? 0;
+    
+    // Stop if nothing left to process
+    if ((data?.processed ?? 0) === 0 || (data?.updated ?? 0) === 0) break;
+    
+    round++;
+  }
+  
+  setLogs(prev => [...prev, `✅ Backfill terminé — ${totalUpdated} POIs mis à jour`]);
+  toast({ title: "Backfill terminé", description: `${totalUpdated} POIs enrichis.` });
+  refetchStats();
+  return;
+}
+```
 
-| Fichier | Changement |
-|---------|-----------|
-| `supabase/functions/poi-extract/index.ts` | Pagination par `type_offset` + `types_per_batch` |
-| `src/pages/admin/AdminPOIPipeline.tsx` | Auto-loop extraction avec progression |
+La barre de progression existante sera reutilisee pour afficher l'avancement. Le loop s'arrete quand la function retourne `processed: 0` (plus de POIs sans `price_info`).
 
