@@ -15,6 +15,7 @@ export default function AdminPOIPipeline() {
   const { toast } = useToast();
   const [running, setRunning] = useState<StepKey | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
+  const [extractionProgress, setExtractionProgress] = useState<{ current: number; total: number } | null>(null);
 
   const { data: stats, refetch: refetchStats } = useQuery({
     queryKey: ["poi-pipeline-stats"],
