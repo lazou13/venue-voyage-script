@@ -280,6 +280,10 @@ export default function AdminPOIPipeline() {
               {running === "fetch-photos" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
               Fetch Google Photos
             </Button>
+            <Button onClick={() => runStep("backfill-details")} disabled={!!running} variant="default" size="sm" className="gap-1 col-span-2">
+              {running === "backfill-details" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Rocket className="w-3 h-3" />}
+              Backfill détails pratiques ({stats?.withPriceInfo ?? 0}/{active})
+            </Button>
           </div>
         </CardContent>
       </Card>
