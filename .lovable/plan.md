@@ -1,45 +1,49 @@
 
 
-## Plan: Connect to external backend + New homepage with map and quest launcher
+# Fix POI Enrichment Data for Quest Rides Pro
 
-### Context
+## Problem
 
-This project runs on Lovable Cloud (which provides its own backend). Since we cannot modify the auto-generated `.env` or `client.ts` files, we'll create a **secondary client** for the external project using the public anon key (safe to store in code since it's a publishable key).
+Quest Rides Pro fetches enrichment data from this project's `medina_pois` table via REST API. The query requests these columns: `price_info`, `opening_hours`, `must_see_details`, `must_try`, `must_visit_nearby`, `is_photo_spot`, `photo_tip`, `ruelle_etroite`, `wikipedia_summary`, `website_url`.
 
-### Architecture
+**But these columns don't exist in `medina_pois`.** The table only has `history_context`, `local_anecdote`, `website` (not `website_url`), and `instagram_spot` (not `is_photo_spot`). The REST API query fails silently, returning no enrichment data, so every POI shows the same generic fallback text.
 
-```text
-src/integrations/supabase/client.ts   ← Lovable Cloud (unchanged, auto-generated)
-src/lib/externalSupabase.ts           ← NEW: external project client
-```
+## Solution (2 parts)
 
-### Changes
+### Part 1: Add missing columns to `medina_pois` (this project)
 
-#### 1. Create external Supabase client (`src/lib/externalSupabase.ts`)
-- Creates a standalone Supabase client pointing to `xaccaoedtbwywjotqhih.supabase.co` with the provided anon key
-- Used by the new homepage and quest features
+Database migration to add:
+- `price_info` (text) — pricing info
+- `opening_hours` (jsonb) — structured hours
+- `must_see_details` (text) — what to see
+- `must_try` (text) — what to try
+- `must_visit_nearby` (text) — nearby recommendations
+- `is_photo_spot` (boolean, default false) — photo spot flag
+- `photo_tip` (text) — photo advice
+- `ruelle_etroite` (boolean, default false) — narrow alley warning
+- `wikipedia_summary` (text) — Wikipedia extract
+- `website_url` (text) — website URL (alias for existing `website`)
 
-#### 2. Replace homepage route (`/`) with a new `HomePage` component
-- **Map**: Full-screen Leaflet map centered on Marrakech medina (31.6295, -7.9811)
-- **POI markers**: Fetches enriched POIs from `pois` table on the external backend (name, photo_url, lat/lng, description_short)
-- Each marker shows a popup with name + photo thumbnail
-- **"Demarrer une quete" button**: Fixed at bottom of screen
-  - Requests browser geolocation
-  - Calls `quest-ai-assistant` edge function on the external project with `{ start_lat, start_lng }`
-  - Displays the generated quest steps in a bottom sheet/panel with step-by-step navigation
+### Part 2: Populate the new columns via AI enrichment
 
-#### 3. Update `App.tsx` routing
-- Change `/` route from `<Dashboard />` to `<HomePage />`
-- Keep all admin routes intact (they continue using the Lovable Cloud client)
+Update the `poi-enrich` edge function to also generate `price_info`, `opening_hours`, `must_see_details`, `must_try`, `must_visit_nearby`, `is_photo_spot`, `photo_tip`, `ruelle_etroite` fields. The existing `history_context` data (370 POIs already enriched) will continue to work.
 
-### Files to create/modify
-- **Create** `src/lib/externalSupabase.ts` — external client
-- **Create** `src/pages/HomePage.tsx` — map + POIs + quest launcher
-- **Modify** `src/App.tsx` — swap root route
+Also update `poi-autopipeline` to include these fields.
 
-### Technical notes
-- The external anon key is a publishable key, safe to include in client code
-- POI queries use the external client; admin features continue using the Lovable Cloud client
-- The quest-ai-assistant edge function is called via `externalSupabase.functions.invoke('quest-ai-assistant', { body: { start_lat, start_lng } })`
-- Leaflet is already a dependency (used in QuestMap), so no new packages needed
+### Part 3: Backfill `website_url` from `website`
+
+A simple migration: `UPDATE medina_pois SET website_url = website WHERE website IS NOT NULL AND website_url IS NULL`.
+
+## Files changed
+
+| File | Change |
+|------|--------|
+| Migration SQL | Add 10 columns to `medina_pois` + backfill `website_url` |
+| `supabase/functions/poi-enrich/index.ts` | Add new fields to AI tool schema and update payload |
+| `supabase/functions/poi-autopipeline/index.ts` | Same: add new fields to AI tool schema |
+| `supabase/functions/anecdote-enricher/index.ts` | Optionally generate `must_try`, `must_see_details` |
+
+## Impact
+
+Once columns exist and are populated, Quest Rides Pro's `enrichStepsFromPOIs()` will successfully fetch personalized data per POI. "Histoire du lieu" will show real `history_context` (already populated for 370 POIs), and "Infos pratiques" will show real `price_info` and `opening_hours` instead of generic fallbacks.
 
