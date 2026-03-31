@@ -114,6 +114,41 @@ export default function AdminPOIPipeline() {
         return;
       }
 
+      if (step === "classify") {
+        let totalClassified = 0;
+        let round = 1;
+
+        while (true) {
+          setLogs(prev => [...prev, `📦 Classification batch ${round}...`]);
+
+          const { data, error } = await supabase.functions.invoke("poi-classify-worker", { body: {} });
+          if (error) throw error;
+          if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
+          totalClassified += data?.classified ?? 0;
+
+          if ((data?.classified ?? 0) === 0) break;
+          round++;
+        }
+
+        setLogs(prev => [...prev, `✅ Classification terminée — ${totalClassified} POIs classifiés`]);
+        toast({ title: "Classification terminée", description: `${totalClassified} POIs classifiés.` });
+        refetchStats();
+        return;
+      }
+
+      if (step === "reclassify") {
+        setLogs(prev => [...prev, `🔄 Reset category_ai et poi_quality_score...`]);
+        const { error } = await supabase
+          .from("medina_pois")
+          .update({ category_ai: null, poi_quality_score: null } as any)
+          .not("status", "in", '("filtered","merged")');
+        if (error) throw error;
+        setLogs(prev => [...prev, `✅ Reset effectué. Relancez "Classifier" pour re-classifier.`]);
+        toast({ title: "Reset effectué", description: "Relancez la classification." });
+        refetchStats();
+        return;
+      }
+
       if (step === "backfill-details") {
         let totalUpdated = 0;
         let round = 1;
