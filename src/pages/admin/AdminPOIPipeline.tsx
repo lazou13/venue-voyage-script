@@ -203,6 +203,19 @@ export default function AdminPOIPipeline() {
 
       <EnrichmentPipelineCard />
 
+      {/* Extraction Progress */}
+      {extractionProgress && (
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground font-medium">Extraction en cours…</span>
+              <span className="font-medium text-foreground">{extractionProgress.current}/{extractionProgress.total} types</span>
+            </div>
+            <Progress value={Math.round(extractionProgress.current / extractionProgress.total * 100)} className="h-2" />
+          </CardContent>
+        </Card>
+      )}
+
       {/* Pipeline Progress */}
       <Card>
         <CardHeader className="pb-3">
