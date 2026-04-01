@@ -1,37 +1,29 @@
 
 
-# Fix: Agent trop lent + Score des riads trop bas
+# Créer une page dédiée "Bibliothèque de Visites"
 
-## Diagnostic
-
-### Pourquoi l'agent semble arrêté
-L'agent n'est **pas arrêté** — il fonctionne mais est trop lent : **15 POIs par heure**. Avec 830 POIs restants, il faudrait **55 heures** pour tout traiter. Il a bien enrichi 30 POIs (2 cycles) et généré 4 visites.
-
-### Score des riads
-Score moyen actuel des riads : **5.2/10**. Les riads de la médina sont des maisons traditionnelles avec patios, architecture mauresque, zellige — ils ont une forte valeur patrimoniale et touristique et méritent un score plus élevé.
+## Problème
+La bibliothèque de visites (`quest_library`) est affichée uniquement en ligne dans la card du pipeline. Il n'y a pas de page dédiée ni de lien dans la sidebar admin.
 
 ## Solution
 
-### 1. Accélérer l'agent (poi-auto-agent)
-- Passer de **15 à 50 POIs** par appel IA (Gemini Flash gère facilement)
-- Ajouter un **mode turbo** : quand appelé manuellement, boucler 3 fois dans le même appel (150 POIs)
-- Réduire le temps de couverture de 55h à ~6h
+### 1. Nouvelle page `src/pages/admin/AdminQuestLibrary.tsx`
+- Liste toutes les visites de `quest_library` groupées par hub (Koutoubia, Jemaa el-Fna, Mellah)
+- Chaque visite affiche : titre, description complète, audience, mode, durée, distance, nombre d'arrêts, highlights, best_time, quality_score
+- Clic sur une visite = panneau d'expansion avec les stops détaillés (`stops_data`)
+- Filtre par hub et par audience
 
-### 2. Augmenter le score des riads dans le classify-worker
-Modifier le prompt de scoring dans `poi-classify-worker` :
-- Ajouter une règle : **"Les riads de la médina sont du patrimoine architectural vivant. Score minimum 6, et 7-8 si bien noté ou connu"**
-- Justification : un riad n'est pas un simple hôtel, c'est une maison traditionnelle marocaine avec architecture historique
+### 2. Ajouter la route dans `src/App.tsx`
+- Route `/admin/quest-library` → `AdminQuestLibrary`
 
-### 3. Reclassifier les riads existants
-Ajouter un bouton "Re-scorer les riads" dans le pipeline qui :
-- Reset `poi_quality_score` uniquement pour les POIs `category_ai = 'riad'`
-- Relance la classification sur ces 55 POIs avec le prompt amélioré
+### 3. Ajouter le lien dans `src/components/admin/AdminSidebar.tsx`
+- Entrée "Bibliothèque Visites" avec icône `BookOpen` pointant vers `/admin/quest-library`
 
-## Fichiers modifiés
+### Fichiers modifiés
 
 | Fichier | Changement |
 |---------|-----------|
-| `supabase/functions/poi-auto-agent/index.ts` | Batch 50, mode turbo (3 boucles si manuel) |
-| `supabase/functions/poi-classify-worker/index.ts` | Ajout règle riads score ≥ 6 dans le prompt |
-| `src/pages/admin/AdminPOIPipeline.tsx` | Bouton "Re-scorer riads" |
+| `src/pages/admin/AdminQuestLibrary.tsx` | Nouvelle page avec liste filtrée et détails des visites |
+| `src/App.tsx` | Ajouter route `/admin/quest-library` |
+| `src/components/admin/AdminSidebar.tsx` | Ajouter lien sidebar |
 
