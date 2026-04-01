@@ -23,6 +23,7 @@ const navItems = [
   { to: '/admin/experience-page', label: 'Page Expérience', icon: Sparkles },
   { to: '/admin/poi-pipeline', label: 'Pipeline POI', icon: Database },
   { to: '/admin/media-library', label: 'Médiathèque', icon: Camera },
+  { to: '/admin/quest-library', label: 'Bibliothèque Visites', icon: BookOpen },
 ];
 
 export function AdminSidebar({ hasUnsavedChanges }: AdminSidebarProps) {
