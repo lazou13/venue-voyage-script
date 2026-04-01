@@ -67,7 +67,7 @@ export default function HomePage() {
         .eq('is_active', true)
         .not('lat', 'is', null)
         .not('lng', 'is', null)
-        .limit(500);
+        .limit(2000);
 
       if (!error && data) {
         setPois(data.map((p: any) => ({
