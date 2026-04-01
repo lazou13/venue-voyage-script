@@ -14,7 +14,13 @@ const HUBS = [
 ];
 
 const AUDIENCES = ["family", "young_adults", "accessible", "foodies", "instagrammers"];
-const MODES = ["guided_tour", "treasure_hunt"];
+const MODES = ["guided_tour"];
+
+const EXCLUDED_CATEGORIES = new Set([
+  "restaurant", "café", "cafe", "hotel", "riad", "tour_agency", "travel_agency",
+  "car_rental", "pharmacy", "bank", "supermarket", "gym", "spa", "generic",
+  "equestrian", "horseback", "parking", "gas_station", "atm", "laundry",
+]);
 
 const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
