@@ -150,6 +150,33 @@ export default function AdminPOIPipeline() {
         return;
       }
 
+      if (step === "rescore-riads") {
+        setLogs(prev => [...prev, `🏠 Reset score des riads pour reclassification...`]);
+        const { error } = await supabase
+          .from("medina_pois")
+          .update({ category_ai: null, poi_quality_score: null } as any)
+          .eq("category_ai", "riad");
+        if (error) throw error;
+        setLogs(prev => [...prev, `✅ Scores riads réinitialisés. Lancement classification...`]);
+
+        let totalClassified = 0;
+        let round = 1;
+        while (true) {
+          setLogs(prev => [...prev, `📦 Re-scoring riads batch ${round}...`]);
+          const { data, error: classErr } = await supabase.functions.invoke("poi-classify-worker", { body: {} });
+          if (classErr) throw classErr;
+          if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
+          totalClassified += data?.classified ?? 0;
+          if ((data?.classified ?? 0) === 0) break;
+          round++;
+        }
+
+        setLogs(prev => [...prev, `✅ Re-scoring riads terminé — ${totalClassified} POIs reclassifiés`]);
+        toast({ title: "Riads re-scorés", description: `${totalClassified} riads reclassifiés avec le nouveau prompt.` });
+        refetchStats();
+        return;
+      }
+
       if (step === "backfill-details") {
         let totalUpdated = 0;
         let round = 1;
