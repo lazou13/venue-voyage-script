@@ -1,4 +1,4 @@
-// anecdote-enricher — Hunt Planer Pro (Lovable AI)
+// anecdote-enricher — Hunt Planer Pro (Perplexity sonar)
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -7,78 +7,77 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-const AI_URL = "https://ai.gateway.lovable.dev/v1/chat/completions";
+const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions";
 
 function resolveName(row: any): string {
   return row.name_fr ?? row.name_en ?? row.name ?? 'POI';
 }
 
-async function generateAnecdotes(pois: any[], apiKey: string): Promise<Record<string, any>> {
-  const poiList = pois.map((p) => {
-    const info = [
-      `Nom: ${resolveName(p)}`,
-      `Catégorie: ${p.category_ai ?? p.category ?? ''}`,
-      p.zone ? `Zone: ${p.zone}` : null,
-      p.description_short ? `Description: ${p.description_short}` : null,
-      p.history_context ? `Histoire: ${p.history_context.substring(0, 300)}` : null,
-    ].filter(Boolean).join('\n');
-    return `=== POI (ID: ${p.id}) ===\n${info}`;
-  }).join('\n\n');
+async function enrichWithPerplexity(poi: any, apiKey: string): Promise<{ history_context?: string; local_anecdote?: string; citations?: string[] } | null> {
+  const name = resolveName(poi);
+  const category = poi.category_ai ?? poi.category ?? '';
+  const zone = poi.zone || '';
+  const existing = poi.description_short || '';
 
-  const prompt = `Tu es un expert historien et conteur spécialisé dans la médina de Marrakech.
+  const prompt = `Recherche des informations historiques vérifiées sur "${name}" à Marrakech, Maroc.
+Catégorie : ${category}. Zone : ${zone}.
+${existing ? `Description existante : ${existing}` : ''}
 
-Pour chaque POI, génère en JSON:
-- history_context: Contexte historique riche (150-250 mots français).
-- local_anecdote: Anecdote locale authentique en français (80-120 mots).
-- fun_fact_fr: Fait surprenant (30-50 mots). Format: "Le saviez-vous ? ..."
+Donne-moi en JSON :
+1. "history_context": Contexte historique riche et vérifié (150-250 mots en français). Inclure des dates, des personnages historiques, et des faits architecturaux vérifiables.
+2. "local_anecdote": Une anecdote locale authentique en français (80-120 mots). Privilégier les histoires transmises par les habitants, les légendes urbaines vérifiées, ou les faits surprenants.
 
-JSON UNIQUEMENT:
-{
-  "ID_POI": {
-    "history_context":"...",
-    "local_anecdote":"...",
-    "fun_fact_fr":"..."
-  }
-}
+Réponds UNIQUEMENT en JSON valide :
+{"history_context":"...","local_anecdote":"..."}`;
 
-POIs:
-${poiList}`;
-
-  const resp = await fetch(AI_URL, {
+  const resp = await fetch(PERPLEXITY_URL, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
-      messages: [{ role: 'user', content: prompt }],
+      model: 'sonar',
+      messages: [
+        { role: 'system', content: 'Tu es un historien expert de Marrakech et de sa médina. Tu fournis des informations factuelles et vérifiées. Réponds uniquement en JSON.' },
+        { role: 'user', content: prompt },
+      ],
     }),
   });
 
   if (resp.status === 429) throw new Error('Rate limited — réessayez dans quelques secondes');
-  if (resp.status === 402) throw new Error('Crédits Lovable AI épuisés');
-  if (!resp.ok) throw new Error(`AI gateway error ${resp.status}: ${await resp.text()}`);
+  if (resp.status === 402) throw new Error('Crédits Perplexity épuisés');
+  if (!resp.ok) throw new Error(`Perplexity API error ${resp.status}: ${await resp.text()}`);
 
   const data = await resp.json();
   const text = data.choices?.[0]?.message?.content ?? '';
+  const citations = data.citations ?? [];
+  
   const jsonMatch = text.match(/\{[\s\S]+\}/);
-  if (!jsonMatch) throw new Error('Pas de JSON dans la réponse AI');
-  return JSON.parse(jsonMatch[0]);
+  if (!jsonMatch) return null;
+  
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    return { ...parsed, citations };
+  } catch {
+    return null;
+  }
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
-  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-  if (!LOVABLE_API_KEY) {
-    return new Response(JSON.stringify({ error: 'LOVABLE_API_KEY non configurée.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  
+  const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
+  if (!PERPLEXITY_API_KEY) {
+    return new Response(JSON.stringify({ error: 'PERPLEXITY_API_KEY non configurée.' }), { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
+  
   const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+  
   try {
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
-    const batchSize = Math.min(body.batch_size ?? 20, 20);
-    const minScore  = body.min_score ?? 2.0;
-    const CHUNK     = 10;
+    const batchSize = Math.min(body.batch_size ?? 10, 10);
+    const minScore = body.min_score ?? 2.0;
 
     let query = supabase
       .from('medina_pois')
@@ -98,23 +97,28 @@ serve(async (req) => {
     }
 
     let totalUpdated = 0;
-    for (let i = 0; i < pois.length; i += CHUNK) {
-      const chunk = pois.slice(i, i + CHUNK);
-      const anecdotes = await generateAnecdotes(chunk, LOVABLE_API_KEY);
-      for (const poi of chunk) {
-        const a = anecdotes[poi.id];
-        if (!a) continue;
+    for (const poi of pois) {
+      try {
+        const result = await enrichWithPerplexity(poi, PERPLEXITY_API_KEY);
+        if (!result) continue;
+
         const update: Record<string, any> = {};
-        if (a.history_context && !poi.history_context) update.history_context = a.history_context;
-        if (a.local_anecdote) update.local_anecdote = a.local_anecdote;
+        if (result.history_context && !poi.history_context) update.history_context = result.history_context;
+        if (result.local_anecdote) update.local_anecdote = result.local_anecdote;
+
         if (Object.keys(update).length > 0) {
           const { error: updErr } = await supabase.from('medina_pois').update(update).eq('id', poi.id);
           if (!updErr) totalUpdated++;
         }
+        // Delay between requests to avoid rate limiting
+        await new Promise(r => setTimeout(r, 1500));
+      } catch (e) {
+        console.error(`Error enriching POI ${poi.id}:`, e);
+        if (e instanceof Error && (e.message.includes('Rate limited') || e.message.includes('épuisés'))) throw e;
       }
-      if (i + CHUNK < pois.length) await new Promise(r => setTimeout(r, 1500));
     }
-    return new Response(JSON.stringify({ processed: pois.length, updated: totalUpdated }), {
+
+    return new Response(JSON.stringify({ processed: pois.length, updated: totalUpdated, source: 'perplexity-sonar' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {
