@@ -1,43 +1,38 @@
 
 
-# Fix: Toutes les visites sont identiques
+# Intégrer Perplexity pour l'enrichissement des POIs
 
-## Diagnostic
+## Pourquoi c'est mieux
 
-Le problème est dans la logique de sélection des POIs (Phase 2 de l'agent). Actuellement :
+Gemini génère du contenu **sans sources** — risque d'hallucinations sur les faits historiques, dates, anecdotes. Perplexity (`sonar`) fait une **recherche web en temps réel** et retourne des **citations vérifiables**. Pour des descriptions de monuments et lieux culturels de la médina, c'est nettement plus fiable.
 
-1. On prend **tous les POIs culturels** (67 après exclusion des restos/riads/hôtels)
-2. On filtre par audience — mais quand il y a moins de 5 résultats, **on retombe sur la liste complète**
-3. On trie par **distance du hub** et on prend les **8 plus proches**
+## Étapes
 
-Résultat : les 8 plus proches de Koutoubia sont toujours les mêmes (Koutoubia Museum, Bahri Palace, Park Arsat, etc.), quel que soit l'audience.
+### 1. Connecter Perplexity au projet
+Lier le connecteur Perplexity via l'outil de connexion (le user sera invité à sélectionner/créer une connexion).
 
-## Solution
+### 2. Modifier `anecdote-enricher` pour utiliser Perplexity
+- Remplacer l'appel Lovable AI Gateway (Gemini Flash) par un appel direct à l'API Perplexity (`https://api.perplexity.ai/chat/completions`)
+- Utiliser le modèle `sonar` pour des réponses factuelles avec citations
+- Adapter le prompt pour exploiter la recherche web : "Recherche des informations historiques vérifiées sur [nom du POI] à Marrakech"
+- Stocker les citations retournées (optionnel : nouveau champ `sources` dans `medina_pois`)
 
-### Déléguer la sélection des POIs à l'IA
+### 3. Modifier `poi-auto-agent` Phase 1
+- Pour les champs descriptifs (description_short, accessibility_notes, instagram_tips), garder Gemini Flash — c'est du tagging, pas besoin de recherche
+- Pour `history_context` et `local_anecdote` dans le pipeline d'enrichissement, utiliser Perplexity via `anecdote-enricher`
 
-Au lieu du tri naïf par distance, **envoyer la liste complète des POIs culturels à Gemini Pro** et lui demander de choisir les 6-8 meilleurs pour chaque combinaison hub/audience, en tenant compte de :
-- La **cohérence thématique** (foodies → souks alimentaires + artisans + places animées)
-- La **diversité** des catégories (pas 3 musées d'affilée)
-- L'**ordre de visite logique** (proximité géographique pour un parcours fluide)
-- Les **tags d'audience** enrichis en Phase 1
+### 4. Conserver Gemini pour le reste
+- Phase 1 (audience_tags, route_tags, instagram_score) → Gemini Flash (tagging rapide)
+- Phase 2 (sélection/ordonnancement des visites) → Gemini Pro (raisonnement créatif)
+- Descriptions/anecdotes → **Perplexity sonar** (faits vérifiés)
 
-### Changements dans `poi-auto-agent/index.ts` — Phase 2
-
-1. **Supprimer** le tri par distance + `slice(0, 8)` 
-2. **Envoyer tous les POIs culturels** (jusqu'à 67) au prompt Gemini Pro avec leurs coordonnées, catégories, audience_tags, route_tags, instagram_score
-3. **Demander à l'IA** de sélectionner 6-8 POIs et de les ordonner en parcours cohérent via tool calling (retourner les `poi_id` choisis dans l'ordre)
-4. **Fusionner** les deux appels IA (sélection + titre/description) en un seul appel pour gagner du temps
-5. **Ajouter une contrainte** : les POIs déjà utilisés dans une visite du même hub sont dépréciés (pas exclus, mais signalés à l'IA pour favoriser la diversité)
-
-### Purger les visites existantes
-
-Exécuter `DELETE FROM quest_library` pour repartir de zéro avec la nouvelle logique.
-
-### Fichiers modifiés
+## Fichiers modifiés
 
 | Fichier | Changement |
 |---------|-----------|
-| `supabase/functions/poi-auto-agent/index.ts` | Phase 2 : sélection IA des stops + fusion appels |
-| Migration SQL | `DELETE FROM quest_library` |
+| `supabase/functions/anecdote-enricher/index.ts` | Remplacer Lovable AI par Perplexity API, adapter prompt pour recherche web, gérer citations |
+
+## Prérequis
+- Connexion Perplexity à établir avant implémentation
+- Le secret `PERPLEXITY_API_KEY` sera disponible automatiquement après connexion
 
