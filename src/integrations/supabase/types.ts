@@ -218,7 +218,11 @@ export type Database = {
       }
       medina_pois: {
         Row: {
+          accessibility_notes: string | null
           address: string | null
+          agent_enriched_at: string | null
+          audience_tags: string[] | null
+          best_time_visit: string | null
           category: string
           category_ai: string | null
           category_google: string | null
@@ -234,7 +238,9 @@ export type Database = {
           history_context: string | null
           hub_theme: string | null
           id: string
+          instagram_score: number | null
           instagram_spot: boolean | null
+          instagram_tips: string | null
           is_active: boolean
           is_photo_spot: boolean | null
           is_start_hub: boolean
@@ -266,10 +272,13 @@ export type Database = {
           riddle_easy: string | null
           riddle_hard: string | null
           riddle_medium: string | null
+          route_tags: string[] | null
           ruelle_etroite: boolean | null
           souks_nearby: string[] | null
           status: string
           step_config: Json
+          street_food_details: string | null
+          street_food_spot: boolean | null
           street_type: string | null
           subcategory: string | null
           terrain_validated: boolean | null
@@ -283,7 +292,11 @@ export type Database = {
           zone: string
         }
         Insert: {
+          accessibility_notes?: string | null
           address?: string | null
+          agent_enriched_at?: string | null
+          audience_tags?: string[] | null
+          best_time_visit?: string | null
           category?: string
           category_ai?: string | null
           category_google?: string | null
@@ -299,7 +312,9 @@ export type Database = {
           history_context?: string | null
           hub_theme?: string | null
           id?: string
+          instagram_score?: number | null
           instagram_spot?: boolean | null
+          instagram_tips?: string | null
           is_active?: boolean
           is_photo_spot?: boolean | null
           is_start_hub?: boolean
@@ -331,10 +346,13 @@ export type Database = {
           riddle_easy?: string | null
           riddle_hard?: string | null
           riddle_medium?: string | null
+          route_tags?: string[] | null
           ruelle_etroite?: boolean | null
           souks_nearby?: string[] | null
           status?: string
           step_config?: Json
+          street_food_details?: string | null
+          street_food_spot?: boolean | null
           street_type?: string | null
           subcategory?: string | null
           terrain_validated?: boolean | null
@@ -348,7 +366,11 @@ export type Database = {
           zone?: string
         }
         Update: {
+          accessibility_notes?: string | null
           address?: string | null
+          agent_enriched_at?: string | null
+          audience_tags?: string[] | null
+          best_time_visit?: string | null
           category?: string
           category_ai?: string | null
           category_google?: string | null
@@ -364,7 +386,9 @@ export type Database = {
           history_context?: string | null
           hub_theme?: string | null
           id?: string
+          instagram_score?: number | null
           instagram_spot?: boolean | null
+          instagram_tips?: string | null
           is_active?: boolean
           is_photo_spot?: boolean | null
           is_start_hub?: boolean
@@ -396,10 +420,13 @@ export type Database = {
           riddle_easy?: string | null
           riddle_hard?: string | null
           riddle_medium?: string | null
+          route_tags?: string[] | null
           ruelle_etroite?: boolean | null
           souks_nearby?: string[] | null
           status?: string
           step_config?: Json
+          street_food_details?: string | null
+          street_food_spot?: boolean | null
           street_type?: string | null
           subcategory?: string | null
           terrain_validated?: boolean | null
@@ -842,6 +869,84 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      quest_library: {
+        Row: {
+          agent_version: string | null
+          audience: string
+          best_time: string | null
+          created_at: string | null
+          description_en: string | null
+          description_fr: string | null
+          difficulty: string
+          distance_m: number | null
+          duration_min: number | null
+          generated_at: string | null
+          highlights: string[] | null
+          id: string
+          mode: string
+          quality_score: number | null
+          start_hub: string
+          start_lat: number
+          start_lng: number
+          stops_count: number | null
+          stops_data: Json | null
+          theme: string
+          title_en: string | null
+          title_fr: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          agent_version?: string | null
+          audience: string
+          best_time?: string | null
+          created_at?: string | null
+          description_en?: string | null
+          description_fr?: string | null
+          difficulty?: string
+          distance_m?: number | null
+          duration_min?: number | null
+          generated_at?: string | null
+          highlights?: string[] | null
+          id?: string
+          mode?: string
+          quality_score?: number | null
+          start_hub: string
+          start_lat: number
+          start_lng: number
+          stops_count?: number | null
+          stops_data?: Json | null
+          theme?: string
+          title_en?: string | null
+          title_fr?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          agent_version?: string | null
+          audience?: string
+          best_time?: string | null
+          created_at?: string | null
+          description_en?: string | null
+          description_fr?: string | null
+          difficulty?: string
+          distance_m?: number | null
+          duration_min?: number | null
+          generated_at?: string | null
+          highlights?: string[] | null
+          id?: string
+          mode?: string
+          quality_score?: number | null
+          start_hub?: string
+          start_lat?: number
+          start_lng?: number
+          stops_count?: number | null
+          stops_data?: Json | null
+          theme?: string
+          title_en?: string | null
+          title_fr?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       quest_narratives_cache: {
         Row: {
