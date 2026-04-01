@@ -65,14 +65,22 @@ export default function AgentMonitoringCard() {
 
   const runAgent = async () => {
     setRunning(true);
-    setAgentLogs(["▶ Lancement de l'agent autonome..."]);
+    setAgentLogs(["▶ Lancement de l'agent autonome (3 cycles)..."]);
 
     try {
-      const { data, error } = await supabase.functions.invoke("poi-auto-agent", { body: { turbo: true } });
-      if (error) throw error;
-      if (data?.logs) setAgentLogs(prev => [...prev, ...data.logs]);
+      for (let i = 0; i < 3; i++) {
+        setAgentLogs(prev => [...prev, `\n🔄 Cycle ${i + 1}/3...`]);
+        const { data, error } = await supabase.functions.invoke("poi-auto-agent");
+        if (error) throw error;
+        if (data?.logs) setAgentLogs(prev => [...prev, ...data.logs]);
+        // If no work was done, stop early
+        if (!data?.results || data.results.length === 0) {
+          setAgentLogs(prev => [...prev, "ℹ️ Rien à faire, arrêt anticipé"]);
+          break;
+        }
+      }
       setAgentLogs(prev => [...prev, "✅ Agent terminé"]);
-      toast({ title: "Agent exécuté", description: "L'agent a terminé son cycle." });
+      toast({ title: "Agent exécuté", description: "L'agent a terminé ses cycles." });
       refetchVisits();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erreur inconnue";
@@ -83,7 +91,7 @@ export default function AgentMonitoringCard() {
     }
   };
 
-  const totalVisitsPossible = 3 * 5 * 2; // 3 hubs × 5 audiences × 2 modes
+  const totalVisitsPossible = 3 * 5 * 1; // 3 hubs × 5 audiences × 1 mode (guided_tour)
   const visitCount = visits?.length ?? 0;
   const pctEnrichedAgent = (agentStats?.total ?? 0) > 0 ? Math.round((agentStats?.enriched ?? 0) / (agentStats?.total ?? 1) * 100) : 0;
 
