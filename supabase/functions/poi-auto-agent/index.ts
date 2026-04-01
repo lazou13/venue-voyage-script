@@ -206,8 +206,12 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
             .select("id, name, name_fr, lat, lng, category_ai, description_short, audience_tags, route_tags, instagram_score, street_food_spot, accessibility_notes, riddle_easy, history_context, local_anecdote, photo_tip, rating, poi_quality_score")
             .not("status", "in", '("filtered","merged")')
             .not("category_ai", "is", null)
-            .gte("poi_quality_score", 3)
-            .limit(100);
+            .gte("poi_quality_score", 5)
+            .gte("lat", 31.615)
+            .lte("lat", 31.645)
+            .gte("lng", -8.01)
+            .lte("lng", -7.97)
+            .limit(200);
 
           if (!nearbyPois || nearbyPois.length < 3) {
             logs.push("⚠️ Pas assez de POIs qualifiés pour générer une visite");
