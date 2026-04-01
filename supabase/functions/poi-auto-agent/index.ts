@@ -14,7 +14,13 @@ const HUBS = [
 ];
 
 const AUDIENCES = ["family", "young_adults", "accessible", "foodies", "instagrammers"];
-const MODES = ["guided_tour", "treasure_hunt"];
+const MODES = ["guided_tour"];
+
+const EXCLUDED_CATEGORIES = new Set([
+  "restaurant", "café", "cafe", "hotel", "riad", "tour_agency", "travel_agency",
+  "car_rental", "pharmacy", "bank", "supermarket", "gym", "spa", "generic",
+  "equestrian", "horseback", "parking", "gas_station", "atm", "laundry",
+]);
 
 const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
@@ -200,28 +206,39 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
             .select("id, name, name_fr, lat, lng, category_ai, description_short, audience_tags, route_tags, instagram_score, street_food_spot, accessibility_notes, riddle_easy, history_context, local_anecdote, photo_tip, rating, poi_quality_score")
             .not("status", "in", '("filtered","merged")')
             .not("category_ai", "is", null)
-            .gte("poi_quality_score", 3)
-            .limit(100);
+            .gte("poi_quality_score", 5)
+            .gte("lat", 31.615)
+            .lte("lat", 31.645)
+            .gte("lng", -8.01)
+            .lte("lng", -7.97)
+            .limit(200);
 
-          if (!nearbyPois || nearbyPois.length < 3) {
-            logs.push("⚠️ Pas assez de POIs qualifiés pour générer une visite");
+          // Filter out non-cultural categories
+          const culturalPois = (nearbyPois || []).filter((p: any) => {
+            const cat = (p.category_ai || "").toLowerCase();
+            return !EXCLUDED_CATEGORIES.has(cat);
+          });
+
+          if (culturalPois.length < 3) {
+            logs.push("⚠️ Pas assez de POIs culturels qualifiés pour générer une visite");
             break;
           }
 
           // Filter POIs by audience relevance
-          const relevant = nearbyPois.filter((p: any) => {
-            if (audience === "foodies") return p.street_food_spot || (p.category_ai || "").includes("restaurant") || (p.category_ai || "").includes("café");
+          const relevant = culturalPois.filter((p: any) => {
+            if (audience === "foodies") return p.street_food_spot || (p.route_tags || []).includes("food_tour");
             if (audience === "instagrammers") return (p.instagram_score || 0) >= 6;
             if (audience === "accessible") return !(p.accessibility_notes || "").toLowerCase().includes("escalier") && !(p.accessibility_notes || "").toLowerCase().includes("étroit");
             if (audience === "family") return (p.audience_tags || []).includes("family");
             return true;
           });
 
-          // Sort by distance from hub, take closest
-          const withDist = (relevant.length >= 5 ? relevant : nearbyPois).map((p: any) => ({
+          // Sort by distance from hub, take closest — max 1200m
+          const MAX_DIST_M = 1200;
+          const withDist = (relevant.length >= 5 ? relevant : culturalPois).map((p: any) => ({
             ...p,
             dist: Math.sqrt(Math.pow((p.lat - hub.lat) * 111320, 2) + Math.pow((p.lng - hub.lng) * 111320 * Math.cos(hub.lat * Math.PI / 180), 2)),
-          })).sort((a: any, b: any) => a.dist - b.dist).slice(0, 8);
+          })).filter((p: any) => p.dist <= MAX_DIST_M).sort((a: any, b: any) => a.dist - b.dist).slice(0, 8);
 
           // Determine theme based on audience
           const themeMap: Record<string, string> = {
