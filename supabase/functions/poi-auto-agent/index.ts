@@ -37,7 +37,18 @@ serve(async (req) => {
   const logs: string[] = [];
   const results: AgentResult[] = [];
 
+  // Detect turbo mode (manual call vs cron)
+  let turboMode = false;
   try {
+    const body = await req.json().catch(() => ({}));
+    turboMode = body?.turbo === true;
+  } catch {}
+  const MAX_LOOPS = turboMode ? 3 : 1;
+
+  try {
+    for (let loop = 0; loop < MAX_LOOPS; loop++) {
+    if (turboMode && loop > 0) logs.push(`\n🔄 Turbo loop ${loop + 1}/${MAX_LOOPS}...`);
+
     // ━━━━━━━━━━ PHASE 1: POI ENRICHMENT (audience/accessibility/food/instagram) ━━━━━━━━━━
     const { data: unenrichedPois, error: fetchErr } = await supabase
       .from("medina_pois")
@@ -45,7 +56,7 @@ serve(async (req) => {
       .not("status", "in", '("filtered","merged")')
       .is("agent_enriched_at", null)
       .not("category_ai", "is", null)
-      .limit(15);
+      .limit(50);
 
     if (fetchErr) throw fetchErr;
 
@@ -367,6 +378,8 @@ Génère:
         logs.push("✅ Phase 2: Toutes les visites de la bibliothèque sont déjà générées");
       }
     }
+
+    } // end turbo loop
 
     return new Response(JSON.stringify({ ok: true, logs, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
