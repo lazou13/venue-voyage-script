@@ -8,12 +8,17 @@ const corsHeaders = {
 };
 
 const BASE_URL = Deno.env.get("SUPABASE_URL")!;
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 async function callFn(name: string, body: Record<string, unknown>) {
   try {
     const resp = await fetch(`${BASE_URL}/functions/v1/${name}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${ANON_KEY}`,
+        'apikey': ANON_KEY,
+      },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(55000),
     });
