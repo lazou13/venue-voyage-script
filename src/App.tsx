@@ -28,6 +28,7 @@ import AdminHealth from "./pages/admin/AdminHealth";
 import AdminExperiencePage from "./pages/admin/AdminExperiencePage";
 import AdminPOIPipeline from "./pages/admin/AdminPOIPipeline";
 import AdminMediaLibrary from "./pages/admin/AdminMediaLibrary";
+import AdminQuestLibrary from "./pages/admin/AdminQuestLibrary";
 import PublicExperienceWizard from "./pages/PublicExperienceWizard";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,7 @@ const App = () => (
             <Route path="experience-page" element={<AdminExperiencePage />} />
             <Route path="poi-pipeline" element={<AdminPOIPipeline />} />
             <Route path="media-library" element={<AdminMediaLibrary />} />
+            <Route path="quest-library" element={<AdminQuestLibrary />} />
           </Route>
           
           <Route path="/creez-votre-experience" element={<PublicExperienceWizard />} />
