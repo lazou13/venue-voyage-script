@@ -31,7 +31,7 @@ import AdminMediaLibrary from "./pages/admin/AdminMediaLibrary";
 import AdminQuestLibrary from "./pages/admin/AdminQuestLibrary";
 import PublicExperienceWizard from "./pages/PublicExperienceWizard";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1 } } });
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
