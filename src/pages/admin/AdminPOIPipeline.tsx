@@ -176,21 +176,48 @@ export default function AdminPOIPipeline() {
         return;
       }
 
+      if (step === "fetch-photos") {
+        let totalFetched = 0;
+        let round = 1;
+
+        while (true) {
+          setLogs(prev => [...prev, `📷 Photos batch ${round}...`]);
+
+          const { data, error } = await supabase.functions.invoke("poi-fetch-photos", { body: {} });
+          if (error) throw error;
+          if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
+          totalFetched += data?.fetched ?? 0;
+
+          const remaining = data?.remaining ?? 0;
+          if (remaining > 0) {
+            setExtractionProgress({ current: totalFetched, total: totalFetched + remaining });
+          }
+
+          if ((data?.fetched ?? 0) === 0) break;
+          round++;
+          await new Promise(r => setTimeout(r, 2000));
+        }
+
+        setExtractionProgress(null);
+        setLogs(prev => [...prev, `✅ Photos terminé — ${totalFetched} photos récupérées`]);
+        toast({ title: "Photos terminé", description: `${totalFetched} photos Google récupérées.` });
+        refetchStats();
+        return;
+      }
+
       const fnName = step === "worker" ? "poi-worker"
         : step === "autopipeline" ? "poi-autopipeline"
-        : step === "fetch-photos" ? "poi-fetch-photos"
         : step === "all" ? "poi-pipeline"
         : step === "clean" || step === "merge" ? "poi-pipeline"
         : `poi-${step}`;
       const fnBody = step === "worker" ? {}
         : step === "autopipeline" ? {}
-        : step === "fetch-photos" ? {}
         : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
         : step === "enrich" ? { batch_size: 10 }
         : step === "clean" ? { step: "clean" }
         : step === "merge" ? { step: "merge" }
         : {};
-
+      
       const { data, error } = await supabase.functions.invoke(fnName, { body: fnBody });
 
       if (error) throw error;
@@ -387,7 +414,7 @@ export default function AdminPOIPipeline() {
             </Button>
             <Button onClick={() => runStep("fetch-photos")} disabled={!!running} variant="secondary" size="sm" className="gap-1">
               {running === "fetch-photos" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
-              Fetch Google Photos
+              Photos Google (auto-loop)
             </Button>
             <Button onClick={() => runStep("backfill-details")} disabled={!!running} variant="default" size="sm" className="gap-1 col-span-2">
               {running === "backfill-details" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Rocket className="w-3 h-3" />}
