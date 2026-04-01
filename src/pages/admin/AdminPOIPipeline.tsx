@@ -414,7 +414,7 @@ export default function AdminPOIPipeline() {
             </Button>
             <Button onClick={() => runStep("fetch-photos")} disabled={!!running} variant="secondary" size="sm" className="gap-1">
               {running === "fetch-photos" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
-              Fetch Google Photos
+              Photos Google (auto-loop)
             </Button>
             <Button onClick={() => runStep("backfill-details")} disabled={!!running} variant="default" size="sm" className="gap-1 col-span-2">
               {running === "backfill-details" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Rocket className="w-3 h-3" />}
