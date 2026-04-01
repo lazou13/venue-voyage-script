@@ -1,44 +1,43 @@
 
 
-# Fix: Agent "Failed to send a request to the Edge Function"
+# Fix: Toutes les visites sont identiques
 
 ## Diagnostic
 
-L'erreur "Failed to send a request to the Edge Function" est causée par un **timeout**. En mode turbo, l'agent fait :
-1. Phase 1 : appel Gemini Flash pour 50 POIs (~15s)
-2. Phase 2 : appel Gemini Pro pour 1 visite (~30s)
-3. Répète 3 fois (turbo)
+Le problème est dans la logique de sélection des POIs (Phase 2 de l'agent). Actuellement :
 
-Total : ~2-3 minutes, ce qui dépasse le timeout par défaut des edge functions (60s pour Supabase). De plus, le calcul `totalVisitsPossible` affiche encore `3 × 5 × 2 = 30` au lieu de `3 × 5 × 1 = 15`.
+1. On prend **tous les POIs culturels** (67 après exclusion des restos/riads/hôtels)
+2. On filtre par audience — mais quand il y a moins de 5 résultats, **on retombe sur la liste complète**
+3. On trie par **distance du hub** et on prend les **8 plus proches**
+
+Résultat : les 8 plus proches de Koutoubia sont toujours les mêmes (Koutoubia Museum, Bahri Palace, Park Arsat, etc.), quel que soit l'audience.
 
 ## Solution
 
-### 1. Supprimer le mode turbo côté edge function
+### Déléguer la sélection des POIs à l'IA
 
-Le turbo cause des timeouts. A la place, **boucler côté client** — le bouton "Forcer une exécution" appellera l'agent 3 fois séquentiellement avec des logs progressifs.
+Au lieu du tri naïf par distance, **envoyer la liste complète des POIs culturels à Gemini Pro** et lui demander de choisir les 6-8 meilleurs pour chaque combinaison hub/audience, en tenant compte de :
+- La **cohérence thématique** (foodies → souks alimentaires + artisans + places animées)
+- La **diversité** des catégories (pas 3 musées d'affilée)
+- L'**ordre de visite logique** (proximité géographique pour un parcours fluide)
+- Les **tags d'audience** enrichis en Phase 1
 
-Dans `poi-auto-agent/index.ts` :
-- Retirer la boucle turbo (`MAX_LOOPS`)
-- Chaque appel = 1 cycle (Phase 1 + Phase 2), ~30-45s max
+### Changements dans `poi-auto-agent/index.ts` — Phase 2
 
-### 2. Boucler côté client dans `AgentMonitoringCard.tsx`
+1. **Supprimer** le tri par distance + `slice(0, 8)` 
+2. **Envoyer tous les POIs culturels** (jusqu'à 67) au prompt Gemini Pro avec leurs coordonnées, catégories, audience_tags, route_tags, instagram_score
+3. **Demander à l'IA** de sélectionner 6-8 POIs et de les ordonner en parcours cohérent via tool calling (retourner les `poi_id` choisis dans l'ordre)
+4. **Fusionner** les deux appels IA (sélection + titre/description) en un seul appel pour gagner du temps
+5. **Ajouter une contrainte** : les POIs déjà utilisés dans une visite du même hub sont dépréciés (pas exclus, mais signalés à l'IA pour favoriser la diversité)
 
-```
-runAgent():
-  for 3 loops:
-    invoke("poi-auto-agent")
-    append logs
-    if no work done → break
-```
+### Purger les visites existantes
 
-### 3. Corriger `totalVisitsPossible`
+Exécuter `DELETE FROM quest_library` pour repartir de zéro avec la nouvelle logique.
 
-`3 * 5 * 1 = 15` (plus `* 2` puisqu'on ne fait que `guided_tour`)
-
-## Fichiers modifiés
+### Fichiers modifiés
 
 | Fichier | Changement |
 |---------|-----------|
-| `supabase/functions/poi-auto-agent/index.ts` | Supprimer boucle turbo, 1 cycle par appel |
-| `src/components/admin/AgentMonitoringCard.tsx` | Boucle 3x côté client, fix total visites = 15 |
+| `supabase/functions/poi-auto-agent/index.ts` | Phase 2 : sélection IA des stops + fusion appels |
+| Migration SQL | `DELETE FROM quest_library` |
 
