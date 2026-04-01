@@ -109,7 +109,7 @@ serve(async (req) => {
         if (!result) continue;
 
         const update: Record<string, any> = {};
-        if (result.history_context && !poi.history_context) update.history_context = result.history_context;
+        if (result.history_context && (force || !poi.history_context)) update.history_context = result.history_context;
         if (result.local_anecdote) update.local_anecdote = result.local_anecdote;
 
         if (Object.keys(update).length > 0) {
