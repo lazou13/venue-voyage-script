@@ -45,7 +45,7 @@ serve(async (req) => {
       .not("status", "in", '("filtered","merged")')
       .is("agent_enriched_at", null)
       .not("category_ai", "is", null)
-      .limit(15);
+      .limit(50);
 
     if (fetchErr) throw fetchErr;
 
