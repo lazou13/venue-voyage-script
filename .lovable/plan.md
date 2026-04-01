@@ -1,26 +1,21 @@
 
 
-# Fix: Page admin blanche (erreur 503)
+# Fix: Page admin blanche — serveur de développement bloqué
 
 ## Diagnostic
 
-Le serveur de développement retourne une erreur **503** sur `main.tsx`, ce qui empêche tout chargement de l'application. Après inspection du code :
-
-- `EnrichmentPipelineCard.tsx` : syntaxe OK, pas d'erreur
-- `enrichment-pipeline/index.ts` : syntaxe OK
-- `AdminPOIPipeline.tsx` : imports OK
-- `App.tsx`, `main.tsx` : pas de changement, syntaxe OK
-
-Le 503 n'est **pas causé par les modifications récentes**. C'est un crash/redémarrage du serveur de développement Vite.
+Le serveur Vite est bloqué/mort. Modifier un commentaire ne suffit pas à le relancer car le processus ne tourne plus. Il faut forcer un rebuild réel avec une modification substantielle du code.
 
 ## Solution
 
-Forcer un redémarrage propre du dev server en faisant une modification mineure dans un fichier source (par exemple, ajouter/retirer un commentaire ou un espace dans `src/main.tsx`), ce qui déclenchera un rebuild complet.
+Effectuer une modification mineure mais réelle dans `src/App.tsx` (ajouter un `key` prop au `BrowserRouter` avec un timestamp en commentaire) pour forcer Vite à effectuer un rebuild complet du point d'entrée de l'application.
 
-Si le problème persiste après ça, on supprimera l'import inutilisé `useCallback` dans `EnrichmentPipelineCard.tsx` (ligne 1) pour éliminer toute cause possible.
+En parallèle, nettoyer `src/main.tsx` en retirant le commentaire `// Force rebuild` inutile.
 
 | Fichier | Changement |
 |---------|-----------|
-| `src/main.tsx` | Ajout d'un commentaire pour forcer un rebuild |
-| `src/components/admin/EnrichmentPipelineCard.tsx` | Retirer `useCallback` de l'import (inutilisé) |
+| `src/App.tsx` | Ajouter un commentaire de version pour forcer un rebuild complet |
+| `src/main.tsx` | Nettoyer le commentaire précédent |
+
+Si le serveur ne redémarre toujours pas après cette modification, il faudra utiliser l'historique pour restaurer une version précédente.
 
