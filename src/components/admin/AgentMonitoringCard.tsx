@@ -68,7 +68,7 @@ export default function AgentMonitoringCard() {
     setAgentLogs(["▶ Lancement de l'agent autonome..."]);
 
     try {
-      const { data, error } = await supabase.functions.invoke("poi-auto-agent", { body: {} });
+      const { data, error } = await supabase.functions.invoke("poi-auto-agent", { body: { turbo: true } });
       if (error) throw error;
       if (data?.logs) setAgentLogs(prev => [...prev, ...data.logs]);
       setAgentLogs(prev => [...prev, "✅ Agent terminé"]);
