@@ -28,6 +28,7 @@ import AdminHealth from "./pages/admin/AdminHealth";
 import AdminExperiencePage from "./pages/admin/AdminExperiencePage";
 import AdminPOIPipeline from "./pages/admin/AdminPOIPipeline";
 import AdminMediaLibrary from "./pages/admin/AdminMediaLibrary";
+import AdminQuestLibrary from "./pages/admin/AdminQuestLibrary";
 import PublicExperienceWizard from "./pages/PublicExperienceWizard";
 
 const queryClient = new QueryClient();
