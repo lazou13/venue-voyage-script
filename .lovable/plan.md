@@ -1,39 +1,26 @@
 
 
-# Fix: Timeout orchestrateur pour anecdotes Perplexity
+# Fix: Page admin blanche (erreur 503)
 
-## Cause racine
+## Diagnostic
 
-L'edge function `enrichment-pipeline` a un wall clock limit de ~60s. Avant, Gemini répondait en ~1s/POI. Maintenant Perplexity prend ~3-4s/POI (recherche web réelle). Les étapes 1-4 consomment déjà ~30s, il ne reste pas assez de temps pour les anecdotes.
+Le serveur de développement retourne une erreur **503** sur `main.tsx`, ce qui empêche tout chargement de l'application. Après inspection du code :
 
-L'`anecdote-enricher` fonctionne parfaitement en appel direct (testé : 2/2 POIs OK).
+- `EnrichmentPipelineCard.tsx` : syntaxe OK, pas d'erreur
+- `enrichment-pipeline/index.ts` : syntaxe OK
+- `AdminPOIPipeline.tsx` : imports OK
+- `App.tsx`, `main.tsx` : pas de changement, syntaxe OK
+
+Le 503 n'est **pas causé par les modifications récentes**. C'est un crash/redémarrage du serveur de développement Vite.
 
 ## Solution
 
-Passer les étapes anecdotes et énigmes en **appel client-side direct** (comme le pattern auto-loop déjà utilisé dans d'autres parties du pipeline), au lieu de les exécuter dans l'orchestrateur.
+Forcer un redémarrage propre du dev server en faisant une modification mineure dans un fichier source (par exemple, ajouter/retirer un commentaire ou un espace dans `src/main.tsx`), ce qui déclenchera un rebuild complet.
 
-### Changements dans `EnrichmentPipelineCard.tsx`
-
-1. L'orchestrateur ne lance que les 4 premières étapes (wikidata, poi_enricher, photo, wiki_name)
-2. Après l'orchestrateur, le composant appelle directement `anecdote-enricher` et `riddle-generator` en boucle côté client via `supabase.functions.invoke()`
-3. Chaque batch de 5 anecdotes / 10 riddles est appelé individuellement avec mise à jour du progress en temps réel
-4. Le composant continue jusqu'à ce que `updated === 0` (plus de POIs à traiter)
-
-### Changements dans `enrichment-pipeline/index.ts`
-
-Retirer les blocs `anecdote` et `riddle` du pipeline (ils seront gérés côté client).
-
-## Fichiers modifiés
+Si le problème persiste après ça, on supprimera l'import inutilisé `useCallback` dans `EnrichmentPipelineCard.tsx` (ligne 1) pour éliminer toute cause possible.
 
 | Fichier | Changement |
 |---------|-----------|
-| `src/components/admin/EnrichmentPipelineCard.tsx` | Appels directs client-side pour anecdotes + riddles après l'orchestrateur |
-| `supabase/functions/enrichment-pipeline/index.ts` | Retirer les étapes anecdote et riddle |
-
-## Résultat attendu
-
-- Les 4 premières étapes passent via l'orchestrateur (~30s max)
-- Les anecdotes tournent en boucle côté client, batch par batch, sans limite de temps
-- Progress en temps réel pour chaque batch traité
-- Les 786 POIs restants seront traités progressivement
+| `src/main.tsx` | Ajout d'un commentaire pour forcer un rebuild |
+| `src/components/admin/EnrichmentPipelineCard.tsx` | Retirer `useCallback` de l'import (inutilisé) |
 
