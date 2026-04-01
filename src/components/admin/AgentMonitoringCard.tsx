@@ -91,7 +91,7 @@ export default function AgentMonitoringCard() {
     }
   };
 
-  const totalVisitsPossible = 3 * 5 * 2; // 3 hubs × 5 audiences × 2 modes
+  const totalVisitsPossible = 3 * 5 * 1; // 3 hubs × 5 audiences × 1 mode (guided_tour)
   const visitCount = visits?.length ?? 0;
   const pctEnrichedAgent = (agentStats?.total ?? 0) > 0 ? Math.round((agentStats?.enriched ?? 0) / (agentStats?.total ?? 1) * 100) : 0;
 
