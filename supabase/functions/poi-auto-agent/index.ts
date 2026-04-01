@@ -234,10 +234,11 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
           });
 
           // Sort by distance from hub, take closest — max 1200m
-          const withDist = (relevant.length >= 5 ? relevant : nearbyPois).map((p: any) => ({
+          const MAX_DIST_M = 1200;
+          const withDist = (relevant.length >= 5 ? relevant : culturalPois).map((p: any) => ({
             ...p,
             dist: Math.sqrt(Math.pow((p.lat - hub.lat) * 111320, 2) + Math.pow((p.lng - hub.lng) * 111320 * Math.cos(hub.lat * Math.PI / 180), 2)),
-          })).sort((a: any, b: any) => a.dist - b.dist).slice(0, 8);
+          })).filter((p: any) => p.dist <= MAX_DIST_M).sort((a: any, b: any) => a.dist - b.dist).slice(0, 8);
 
           // Determine theme based on audience
           const themeMap: Record<string, string> = {
