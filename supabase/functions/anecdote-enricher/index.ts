@@ -76,13 +76,19 @@ serve(async (req) => {
   
   try {
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
-    const batchSize = Math.min(body.batch_size ?? 10, 10);
+    const batchSize = Math.min(body.batch_size ?? 10, 20);
     const minScore = body.min_score ?? 2.0;
+    const force = body.force === true;
 
     let query = supabase
       .from('medina_pois')
-      .select('id, name, name_fr, name_en, category, category_ai, zone, description_short, history_context')
-      .is('local_anecdote', null)
+      .select('id, name, name_fr, name_en, category, category_ai, zone, description_short, history_context');
+    
+    if (!force) {
+      query = query.is('local_anecdote', null);
+    }
+    
+    query = query
       .gte('poi_quality_score', minScore)
       .not('status', 'in', '("filtered","merged")')
       .order('poi_quality_score', { ascending: false })
