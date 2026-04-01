@@ -72,21 +72,7 @@ serve(async (req) => {
     log.push(`  ✓ ${total} POIs enrichis via Wikipedia`);
   }
 
-  if (steps.includes('anecdote')) {
-    log.push('▶ anecdote-enricher...');
-    let total = 0;
-    for (let i = 0; i < 40; i++) { const r = await callFn('anecdote-enricher', { batch_size: 5, min_score: 0 }); if (!r.ok) { log.push(`  ⚠ ${(r as any).error || (r.data as any)?.error || 'unknown'}`); break; } const c = (r.data as any)?.updated ?? 0; total += c; if (c === 0) break; await sleep(1500); }
-    results.anecdote_enricher = { updated: total };
-    log.push(`  ✓ ${total} anecdotes générées`);
-  }
-
-  if (steps.includes('riddle')) {
-    log.push('▶ riddle-generator...');
-    let total = 0;
-    for (let i = 0; i < 40; i++) { const r = await callFn('riddle-generator', { batch_size: 10, min_score: 0 }); if (!r.ok) { log.push(`  ⚠ ${(r as any).error || (r.data as any)?.error || 'unknown'}`); break; } const c = (r.data as any)?.updated ?? 0; total += c; if (c === 0) break; await sleep(1500); }
-    results.riddle_generator = { updated: total };
-    log.push(`  ✓ ${total} énigmes générées`);
-  }
+  // anecdote + riddle steps removed — handled client-side to avoid timeout
 
   let stats = null;
   try {
