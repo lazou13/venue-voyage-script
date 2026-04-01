@@ -168,17 +168,42 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
       logs.push("✅ Phase 1: Tous les POIs sont déjà enrichis par l'agent");
     }
 
-    // ━━━━━━━━━━ PHASE 2: GENERATE LIBRARY VISITS (Gemini 2.5 Pro) ━━━━━━━━━━
-    // Check what visits are missing
+    // ━━━━━━━━━━ PHASE 2: GENERATE LIBRARY VISITS (AI-driven POI selection) ━━━━━━━━━━
     const { data: existingVisits } = await supabase
       .from("quest_library")
-      .select("start_hub, audience, mode");
+      .select("start_hub, audience, mode, stops_data");
 
     const existingKeys = new Set(
       (existingVisits || []).map((v: any) => `${v.start_hub}__${v.audience}__${v.mode}`)
     );
 
-    // Find next visit to generate
+    // Collect POI IDs already used per hub for diversity
+    const usedPoisPerHub: Record<string, Set<string>> = {};
+    for (const v of existingVisits || []) {
+      if (!usedPoisPerHub[v.start_hub]) usedPoisPerHub[v.start_hub] = new Set();
+      for (const s of (v.stops_data || []) as any[]) {
+        if (s.poi_id) usedPoisPerHub[v.start_hub].add(s.poi_id);
+      }
+    }
+
+    // Get ALL cultural POIs once
+    const { data: allPois } = await supabase
+      .from("medina_pois")
+      .select("id, name, name_fr, lat, lng, category_ai, description_short, audience_tags, route_tags, instagram_score, street_food_spot, accessibility_notes, riddle_easy, history_context, local_anecdote, photo_tip, rating, poi_quality_score, ruelle_etroite, best_time_visit")
+      .not("status", "in", '("filtered","merged")')
+      .not("category_ai", "is", null)
+      .gte("poi_quality_score", 5)
+      .gte("lat", 31.615)
+      .lte("lat", 31.645)
+      .gte("lng", -8.01)
+      .lte("lng", -7.97)
+      .limit(200);
+
+    const culturalPois = (allPois || []).filter((p: any) => {
+      const cat = (p.category_ai || "").toLowerCase();
+      return !EXCLUDED_CATEGORIES.has(cat);
+    });
+
     let generated = false;
     for (const hub of HUBS) {
       if (generated) break;
@@ -188,198 +213,216 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
           const key = `${hub.id}__${audience}__${mode}`;
           if (existingKeys.has(key)) continue;
 
-          logs.push(`🗺️ Phase 2: Génération visite ${hub.name} / ${audience} / ${mode}...`);
-
-          // Get nearby POIs for this hub
-          const { data: nearbyPois } = await supabase
-            .from("medina_pois")
-            .select("id, name, name_fr, lat, lng, category_ai, description_short, audience_tags, route_tags, instagram_score, street_food_spot, accessibility_notes, riddle_easy, history_context, local_anecdote, photo_tip, rating, poi_quality_score")
-            .not("status", "in", '("filtered","merged")')
-            .not("category_ai", "is", null)
-            .gte("poi_quality_score", 5)
-            .gte("lat", 31.615)
-            .lte("lat", 31.645)
-            .gte("lng", -8.01)
-            .lte("lng", -7.97)
-            .limit(200);
-
-          // Filter out non-cultural categories
-          const culturalPois = (nearbyPois || []).filter((p: any) => {
-            const cat = (p.category_ai || "").toLowerCase();
-            return !EXCLUDED_CATEGORIES.has(cat);
-          });
-
-          if (culturalPois.length < 3) {
-            logs.push("⚠️ Pas assez de POIs culturels qualifiés pour générer une visite");
+          if (culturalPois.length < 5) {
+            logs.push("⚠️ Pas assez de POIs culturels qualifiés");
             break;
           }
 
-          // Filter POIs by audience relevance
-          const relevant = culturalPois.filter((p: any) => {
-            if (audience === "foodies") return p.street_food_spot || (p.route_tags || []).includes("food_tour");
-            if (audience === "instagrammers") return (p.instagram_score || 0) >= 6;
-            if (audience === "accessible") return !(p.accessibility_notes || "").toLowerCase().includes("escalier") && !(p.accessibility_notes || "").toLowerCase().includes("étroit");
-            if (audience === "family") return (p.audience_tags || []).includes("family");
-            return true;
+          logs.push(`🗺️ Phase 2: Génération visite ${hub.name} / ${audience} / ${mode}...`);
+
+          // Mark already-used POIs for this hub
+          const usedSet = usedPoisPerHub[hub.id] || new Set();
+
+          // Build POI list for AI with distance from hub
+          const poisForAI = culturalPois.map((p: any, i: number) => {
+            const dist = Math.sqrt(Math.pow((p.lat - hub.lat) * 111320, 2) + Math.pow((p.lng - hub.lng) * 111320 * Math.cos(hub.lat * Math.PI / 180), 2));
+            return {
+              idx: i,
+              id: p.id,
+              name: p.name_fr || p.name,
+              category: p.category_ai,
+              lat: p.lat,
+              lng: p.lng,
+              dist_m: Math.round(dist),
+              score: p.poi_quality_score,
+              audience_tags: p.audience_tags || [],
+              route_tags: p.route_tags || [],
+              instagram_score: p.instagram_score || 0,
+              street_food: p.street_food_spot || false,
+              accessible: !(p.accessibility_notes || "").toLowerCase().includes("escalier") && !(p.ruelle_etroite),
+              already_used: usedSet.has(p.id),
+              description: (p.description_short || "").slice(0, 80),
+            };
+          }).filter((p: any) => p.dist_m <= 1500); // Max 1.5km from hub
+
+          const poisText = poisForAI.map((p: any) =>
+            `[${p.idx}] "${p.name}" (${p.category}) — ${p.dist_m}m du départ, score: ${p.score}/10, ` +
+            `instagram: ${p.instagram_score}/10, food: ${p.street_food ? 'oui' : 'non'}, ` +
+            `accessible: ${p.accessible ? 'oui' : 'non'}, ` +
+            `audiences: [${p.audience_tags.join(',')}], routes: [${p.route_tags.join(',')}]` +
+            `${p.already_used ? ' ⚠️ DÉJÀ UTILISÉ dans une autre visite de ce hub' : ''}`
+          ).join("\n");
+
+          const audienceDesc: Record<string, string> = {
+            family: "Familles avec enfants : lieux sûrs, accessibles, ludiques, pas de ruelles trop étroites",
+            young_adults: "Jeunes adultes : lieux insolites, hidden gems, street art, ambiance, ruelles secrètes",
+            accessible: "Personnes à mobilité réduite : uniquement des lieux accessibles sans escaliers ni passages étroits",
+            foodies: "Gourmets et amateurs de street food : souks alimentaires, épiceries, stands de rue, artisans culinaires",
+            instagrammers: "Photographes et influenceurs : lieux les plus photogéniques, score instagram élevé, architecture remarquable",
+          };
+
+          const selectionPrompt = `Tu es un expert de la médina de Marrakech. Tu dois créer une VISITE GUIDÉE unique et mémorable.
+
+POINT DE DÉPART: ${hub.name} (lat: ${hub.lat}, lng: ${hub.lng})
+PUBLIC CIBLE: ${audience} — ${audienceDesc[audience] || audience}
+NOMBRE D'ÉTAPES: 6 à 8
+
+RÈGLES DE SÉLECTION:
+1. Choisis des POIs qui correspondent VRAIMENT au public cible
+2. Assure une DIVERSITÉ de catégories (pas 2 monuments consécutifs, alterner palais/souks/places/jardins)
+3. Ordonne les stops pour un PARCOURS LOGIQUE géographiquement (minimiser les allers-retours)
+4. ÉVITE les POIs marqués "DÉJÀ UTILISÉ" sauf s'ils sont incontournables pour ce public
+5. La distance totale du parcours ne doit pas dépasser 1200m
+6. Privilégie les POIs avec un bon score qualité
+
+POIs DISPONIBLES:
+${poisText}
+
+Génère en une seule réponse :
+- Les poi_ids sélectionnés DANS L'ORDRE du parcours
+- Un titre accrocheur FR et EN
+- Une description 2-3 phrases FR et EN expliquant POURQUOI cette visite est unique pour ce public
+- 3-5 highlights courts (FR)
+- Le meilleur moment de la journée
+- Un score qualité auto-évalué 1-10`;
+
+          if (!LOVABLE_API_KEY) continue;
+
+          const visitResponse = await fetch(AI_GATEWAY, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-pro",
+              messages: [
+                { role: "system", content: "Tu es un expert du tourisme culturel à Marrakech. Tu crées des parcours de visite uniques et variés." },
+                { role: "user", content: selectionPrompt },
+              ],
+              tools: [{
+                type: "function",
+                function: {
+                  name: "create_visit",
+                  description: "Create a complete library visit with selected POIs",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      selected_poi_indices: { type: "array", items: { type: "integer" }, description: "Indices of selected POIs in visit order" },
+                      title_fr: { type: "string" },
+                      title_en: { type: "string" },
+                      description_fr: { type: "string" },
+                      description_en: { type: "string" },
+                      highlights: { type: "array", items: { type: "string" } },
+                      best_time: { type: "string" },
+                      quality_score: { type: "number" },
+                    },
+                    required: ["selected_poi_indices", "title_fr", "title_en", "description_fr", "description_en", "highlights", "best_time", "quality_score"],
+                  },
+                },
+              }],
+              tool_choice: { type: "function", function: { name: "create_visit" } },
+            }),
           });
 
-          // Sort by distance from hub, take closest — max 1200m
-          const MAX_DIST_M = 1200;
-          const withDist = (relevant.length >= 5 ? relevant : culturalPois).map((p: any) => ({
-            ...p,
-            dist: Math.sqrt(Math.pow((p.lat - hub.lat) * 111320, 2) + Math.pow((p.lng - hub.lng) * 111320 * Math.cos(hub.lat * Math.PI / 180), 2)),
-          })).filter((p: any) => p.dist <= MAX_DIST_M).sort((a: any, b: any) => a.dist - b.dist).slice(0, 8);
+          if (!visitResponse.ok) {
+            const errText = await visitResponse.text();
+            logs.push(`❌ Erreur IA visite: ${visitResponse.status} — ${errText.slice(0, 200)}`);
+            continue;
+          }
 
-          // Determine theme based on audience
-          const themeMap: Record<string, string> = {
-            foodies: "food",
-            instagrammers: "photography",
-            family: "complete",
-            accessible: "complete",
-            young_adults: "hidden_gems",
-          };
-          const theme = themeMap[audience] || "complete";
+          const visitData = await visitResponse.json();
+          const visitTool = visitData.choices?.[0]?.message?.tool_calls?.[0];
+          if (!visitTool?.function?.arguments) {
+            logs.push("❌ Pas de réponse structurée de l'IA");
+            continue;
+          }
+
+          const visit = JSON.parse(visitTool.function.arguments);
+          const selectedIndices: number[] = visit.selected_poi_indices || [];
+
+          // Map indices back to POIs
+          const selectedPois = selectedIndices
+            .map((idx: number) => poisForAI.find((p: any) => p.idx === idx))
+            .filter(Boolean);
+
+          if (selectedPois.length < 3) {
+            logs.push("⚠️ L'IA a sélectionné moins de 3 POIs, skip");
+            continue;
+          }
 
           // Calculate route stats
           let totalDist = 0;
-          for (let i = 1; i < withDist.length; i++) {
-            totalDist += withDist[i].dist;
+          for (let i = 1; i < selectedPois.length; i++) {
+            const prev = selectedPois[i - 1];
+            const curr = selectedPois[i];
+            totalDist += Math.sqrt(Math.pow((curr.lat - prev.lat) * 111320, 2) + Math.pow((curr.lng - prev.lng) * 111320 * Math.cos(curr.lat * Math.PI / 180), 2));
           }
-          const walkTime = Math.round(totalDist / 50); // ~3km/h
-          const visitTime = withDist.length * (mode === "guided_tour" ? 12 : 8);
+          const walkTime = Math.round(totalDist / 50);
+          const visitTime = selectedPois.length * 12;
           const totalTime = walkTime + visitTime;
 
-          // Build stops data
-          const stopsData = withDist.map((p: any, i: number) => ({
-            order: i + 1,
-            poi_id: p.id,
-            name: p.name_fr || p.name,
-            lat: p.lat,
-            lng: p.lng,
-            category: p.category_ai || "generic",
-            distance_from_prev_m: i === 0 ? 0 : Math.round(p.dist),
-            walk_time_min: i === 0 ? 0 : Math.round(p.dist / 50),
-            visit_time_min: mode === "guided_tour" ? 12 : 8,
-            riddle: mode === "treasure_hunt" ? p.riddle_easy : undefined,
-            story: p.history_context || p.local_anecdote || undefined,
-            description: p.description_short || undefined,
-            photo_tip: p.photo_tip || undefined,
-          }));
+          // Build stops_data from original POI data
+          const stopsData = selectedPois.map((p: any, i: number) => {
+            const original = culturalPois[p.idx];
+            const prevDist = i === 0 ? 0 : Math.round(
+              Math.sqrt(Math.pow((p.lat - selectedPois[i-1].lat) * 111320, 2) + Math.pow((p.lng - selectedPois[i-1].lng) * 111320 * Math.cos(p.lat * Math.PI / 180), 2))
+            );
+            return {
+              order: i + 1,
+              poi_id: p.id,
+              name: p.name,
+              lat: p.lat,
+              lng: p.lng,
+              category: p.category,
+              distance_from_prev_m: prevDist,
+              walk_time_min: i === 0 ? 0 : Math.round(prevDist / 50),
+              visit_time_min: 12,
+              story: original?.history_context || original?.local_anecdote || undefined,
+              description: original?.description_short || undefined,
+              photo_tip: original?.photo_tip || undefined,
+            };
+          });
 
-          // Use AI to generate title, description, highlights
-          if (LOVABLE_API_KEY) {
-            const poisSummary = withDist.map((p: any, i: number) =>
-              `${i + 1}. ${p.name_fr || p.name} — ${p.category_ai}, score: ${p.poi_quality_score}/10, instagram: ${p.instagram_score || '?'}/10`
-            ).join("\n");
+          const theme = { foodies: "food", instagrammers: "photography", family: "complete", accessible: "complete", young_adults: "hidden_gems" }[audience] || "complete";
 
-            const visitPrompt = `Génère le titre et la description d'une visite de la médina de Marrakech.
-
-DÉPART: ${hub.name} (${hub.id})
-AUDIENCE: ${audience}
-MODE: ${mode === "guided_tour" ? "Visite guidée" : "Chasse au trésor"}
-THÈME: ${theme}
-DURÉE: ~${totalTime} min
-ÉTAPES: ${withDist.length}
-DISTANCE: ~${Math.round(totalDist)}m
-
-POIs du parcours:
-${poisSummary}
-
-Génère:
-- title_fr: titre accrocheur en français (max 60 car)
-- title_en: titre en anglais
-- description_fr: 2-3 phrases expliquant POURQUOI cette visite, POUR QUI, et CE QU'ON VA VOIR (en français)
-- description_en: même chose en anglais
-- highlights: 3-5 points forts courts (en français)
-- best_time: meilleur moment de la journée
-- quality_score: auto-évaluation 1-10 de la qualité du parcours`;
-
-            const visitResponse = await fetch(AI_GATEWAY, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${LOVABLE_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                model: "google/gemini-2.5-pro",
-                messages: [
-                  { role: "system", content: "Tu es un expert du tourisme à Marrakech. Génère des descriptions de visites captivantes et précises." },
-                  { role: "user", content: visitPrompt },
-                ],
-                tools: [{
-                  type: "function",
-                  function: {
-                    name: "create_visit",
-                    description: "Create a library visit entry",
-                    parameters: {
-                      type: "object",
-                      properties: {
-                        title_fr: { type: "string" },
-                        title_en: { type: "string" },
-                        description_fr: { type: "string" },
-                        description_en: { type: "string" },
-                        highlights: { type: "array", items: { type: "string" } },
-                        best_time: { type: "string" },
-                        quality_score: { type: "number" },
-                      },
-                      required: ["title_fr", "title_en", "description_fr", "description_en", "highlights", "best_time", "quality_score"],
-                    },
-                  },
-                }],
-                tool_choice: { type: "function", function: { name: "create_visit" } },
-              }),
+          const { error: insertErr } = await supabase
+            .from("quest_library")
+            .insert({
+              start_hub: hub.id,
+              start_lat: hub.lat,
+              start_lng: hub.lng,
+              audience,
+              mode,
+              theme,
+              difficulty: audience === "family" || audience === "accessible" ? "easy" : "medium",
+              title_fr: visit.title_fr,
+              title_en: visit.title_en,
+              description_fr: visit.description_fr,
+              description_en: visit.description_en,
+              duration_min: totalTime,
+              distance_m: Math.round(totalDist),
+              stops_count: selectedPois.length,
+              stops_data: stopsData,
+              highlights: visit.highlights || [],
+              best_time: visit.best_time,
+              quality_score: visit.quality_score,
+              agent_version: "v2.0",
             });
 
-            if (visitResponse.ok) {
-              const visitData = await visitResponse.json();
-              const visitTool = visitData.choices?.[0]?.message?.tool_calls?.[0];
-              if (visitTool?.function?.arguments) {
-                const visit = JSON.parse(visitTool.function.arguments);
-
-                const { error: insertErr } = await supabase
-                  .from("quest_library")
-                  .insert({
-                    start_hub: hub.id,
-                    start_lat: hub.lat,
-                    start_lng: hub.lng,
-                    audience,
-                    mode,
-                    theme,
-                    difficulty: audience === "family" || audience === "accessible" ? "easy" : "medium",
-                    title_fr: visit.title_fr,
-                    title_en: visit.title_en,
-                    description_fr: visit.description_fr,
-                    description_en: visit.description_en,
-                    duration_min: totalTime,
-                    distance_m: Math.round(totalDist),
-                    stops_count: withDist.length,
-                    stops_data: stopsData,
-                    highlights: visit.highlights || [],
-                    best_time: visit.best_time,
-                    quality_score: visit.quality_score,
-                    agent_version: "v1.0",
-                  });
-
-                if (insertErr) {
-                  logs.push(`❌ Erreur insertion visite: ${insertErr.message}`);
-                } else {
-                  logs.push(`✅ Visite créée: "${visit.title_fr}" (${hub.name}/${audience}/${mode})`);
-                  results.push({ phase: "library", action: "visit_created", count: 1, logs: [] });
-                }
-              }
-            } else {
-              const errText = await visitResponse.text();
-              logs.push(`❌ Erreur IA visite: ${visitResponse.status} — ${errText.slice(0, 200)}`);
-            }
+          if (insertErr) {
+            logs.push(`❌ Erreur insertion: ${insertErr.message}`);
+          } else {
+            logs.push(`✅ Visite créée: "${visit.title_fr}" — ${selectedPois.length} stops, ${selectedPois.map((p: any) => p.name).join(' → ')}`);
+            results.push({ phase: "library", action: "visit_created", count: 1, logs: [] });
           }
 
-          generated = true; // Only generate 1 visit per cron run
+          generated = true;
         }
       }
     }
 
     if (!generated) {
-      // Count total possible visits
       const totalPossible = HUBS.length * AUDIENCES.length * MODES.length;
       if (existingKeys.size >= totalPossible) {
         logs.push("✅ Phase 2: Toutes les visites de la bibliothèque sont déjà générées");
