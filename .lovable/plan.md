@@ -1,35 +1,39 @@
 
 
-# Fix: Pipeline anecdote-enricher timeout + "undefined" error
+# Fix: Timeout orchestrateur pour anecdotes Perplexity
 
-## Deux bugs identifiés
+## Cause racine
 
-### Bug 1 — Timeout
-Le pipeline appelle `anecdote-enricher` avec `batch_size: 20`. Chaque POI prend ~3-4s (1.5s délai + appel Perplexity). 20 POIs = 60-80s, ce qui dépasse le timeout de 55s dans `callFn`.
+L'edge function `enrichment-pipeline` a un wall clock limit de ~60s. Avant, Gemini répondait en ~1s/POI. Maintenant Perplexity prend ~3-4s/POI (recherche web réelle). Les étapes 1-4 consomment déjà ~30s, il ne reste pas assez de temps pour les anecdotes.
 
-### Bug 2 — Message d'erreur "undefined"
-Quand `callFn` catch un timeout, il retourne `{ ok: false, error: "timeout", data: {} }`. Mais ligne 78, le pipeline lit `(r.data as any)?.error` — qui est `undefined` car l'erreur est dans `r.error`, pas `r.data.error`.
+L'`anecdote-enricher` fonctionne parfaitement en appel direct (testé : 2/2 POIs OK).
 
-## Fix dans `supabase/functions/enrichment-pipeline/index.ts`
+## Solution
 
-1. **Réduire le batch_size** pour anecdote-enricher de 20 à **5** (5 × 3s = 15s, bien sous les 55s)
-2. **Corriger le message d'erreur** : lire `r.error || (r.data as any)?.error || 'unknown'` au lieu de `(r.data as any)?.error`
-3. **Même fix pour riddle-generator** (même pattern de code)
-4. **Augmenter les itérations** de 10 à 40 pour compenser le batch plus petit (5 × 40 = 200 POIs max par run)
+Passer les étapes anecdotes et énigmes en **appel client-side direct** (comme le pattern auto-loop déjà utilisé dans d'autres parties du pipeline), au lieu de les exécuter dans l'orchestrateur.
 
-### Code modifié (ligne 78)
+### Changements dans `EnrichmentPipelineCard.tsx`
 
-```ts
-// Avant
-const r = await callFn('anecdote-enricher', { batch_size: 20, min_score: 0 });
-if (!r.ok) { log.push(`  ⚠ ${(r.data as any)?.error}`); break; }
+1. L'orchestrateur ne lance que les 4 premières étapes (wikidata, poi_enricher, photo, wiki_name)
+2. Après l'orchestrateur, le composant appelle directement `anecdote-enricher` et `riddle-generator` en boucle côté client via `supabase.functions.invoke()`
+3. Chaque batch de 5 anecdotes / 10 riddles est appelé individuellement avec mise à jour du progress en temps réel
+4. Le composant continue jusqu'à ce que `updated === 0` (plus de POIs à traiter)
 
-// Après  
-const r = await callFn('anecdote-enricher', { batch_size: 5, min_score: 0 });
-if (!r.ok) { log.push(`  ⚠ ${(r as any).error || (r.data as any)?.error || 'unknown'}`); break; }
-```
+### Changements dans `enrichment-pipeline/index.ts`
+
+Retirer les blocs `anecdote` et `riddle` du pipeline (ils seront gérés côté client).
+
+## Fichiers modifiés
 
 | Fichier | Changement |
 |---------|-----------|
-| `supabase/functions/enrichment-pipeline/index.ts` | batch_size 20→5 pour anecdotes, fix error logging, augmenter itérations |
+| `src/components/admin/EnrichmentPipelineCard.tsx` | Appels directs client-side pour anecdotes + riddles après l'orchestrateur |
+| `supabase/functions/enrichment-pipeline/index.ts` | Retirer les étapes anecdote et riddle |
+
+## Résultat attendu
+
+- Les 4 premières étapes passent via l'orchestrateur (~30s max)
+- Les anecdotes tournent en boucle côté client, batch par batch, sans limite de temps
+- Progress en temps réel pour chaque batch traité
+- Les 786 POIs restants seront traités progressivement
 
