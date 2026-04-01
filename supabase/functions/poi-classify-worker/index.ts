@@ -51,7 +51,9 @@ RÈGLES CRITIQUES :
 - Le score NE DOIT PAS copier le rating Google. Un restaurant 5★ avec 3 avis = score 3-4. Un monument 3.9★ avec 14000 avis = score 8-9.
 - reviews_count est un indicateur de notoriété : 1000+ avis = lieu très connu, 100-999 = connu, <100 = peu connu
 - Les monuments historiques et lieux culturels majeurs doivent TOUJOURS avoir un score ≥ 7
-- Les restaurants/cafés ordinaires ne dépassent PAS 5 sauf s'ils sont emblématiques (ex: Café de France, Nomad)` },
+- Les restaurants/cafés ordinaires ne dépassent PAS 5 sauf s'ils sont emblématiques (ex: Café de France, Nomad)
+- Les RIADS sont du patrimoine architectural vivant de la médina (architecture mauresque, zellige, patios). Score MINIMUM 6. Si bien noté (≥4★) ou connu (≥100 avis) → score 7-8. Un riad n'est PAS un simple hôtel.
+- Les HÔTELS de charme et maisons d'hôtes traditionnelles suivent la même règle que les riads` },
         { role: "user", content: userPrompt },
       ],
       tools: [{
