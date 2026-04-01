@@ -419,6 +419,10 @@ export default function AdminPOIPipeline() {
               {running === "reclassify" ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
               Re-classifier tout
             </Button>
+            <Button onClick={() => runStep("rescore-riads")} disabled={!!running} variant="secondary" size="sm" className="gap-1">
+              {running === "rescore-riads" ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+              Re-scorer riads
+            </Button>
             <Button onClick={() => runStep("worker")} disabled={!!running} variant="outline" size="sm" className="gap-1">
               {running === "worker" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Brain className="w-3 h-3" />}
               Enrichir

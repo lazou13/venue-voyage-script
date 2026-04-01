@@ -379,6 +379,8 @@ Génère:
       }
     }
 
+    } // end turbo loop
+
     return new Response(JSON.stringify({ ok: true, logs, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
