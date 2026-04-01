@@ -285,6 +285,8 @@ export default function AdminPOIPipeline() {
         </div>
       </div>
 
+      <AgentMonitoringCard />
+
       <EnrichmentPipelineCard />
 
       {/* Extraction Progress */}
