@@ -1,39 +1,44 @@
 
 
-# Reset bibliothèque + Filtres medina + Visites uniquement
+# Fix: Agent "Failed to send a request to the Edge Function"
 
-## Ce qui va etre fait
+## Diagnostic
 
-### 1. Purger la table `quest_library`
-- `DELETE FROM quest_library` via l'outil insert pour vider toutes les visites polluees
+L'erreur "Failed to send a request to the Edge Function" est causée par un **timeout**. En mode turbo, l'agent fait :
+1. Phase 1 : appel Gemini Flash pour 50 POIs (~15s)
+2. Phase 2 : appel Gemini Pro pour 1 visite (~30s)
+3. Répète 3 fois (turbo)
 
-### 2. Modifier `poi-auto-agent` — Phase 2
+Total : ~2-3 minutes, ce qui dépasse le timeout par défaut des edge functions (60s pour Supabase). De plus, le calcul `totalVisitsPossible` affiche encore `3 × 5 × 2 = 30` au lieu de `3 × 5 × 1 = 15`.
 
-**Supprimer le mode `treasure_hunt`** de la generation automatique. Ne garder que `guided_tour` pour l'instant.
+## Solution
+
+### 1. Supprimer le mode turbo côté edge function
+
+Le turbo cause des timeouts. A la place, **boucler côté client** — le bouton "Forcer une exécution" appellera l'agent 3 fois séquentiellement avec des logs progressifs.
+
+Dans `poi-auto-agent/index.ts` :
+- Retirer la boucle turbo (`MAX_LOOPS`)
+- Chaque appel = 1 cycle (Phase 1 + Phase 2), ~30-45s max
+
+### 2. Boucler côté client dans `AgentMonitoringCard.tsx`
 
 ```
-const MODES = ["guided_tour"];
+runAgent():
+  for 3 loops:
+    invoke("poi-auto-agent")
+    append logs
+    if no work done → break
 ```
 
-**Ajouter un bounding box medina** sur la requete POI (lignes 198-204):
-- `lat` entre 31.615 et 31.645
-- `lng` entre -8.01 et -7.97
+### 3. Corriger `totalVisitsPossible`
 
-**Exclure les categories non culturelles** apres la requete:
-```
-restaurant, café, hotel, riad, tour_agency, travel_agency,
-car_rental, pharmacy, bank, supermarket, gym, spa, generic,
-equestrian, horseback
-```
+`3 * 5 * 1 = 15` (plus `* 2` puisqu'on ne fait que `guided_tour`)
 
-**Filtrer par distance max 1200m du hub** pour rester dans le quartier.
-
-**Augmenter le score minimum** de 3 a 5 pour ne garder que les POIs de qualite.
-
-### 3. Fichiers modifies
+## Fichiers modifiés
 
 | Fichier | Changement |
 |---------|-----------|
-| Migration SQL (insert tool) | `DELETE FROM quest_library` |
-| `supabase/functions/poi-auto-agent/index.ts` | Bounding box, exclusion categories, distance max 1.2km, mode guided_tour uniquement |
+| `supabase/functions/poi-auto-agent/index.ts` | Supprimer boucle turbo, 1 cycle par appel |
+| `src/components/admin/AgentMonitoringCard.tsx` | Boucle 3x côté client, fix total visites = 15 |
 
