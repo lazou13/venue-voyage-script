@@ -87,3 +87,9 @@ verify_jwt = false
 
 [functions.poi-backfill-details]
 verify_jwt = false
+
+[functions.poi-auto-agent]
+verify_jwt = false
+
+[functions.poi-fetch-photos]
+verify_jwt = false
