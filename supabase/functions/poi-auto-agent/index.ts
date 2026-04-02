@@ -243,7 +243,7 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
               already_used: usedSet.has(p.id),
               description: (p.description_short || "").slice(0, 80),
             };
-          }).filter((p: any) => p.dist_m <= 1500); // Max 1.5km from hub
+          }).filter((p: any) => p.dist_m <= 2500); // Max 2.5km from hub for 3h visits
 
           const poisText = poisForAI.map((p: any) =>
             `[${p.idx}] "${p.name}" (${p.category}) — ${p.dist_m}m du départ, score: ${p.score}/10, ` +
