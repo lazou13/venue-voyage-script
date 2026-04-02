@@ -134,6 +134,10 @@ export default function AdminQuestLibrary() {
                     <div>
                       <p className="text-sm font-medium text-foreground mb-2">Arrêts ({(q.stops_data as any[]).length})</p>
                       <div className="space-y-1">
+                        <div className="flex items-center gap-2 p-2 rounded bg-green-50 border border-green-200 text-sm">
+                          <Play className="w-4 h-4 text-green-600" />
+                          <span className="font-medium text-green-700">Départ : {HUB_LABELS[q.start_hub] ?? q.start_hub}</span>
+                        </div>
                         {(q.stops_data as any[]).map((stop: any, i: number) => (
                           <div key={i} className="flex items-center gap-2 p-2 rounded bg-muted/50 text-sm">
                             <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0">
