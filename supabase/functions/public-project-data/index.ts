@@ -175,7 +175,21 @@ Deno.serve(async (req) => {
       return json({ pois: result }, 200, cors);
     }
 
-    return json({ error: "Invalid mode. Use: list, project, library" }, 400, cors);
+    // ── MODE: TOURS ──
+    if (mode === "tours") {
+      const audience = url.searchParams.get("audience")?.trim().slice(0, 80);
+      const hub = url.searchParams.get("hub")?.trim().slice(0, 80);
+
+      let query = sb.from("quest_library").select("*").order("quality_score", { ascending: false });
+      if (audience) query = query.eq("audience", audience);
+      if (hub) query = query.eq("start_hub", hub);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return json({ tours: data ?? [] }, 200, cors);
+    }
+
+    return json({ error: "Invalid mode. Use: list, project, library, tours" }, 400, cors);
   } catch (e: any) {
     console.error("public-project-data error:", e);
     return json({ error: "Internal error" }, 500, cors);
