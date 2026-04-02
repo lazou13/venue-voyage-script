@@ -243,7 +243,7 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
               already_used: usedSet.has(p.id),
               description: (p.description_short || "").slice(0, 80),
             };
-          }).filter((p: any) => p.dist_m <= 1500); // Max 1.5km from hub
+          }).filter((p: any) => p.dist_m <= 2500); // Max 2.5km from hub for 3h visits
 
           const poisText = poisForAI.map((p: any) =>
             `[${p.idx}] "${p.name}" (${p.category}) — ${p.dist_m}m du départ, score: ${p.score}/10, ` +
@@ -261,25 +261,27 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
             instagrammers: "Photographes et influenceurs : lieux les plus photogéniques, score instagram élevé, architecture remarquable",
           };
 
-          const selectionPrompt = `Tu es un expert de la médina de Marrakech. Tu dois créer une VISITE GUIDÉE unique et mémorable.
+          const selectionPrompt = `Tu es un expert de la médina de Marrakech. Tu dois créer une VISITE GUIDÉE unique et mémorable d'environ 3 HEURES.
 
 POINT DE DÉPART: ${hub.name} (lat: ${hub.lat}, lng: ${hub.lng})
 PUBLIC CIBLE: ${audience} — ${audienceDesc[audience] || audience}
-NOMBRE D'ÉTAPES: 6 à 8
+NOMBRE D'ÉTAPES: 8 à 12 (pour remplir 3h de visite)
+DURÉE CIBLE: 180 minutes (3 heures)
 
 RÈGLES DE SÉLECTION:
 1. Choisis des POIs qui correspondent VRAIMENT au public cible
 2. Assure une DIVERSITÉ de catégories (pas 2 monuments consécutifs, alterner palais/souks/places/jardins)
 3. Ordonne les stops pour un PARCOURS LOGIQUE géographiquement (minimiser les allers-retours)
 4. ÉVITE les POIs marqués "DÉJÀ UTILISÉ" sauf s'ils sont incontournables pour ce public
-5. La distance totale du parcours ne doit pas dépasser 1200m
+5. La distance totale du parcours ne doit pas dépasser 2500m (parcours de 3h)
 6. Privilégie les POIs avec un bon score qualité
+7. Chaque stop doit avoir un contenu riche : description guide ET anecdote locale
 
 POIs DISPONIBLES:
 ${poisText}
 
 Génère en une seule réponse :
-- Les poi_ids sélectionnés DANS L'ORDRE du parcours
+- Les poi_ids sélectionnés DANS L'ORDRE du parcours (8 à 12 stops)
 - Un titre accrocheur FR et EN
 - Une description 2-3 phrases FR et EN expliquant POURQUOI cette visite est unique pour ce public
 - 3-5 highlights courts (FR)
@@ -359,7 +361,18 @@ Génère en une seule réponse :
             totalDist += Math.sqrt(Math.pow((curr.lat - prev.lat) * 111320, 2) + Math.pow((curr.lng - prev.lng) * 111320 * Math.cos(curr.lat * Math.PI / 180), 2));
           }
           const walkTime = Math.round(totalDist / 50);
-          const visitTime = selectedPois.length * 12;
+
+          // Category-aware visit times (minutes)
+          const VISIT_TIMES: Record<string, number> = {
+            monument: 15, palace: 20, museum: 25, medersa: 18,
+            mosque: 10, tomb: 12, gate_bab: 8, fountain: 6,
+            fondouk: 12, souk: 15, market: 15,
+            craft_shop: 12, restaurant: 15, cafe: 12, hammam: 10,
+            garden: 15, plaza: 10, hotel: 8, riad: 8,
+            shrine_zaouia: 10, gallery: 15, boutique: 10, other: 10,
+          };
+
+          const visitTime = selectedPois.reduce((sum: number, p: any) => sum + (VISIT_TIMES[p.category] || 12), 0);
           const totalTime = walkTime + visitTime;
 
           // Build stops_data from original POI data
@@ -368,16 +381,17 @@ Génère en une seule réponse :
             const prevDist = i === 0 ? 0 : Math.round(
               Math.sqrt(Math.pow((p.lat - selectedPois[i-1].lat) * 111320, 2) + Math.pow((p.lng - selectedPois[i-1].lng) * 111320 * Math.cos(p.lat * Math.PI / 180), 2))
             );
+            const cat = p.category || 'other';
             return {
               order: i + 1,
               poi_id: p.id,
               name: p.name,
               lat: p.lat,
               lng: p.lng,
-              category: p.category,
+              category: cat,
               distance_from_prev_m: prevDist,
               walk_time_min: i === 0 ? 0 : Math.round(prevDist / 50),
-              visit_time_min: 12,
+              visit_time_min: VISIT_TIMES[cat] || 12,
               story: original?.history_context || original?.local_anecdote || undefined,
               description: original?.description_short || undefined,
               photo_tip: original?.photo_tip || undefined,
