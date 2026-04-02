@@ -261,25 +261,27 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
             instagrammers: "Photographes et influenceurs : lieux les plus photogéniques, score instagram élevé, architecture remarquable",
           };
 
-          const selectionPrompt = `Tu es un expert de la médina de Marrakech. Tu dois créer une VISITE GUIDÉE unique et mémorable.
+          const selectionPrompt = `Tu es un expert de la médina de Marrakech. Tu dois créer une VISITE GUIDÉE unique et mémorable d'environ 3 HEURES.
 
 POINT DE DÉPART: ${hub.name} (lat: ${hub.lat}, lng: ${hub.lng})
 PUBLIC CIBLE: ${audience} — ${audienceDesc[audience] || audience}
-NOMBRE D'ÉTAPES: 6 à 8
+NOMBRE D'ÉTAPES: 8 à 12 (pour remplir 3h de visite)
+DURÉE CIBLE: 180 minutes (3 heures)
 
 RÈGLES DE SÉLECTION:
 1. Choisis des POIs qui correspondent VRAIMENT au public cible
 2. Assure une DIVERSITÉ de catégories (pas 2 monuments consécutifs, alterner palais/souks/places/jardins)
 3. Ordonne les stops pour un PARCOURS LOGIQUE géographiquement (minimiser les allers-retours)
 4. ÉVITE les POIs marqués "DÉJÀ UTILISÉ" sauf s'ils sont incontournables pour ce public
-5. La distance totale du parcours ne doit pas dépasser 1200m
+5. La distance totale du parcours ne doit pas dépasser 2500m (parcours de 3h)
 6. Privilégie les POIs avec un bon score qualité
+7. Chaque stop doit avoir un contenu riche : description guide ET anecdote locale
 
 POIs DISPONIBLES:
 ${poisText}
 
 Génère en une seule réponse :
-- Les poi_ids sélectionnés DANS L'ORDRE du parcours
+- Les poi_ids sélectionnés DANS L'ORDRE du parcours (8 à 12 stops)
 - Un titre accrocheur FR et EN
 - Une description 2-3 phrases FR et EN expliquant POURQUOI cette visite est unique pour ce public
 - 3-5 highlights courts (FR)
