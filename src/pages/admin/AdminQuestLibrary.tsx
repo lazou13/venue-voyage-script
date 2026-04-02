@@ -6,7 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { MapPin, Clock, Route, Users, Star, ChevronRight } from 'lucide-react';
+import { MapPin, Clock, Route, Users, Star, ChevronRight, Play } from 'lucide-react';
+
+const HUB_LABELS: Record<string, string> = {
+  koutoubia: "Mosquée Koutoubia",
+  jemaa_el_fna: "Place Jemaa el-Fna",
+  mellah: "Quartier du Mellah",
+};
 
 export default function AdminQuestLibrary() {
   const [hubFilter, setHubFilter] = useState<string>('all');
