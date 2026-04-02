@@ -48,6 +48,15 @@ export interface POI {
   is_start_hub: boolean;
   is_active: boolean;
   radius_m: number;
+  // Enriched fields
+  price_info: string;
+  opening_hours: Record<string, string> | null;
+  must_see_details: string;
+  must_try: string;
+  must_visit_nearby: string;
+  is_photo_spot: boolean;
+  photo_tip: string;
+  ruelle_etroite: boolean;
   metadata: {
     features?: {
       audience?: string[];
