@@ -92,6 +92,15 @@ export interface Stop {
   photo_spot?: boolean;
   address?: string;
   description?: string;
+  // Enriched fields
+  price_info?: string | null;
+  opening_hours?: Record<string, string> | null;
+  must_see_details?: string | null;
+  must_try?: string | null;
+  must_visit_nearby?: string | null;
+  is_photo_spot?: boolean;
+  photo_tip?: string | null;
+  ruelle_etroite?: boolean;
 }
 
 export interface EngineOutput {
