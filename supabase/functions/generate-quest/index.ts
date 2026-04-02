@@ -63,7 +63,7 @@ serve(async (req) => {
     const { data: rawPois, error: dbError } = await supabase
       .from("medina_pois")
       .select(
-        "id, name, lat, lng, category_ai, category_google, rating, reviews_count, poi_quality_score, address, description_short, history_context, local_anecdote, riddle_easy, riddle_medium, riddle_hard, challenge, tourist_interest, instagram_spot, is_start_hub, is_active, radius_m, metadata"
+        "id, name, lat, lng, category_ai, category_google, rating, reviews_count, poi_quality_score, address, description_short, history_context, local_anecdote, riddle_easy, riddle_medium, riddle_hard, challenge, tourist_interest, instagram_spot, is_start_hub, is_active, radius_m, metadata, price_info, opening_hours, must_see_details, must_try, must_visit_nearby, is_photo_spot, photo_tip, ruelle_etroite"
       )
       .eq("is_active", true)
       .not("lat", "is", null)
@@ -95,6 +95,14 @@ serve(async (req) => {
       is_start_hub: (p.is_start_hub ?? false) as boolean,
       is_active: (p.is_active ?? true) as boolean,
       radius_m: (p.radius_m as number) ?? 30,
+      price_info: (p.price_info ?? "") as string,
+      opening_hours: (p.opening_hours ?? null) as Record<string, string> | null,
+      must_see_details: (p.must_see_details ?? "") as string,
+      must_try: (p.must_try ?? "") as string,
+      must_visit_nearby: (p.must_visit_nearby ?? "") as string,
+      is_photo_spot: (p.is_photo_spot ?? false) as boolean,
+      photo_tip: (p.photo_tip ?? "") as string,
+      ruelle_etroite: (p.ruelle_etroite ?? false) as boolean,
       metadata: (p.metadata ?? {}) as POI["metadata"],
     }));
 
