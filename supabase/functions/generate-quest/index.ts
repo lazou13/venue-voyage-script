@@ -63,7 +63,7 @@ serve(async (req) => {
     const { data: rawPois, error: dbError } = await supabase
       .from("medina_pois")
       .select(
-        "id, name, lat, lng, category_ai, category_google, rating, reviews_count, poi_quality_score, address, description_short, history_context, local_anecdote, riddle_easy, riddle_medium, riddle_hard, challenge, tourist_interest, instagram_spot, is_start_hub, is_active, radius_m, metadata"
+        "id, name, lat, lng, category_ai, category_google, rating, reviews_count, poi_quality_score, address, description_short, history_context, local_anecdote, riddle_easy, riddle_medium, riddle_hard, challenge, tourist_interest, instagram_spot, is_start_hub, is_active, radius_m, metadata, price_info, opening_hours, must_see_details, must_try, must_visit_nearby, is_photo_spot, photo_tip, ruelle_etroite"
       )
       .eq("is_active", true)
       .not("lat", "is", null)
