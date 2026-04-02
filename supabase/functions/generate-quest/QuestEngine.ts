@@ -594,6 +594,15 @@ function buildStops(
       stop.photo_spot = poi.instagram_spot || (poi.metadata?.features?.visual_impact ?? 0) >= 7;
       stop.address = poi.address || undefined;
       stop.description = poi.description_short || undefined;
+      // Enriched fields
+      stop.price_info = poi.price_info || undefined;
+      stop.opening_hours = poi.opening_hours || undefined;
+      stop.must_see_details = poi.must_see_details || undefined;
+      stop.must_try = poi.must_try || undefined;
+      stop.must_visit_nearby = poi.must_visit_nearby || undefined;
+      stop.is_photo_spot = poi.is_photo_spot || false;
+      stop.photo_tip = poi.photo_tip || undefined;
+      stop.ruelle_etroite = poi.ruelle_etroite || false;
     }
 
     stops.push(stop);
