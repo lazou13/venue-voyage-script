@@ -6,7 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { MapPin, Clock, Route, Users, Star, ChevronRight } from 'lucide-react';
+import { MapPin, Clock, Route, Users, Star, ChevronRight, Play } from 'lucide-react';
+
+const HUB_LABELS: Record<string, string> = {
+  koutoubia: "Mosquée Koutoubia",
+  jemaa_el_fna: "Place Jemaa el-Fna",
+  mellah: "Quartier du Mellah",
+};
 
 export default function AdminQuestLibrary() {
   const [hubFilter, setHubFilter] = useState<string>('all');
@@ -73,7 +79,7 @@ export default function AdminQuestLibrary() {
         <div key={hub} className="space-y-3">
           <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
             <MapPin className="w-5 h-5 text-primary" />
-            {hub}
+            {HUB_LABELS[hub] ?? hub}
             <Badge variant="secondary">{visits.length}</Badge>
           </h3>
 
@@ -128,6 +134,10 @@ export default function AdminQuestLibrary() {
                     <div>
                       <p className="text-sm font-medium text-foreground mb-2">Arrêts ({(q.stops_data as any[]).length})</p>
                       <div className="space-y-1">
+                        <div className="flex items-center gap-2 p-2 rounded bg-green-50 border border-green-200 text-sm">
+                          <Play className="w-4 h-4 text-green-600" />
+                          <span className="font-medium text-green-700">Départ : {HUB_LABELS[q.start_hub] ?? q.start_hub}</span>
+                        </div>
                         {(q.stops_data as any[]).map((stop: any, i: number) => (
                           <div key={i} className="flex items-center gap-2 p-2 rounded bg-muted/50 text-sm">
                             <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold shrink-0">
