@@ -1,67 +1,54 @@
 
 
-# Enrichir l'affichage des visites guidees avec les donnees POI completes
+# Rendre la Bibliotheque de Visites accessible sur Quest Rides Pro
 
-## Probleme
+## Contexte
 
-Le moteur de quetes (`QuestEngine`) ne recupere pas les champs enrichis de `medina_pois` (price_info, opening_hours, must_see_details, etc.) et le composant d'affichage `GuidedContent` dans `QuestResult.tsx` n'affiche que story, history_context, local_anecdote, tourist_tips et photo_spot.
+La table `quest_library` (15 visites pre-generees) existe dans ce projet (Hunt Planner Pro). Quest Rides Pro n'a aucun acces a ces donnees. Les deux projets ont des backends separes.
 
-## Solution en 4 etapes
+## Solution en 2 parties
 
-### Etape 1 — Backend: Ajouter les champs enrichis au QuestEngine
+### Partie 1 — Exposer les donnees (ce projet)
 
-**Fichier**: `supabase/functions/generate-quest/QuestEngine.ts`
+Ajouter un mode `tours` a la edge function `public-project-data` existante.
 
-- Ajouter au type `POI`: `price_info`, `opening_hours`, `must_see_details`, `must_try`, `must_visit_nearby`, `is_photo_spot`, `photo_tip`, `ruelle_etroite`
-- Ajouter au type `Stop`: les memes champs
-- Dans `buildStops()`, mapper ces champs du POI vers le Stop en mode `guided_tour`
+**Fichier**: `supabase/functions/public-project-data/index.ts`
 
-**Fichier**: `supabase/functions/generate-quest/index.ts`
+Ajouter apres le bloc `mode === "library"` un nouveau mode:
 
-- Ajouter les champs a la requete SELECT vers `medina_pois`
-- Les mapper dans la construction de l'objet POI
-
-### Etape 2 — Frontend: Enrichir le type Stop
-
-**Fichier**: `src/hooks/useQuestEngine.ts`
-
-Ajouter au type `Stop`:
 ```
-price_info?: string | null
-opening_hours?: Record<string, string> | null
-must_see_details?: string | null
-must_try?: string | null
-must_visit_nearby?: string | null
-is_photo_spot?: boolean
-photo_tip?: string | null
-ruelle_etroite?: boolean
+if (mode === "tours") {
+  // Fetch quest_library with optional filters
+  const audience = url.searchParams.get("audience")?.trim();
+  const hub = url.searchParams.get("hub")?.trim();
+
+  let query = sb.from("quest_library").select("*").order("quality_score", { ascending: false });
+  if (audience) query = query.eq("audience", audience);
+  if (hub) query = query.eq("start_hub", hub);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return json({ tours: data ?? [] }, 200, cors);
+}
 ```
 
-### Etape 3 — Frontend: Enrichir le composant GuidedContent
+Mettre a jour le message d'erreur: `"Invalid mode. Use: list, project, library, tours"`.
 
-**Fichier**: `src/components/quest/QuestResult.tsx`
+### Partie 2 — Consommer les donnees (Quest Rides Pro)
 
-Remplacer le composant `GuidedContent` pour ajouter apres les sections existantes:
+> Note: Cette partie necessite des modifications dans le projet Quest Rides Pro. Je vais preparer le code ici pour reference, mais l'implementation se fera dans l'autre projet.
 
-1. **Infos pratiques** (collapsible) — tarif, horaires, details a ne pas manquer
-2. **A voir** avec fallbacks par categorie (monument, souk, palais, etc.)
-3. **A tester** — specialites culinaires si restaurant/cafe
-4. **A visiter a proximite** — lieux proches recommandes
-5. **Spot photo** — conseil photo avec icone camera
-6. **Warning ruelle etroite** — alerte passages etroits
+Quest Rides Pro devra:
 
-Chaque section conditionnelle, affichee uniquement si la donnee existe. Fallbacks par categorie en italique quand pas de details specifiques.
+1. **Creer un hook `useQuestLibrary.ts`** qui appelle `https://dtwqmrmtzfhczvjggmct.supabase.co/functions/v1/public-project-data?mode=tours`
+2. **Creer une page `/tours`** affichant les visites groupees par hub avec filtres audience
+3. **Ajouter la route** dans App.tsx
 
-### Etape 4 — Deployer la edge function
-
-Redeployer `generate-quest` pour que les nouvelles requetes incluent les champs enrichis.
+Cependant, comme je ne peux modifier que ce projet, je vais uniquement implementer la Partie 1 (l'endpoint API). Ensuite il faudra basculer sur Quest Rides Pro pour creer la page de consultation.
 
 ## Fichiers modifies
 
 | Fichier | Action |
 |---------|--------|
-| `supabase/functions/generate-quest/QuestEngine.ts` | Ajouter champs enrichis aux types POI et Stop + mapping dans buildStops |
-| `supabase/functions/generate-quest/index.ts` | Ajouter champs au SELECT + mapping |
-| `src/hooks/useQuestEngine.ts` | Ajouter champs enrichis au type Stop |
-| `src/components/quest/QuestResult.tsx` | Enrichir GuidedContent avec sections collapsibles + fallbacks |
+| `supabase/functions/public-project-data/index.ts` | Ajouter mode `tours` pour exposer `quest_library` |
 
