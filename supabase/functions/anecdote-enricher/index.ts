@@ -27,13 +27,13 @@ Cherche dans des sources secondaires, archives, récits de voyageurs historiques
 
 Réponds UNIQUEMENT en JSON valide sans markdown :
 {
-  "history_context": "Contexte historique narratif 150-200 mots en français. Structure obligatoire : époque/origine → personnage historique lié → fait architectural ou culturel précis avec chiffre ou mesure → lien avec ce que le visiteur voit aujourd'hui. Ton direct, jamais encyclopédique.",
-  "local_anecdote_fr": "Anecdote locale 80-120 mots en français. Structure : situation initiale → élément perturbateur → résolution surprenante. Fait peu connu, contradiction historique, ou moment où l'histoire a failli basculer autrement. Finir par une phrase qui donne de la valeur au lieu.",
-  "local_anecdote_en": "Même anecdote traduite en anglais naturel — pas mot à mot, adapter pour un lecteur anglophone.",
-  "fun_fact_fr": "1 seule phrase en français. Un chiffre ou fait totalement inattendu qu'on peut dire en 10 secondes.",
-  "fun_fact_en": "Même fun fact en anglais.",
-  "crowd_level": "low ou medium ou high — fréquentation habituelle",
-  "accessibility_notes": "1 phrase sur l'accessibilité physique : escaliers, sol irrégulier, largeur du passage, restrictions d'accès."
+  "history_context": "OBLIGATOIRE : 200 à 250 mots en français. Pas moins de 200 mots — c'est une contrainte dure. Structure : époque/origine (2-3 phrases) → personnage historique avec nom précis et dates (2-3 phrases) → détails architecturaux ou culturels avec chiffres (2-3 phrases) → anecdote de détail inattendue (2 phrases) → lien avec ce que le visiteur voit aujourd'hui (1-2 phrases). Exemple de longueur attendue : 'La Koutoubia est l emblème de Marrakech, visible à des kilomètres à la ronde. Son minaret de 77 mètres, achevé en 1158 sous le sultan almohade Yacoub el-Mansour, est un chef-d œuvre de l architecture islamique qui a inspiré la Giralda de Séville et la Tour Hassan de Rabat. Son nom vient des koutoubiyine, les libraires qui tenaient boutique à ses pieds au Moyen Âge...' — ce niveau de détail et cette densité sont le minimum attendu.",
+  "local_anecdote_fr": "OBLIGATOIRE : 100 à 130 mots en français. Pas moins de 100 mots — contrainte dure. Structure : situation initiale (2 phrases) → élément perturbateur ou révélation (2-3 phrases) → résolution surprenante (2 phrases) → phrase finale qui donne de la valeur au lieu (1 phrase). Exemple de niveau attendu : 'En réalité, il existe DEUX Koutoubia côte à côte ! La première mosquée, construite en 1147, fut détruite car son mihrab n était pas parfaitement orienté vers La Mecque – une erreur impardonnable. Le sultan ordonna sa reconstruction quelques mètres plus loin...' — cette densité narrative est le minimum.",
+  "local_anecdote_en": "OBLIGATOIRE : 100 à 130 mots en English. Same narrative density as local_anecdote_fr. Natural English — not a word-for-word translation.",
+  "fun_fact_fr": "1 seule phrase percutante, 20 à 35 mots maximum. Un chiffre ou fait totalement inattendu.",
+  "fun_fact_en": "Same fun fact in English, 20 to 35 words.",
+  "crowd_level": "low ou medium ou high uniquement.",
+  "accessibility_notes": "1 phrase, 15 à 30 mots."
 }`;
 
   const resp = await fetch(PERPLEXITY_URL, {
