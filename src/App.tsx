@@ -34,6 +34,9 @@ const AdminPOIPipeline = lazy(() => import("./pages/admin/AdminPOIPipeline"));
 const AdminMediaLibrary = lazy(() => import("./pages/admin/AdminMediaLibrary"));
 const AdminQuestLibrary = lazy(() => import("./pages/admin/AdminQuestLibrary"));
 const PublicExperienceWizard = lazy(() => import("./pages/PublicExperienceWizard"));
+const Auth = lazy(() => import("./pages/Auth"));
+
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1 } } });
 
@@ -57,7 +60,9 @@ const App = () => (
             <Route path="/admin/config" element={<Navigate to="/admin/enums" replace />} />
             
             {/* Admin Panel Routes */}
-            <Route path="/admin" element={<AdminLayout />}>
+            <Route path="/auth" element={<Auth />} />
+            
+            <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
               <Route index element={<Navigate to="/admin/enums" replace />} />
               <Route path="enums" element={<AdminEnums />} />
               <Route path="presets" element={<AdminPresets />} />

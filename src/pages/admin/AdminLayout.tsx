@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
-import { Save, Rocket, Loader2, Home } from 'lucide-react';
+import { Save, Rocket, Loader2, Home, LogOut } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import { AppConfigProvider, useAppConfigContext } from '@/contexts/AppConfigContext';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,12 @@ import { AdminSidebar } from '@/components/admin/AdminSidebar';
 function AdminLayoutInner() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
   
   const {
     hasUnsavedChanges,
@@ -101,6 +108,11 @@ function AdminLayoutInner() {
             {/* Home button */}
             <Button variant="ghost" size="icon" onClick={() => navigate('/')} title="Retour au dashboard">
               <Home className="w-4 h-4" />
+            </Button>
+            
+            {/* Logout button */}
+            <Button variant="ghost" size="icon" onClick={handleSignOut} title="Déconnexion">
+              <LogOut className="w-4 h-4" />
             </Button>
           </div>
         </header>
