@@ -228,11 +228,14 @@ export type Database = {
           category_google: string | null
           challenge: string | null
           created_at: string
+          crowd_level: string | null
           data_sources: string[] | null
           description_short: string | null
           district: string | null
           enrichment_status: string | null
           foursquare_id: string | null
+          fun_fact_en: string | null
+          fun_fact_fr: string | null
           geom: unknown
           google_raw: Json | null
           history_context: string | null
@@ -247,6 +250,8 @@ export type Database = {
           lat: number | null
           lng: number | null
           local_anecdote: string | null
+          local_anecdote_en: string | null
+          local_anecdote_fr: string | null
           metadata: Json
           must_see_details: string | null
           must_try: string | null
@@ -302,11 +307,14 @@ export type Database = {
           category_google?: string | null
           challenge?: string | null
           created_at?: string
+          crowd_level?: string | null
           data_sources?: string[] | null
           description_short?: string | null
           district?: string | null
           enrichment_status?: string | null
           foursquare_id?: string | null
+          fun_fact_en?: string | null
+          fun_fact_fr?: string | null
           geom?: unknown
           google_raw?: Json | null
           history_context?: string | null
@@ -321,6 +329,8 @@ export type Database = {
           lat?: number | null
           lng?: number | null
           local_anecdote?: string | null
+          local_anecdote_en?: string | null
+          local_anecdote_fr?: string | null
           metadata?: Json
           must_see_details?: string | null
           must_try?: string | null
@@ -376,11 +386,14 @@ export type Database = {
           category_google?: string | null
           challenge?: string | null
           created_at?: string
+          crowd_level?: string | null
           data_sources?: string[] | null
           description_short?: string | null
           district?: string | null
           enrichment_status?: string | null
           foursquare_id?: string | null
+          fun_fact_en?: string | null
+          fun_fact_fr?: string | null
           geom?: unknown
           google_raw?: Json | null
           history_context?: string | null
@@ -395,6 +408,8 @@ export type Database = {
           lat?: number | null
           lng?: number | null
           local_anecdote?: string | null
+          local_anecdote_en?: string | null
+          local_anecdote_fr?: string | null
           metadata?: Json
           must_see_details?: string | null
           must_try?: string | null
