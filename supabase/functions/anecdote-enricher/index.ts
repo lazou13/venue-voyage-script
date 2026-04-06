@@ -13,22 +13,28 @@ function resolveName(row: any): string {
   return row.name_fr ?? row.name_en ?? row.name ?? 'POI';
 }
 
-async function enrichWithPerplexity(poi: any, apiKey: string): Promise<{ history_context?: string; local_anecdote?: string; citations?: string[] } | null> {
+async function enrichWithPerplexity(poi: any, apiKey: string): Promise<Record<string, any> | null> {
   const name = resolveName(poi);
   const category = poi.category_ai ?? poi.category ?? '';
   const zone = poi.zone || '';
   const existing = poi.description_short || '';
 
-  const prompt = `Recherche des informations historiques vérifiées sur "${name}" à Marrakech, Maroc.
+  const prompt = `Recherche approfondie sur "${name}" à Marrakech, Maroc.
 Catégorie : ${category}. Zone : ${zone}.
-${existing ? `Description existante : ${existing}` : ''}
+${existing ? `Contexte existant : ${existing}` : ''}
 
-Donne-moi en JSON :
-1. "history_context": Contexte historique riche et vérifié (150-250 mots en français). Inclure des dates, des personnages historiques, et des faits architecturaux vérifiables.
-2. "local_anecdote": Une anecdote locale authentique en français (80-120 mots). Privilégier les histoires transmises par les habitants, les légendes urbaines vérifiées, ou les faits surprenants.
+Cherche dans des sources secondaires, archives, récits de voyageurs historiques, traditions orales documentées — pas seulement Wikipedia.
 
-Réponds UNIQUEMENT en JSON valide :
-{"history_context":"...","local_anecdote":"..."}`;
+Réponds UNIQUEMENT en JSON valide sans markdown :
+{
+  "history_context": "Contexte historique narratif 150-200 mots en français. Structure obligatoire : époque/origine → personnage historique lié → fait architectural ou culturel précis avec chiffre ou mesure → lien avec ce que le visiteur voit aujourd'hui. Ton direct, jamais encyclopédique.",
+  "local_anecdote_fr": "Anecdote locale 80-120 mots en français. Structure : situation initiale → élément perturbateur → résolution surprenante. Fait peu connu, contradiction historique, ou moment où l'histoire a failli basculer autrement. Finir par une phrase qui donne de la valeur au lieu.",
+  "local_anecdote_en": "Même anecdote traduite en anglais naturel — pas mot à mot, adapter pour un lecteur anglophone.",
+  "fun_fact_fr": "1 seule phrase en français. Un chiffre ou fait totalement inattendu qu'on peut dire en 10 secondes.",
+  "fun_fact_en": "Même fun fact en anglais.",
+  "crowd_level": "low ou medium ou high — fréquentation habituelle",
+  "accessibility_notes": "1 phrase sur l'accessibilité physique : escaliers, sol irrégulier, largeur du passage, restrictions d'accès."
+}`;
 
   const resp = await fetch(PERPLEXITY_URL, {
     method: 'POST',
@@ -39,7 +45,7 @@ Réponds UNIQUEMENT en JSON valide :
     body: JSON.stringify({
       model: 'sonar',
       messages: [
-        { role: 'system', content: 'Tu es un historien expert de Marrakech et de sa médina. Tu fournis des informations factuelles et vérifiées. Réponds uniquement en JSON.' },
+        { role: 'system', content: 'Tu es un journaliste-historien spécialisé dans la médina de Marrakech. Tu écris pour des voyageurs curieux qui veulent comprendre la vraie vie d\'un lieu, pas lire un guide touristique. Tu cites des faits précis, des noms propres réels, des chiffres vérifiables. Tes anecdotes ont toujours une chute — un retournement, une ironie, une révélation. Tu parles directement au lecteur. Tu réponds uniquement en JSON valide.' },
         { role: 'user', content: prompt },
       ],
     }),
@@ -85,7 +91,7 @@ serve(async (req) => {
       .select('id, name, name_fr, name_en, category, category_ai, zone, description_short, history_context');
     
     if (!force) {
-      query = query.is('local_anecdote', null);
+      query = query.is('local_anecdote_en', null);
     }
     
     query = query
@@ -108,12 +114,32 @@ serve(async (req) => {
         const result = await enrichWithPerplexity(poi, PERPLEXITY_API_KEY);
         if (!result) continue;
 
-        const update: Record<string, any> = {};
-        if (result.history_context && (force || !poi.history_context)) update.history_context = result.history_context;
-        if (result.local_anecdote) update.local_anecdote = result.local_anecdote;
+        const updateData: Record<string, unknown> = {};
+        if (result.history_context && (force || !poi.history_context)) {
+          updateData.history_context = result.history_context;
+        }
+        if (result.local_anecdote_fr) {
+          updateData.local_anecdote = result.local_anecdote_fr;
+          updateData.local_anecdote_fr = result.local_anecdote_fr;
+        }
+        if (result.local_anecdote_en) {
+          updateData.local_anecdote_en = result.local_anecdote_en;
+        }
+        if (result.fun_fact_fr) {
+          updateData.fun_fact_fr = result.fun_fact_fr;
+        }
+        if (result.fun_fact_en) {
+          updateData.fun_fact_en = result.fun_fact_en;
+        }
+        if (result.crowd_level) {
+          updateData.crowd_level = result.crowd_level;
+        }
+        if (result.accessibility_notes) {
+          updateData.accessibility_notes = result.accessibility_notes;
+        }
 
-        if (Object.keys(update).length > 0) {
-          const { error: updErr } = await supabase.from('medina_pois').update(update).eq('id', poi.id);
+        if (Object.keys(updateData).length > 0) {
+          const { error: updErr } = await supabase.from('medina_pois').update(updateData).eq('id', poi.id);
           if (!updErr) totalUpdated++;
         }
         // Delay between requests to avoid rate limiting
