@@ -114,12 +114,32 @@ serve(async (req) => {
         const result = await enrichWithPerplexity(poi, PERPLEXITY_API_KEY);
         if (!result) continue;
 
-        const update: Record<string, any> = {};
-        if (result.history_context && (force || !poi.history_context)) update.history_context = result.history_context;
-        if (result.local_anecdote) update.local_anecdote = result.local_anecdote;
+        const updateData: Record<string, unknown> = {};
+        if (result.history_context && (force || !poi.history_context)) {
+          updateData.history_context = result.history_context;
+        }
+        if (result.local_anecdote_fr) {
+          updateData.local_anecdote = result.local_anecdote_fr;
+          updateData.local_anecdote_fr = result.local_anecdote_fr;
+        }
+        if (result.local_anecdote_en) {
+          updateData.local_anecdote_en = result.local_anecdote_en;
+        }
+        if (result.fun_fact_fr) {
+          updateData.fun_fact_fr = result.fun_fact_fr;
+        }
+        if (result.fun_fact_en) {
+          updateData.fun_fact_en = result.fun_fact_en;
+        }
+        if (result.crowd_level) {
+          updateData.crowd_level = result.crowd_level;
+        }
+        if (result.accessibility_notes) {
+          updateData.accessibility_notes = result.accessibility_notes;
+        }
 
-        if (Object.keys(update).length > 0) {
-          const { error: updErr } = await supabase.from('medina_pois').update(update).eq('id', poi.id);
+        if (Object.keys(updateData).length > 0) {
+          const { error: updErr } = await supabase.from('medina_pois').update(updateData).eq('id', poi.id);
           if (!updErr) totalUpdated++;
         }
         // Delay between requests to avoid rate limiting
