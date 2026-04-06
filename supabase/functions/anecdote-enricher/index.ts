@@ -91,7 +91,7 @@ serve(async (req) => {
       .select('id, name, name_fr, name_en, category, category_ai, zone, description_short, history_context');
     
     if (!force) {
-      query = query.is('local_anecdote', null);
+      query = query.is('local_anecdote_en', null);
     }
     
     query = query
