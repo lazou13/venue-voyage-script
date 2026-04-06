@@ -34,6 +34,9 @@ const AdminPOIPipeline = lazy(() => import("./pages/admin/AdminPOIPipeline"));
 const AdminMediaLibrary = lazy(() => import("./pages/admin/AdminMediaLibrary"));
 const AdminQuestLibrary = lazy(() => import("./pages/admin/AdminQuestLibrary"));
 const PublicExperienceWizard = lazy(() => import("./pages/PublicExperienceWizard"));
+const Auth = lazy(() => import("./pages/Auth"));
+
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1 } } });
 
