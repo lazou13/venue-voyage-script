@@ -57,7 +57,9 @@ const App = () => (
             <Route path="/admin/config" element={<Navigate to="/admin/enums" replace />} />
             
             {/* Admin Panel Routes */}
-            <Route path="/admin" element={<AdminLayout />}>
+            <Route path="/auth" element={<Auth />} />
+            
+            <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
               <Route index element={<Navigate to="/admin/enums" replace />} />
               <Route path="enums" element={<AdminEnums />} />
               <Route path="presets" element={<AdminPresets />} />
