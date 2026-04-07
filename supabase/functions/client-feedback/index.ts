@@ -41,11 +41,14 @@ Deno.serve(async (req) => {
   const feedbackKey = req.headers.get("x-feedback-key");
   const sourceProject = typeof body.source_project === "string" ? body.source_project.trim() : "";
 
-  if (feedbackKey && sourceProject) {
+  if (feedbackKey) {
     // External mode: validate shared secret
     const expectedKey = Deno.env.get("EXTERNAL_FEEDBACK_KEY");
     if (!expectedKey || feedbackKey !== expectedKey) {
       return json({ error: "Clé API invalide" }, 401);
+    }
+    if (!sourceProject) {
+      return json({ error: "source_project requis en mode externe" }, 400);
     }
     if (sourceProject.length > 100) {
       return json({ error: "source_project trop long" }, 400);
@@ -65,7 +68,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (instErr || !instance) return json({ error: "Token invalide" }, 401);
-    auth = { instanceId: instance.id, projectId: instance.project_id, sourceProject: null };
+    auth = { instanceId: instance.id, projectId: instance.project_id, sourceProject: sourceProject || null };
   }
 
   const type = body.type as string;
@@ -73,24 +76,39 @@ Deno.serve(async (req) => {
   // ── PHOTO ──
   if (type === "photo") {
     const base64 = typeof body.data === "string" ? body.data : "";
+    const mediaUrl = typeof body.media_url === "string" ? body.media_url.trim() : "";
     const mediaType = typeof body.media_type === "string" ? body.media_type : "photo";
     const poiId = typeof body.poi_id === "string" ? body.poi_id : null;
+    const poiName = typeof body.poi_name === "string" ? body.poi_name.slice(0, 200) : null;
     const caption = typeof body.caption === "string" ? body.caption.slice(0, 500) : null;
-    const lat = typeof body.lat === "number" ? body.lat : null;
-    const lng = typeof body.lng === "number" ? body.lng : null;
+    const lat = typeof body.lat === "number" ? body.lat : (typeof body.poi_lat === "number" ? body.poi_lat : null);
+    const lng = typeof body.lng === "number" ? body.lng : (typeof body.poi_lng === "number" ? body.poi_lng : null);
     const deviceId = typeof body.device_id === "string" ? body.device_id.slice(0, 200) : null;
+    const sourceInstanceId = typeof body.source_instance_id === "string" ? body.source_instance_id.slice(0, 200) : null;
 
-    if (!base64) return json({ error: "data (base64) requis" }, 400);
-
-    // Decode base64
     let bytes: Uint8Array;
-    try {
-      const raw = base64.includes(",") ? base64.split(",")[1] : base64;
-      const binary = atob(raw);
-      bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    } catch {
-      return json({ error: "base64 invalide" }, 400);
+
+    if (base64) {
+      // Decode base64
+      try {
+        const raw = base64.includes(",") ? base64.split(",")[1] : base64;
+        const binary = atob(raw);
+        bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      } catch {
+        return json({ error: "base64 invalide" }, 400);
+      }
+    } else if (mediaUrl) {
+      // External mode: fetch image from URL
+      try {
+        const resp = await fetch(mediaUrl, { signal: AbortSignal.timeout(15000) });
+        if (!resp.ok) return json({ error: `Échec téléchargement media: ${resp.status}` }, 400);
+        bytes = new Uint8Array(await resp.arrayBuffer());
+      } catch (e) {
+        return json({ error: `Erreur fetch media_url: ${(e as Error).message}` }, 400);
+      }
+    } else {
+      return json({ error: "data (base64) ou media_url requis" }, 400);
     }
 
     if (bytes.length > 10 * 1024 * 1024) return json({ error: "Fichier trop volumineux (max 10MB)" }, 400);
@@ -112,7 +130,7 @@ Deno.serve(async (req) => {
       medina_poi_id: poiId,
       storage_path: path,
       media_type: mediaType,
-      caption,
+      caption: caption || poiName,
       lat,
       lng,
       device_id: deviceId,
@@ -129,8 +147,8 @@ Deno.serve(async (req) => {
     const poiName = typeof body.poi_name === "string" ? body.poi_name.slice(0, 200) : null;
     const comment = typeof body.comment === "string" ? body.comment.slice(0, 1000) : null;
     const rating = typeof body.rating === "number" && body.rating >= 1 && body.rating <= 5 ? body.rating : null;
-    const lat = typeof body.lat === "number" ? body.lat : null;
-    const lng = typeof body.lng === "number" ? body.lng : null;
+    const lat = typeof body.lat === "number" ? body.lat : (typeof body.poi_lat === "number" ? body.poi_lat : null);
+    const lng = typeof body.lng === "number" ? body.lng : (typeof body.poi_lng === "number" ? body.poi_lng : null);
     const photoUrl = typeof body.photo_url === "string" ? body.photo_url.slice(0, 500) : null;
     const medinaPoiId = typeof body.medina_poi_id === "string" ? body.medina_poi_id : null;
 
