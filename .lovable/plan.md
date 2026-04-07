@@ -1,42 +1,62 @@
 
+Objectif
 
-# Plan : Filtrage géographique automatique (bounding box Marrakech)
+Faire en sorte que les visites B2B affichent réellement les histoires et anecdotes enrichies, y compris pour les projets déjà créés.
 
-## Constat
+Diagnostic
 
-La base contient des POIs de Fès (Dar Batha, Foundouk Nejjarine, etc.) qui passent toutes les validations car :
-- `clean_low_quality_pois()` ne vérifie que le nombre d'avis et la note — pas les coordonnées GPS
-- `poi-auto-agent` Phase 0 vérifie que lat/lng ne sont pas null, mais jamais qu'ils sont dans Marrakech
-- Le watchdog détecte les doublons GPS mais pas les POIs hors zone
+- L’enrichissement est bien stocké dans `medina_pois`.
+- Les visites B2B lisent surtout `pois` via `start-instance`.
+- `start-instance` ne renvoie aujourd’hui que `id, sort_order, name, step_config, zone, interaction`.
+- Le player B2B (`QuestPlay` / `POIDetail`) affiche surtout `story_i18n` / `contentI18n` du `step_config`.
+- Lors de l’import depuis la bibliothèque, les champs narratifs enrichis ne sont pas copiés dans `pois`.
 
-Les coordonnées de la Médina de Marrakech : lat [31.60, 31.67], lng [-8.02, -7.97] (déjà utilisées dans `poi-classify-worker` et `poi-worker`).
+Résultat : on enrichit la bibliothèque admin, mais le player B2B ne consomme pas ces champs, donc histoire/anecdote n’apparaissent pas.
 
-## Corrections
+Plan
 
-### 1. Ajouter le filtre bounding box à l'auto-validation (`poi-auto-agent`)
+1. Corriger la source de données du player B2B
+- Étendre `start-instance` pour renvoyer aussi :
+  `library_poi_id`, `history_context`, `local_anecdote_fr`, `local_anecdote_en`, `fun_fact_fr`, `fun_fact_en`, `price_info`, `opening_hours`, `must_see_details`, `must_try`, `must_visit_nearby`.
+- Ajouter un fallback backend : si ces champs sont vides dans `pois`, les récupérer depuis `medina_pois` via `library_poi_id`.
+- Effet immédiat : les projets B2B existants profitent des enrichissements déjà saisis aujourd’hui.
 
-Dans Phase 0, ajouter `.gte("lat", 31.60).lte("lat", 31.67).gte("lng", -8.02).lte("lng", -7.97)` pour ne valider que les POIs géolocalisés dans la Médina.
+2. Corriger l’affichage dans la visite B2B
+- Mettre à jour `usePlayInstance` pour transporter ces champs.
+- Mettre à jour `QuestPlay` / `POIDetail` pour afficher de vrais blocs :
+  - Histoire du lieu
+  - Anecdote
+  - Le saviez-vous ?
+  - Infos pratiques
+  - À proximité
+- Garder un ordre de fallback propre :
+  1. contenu spécifique projet (`story_i18n` / `contentI18n`)
+  2. données snapshot dans `pois`
+  3. fallback bibliothèque injecté par `start-instance`
 
-### 2. Marquer automatiquement les POIs hors zone comme "filtered"
+3. Corriger l’import pour les futurs projets
+- Dans `src/hooks/usePOIs.ts`, quand un POI est importé depuis `medina_pois`, copier aussi les champs enrichis dans `pois`.
+- Faire la même chose dans `supabase/functions/public-generate-quest/index.ts` pour les projets générés automatiquement.
+- Effet : les nouveaux projets embarquent directement leur contenu enrichi.
 
-Ajouter une Phase -1 dans `poi-auto-agent` (avant Phase 0) qui :
-- Sélectionne tous les POIs actifs avec GPS hors bounding box
-- Les passe en `status = 'filtered'` avec `is_active = false`
-- Log le nombre de POIs filtrés
+4. Gérer correctement la langue
+- Utiliser `instance.locale` pour choisir FR / EN pour anecdote et fun fact.
+- Garder FR en fallback si la traduction demandée est absente.
 
-### 3. Ajouter un check bounding box dans le watchdog
+5. Vérification
+- Tester un projet B2B existant avec un POI enrichi aujourd’hui.
+- Tester un nouveau projet créé après import depuis la bibliothèque.
+- Vérifier qu’aucun bloc vide n’est affiché et que les textes changent bien selon la langue.
 
-Dans `poi-watchdog`, ajouter une alerte "out_of_bounds" pour les POIs actifs dont les coordonnées sont hors Marrakech.
+Fichiers ciblés
 
-### 4. Bouton supprimer dans EnrichmentDrilldown
+- `supabase/functions/start-instance/index.ts`
+- `src/hooks/usePlayInstance.ts`
+- `src/pages/QuestPlay.tsx`
+- `src/hooks/usePOIs.ts`
+- `supabase/functions/public-generate-quest/index.ts`
 
-Ajouter un bouton poubelle (icône `Trash2`) dans chaque ligne du tableau pour suppression manuelle avec confirmation, comme demandé précédemment.
+Détail technique
 
-## Fichiers modifiés
-
-| Fichier | Changement |
-|---|---|
-| `supabase/functions/poi-auto-agent/index.ts` | Phase -1 filtrage hors zone + bounding box sur Phase 0 |
-| `supabase/functions/poi-watchdog/index.ts` | Alerte "out_of_bounds" |
-| `src/components/admin/EnrichmentDrilldown.tsx` | Bouton supprimer avec confirmation |
-
+- Pas de migration nécessaire : les colonnes existent déjà dans `pois`.
+- Le bug n’est pas dans l’enrichissement lui-même ; il est dans la propagation des données vers `pois` et dans le rendu du player B2B.
