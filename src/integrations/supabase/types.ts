@@ -1076,6 +1076,7 @@ export type Database = {
           media_type: string
           medina_poi_id: string | null
           quest_instance_id: string | null
+          source_instance_id: string | null
           source_project: string | null
           storage_bucket: string
           storage_path: string
@@ -1090,6 +1091,7 @@ export type Database = {
           media_type?: string
           medina_poi_id?: string | null
           quest_instance_id?: string | null
+          source_instance_id?: string | null
           source_project?: string | null
           storage_bucket?: string
           storage_path: string
@@ -1104,6 +1106,7 @@ export type Database = {
           media_type?: string
           medina_poi_id?: string | null
           quest_instance_id?: string | null
+          source_instance_id?: string | null
           source_project?: string | null
           storage_bucket?: string
           storage_path?: string

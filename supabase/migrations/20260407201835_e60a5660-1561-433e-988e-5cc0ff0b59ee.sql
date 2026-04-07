@@ -1,0 +1,1 @@
+ALTER TABLE public.quest_photos ADD COLUMN source_instance_id text;
