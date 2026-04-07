@@ -1,48 +1,46 @@
 
-Objectif: le blocage ne vient probablement plus du code administrateur temporaire. Le vrai problème semble être un échec réseau avant même que la fonction compare le code.
 
-Constat
-- Le navigateur envoie bien un POST vers `admin-signup`, mais le résultat observé est `Failed to fetch`.
-- La fonction `admin-signup` n’autorise actuellement que ces headers CORS: `authorization, x-client-info, apikey, content-type`.
-- Or la requête réelle envoie aussi `x-supabase-client-platform: Windows` (et le client peut envoyer d’autres headers `x-supabase-client-*`).
-- D’autres fonctions du projet autorisent déjà cette liste étendue de headers, ce qui confirme le pattern attendu.
-- `verify_jwt = false` est déjà configuré pour `admin-signup`, donc ce n’est pas un problème d’authentification backend.
-- Conclusion: changer le code admin temporaire ne peut pas résoudre ce cas, car la requête est probablement bloquée par le navigateur avant d’atteindre la logique `adminCode !== ADMIN_CODE`.
+## Diagnostic
 
-Plan de correction
-1. Corriger le CORS de `admin-signup`
-- Mettre à jour `supabase/functions/admin-signup/index.ts`
-- Étendre `Access-Control-Allow-Headers` pour inclure les headers `x-supabase-client-*` comme dans les autres fonctions du projet.
-- Ajouter explicitement `Access-Control-Allow-Methods: POST, OPTIONS` pour rendre le préflight plus robuste.
+La médiathèque charge actuellement **toutes** les photos de **tous** les projets en une seule requête, sans pagination ni filtre par projet. Avec 44 markers et 38 photos c'est encore gérable, mais c'est effectivement conçu pour ne pas tenir à l'échelle : chaque nouveau client ajoutera ses photos au même pool.
 
-2. Garder le bon affichage des erreurs métier
-- Conserver dans `src/pages/Auth.tsx` la logique qui priorise `res.data?.error`.
-- Ajouter un fallback plus clair si l’échec est purement réseau, par exemple un message du type “Service d’inscription momentanément inaccessible” au lieu d’un message technique brut.
+L'écran "Erreur d'affichage" (2e screenshot) est probablement un crash React dû au chargement simultané de toutes les images ou à un problème de rendu.
 
-3. Revalider le flux complet
-- Tester `/auth?mode=signup` avec un mauvais code: l’UI doit afficher `Code admin invalide`.
-- Tester avec le code temporaire correct: le compte doit être créé puis connecté automatiquement.
-- Tester avec un email déjà existant: l’UI doit afficher `Cet email est déjà enregistré`.
+### Problèmes identifiés
 
-4. Prévoir un contournement si c’est urgent
-- Si vous avez besoin d’entrer tout de suite dans l’admin sans attendre la correction, prévoir la création/mise à jour du compte côté backend comme solution temporaire.
-- Ensuite revenir au flux normal via l’interface une fois le CORS corrigé.
+1. **Pas de pagination** : toutes les photos sont chargées et rendues d'un coup
+2. **Pas de filtre par projet** : un admin voit les photos de TOUS les clients mélangées
+3. **Pas de virtualisation** : 38+ `<img>` rendues simultanément dans le DOM
+4. **Le champ `note` (rich text)** est chargé pour chaque marker alors qu'on n'en affiche qu'une ligne tronquée
+5. **Import lourd** : `JSZip` est importé en dur alors qu'il n'est utilisé qu'au téléchargement
 
-Fichiers à mettre à jour
-- `supabase/functions/admin-signup/index.ts`
-- éventuellement `src/pages/Auth.tsx` pour améliorer le message de fallback réseau
+## Plan de correction
 
-Détails techniques
-```text
-Requête navigateur
-  -> envoie x-supabase-client-platform
-  -> preflight CORS
-  -> header non autorisé par admin-signup
-  -> navigateur bloque la requête
-  -> UI reçoit "Failed to fetch" / "Failed to send a request..."
-```
+### 1. Ajouter la pagination serveur
+- Requête paginée (50 photos par page) avec `.range(from, to)` sur `route_markers`
+- Boutons "Page suivante / précédente" ou scroll infini
+- Conserver le tri par date décroissant
 
-Résultat attendu après correction
-- Vous n’aurez plus à “deviner” si le code admin est bon.
-- Si le code est faux, le message exact s’affichera.
-- Si le code temporaire est correct, l’inscription fonctionnera enfin normalement.
+### 2. Ajouter un filtre par projet
+- Ajouter un sélecteur de projet en plus du filtre par trace
+- Requête filtrée côté serveur : `.eq('route_traces.project_id', selectedProject)`
+- Par défaut : afficher uniquement le projet en cours ou le plus récent
+
+### 3. Alléger la requête
+- Retirer le champ `note` de la requête principale (ou le tronquer via une vue)
+- Ne sélectionner que les colonnes nécessaires pour la grille
+
+### 4. Lazy-load JSZip
+- Remplacer `import JSZip from 'jszip'` par un `await import('jszip')` dynamique dans la fonction `downloadZip`
+- Réduit le bundle initial de la page
+
+### 5. Virtualiser la grille (optionnel mais recommandé)
+- Utiliser une technique de virtualisation ou simplement limiter le rendu aux photos visibles
+- Alternative simple : la pagination (point 1) résout déjà le problème si les pages restent à 50 items
+
+### Fichiers modifiés
+
+| Fichier | Changement |
+|---------|-----------|
+| `src/pages/admin/AdminMediaLibrary.tsx` | Pagination, filtre projet, requête allégée, lazy-load JSZip |
+
