@@ -1,44 +1,44 @@
 
 
-# Plan : Couverture d'enrichissement cliquable avec édition inline
+# Plan : Corriger la sauvegarde dans EnrichmentDrilldown
 
-## Objectif
-Rendre chaque catégorie de la couverture d'enrichissement cliquable. Au clic, un panneau s'ouvre avec la liste des POIs (manquants ou remplis) et permet l'édition directe du champ concerné.
+## Diagnostic
 
-## Approche
+Le problème n'est probablement pas que la sauvegarde échoue — c'est que après sauvegarde, la liste se rafraîchit en mode "Manquants" et le POI modifié disparaît (car il est maintenant "rempli"). L'utilisateur pense que rien n'a été enregistré.
 
-### 1. Nouveau composant `EnrichmentDrilldown`
-Créer `src/components/admin/EnrichmentDrilldown.tsx` — un Dialog/Sheet qui :
-- Reçoit en props : le champ DB à filtrer (ex: `history_context`, `local_anecdote_fr`, `fun_fact_fr`, `riddle_easy`, `wikipedia_summary`), le label, et un mode "avec/sans"
-- Charge les POIs actifs filtrés (ceux où le champ est vide = à compléter, ou rempli = à vérifier)
-- Affiche un tableau scrollable : Nom du POI, catégorie, contenu actuel (tronqué), bouton éditer
-- Au clic sur "éditer" : ouvre un Textarea inline pour modifier le contenu
-- Sauvegarde via `supabase.from('medina_pois').update(...)` au blur ou bouton "Sauvegarder"
-- Toggle "Afficher manquants / remplis" pour basculer entre les deux vues
+Cependant, il peut aussi y avoir un vrai bug : le `.update({ [field]: value })` avec une clé dynamique peut être rejeté silencieusement par le client typé Supabase. Il faut sécuriser les deux cas.
 
-### 2. Modifier `AdminDashboard.tsx`
-- Ajouter un état `drilldownField` pour tracker quel champ est ouvert
-- Mapper chaque catégorie d'enrichissement à son champ DB :
-  - Histoires → `history_context`
-  - Anecdotes FR → `local_anecdote_fr`
-  - Fun Facts → `fun_fact_fr`
-  - Énigmes → `riddle_easy`
-  - Wikipedia → `wikipedia_summary`
-  - Photos → redirige vers `/admin/media-library`
-- Rendre les cartes de couverture cliquables (cursor-pointer, hover effect)
-- Ouvrir le `EnrichmentDrilldown` au clic
+## Corrections
 
-### 3. Fonctionnalités du panneau drill-down
-- Recherche par nom de POI
-- Pagination (50 POIs par page)
-- Édition inline du champ texte avec Textarea auto-resize
-- Badge compteur "X manquants" / "X remplis"
-- Bouton pour naviguer vers la fiche complète du POI (`/admin/medina-pois`)
+### 1. Feedback visuel après sauvegarde (`EnrichmentDrilldown.tsx`)
 
-## Fichiers
+- Après une sauvegarde réussie, afficher un toast explicite avec le nom du POI : `"Café Clock → Histoires sauvegardé ✓"`
+- Ne pas basculer immédiatement la vue — garder le POI visible pendant 2 secondes avant invalidation, ou basculer automatiquement vers "Remplis" après sauvegarde
 
-| Fichier | Action |
+### 2. Forcer le cast pour l'update Supabase
+
+- Caster le payload en `as any` pour éviter que le client typé rejette la clé dynamique :
+  ```typescript
+  .update({ [field]: value || null } as any)
+  ```
+
+### 3. Ajouter un log d'erreur détaillé
+
+- Dans `onError`, logger l'erreur complète en console pour le debug :
+  ```typescript
+  onError: (err) => {
+    console.error('Enrichment save error:', err);
+    toast.error('Erreur de sauvegarde');
+  }
+  ```
+
+### 4. Après sauvegarde réussie, basculer vers "Remplis"
+
+- Dans `onSuccess`, si on est en mode "Manquants", basculer `showFilled` à `true` pour que l'utilisateur voie son POI modifié dans la liste des remplis.
+
+## Fichier modifié
+
+| Fichier | Changement |
 |---|---|
-| `src/components/admin/EnrichmentDrilldown.tsx` | Créer — Dialog avec table éditable |
-| `src/pages/admin/AdminDashboard.tsx` | Modifier — cartes cliquables + état drilldown |
+| `src/components/admin/EnrichmentDrilldown.tsx` | Cast `as any`, meilleur feedback toast, bascule auto vers "Remplis" après save, log erreur |
 
