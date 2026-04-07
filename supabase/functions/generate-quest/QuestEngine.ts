@@ -57,6 +57,12 @@ export interface POI {
   is_photo_spot: boolean;
   photo_tip: string;
   ruelle_etroite: boolean;
+  // Perplexity enriched fields
+  local_anecdote_fr: string;
+  local_anecdote_en: string;
+  fun_fact_fr: string;
+  fun_fact_en: string;
+  wikipedia_summary: string;
   metadata: {
     features?: {
       audience?: string[];
@@ -101,6 +107,7 @@ export interface Stop {
   is_photo_spot?: boolean;
   photo_tip?: string | null;
   ruelle_etroite?: boolean;
+  fun_fact?: string;
 }
 
 export interface EngineOutput {
@@ -586,10 +593,26 @@ function buildStops(
       stop.points = points;
       stop.validation_radius_m = poi.radius_m ?? 30;
     } else {
-      // guided_tour
+      // guided_tour — use enriched Perplexity content with language fallback
       stop.story = poi.tourist_interest || poi.description_short || undefined;
-      stop.history_context = poi.history_context || undefined;
-      stop.local_anecdote = poi.local_anecdote || undefined;
+
+      // history_context: already 200+ words from Perplexity; fallback to wikipedia_summary
+      const historyRaw = poi.history_context || "";
+      stop.history_context = historyRaw.length >= 100
+        ? historyRaw
+        : (poi.wikipedia_summary || historyRaw || undefined);
+
+      // local_anecdote: prefer localized long version (100-130 words)
+      if (input.language === "en") {
+        stop.local_anecdote = poi.local_anecdote_en || poi.local_anecdote || undefined;
+      } else {
+        stop.local_anecdote = poi.local_anecdote_fr || poi.local_anecdote || undefined;
+      }
+
+      // fun_fact: new enriched field
+      const funFact = input.language === "en" ? poi.fun_fact_en : poi.fun_fact_fr;
+      stop.fun_fact = funFact || undefined;
+
       stop.tourist_tips = buildTouristTip(poi);
       stop.photo_spot = poi.instagram_spot || (poi.metadata?.features?.visual_impact ?? 0) >= 7;
       stop.address = poi.address || undefined;

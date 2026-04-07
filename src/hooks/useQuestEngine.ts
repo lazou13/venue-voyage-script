@@ -39,6 +39,7 @@ export interface Stop {
   is_photo_spot?: boolean;
   photo_tip?: string | null;
   ruelle_etroite?: boolean;
+  fun_fact?: string;
 }
 
 export interface QuestResult {
