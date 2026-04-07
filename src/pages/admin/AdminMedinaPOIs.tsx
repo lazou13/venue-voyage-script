@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import { useMedinaPOIs, type MedinaPOI } from '@/hooks/useMedinaPOIs';
 import { usePOIMedia, type POIMedia } from '@/hooks/usePOIMedia';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,9 +17,23 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink, MapPin, StickyNote, Navigation, CheckCircle, RotateCcw, Map as MapIcon, List,
+  Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink, MapPin, StickyNote, Navigation, CheckCircle, RotateCcw, Map as MapIcon, List, ShieldCheck, AlertTriangle,
 } from 'lucide-react';
 import POIFeaturesSection, { type POIFeatures, emptyFeatures } from '@/components/admin/POIFeaturesSection';
+
+// ─── Validation eligibility check ───────────────────────────
+function isEligibleForValidation(poi: MedinaPOI): { eligible: boolean; reasons: string[] } {
+  const reasons: string[] = [];
+  if (!poi.name?.trim()) reasons.push('Nom manquant');
+  if (!poi.category?.trim()) reasons.push('Catégorie manquante');
+  if (poi.lat == null || poi.lng == null) reasons.push('GPS manquant');
+  const meta = poi.metadata as Record<string, unknown>;
+  const sc = poi.step_config as Record<string, unknown>;
+  // Check quality score if available
+  const score = (poi as any).poi_quality_score;
+  if (score != null && score < 3) reasons.push(`Score qualité trop bas (${score})`);
+  return { eligible: reasons.length === 0, reasons };
+}
 
 // Lazy-load Leaflet map to avoid SSR/build issues
 const MedinaMap = lazy(() => import('@/components/admin/MedinaMap'));
@@ -445,24 +460,24 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
 
       {/* Validation workflow */}
       {(() => {
-        const canValidate = form.name.trim() !== '' && form.category.trim() !== '' && form.lat != null && form.lng != null;
-        const isDraft = form.status === 'draft';
+        const { eligible, reasons } = isEligibleForValidation(form);
+        const isValidated = form.status === 'validated';
 
         return (
           <div className="space-y-2">
-            {isDraft ? (
+            {!isValidated ? (
               <>
                 <Button
                   className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                  disabled={!canValidate}
+                  disabled={!eligible}
                   onClick={() => { onUpdate(poi.id, { status: 'validated' }); }}
                 >
                   <CheckCircle className="w-4 h-4 mr-1" /> Valider ce POI
                 </Button>
-                {!canValidate && (
-                  <p className="text-xs text-destructive">
-                    Nom, catégorie et coordonnées GPS requis pour valider.
-                  </p>
+                {!eligible && (
+                  <div className="text-xs text-destructive space-y-0.5">
+                    {reasons.map((r, i) => <p key={i}>• {r}</p>)}
+                  </div>
                 )}
               </>
             ) : (
@@ -508,14 +523,42 @@ export default function AdminMedinaPOIs() {
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
   const [placeMode, setPlaceMode] = useState(false);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [bulkValidating, setBulkValidating] = useState(false);
 
   const selectedPOI = pois.find((p) => p.id === selectedId) ?? null;
 
-  const filteredPois = pois.filter(p =>
-    !search || p.name.toLowerCase().includes(search.toLowerCase()) ||
-    (p.zone && p.zone.toLowerCase().includes(search.toLowerCase())) ||
-    (p.category && p.category.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredPois = pois.filter(p => {
+    if (statusFilter !== 'all' && p.status !== statusFilter) return false;
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return p.name.toLowerCase().includes(s) ||
+      (p.zone && p.zone.toLowerCase().includes(s)) ||
+      (p.category && p.category.toLowerCase().includes(s));
+  });
+
+  // Bulk validation: validate all eligible non-validated POIs
+  const eligibleForBulk = pois.filter(p => p.status !== 'validated' && p.status !== 'filtered' && isEligibleForValidation(p).eligible);
+
+  const handleBulkValidate = async () => {
+    if (eligibleForBulk.length === 0) return;
+    setBulkValidating(true);
+    try {
+      const ids = eligibleForBulk.map(p => p.id);
+      const { error } = await supabase
+        .from('medina_pois')
+        .update({ status: 'validated', validated_at: new Date().toISOString() } as any)
+        .in('id', ids);
+      if (error) throw error;
+      toast({ title: `${ids.length} POIs validés !` });
+      // Refresh
+      window.location.reload();
+    } catch (err: unknown) {
+      toast({ title: 'Erreur', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setBulkValidating(false);
+    }
+  };
 
   const handleCreate = async () => {
     try {
@@ -529,7 +572,11 @@ export default function AdminMedinaPOIs() {
 
   const handleUpdate = async (id: string, data: Partial<MedinaPOI>) => {
     try {
-      await update.mutateAsync({ id, ...data });
+      // Add validated_at timestamp when validating
+      const payload = { ...data } as any;
+      if (data.status === 'validated') payload.validated_at = new Date().toISOString();
+      if (data.status === 'draft') payload.validated_at = null;
+      await update.mutateAsync({ id, ...payload });
       if (data.status === 'validated') {
         toast({ title: 'POI validé — utilisable dans le moteur.' });
       } else if (data.status === 'draft') {
@@ -569,7 +616,31 @@ export default function AdminMedinaPOIs() {
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="h-8 w-36 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous statuts</SelectItem>
+            <SelectItem value="draft">Draft</SelectItem>
+            <SelectItem value="classified">Classifié</SelectItem>
+            <SelectItem value="enriched">Enrichi</SelectItem>
+            <SelectItem value="validated">Validé</SelectItem>
+            <SelectItem value="filtered">Filtré</SelectItem>
+          </SelectContent>
+        </Select>
         <div className="flex items-center gap-1 ml-auto">
+          {eligibleForBulk.length > 0 && (
+            <Button
+              size="sm"
+              className="h-8 gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={handleBulkValidate}
+              disabled={bulkValidating}
+            >
+              {bulkValidating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+              Valider {eligibleForBulk.length} éligibles
+            </Button>
+          )}
           <Button
             size="sm"
             variant={viewMode === 'list' ? 'default' : 'outline'}
