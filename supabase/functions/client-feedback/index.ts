@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-feedback-key",
 };
 
 function json(body: unknown, status = 200) {
@@ -11,6 +11,12 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+interface AuthContext {
+  instanceId: string | null;
+  projectId: string | null;
+  sourceProject: string | null;
 }
 
 Deno.serve(async (req) => {
@@ -29,20 +35,38 @@ Deno.serve(async (req) => {
     return json({ error: "Invalid JSON" }, 400);
   }
 
-  // Validate access_token
-  const accessToken = typeof body.access_token === "string" ? body.access_token.trim() : "";
-  if (!accessToken || accessToken.length < 10 || accessToken.length > 200) {
-    return json({ error: "access_token requis" }, 400);
+  // ── AUTH: dual mode ──
+  let auth: AuthContext;
+
+  const feedbackKey = req.headers.get("x-feedback-key");
+  const sourceProject = typeof body.source_project === "string" ? body.source_project.trim() : "";
+
+  if (feedbackKey && sourceProject) {
+    // External mode: validate shared secret
+    const expectedKey = Deno.env.get("EXTERNAL_FEEDBACK_KEY");
+    if (!expectedKey || feedbackKey !== expectedKey) {
+      return json({ error: "Clé API invalide" }, 401);
+    }
+    if (sourceProject.length > 100) {
+      return json({ error: "source_project trop long" }, 400);
+    }
+    auth = { instanceId: null, projectId: null, sourceProject };
+  } else {
+    // Internal mode: resolve via access_token
+    const accessToken = typeof body.access_token === "string" ? body.access_token.trim() : "";
+    if (!accessToken || accessToken.length < 10 || accessToken.length > 200) {
+      return json({ error: "access_token requis" }, 400);
+    }
+
+    const { data: instance, error: instErr } = await sb
+      .from("quest_instances")
+      .select("id, project_id, status")
+      .eq("access_token", accessToken)
+      .single();
+
+    if (instErr || !instance) return json({ error: "Token invalide" }, 401);
+    auth = { instanceId: instance.id, projectId: instance.project_id, sourceProject: null };
   }
-
-  // Resolve instance
-  const { data: instance, error: instErr } = await sb
-    .from("quest_instances")
-    .select("id, project_id, status")
-    .eq("access_token", accessToken)
-    .single();
-
-  if (instErr || !instance) return json({ error: "Token invalide" }, 401);
 
   const type = body.type as string;
 
@@ -61,7 +85,6 @@ Deno.serve(async (req) => {
     // Decode base64
     let bytes: Uint8Array;
     try {
-      // Strip data URI prefix if present
       const raw = base64.includes(",") ? base64.split(",")[1] : base64;
       const binary = atob(raw);
       bytes = new Uint8Array(binary.length);
@@ -70,13 +93,13 @@ Deno.serve(async (req) => {
       return json({ error: "base64 invalide" }, 400);
     }
 
-    // Max 10MB
     if (bytes.length > 10 * 1024 * 1024) return json({ error: "Fichier trop volumineux (max 10MB)" }, 400);
 
     const ext = mediaType === "video" ? "mp4" : "jpg";
     const mime = mediaType === "video" ? "video/mp4" : "image/jpeg";
     const ts = Date.now();
-    const path = `${instance.id}/${poiId || "general"}/${ts}.${ext}`;
+    const folder = auth.instanceId || auth.sourceProject || "external";
+    const path = `${folder}/${poiId || "general"}/${ts}.${ext}`;
 
     const { error: uploadErr } = await sb.storage
       .from("quest-photos")
@@ -85,7 +108,7 @@ Deno.serve(async (req) => {
     if (uploadErr) return json({ error: "Upload échoué: " + uploadErr.message }, 500);
 
     const { error: insertErr } = await sb.from("quest_photos").insert({
-      quest_instance_id: instance.id,
+      quest_instance_id: auth.instanceId,
       medina_poi_id: poiId,
       storage_path: path,
       media_type: mediaType,
@@ -93,6 +116,7 @@ Deno.serve(async (req) => {
       lat,
       lng,
       device_id: deviceId,
+      source_project: auth.sourceProject,
     });
 
     if (insertErr) return json({ error: "Insert échoué: " + insertErr.message }, 500);
@@ -113,7 +137,7 @@ Deno.serve(async (req) => {
     if (!poiName && !medinaPoiId) return json({ error: "poi_name ou medina_poi_id requis" }, 400);
 
     const { error: insertErr } = await sb.from("client_poi_recommendations").insert({
-      source_instance_id: instance.id,
+      source_instance_id: auth.instanceId,
       medina_poi_id: medinaPoiId,
       poi_name: poiName,
       comment,
@@ -121,6 +145,7 @@ Deno.serve(async (req) => {
       lat,
       lng,
       photo_url: photoUrl,
+      source_project: auth.sourceProject,
     });
 
     if (insertErr) return json({ error: "Insert échoué: " + insertErr.message }, 500);
