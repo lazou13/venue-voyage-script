@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, MapPin, ShoppingCart, Store, HeartPulse, Sparkles, Database, Camera, Library, Shield, BarChart3, List } from 'lucide-react';
+import { LayoutDashboard, BookOpen, MapPin, ShoppingCart, Store, HeartPulse, Sparkles, Database, Camera, Library, Shield, BarChart3, List, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -9,6 +9,7 @@ const navItems = [
   { to: '/admin/watchdog', label: 'Watchdog Qualité', icon: Shield },
   { to: '/admin/media-library', label: 'Médiathèque', icon: Camera },
   { to: '/admin/quest-library', label: 'Visites', icon: Library },
+  { to: '/admin/client-feedback', label: 'Feedback Clients', icon: MessageSquare },
   { to: '/admin/orders', label: 'Commandes', icon: ShoppingCart },
   { to: '/admin/catalog', label: 'Catalogue', icon: Store },
   { to: '/admin/health', label: 'Santé', icon: HeartPulse },

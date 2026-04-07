@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Play, Clock, MapPin, AlertTriangle, Eye, ChevronRight, ArrowLeft, CheckCircle2, Smartphone, MessageCircle, Map as MapIcon, List } from 'lucide-react';
+import { ClientFeedbackSection } from '@/components/quest/ClientFeedbackSection';
 
 const QuestMap = lazy(() => import('@/components/quest/QuestMap'));
 
@@ -292,7 +293,7 @@ export default function QuestPlay() {
               ) : (
                 <main className="flex-1 overflow-y-auto p-4">
                   {selectedPoi ? (
-                    <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} isVisit={isVisit} />
+                    <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} isVisit={isVisit} accessToken={token!} instanceId={data.instance.id} />
                   ) : (
                     <EmptyState />
                   )}
@@ -303,7 +304,7 @@ export default function QuestPlay() {
             {/* Desktop main */}
             <main className="flex-1 overflow-y-auto p-4 hidden md:block">
               {selectedPoi ? (
-                <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} isVisit={isVisit} />
+                <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} isVisit={isVisit} accessToken={token!} instanceId={data.instance.id} />
               ) : (
                 <EmptyState />
               )}
@@ -378,10 +379,14 @@ function POIDetail({
   poi,
   getMediaUrls,
   isVisit,
+  accessToken,
+  instanceId,
 }: {
   poi: NonNullable<PlayData['pois'][number]>;
   getMediaUrls: (ids: string[]) => Promise<Record<string, string>>;
   isVisit: boolean;
+  accessToken: string;
+  instanceId: string;
 }) {
   const config = poi.step_config || {};
   const geo = config.geo as Record<string, unknown> | undefined;
@@ -583,6 +588,16 @@ function POIDetail({
           </CardContent>
         </Card>
       )}
+
+      {/* Client feedback: photo capture + recommendation */}
+      <ClientFeedbackSection
+        accessToken={accessToken}
+        instanceId={instanceId}
+        poiId={poi.id}
+        poiName={poi.name}
+        libraryPoiId={(poi as unknown as Record<string, unknown>).library_poi_id as string | null}
+        deviceId={null}
+      />
     </div>
   );
 }
