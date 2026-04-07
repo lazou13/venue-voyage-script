@@ -1,51 +1,47 @@
 
 
-# Plan : Servir le contenu enrichi Perplexity dans generate-quest
+# Plan : Auto-validation des POIs par l'agent autonome
 
 ## Constat
 
-Les 451 POIs sont enrichis en base avec des contenus longs (history_context 246 mots, anecdotes 139 mots, fun facts). Mais `generate-quest` ne sélectionne **que** les anciens champs courts (`history_context`, `local_anecdote`). Les champs Perplexity (`local_anecdote_fr/en`, `fun_fact_fr/en`, `wikipedia_summary`) sont ignorés.
+- **815 POIs enrichis**, **0 validés**
+- L'API publique (`mode=library`) filtre sur `status = 'validated'` → QR Pro reçoit **0 POIs**
+- L'agent `poi-auto-agent` n'a **aucune phase de validation** — il enrichit et génère des visites, mais ne promeut jamais les POIs au statut "validated"
+- **765 POIs** remplissent déjà les critères de validation (enrichis, score ≥ 3, catégorie IA, coordonnées GPS)
 
-**Note** : le champ `history_context` dans `medina_pois` contient **déjà** le contenu long de 200+ mots (écrit par Perplexity directement dedans). Donc l'histoire est déjà servie. Ce qui manque, ce sont les anecdotes multilingues et les fun facts.
+## Solution
 
-## Modifications
+Ajouter une **Phase 0 "Auto-Validation"** dans `poi-auto-agent` qui s'exécute en premier à chaque cycle. Elle promeut automatiquement les POIs enrichis éligibles vers le statut `validated`.
 
-### 1. `generate-quest/index.ts` — SELECT + mapping enrichi
+### Critères d'éligibilité (déjà établis dans le système)
+- `status = 'enriched'`
+- `is_active = true`
+- `poi_quality_score >= 3`
+- `category_ai IS NOT NULL`
+- `lat IS NOT NULL AND lng IS NOT NULL`
+- `name IS NOT NULL`
 
-- Ajouter au SELECT : `local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, wikipedia_summary`
-- Mapping avec fallback selon la langue :
-  - `local_anecdote` : `local_anecdote_fr || local_anecdote` (FR), `local_anecdote_en || local_anecdote` (EN)
-  - Nouveaux champs : `fun_fact_fr`, `fun_fact_en`, `wikipedia_summary`
+### Modifications
 
-### 2. `QuestEngine.ts` — Type POI + Stop + mapping
+**Fichier : `supabase/functions/poi-auto-agent/index.ts`**
 
-- Ajouter au type `POI` : `local_anecdote_fr`, `local_anecdote_en`, `fun_fact_fr`, `fun_fact_en`, `wikipedia_summary`
-- Ajouter au type `Stop` : `fun_fact?: string`
-- Dans la construction des stops (guided_tour, ~L591) :
-  - `local_anecdote` : choisir la version longue selon `input.language`
-  - `fun_fact` : choisir `fun_fact_fr` ou `fun_fact_en` selon la langue
-  - `history_context` : enrichir avec `wikipedia_summary` si `history_context` est court (<100 chars)
+Ajouter une Phase 0 avant la Phase 1 existante :
+1. Requête : sélectionner les POIs `enriched` + éligibles (batch de 200)
+2. Mettre à jour leur `status` à `validated` et `validated_at` à `now()`
+3. Logger le nombre de POIs validés
 
-### 3. `useQuestEngine.ts` — Type Stop
+Le reste de l'agent (Phase 1 enrichissement tags, Phase 2 génération visites) reste inchangé.
 
-- Ajouter `fun_fact?: string` au type `Stop`
+### Résultat attendu
 
-### 4. `QuestResult.tsx` — Affichage fun_fact
+- Premier cycle de l'agent : **~765 POIs passent en "validated"** immédiatement
+- L'API `mode=library` retourne ces 765+ POIs à QR Pro
+- Le dashboard affiche les vrais chiffres de POIs validés
+- Chaque futur cycle auto-valide les nouveaux POIs enrichis
 
-- Ajouter un bloc entre l'anecdote et les infos pratiques :
-```
-💡 Le saviez-vous ? {stop.fun_fact}
-```
-Style : fond amber-50, bordure amber-200 (similaire au bloc histoire)
-
-### 5. Redéployer `generate-quest`
-
-## Fichiers modifiés
+### Fichiers modifiés
 
 | Fichier | Changement |
 |---|---|
-| `supabase/functions/generate-quest/index.ts` | SELECT + mapping enrichi avec fallback langue |
-| `supabase/functions/generate-quest/QuestEngine.ts` | Types POI/Stop + logique fun_fact |
-| `src/hooks/useQuestEngine.ts` | Type Stop + fun_fact |
-| `src/components/quest/QuestResult.tsx` | Bloc "Le saviez-vous ?" |
+| `supabase/functions/poi-auto-agent/index.ts` | Ajout Phase 0 auto-validation |
 
