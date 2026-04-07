@@ -38,7 +38,7 @@ function AdminLayoutInner() {
 
   return (
     <div className="min-h-screen flex bg-background">
-      <AdminSidebar hasUnsavedChanges={hasUnsavedChanges} />
+      <AdminSidebar />
       <div className="flex-1 flex flex-col">
         <header className="h-14 border-b border-border bg-card px-6 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-3">
