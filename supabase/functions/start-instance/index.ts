@@ -320,7 +320,7 @@ Deno.serve(async (req) => {
         const { data: matches } = await supabaseAdmin
           .from("medina_pois")
           .select(LIB_FIELDS)
-          .ilike("name", `%${searchName}%`)
+          .or(`name.ilike.%${searchName}%,name_fr.ilike.%${searchName}%,name_en.ilike.%${searchName}%`)
           .limit(1);
 
         if (matches && matches.length > 0) {
