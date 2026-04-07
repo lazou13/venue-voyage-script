@@ -253,16 +253,54 @@ Deno.serve(async (req) => {
       return json({ error: "Projet introuvable" }, 404, corsHeaders);
     }
 
-    // 7. Fetch pois
+    // 7. Fetch pois with enrichment fields
     const { data: pois, error: poisErr } = await supabaseAdmin
       .from("pois")
-      .select("id, sort_order, name, step_config, zone, interaction")
+      .select("id, sort_order, name, step_config, zone, interaction, library_poi_id, history_context, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, opening_hours, accessibility_notes, crowd_level")
       .eq("project_id", currentInstance.project_id)
       .order("sort_order", { ascending: true });
 
     if (poisErr) {
       console.error("Error fetching pois:", poisErr);
       return json({ error: "Erreur chargement POIs" }, 500, corsHeaders);
+    }
+
+    // 8. Fallback: enrich from medina_pois via library_poi_id where fields are empty
+    const enrichedPois = pois || [];
+    const needsFallback = enrichedPois.filter(
+      (p: any) => p.library_poi_id && !p.history_context && !p.local_anecdote_fr
+    );
+
+    if (needsFallback.length > 0) {
+      const libraryIds = [...new Set(needsFallback.map((p: any) => p.library_poi_id))];
+      const { data: libraryPois } = await supabaseAdmin
+        .from("medina_pois")
+        .select("id, history_context, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, price_info, opening_hours, accessibility_notes, crowd_level, must_see_details, must_try, must_visit_nearby")
+        .in("id", libraryIds);
+
+      if (libraryPois && libraryPois.length > 0) {
+        const libMap = new Map(libraryPois.map((lp: any) => [lp.id, lp]));
+        for (const poi of enrichedPois) {
+          const p = poi as any;
+          if (!p.library_poi_id) continue;
+          const lib = libMap.get(p.library_poi_id);
+          if (!lib) continue;
+          // Fill missing fields from library
+          if (!p.history_context) p.history_context = (lib as any).history_context;
+          if (!p.local_anecdote_fr) p.local_anecdote_fr = (lib as any).local_anecdote_fr;
+          if (!p.local_anecdote_en) p.local_anecdote_en = (lib as any).local_anecdote_en;
+          if (!p.fun_fact_fr) p.fun_fact_fr = (lib as any).fun_fact_fr;
+          if (!p.fun_fact_en) p.fun_fact_en = (lib as any).fun_fact_en;
+          if (!p.opening_hours) p.opening_hours = (lib as any).opening_hours;
+          if (!p.accessibility_notes) p.accessibility_notes = (lib as any).accessibility_notes;
+          if (!p.crowd_level) p.crowd_level = (lib as any).crowd_level;
+          // Extra library-only fields injected as _lib_*
+          p._lib_price_info = (lib as any).price_info;
+          p._lib_must_see = (lib as any).must_see_details;
+          p._lib_must_try = (lib as any).must_try;
+          p._lib_nearby = (lib as any).must_visit_nearby;
+        }
+      }
     }
 
     return json(
@@ -280,7 +318,7 @@ Deno.serve(async (req) => {
           devices_allowed: currentInstance.devices_allowed,
         },
         project,
-        pois: pois || [],
+        pois: enrichedPois,
       },
       200,
       corsHeaders,

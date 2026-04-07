@@ -342,7 +342,7 @@ export function usePOIs(projectId: string | undefined) {
         }
       }
 
-      // 5. Insert into pois
+      // 5. Insert into pois (with enrichment fields from library)
       const { data, error } = await supabase
         .from('pois')
         .insert({
@@ -355,6 +355,14 @@ export function usePOIs(projectId: string | undefined) {
           sort_order: nextOrder,
           step_config: stepConfig as unknown as Json,
           library_poi_id: medinaPoiId,
+          // Copy enrichment fields
+          history_context: mpoi.history_context || null,
+          local_anecdote_fr: mpoi.local_anecdote_fr || null,
+          local_anecdote_en: mpoi.local_anecdote_en || null,
+          fun_fact_fr: mpoi.fun_fact_fr || null,
+          fun_fact_en: mpoi.fun_fact_en || null,
+          crowd_level: mpoi.crowd_level || null,
+          accessibility_notes: mpoi.accessibility_notes || null,
         })
         .select()
         .single();

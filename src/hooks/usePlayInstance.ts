@@ -26,6 +26,19 @@ interface PlayPOI {
   step_config: Record<string, unknown>;
   zone: string;
   interaction: string;
+  library_poi_id?: string | null;
+  history_context?: string | null;
+  local_anecdote_fr?: string | null;
+  local_anecdote_en?: string | null;
+  fun_fact_fr?: string | null;
+  fun_fact_en?: string | null;
+  opening_hours?: Record<string, unknown> | null;
+  accessibility_notes?: string | null;
+  crowd_level?: string | null;
+  _lib_price_info?: string | null;
+  _lib_must_see?: string | null;
+  _lib_must_try?: string | null;
+  _lib_nearby?: string | null;
 }
 
 export interface PlayData {
