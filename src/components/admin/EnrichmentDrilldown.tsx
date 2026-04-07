@@ -81,6 +81,26 @@ export default function EnrichmentDrilldown({ field, label, open, onOpenChange }
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const { error } = await supabase
+        .from('medina_pois')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      toast.success('POI supprimé ✓');
+      qc.invalidateQueries({ queryKey: ['enrichment-drilldown'] });
+      qc.invalidateQueries({ queryKey: ['admin-dashboard-stats'] });
+      qc.invalidateQueries({ queryKey: ['medina_pois'] });
+    },
+    onError: (err) => {
+      console.error('Delete error:', err);
+      toast.error('Erreur de suppression');
+    },
+  });
+
   const rows = data?.rows ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
