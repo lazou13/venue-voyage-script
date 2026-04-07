@@ -86,3 +86,6 @@ verify_jwt = false
 
 [functions.client-feedback]
 verify_jwt = false
+
+[functions.sync-pois-export]
+verify_jwt = false
