@@ -15,6 +15,8 @@ interface Stats {
   withRiddle: number;
   withPhoto: number;
   withWikipedia: number;
+  withHistory: number;
+  withFunFact: number;
   mediaCount: number;
   toursCount: number;
   clientPhotos: number;
@@ -52,7 +54,7 @@ async function fetchStats(): Promise<Stats> {
   // Enrichment coverage — sample active POIs
   const { data: sample } = await supabase
     .from('medina_pois')
-    .select('local_anecdote_fr, riddle_easy, wikipedia_summary')
+    .select('local_anecdote_fr, riddle_easy, wikipedia_summary, history_context, fun_fact_fr')
     .eq('is_active', true)
     .limit(1000);
 
@@ -60,6 +62,8 @@ async function fetchStats(): Promise<Stats> {
   const withAnecdote = rows.filter((r: any) => r.local_anecdote_fr && r.local_anecdote_fr.length > 10).length;
   const withRiddle = rows.filter((r: any) => r.riddle_easy && r.riddle_easy.length > 5).length;
   const withWikipedia = rows.filter((r: any) => r.wikipedia_summary && r.wikipedia_summary.length > 10).length;
+  const withHistory = rows.filter((r: any) => r.history_context && r.history_context.length > 10).length;
+  const withFunFact = rows.filter((r: any) => r.fun_fact_fr && r.fun_fact_fr.length > 5).length;
 
   // Photos with media
   const withPhoto = mediaCount ?? 0;
@@ -75,6 +79,8 @@ async function fetchStats(): Promise<Stats> {
     withRiddle,
     withPhoto: withPhoto,
     withWikipedia,
+    withHistory,
+    withFunFact,
     mediaCount: mediaCount ?? 0,
     toursCount: toursCount ?? 0,
     clientPhotos: clientPhotos ?? 0,
@@ -116,7 +122,9 @@ export default function AdminDashboard() {
   ];
 
   const enrichmentCoverage = [
+    { label: 'Histoires', value: stats.withHistory, total: stats.total },
     { label: 'Anecdotes FR', value: stats.withAnecdote, total: stats.total },
+    { label: 'Fun Facts', value: stats.withFunFact, total: stats.total },
     { label: 'Énigmes', value: stats.withRiddle, total: stats.total },
     { label: 'Wikipedia', value: stats.withWikipedia, total: stats.total },
     { label: 'Photos', value: stats.withPhoto, total: stats.total },
@@ -195,7 +203,7 @@ export default function AdminDashboard() {
           <CardTitle className="text-lg">Couverture d'enrichissement</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
             {enrichmentCoverage.map(({ label, value, total }) => (
               <div key={label} className="text-center p-3 rounded-lg bg-muted/50">
                 <p className="text-2xl font-bold"><Pct value={value} total={total} /></p>
