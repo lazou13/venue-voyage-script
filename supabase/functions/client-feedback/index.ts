@@ -135,6 +135,7 @@ Deno.serve(async (req) => {
       lng,
       device_id: deviceId,
       source_project: auth.sourceProject,
+      source_instance_id: sourceInstanceId,
     });
 
     if (insertErr) return json({ error: "Insert échoué: " + insertErr.message }, 500);
