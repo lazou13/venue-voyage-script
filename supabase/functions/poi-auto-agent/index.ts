@@ -45,6 +45,40 @@ serve(async (req) => {
 
   try {
 
+    // ━━━━━━━━━━ PHASE 0: AUTO-VALIDATION (enriched → validated) ━━━━━━━━━━
+    const { data: eligiblePois, error: eligibleErr } = await supabase
+      .from("medina_pois")
+      .select("id")
+      .eq("status", "enriched")
+      .eq("is_active", true)
+      .gte("poi_quality_score", 3)
+      .not("category_ai", "is", null)
+      .not("lat", "is", null)
+      .not("lng", "is", null)
+      .not("name", "is", null)
+      .limit(200);
+
+    if (eligibleErr) throw eligibleErr;
+
+    if (eligiblePois && eligiblePois.length > 0) {
+      const ids = eligiblePois.map((p: any) => p.id);
+      const now = new Date().toISOString();
+
+      const { error: valErr } = await supabase
+        .from("medina_pois")
+        .update({ status: "validated", validated_at: now })
+        .in("id", ids);
+
+      if (valErr) {
+        logs.push(`❌ Erreur auto-validation: ${valErr.message}`);
+      } else {
+        logs.push(`✅ Phase 0: ${ids.length} POIs promus en "validated"`);
+        results.push({ phase: "auto_validation", action: "promote_validated", count: ids.length, logs: [] });
+      }
+    } else {
+      logs.push("✅ Phase 0: Aucun POI éligible à valider");
+    }
+
     // ━━━━━━━━━━ PHASE 1: POI ENRICHMENT (audience/accessibility/food/instagram) ━━━━━━━━━━
     const { data: unenrichedPois, error: fetchErr } = await supabase
       .from("medina_pois")
