@@ -1,37 +1,25 @@
 
 
-# Ajouter un ecran d'authentification et proteger les routes admin
+## Créer un compte admin
 
-## Contexte
+### Situation
+Le formulaire d'inscription sur `/auth` (onglet "Inscription") demande un **code administrateur** stocké dans le secret `ADMIN_SIGNUP_CODE`. Ce secret existe mais sa valeur est chiffrée et invisible.
 
-Le fichier `src/pages/Auth.tsx` existe deja avec login, signup (code admin), et mot de passe oublie. Mais il n'est pas route dans `App.tsx` et les routes `/admin/*` ne sont pas protegees.
+### Deux options
 
-## Plan
+**Option A — Vous connaissez le code admin**
+1. Allez sur https://huntplanerpro.questrides.com/auth
+2. Cliquez sur l'onglet **Inscription**
+3. Entrez votre email, mot de passe, et le code admin
+4. Le compte sera créé avec le rôle admin et vous serez connecté automatiquement
 
-### 1. Ajouter la route `/auth` dans App.tsx
+**Option B — Vous ne connaissez pas le code**
+Je modifie temporairement la Edge Function `admin-signup` pour accepter un code connu (ex: un code que vous choisissez), vous créez votre compte, puis je remets le code original. Alternativement, je peux forcer le mot de passe d'un compte existant (`contact@questrides.com`) via la Edge Function `create-first-admin` en supprimant temporairement la vérification "admin déjà existant".
 
-Importer Auth.tsx en lazy et ajouter `<Route path="/auth" element={<Auth />} />`.
-
-### 2. Creer un composant ProtectedRoute
-
-Composant wrapper qui verifie `useAuth()` :
-- Si loading : spinner
-- Si pas de user : redirect vers `/auth`
-- Si user : affiche children
-
-### 3. Proteger les routes admin
-
-Wrapper la route `/admin` avec `<ProtectedRoute>` dans App.tsx. Optionnellement proteger `/dashboard` et `/intake/:projectId` aussi.
-
-### 4. Ajouter un bouton deconnexion dans AdminLayout
-
-Ajouter un bouton dans le header admin qui appelle `signOut()` et redirige vers `/auth`.
-
-## Fichiers modifies
-
+### Fichiers modifiés (Option B uniquement)
 | Fichier | Action |
 |---------|--------|
-| `src/App.tsx` | Ajouter route `/auth` + wrapper ProtectedRoute sur admin |
-| `src/components/ProtectedRoute.tsx` | Nouveau — guard auth avec redirect |
-| `src/pages/admin/AdminLayout.tsx` | Ajouter bouton deconnexion |
+| Secret `ADMIN_SIGNUP_CODE` | Mise à jour temporaire via l'outil `update_secret` |
+
+Aucune modification de code nécessaire si vous choisissez Option A.
 
