@@ -1,8 +1,13 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, MapPin, CheckCircle, AlertTriangle, Camera, Library, Image, MessageSquare, TrendingUp } from 'lucide-react';
+import EnrichmentDrilldown from '@/components/admin/EnrichmentDrilldown';
+import { useNavigate } from 'react-router-dom';
+
+type DbField = 'history_context' | 'local_anecdote_fr' | 'fun_fact_fr' | 'riddle_easy' | 'wikipedia_summary';
 
 interface Stats {
   total: number;
@@ -96,6 +101,9 @@ function Pct({ value, total }: { value: number; total: number }) {
 }
 
 export default function AdminDashboard() {
+  const navigate = useNavigate();
+  const [drilldownField, setDrilldownField] = useState<DbField | null>(null);
+  const [drilldownLabel, setDrilldownLabel] = useState('');
   const { data: stats, isLoading } = useQuery({
     queryKey: ['admin-dashboard-stats'],
     queryFn: fetchStats,
@@ -121,13 +129,13 @@ export default function AdminDashboard() {
     { label: 'Recommandations', value: stats.clientRecos, icon: MessageSquare, color: 'text-teal-600' },
   ];
 
-  const enrichmentCoverage = [
-    { label: 'Histoires', value: stats.withHistory, total: stats.total },
-    { label: 'Anecdotes FR', value: stats.withAnecdote, total: stats.total },
-    { label: 'Fun Facts', value: stats.withFunFact, total: stats.total },
-    { label: 'Énigmes', value: stats.withRiddle, total: stats.total },
-    { label: 'Wikipedia', value: stats.withWikipedia, total: stats.total },
-    { label: 'Photos', value: stats.withPhoto, total: stats.total },
+  const enrichmentCoverage: { label: string; value: number; total: number; field: DbField | 'photos' }[] = [
+    { label: 'Histoires', value: stats.withHistory, total: stats.total, field: 'history_context' },
+    { label: 'Anecdotes FR', value: stats.withAnecdote, total: stats.total, field: 'local_anecdote_fr' },
+    { label: 'Fun Facts', value: stats.withFunFact, total: stats.total, field: 'fun_fact_fr' },
+    { label: 'Énigmes', value: stats.withRiddle, total: stats.total, field: 'riddle_easy' },
+    { label: 'Wikipedia', value: stats.withWikipedia, total: stats.total, field: 'wikipedia_summary' },
+    { label: 'Photos', value: stats.withPhoto, total: stats.total, field: 'photos' },
   ];
 
   return (
@@ -204,8 +212,19 @@ export default function AdminDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-            {enrichmentCoverage.map(({ label, value, total }) => (
-              <div key={label} className="text-center p-3 rounded-lg bg-muted/50">
+            {enrichmentCoverage.map(({ label, value, total, field }) => (
+              <div
+                key={label}
+                className="text-center p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors hover:ring-1 hover:ring-primary/30"
+                onClick={() => {
+                  if (field === 'photos') {
+                    navigate('/admin/media-library');
+                  } else {
+                    setDrilldownField(field);
+                    setDrilldownLabel(label);
+                  }
+                }}
+              >
                 <p className="text-2xl font-bold"><Pct value={value} total={total} /></p>
                 <p className="text-xs text-muted-foreground mt-1">{label}</p>
                 <p className="text-xs text-muted-foreground">{value}/{total}</p>
@@ -214,6 +233,15 @@ export default function AdminDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      {drilldownField && (
+        <EnrichmentDrilldown
+          field={drilldownField}
+          label={drilldownLabel}
+          open={!!drilldownField}
+          onOpenChange={(open) => { if (!open) setDrilldownField(null); }}
+        />
+      )}
 
       {/* Inter-project API status */}
       <Card>
