@@ -595,7 +595,7 @@ function POIDetail({
         instanceId={instanceId}
         poiId={poi.id}
         poiName={poi.name}
-        libraryPoiId={(poi as Record<string, unknown>).library_poi_id as string | null}
+        libraryPoiId={(poi as unknown as Record<string, unknown>).library_poi_id as string | null}
         deviceId={null}
       />
     </div>
