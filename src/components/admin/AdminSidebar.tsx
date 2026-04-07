@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { List, Rocket, LayoutDashboard, Sliders, Settings2, ShieldCheck, Languages, BookOpen, MapPin, ShoppingCart, Wand2, Store, HeartPulse, Sparkles, Database, Camera, Library } from 'lucide-react';
+import { List, LayoutDashboard, BookOpen, MapPin, ShoppingCart, Store, HeartPulse, Sparkles, Database, Camera, Library, Shield } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
@@ -8,22 +8,17 @@ interface AdminSidebarProps {
 }
 
 const navItems = [
-  { to: '/admin/enums', label: 'Enums', icon: List },
-  { to: '/admin/presets', label: 'Préréglages', icon: Sliders },
-  { to: '/admin/fields', label: 'Champs', icon: Settings2 },
-  { to: '/admin/rules', label: 'Règles', icon: ShieldCheck },
-  { to: '/admin/labels', label: 'Labels', icon: Languages },
-  { to: '/admin/publish', label: 'Publier', icon: Rocket },
-  { to: '/admin/docs', label: 'Documentation', icon: BookOpen },
-  { to: '/admin/medina-pois', label: 'Bibliothèque Médina', icon: MapPin },
-  { to: '/admin/medina-custom', label: 'Sur-mesure', icon: Wand2 },
+  { to: '/admin/medina-pois', label: 'Bibliothèque POI', icon: MapPin },
+  { to: '/admin/poi-pipeline', label: 'Pipeline POI', icon: Database },
+  { to: '/admin/watchdog', label: 'Watchdog Qualité', icon: Shield },
+  { to: '/admin/media-library', label: 'Médiathèque', icon: Camera },
+  { to: '/admin/quest-library', label: 'Visites', icon: Library },
   { to: '/admin/orders', label: 'Commandes', icon: ShoppingCart },
   { to: '/admin/catalog', label: 'Catalogue', icon: Store },
   { to: '/admin/health', label: 'Santé', icon: HeartPulse },
   { to: '/admin/experience-page', label: 'Page Expérience', icon: Sparkles },
-  { to: '/admin/poi-pipeline', label: 'Pipeline POI', icon: Database },
-  { to: '/admin/media-library', label: 'Médiathèque', icon: Camera },
-  { to: '/admin/quest-library', label: 'Bibliothèque Visites', icon: Library },
+  { to: '/admin/enums', label: 'Enums', icon: List },
+  { to: '/admin/docs', label: 'Documentation', icon: BookOpen },
 ];
 
 export function AdminSidebar({ hasUnsavedChanges }: AdminSidebarProps) {

@@ -501,16 +501,20 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
 // ─── Stats bar ──────────────────────────────────────────────
 function StatsBar({ pois }: { pois: MedinaPOI[] }) {
   const validated = pois.filter(p => p.status === 'validated').length;
-  const withGps = pois.filter(p => p.lat != null && p.lng != null).length;
+  const enriched = pois.filter(p => p.status === 'enriched').length;
+  const draft = pois.filter(p => p.status === 'draft').length;
+  const classified = pois.filter(p => p.status === 'classified').length;
+  const filtered = pois.filter(p => p.status === 'filtered').length;
   const hubs = pois.filter(p => p.is_start_hub).length;
-  const active = pois.filter(p => p.is_active).length;
   return (
-    <div className="flex gap-4 text-xs text-muted-foreground px-1 pb-2">
-      <span><strong className="text-foreground">{pois.length}</strong> POIs</span>
+    <div className="flex gap-4 text-xs text-muted-foreground px-1 pb-2 flex-wrap">
+      <span><strong className="text-foreground">{pois.length}</strong> total</span>
       <span><strong className="text-emerald-600">{validated}</strong> validés</span>
-      <span><strong className="text-foreground">{withGps}</strong> géolocalisés</span>
+      <span><strong className="text-blue-600">{enriched}</strong> enrichis</span>
+      <span><strong className="text-violet-600">{classified}</strong> classifiés</span>
+      <span><strong className="text-foreground">{draft}</strong> drafts</span>
+      <span className="opacity-60">{filtered} filtrés</span>
       <span><strong className="text-amber-500">{hubs}</strong> hubs</span>
-      <span><strong className="text-foreground">{active}</strong> actifs</span>
     </div>
   );
 }
