@@ -102,7 +102,7 @@ function AuthInner() {
     try {
       const res = await supabase.functions.invoke('admin-signup', { body: { email, password, adminCode } });
       if (res.data?.error) { setError(res.data.error); setIsSubmitting(false); return; }
-      if (res.error) { setError(res.error.message || "Erreur lors de l'inscription"); setIsSubmitting(false); return; }
+      if (res.error) { setError("Service d'inscription momentanément inaccessible. Veuillez réessayer."); setIsSubmitting(false); return; }
       setSuccess('Compte créé ! Connexion en cours...');
       const { error: signInErr } = await signIn(email, password);
       if (signInErr) { setSuccess(null); setError('Compte créé mais erreur de connexion. Essayez de vous connecter.'); }
