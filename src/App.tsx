@@ -25,6 +25,7 @@ const AdminMediaLibrary = lazy(() => import("./pages/admin/AdminMediaLibrary"));
 const AdminQuestLibrary = lazy(() => import("./pages/admin/AdminQuestLibrary"));
 const AdminWatchdog = lazy(() => import("./pages/admin/AdminWatchdog"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
+const AdminClientFeedback = lazy(() => import("./pages/admin/AdminClientFeedback"));
 const Auth = lazy(() => import("./pages/Auth"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
@@ -62,6 +63,7 @@ const App = () => (
                 <Route path="watchdog" element={<AdminWatchdog />} />
                 <Route path="media-library" element={<AdminMediaLibrary />} />
                 <Route path="quest-library" element={<AdminQuestLibrary />} />
+                <Route path="client-feedback" element={<AdminClientFeedback />} />
                 <Route path="orders" element={<AdminOrders />} />
                 <Route path="catalog" element={<AdminCatalog />} />
                 <Route path="health" element={<AdminHealth />} />

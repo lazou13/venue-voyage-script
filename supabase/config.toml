@@ -83,3 +83,6 @@ verify_jwt = false
 
 [functions.poi-watchdog]
 verify_jwt = false
+
+[functions.client-feedback]
+verify_jwt = false
