@@ -34,6 +34,7 @@ const AdminExperiencePage = lazy(() => import("./pages/admin/AdminExperiencePage
 const AdminPOIPipeline = lazy(() => import("./pages/admin/AdminPOIPipeline"));
 const AdminMediaLibrary = lazy(() => import("./pages/admin/AdminMediaLibrary"));
 const AdminQuestLibrary = lazy(() => import("./pages/admin/AdminQuestLibrary"));
+const AdminWatchdog = lazy(() => import("./pages/admin/AdminWatchdog"));
 const PublicExperienceWizard = lazy(() => import("./pages/PublicExperienceWizard"));
 const Auth = lazy(() => import("./pages/Auth"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -68,7 +69,7 @@ const App = () => (
               
               {/* Admin Panel Routes - require admin role */}
               <Route path="/admin" element={<ProtectedRoute requireAdmin><AdminLayout /></ProtectedRoute>}>
-                <Route index element={<Navigate to="/admin/enums" replace />} />
+                <Route index element={<Navigate to="/admin/medina-pois" replace />} />
                 <Route path="enums" element={<AdminEnums />} />
                 <Route path="presets" element={<AdminPresets />} />
                 <Route path="fields" element={<AdminFields />} />
@@ -85,6 +86,7 @@ const App = () => (
                 <Route path="poi-pipeline" element={<AdminPOIPipeline />} />
                 <Route path="media-library" element={<AdminMediaLibrary />} />
                 <Route path="quest-library" element={<AdminQuestLibrary />} />
+                <Route path="watchdog" element={<AdminWatchdog />} />
               </Route>
               
               <Route path="/creez-votre-experience" element={<PublicExperienceWizard />} />

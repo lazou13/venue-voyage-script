@@ -88,6 +88,66 @@ export type Database = {
           },
         ]
       }
+      client_poi_recommendations: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          lat: number | null
+          lng: number | null
+          medina_poi_id: string | null
+          photo_url: string | null
+          poi_name: string | null
+          rating: number | null
+          reviewed_at: string | null
+          source_instance_id: string | null
+          status: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          medina_poi_id?: string | null
+          photo_url?: string | null
+          poi_name?: string | null
+          rating?: number | null
+          reviewed_at?: string | null
+          source_instance_id?: string | null
+          status?: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          medina_poi_id?: string | null
+          photo_url?: string | null
+          poi_name?: string | null
+          rating?: number | null
+          reviewed_at?: string | null
+          source_instance_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_poi_recommendations_medina_poi_id_fkey"
+            columns: ["medina_poi_id"]
+            isOneToOne: false
+            referencedRelation: "medina_pois"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_poi_recommendations_source_instance_id_fkey"
+            columns: ["source_instance_id"]
+            isOneToOne: false
+            referencedRelation: "quest_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forbidden_zones: {
         Row: {
           id: string
@@ -290,6 +350,7 @@ export type Database = {
           terrain_validated_at: string | null
           tourist_interest: string | null
           updated_at: string
+          validated_at: string | null
           website: string | null
           website_url: string | null
           wikidata_id: string | null
@@ -369,6 +430,7 @@ export type Database = {
           terrain_validated_at?: string | null
           tourist_interest?: string | null
           updated_at?: string
+          validated_at?: string | null
           website?: string | null
           website_url?: string | null
           wikidata_id?: string | null
@@ -448,6 +510,7 @@ export type Database = {
           terrain_validated_at?: string | null
           tourist_interest?: string | null
           updated_at?: string
+          validated_at?: string | null
           website?: string | null
           website_url?: string | null
           wikidata_id?: string | null
@@ -999,6 +1062,63 @@ export type Database = {
         }
         Relationships: []
       }
+      quest_photos: {
+        Row: {
+          caption: string | null
+          created_at: string
+          device_id: string | null
+          id: string
+          lat: number | null
+          lng: number | null
+          media_type: string
+          medina_poi_id: string | null
+          quest_instance_id: string | null
+          storage_bucket: string
+          storage_path: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          media_type?: string
+          medina_poi_id?: string | null
+          quest_instance_id?: string | null
+          storage_bucket?: string
+          storage_path: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          media_type?: string
+          medina_poi_id?: string | null
+          quest_instance_id?: string | null
+          storage_bucket?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quest_photos_medina_poi_id_fkey"
+            columns: ["medina_poi_id"]
+            isOneToOne: false
+            referencedRelation: "medina_pois"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quest_photos_quest_instance_id_fkey"
+            columns: ["quest_instance_id"]
+            isOneToOne: false
+            referencedRelation: "quest_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       route_markers: {
         Row: {
           audio_url: string | null
@@ -1225,6 +1345,39 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      watchdog_reports: {
+        Row: {
+          created_at: string
+          details: Json
+          id: string
+          report_type: string
+          resolved: boolean
+          resolved_at: string | null
+          severity: string
+          summary: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          id?: string
+          report_type: string
+          resolved?: boolean
+          resolved_at?: string | null
+          severity?: string
+          summary: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          id?: string
+          report_type?: string
+          resolved?: boolean
+          resolved_at?: string | null
+          severity?: string
+          summary?: string
         }
         Relationships: []
       }
