@@ -201,25 +201,27 @@ export default function EnrichmentDrilldown({ field, label, open, onOpenChange }
                           </Button>
                         </div>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => startEdit(row.id, row[field])}
-                        >
-                          Éditer
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => {
-                            if (window.confirm(`Supprimer "${row.name}" définitivement ?`)) {
-                              deleteMutation.mutate({ id: row.id });
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => startEdit(row.id, row[field])}
+                          >
+                            Éditer
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => {
+                              if (window.confirm(`Supprimer "${row.name}" définitivement ?`)) {
+                                deleteMutation.mutate({ id: row.id });
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
