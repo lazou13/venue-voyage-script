@@ -167,7 +167,7 @@ export default function EnrichmentDrilldown({ field, label, open, onOpenChange }
                             variant="ghost"
                             className="h-8 w-8"
                             disabled={saveMutation.isPending}
-                            onClick={() => saveMutation.mutate({ id: row.id, value: editValue })}
+                            onClick={() => saveMutation.mutate({ id: row.id, value: editValue, poiName: row.name })}
                           >
                             <Check className="h-4 w-4 text-green-600" />
                           </Button>
