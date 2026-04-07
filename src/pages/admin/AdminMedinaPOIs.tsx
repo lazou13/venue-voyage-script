@@ -94,14 +94,16 @@ function POIListItem({
       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
         <span className="text-xs opacity-70">{poi.category}</span>
         {poi.zone && <span className="text-xs opacity-70">· {poi.zone}</span>}
-        {poi.status === 'draft' ? (
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-muted text-muted-foreground border-border">
-            Draft
-          </Badge>
+        {poi.status === 'validated' ? (
+          <Badge className="text-[10px] px-1.5 py-0 bg-emerald-600 text-white border-emerald-600">✓ Validé</Badge>
+        ) : poi.status === 'enriched' ? (
+          <Badge className="text-[10px] px-1.5 py-0 bg-blue-600 text-white border-blue-600">Enrichi</Badge>
+        ) : poi.status === 'classified' ? (
+          <Badge className="text-[10px] px-1.5 py-0 bg-violet-600 text-white border-violet-600">Classifié</Badge>
+        ) : poi.status === 'filtered' ? (
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">Filtré</Badge>
         ) : (
-          <Badge className="text-[10px] px-1.5 py-0 bg-emerald-600 text-white border-emerald-600">
-            Validé
-          </Badge>
+          <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-muted text-muted-foreground border-border">Draft</Badge>
         )}
         {poi.is_start_hub && (
           <Badge className="text-[10px] px-1.5 py-0 bg-amber-500 text-white border-amber-500">
@@ -109,9 +111,7 @@ function POIListItem({
           </Badge>
         )}
         {!poi.is_active && (
-          <Badge variant="outline" className="text-[10px] px-1 py-0">
-            inactif
-          </Badge>
+          <Badge variant="outline" className="text-[10px] px-1 py-0">inactif</Badge>
         )}
       </div>
     </button>
