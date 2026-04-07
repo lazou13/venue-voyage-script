@@ -588,6 +588,16 @@ function POIDetail({
           </CardContent>
         </Card>
       )}
+
+      {/* Client feedback: photo capture + recommendation */}
+      <ClientFeedbackSection
+        accessToken={accessToken}
+        instanceId={instanceId}
+        poiId={poi.id}
+        poiName={poi.name}
+        libraryPoiId={(poi as Record<string, unknown>).library_poi_id as string | null}
+        deviceId={null}
+      />
     </div>
   );
 }
