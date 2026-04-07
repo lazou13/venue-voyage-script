@@ -1,44 +1,42 @@
 
 
-# Plan : Corriger la sauvegarde dans EnrichmentDrilldown
+# Plan : Filtrage géographique automatique (bounding box Marrakech)
 
-## Diagnostic
+## Constat
 
-Le problème n'est probablement pas que la sauvegarde échoue — c'est que après sauvegarde, la liste se rafraîchit en mode "Manquants" et le POI modifié disparaît (car il est maintenant "rempli"). L'utilisateur pense que rien n'a été enregistré.
+La base contient des POIs de Fès (Dar Batha, Foundouk Nejjarine, etc.) qui passent toutes les validations car :
+- `clean_low_quality_pois()` ne vérifie que le nombre d'avis et la note — pas les coordonnées GPS
+- `poi-auto-agent` Phase 0 vérifie que lat/lng ne sont pas null, mais jamais qu'ils sont dans Marrakech
+- Le watchdog détecte les doublons GPS mais pas les POIs hors zone
 
-Cependant, il peut aussi y avoir un vrai bug : le `.update({ [field]: value })` avec une clé dynamique peut être rejeté silencieusement par le client typé Supabase. Il faut sécuriser les deux cas.
+Les coordonnées de la Médina de Marrakech : lat [31.60, 31.67], lng [-8.02, -7.97] (déjà utilisées dans `poi-classify-worker` et `poi-worker`).
 
 ## Corrections
 
-### 1. Feedback visuel après sauvegarde (`EnrichmentDrilldown.tsx`)
+### 1. Ajouter le filtre bounding box à l'auto-validation (`poi-auto-agent`)
 
-- Après une sauvegarde réussie, afficher un toast explicite avec le nom du POI : `"Café Clock → Histoires sauvegardé ✓"`
-- Ne pas basculer immédiatement la vue — garder le POI visible pendant 2 secondes avant invalidation, ou basculer automatiquement vers "Remplis" après sauvegarde
+Dans Phase 0, ajouter `.gte("lat", 31.60).lte("lat", 31.67).gte("lng", -8.02).lte("lng", -7.97)` pour ne valider que les POIs géolocalisés dans la Médina.
 
-### 2. Forcer le cast pour l'update Supabase
+### 2. Marquer automatiquement les POIs hors zone comme "filtered"
 
-- Caster le payload en `as any` pour éviter que le client typé rejette la clé dynamique :
-  ```typescript
-  .update({ [field]: value || null } as any)
-  ```
+Ajouter une Phase -1 dans `poi-auto-agent` (avant Phase 0) qui :
+- Sélectionne tous les POIs actifs avec GPS hors bounding box
+- Les passe en `status = 'filtered'` avec `is_active = false`
+- Log le nombre de POIs filtrés
 
-### 3. Ajouter un log d'erreur détaillé
+### 3. Ajouter un check bounding box dans le watchdog
 
-- Dans `onError`, logger l'erreur complète en console pour le debug :
-  ```typescript
-  onError: (err) => {
-    console.error('Enrichment save error:', err);
-    toast.error('Erreur de sauvegarde');
-  }
-  ```
+Dans `poi-watchdog`, ajouter une alerte "out_of_bounds" pour les POIs actifs dont les coordonnées sont hors Marrakech.
 
-### 4. Après sauvegarde réussie, basculer vers "Remplis"
+### 4. Bouton supprimer dans EnrichmentDrilldown
 
-- Dans `onSuccess`, si on est en mode "Manquants", basculer `showFilled` à `true` pour que l'utilisateur voie son POI modifié dans la liste des remplis.
+Ajouter un bouton poubelle (icône `Trash2`) dans chaque ligne du tableau pour suppression manuelle avec confirmation, comme demandé précédemment.
 
-## Fichier modifié
+## Fichiers modifiés
 
 | Fichier | Changement |
 |---|---|
-| `src/components/admin/EnrichmentDrilldown.tsx` | Cast `as any`, meilleur feedback toast, bascule auto vers "Remplis" après save, log erreur |
+| `supabase/functions/poi-auto-agent/index.ts` | Phase -1 filtrage hors zone + bounding box sur Phase 0 |
+| `supabase/functions/poi-watchdog/index.ts` | Alerte "out_of_bounds" |
+| `src/components/admin/EnrichmentDrilldown.tsx` | Bouton supprimer avec confirmation |
 
