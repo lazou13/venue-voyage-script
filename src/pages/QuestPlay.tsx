@@ -396,6 +396,23 @@ function POIDetail({
   const metadataNote = (config as Record<string, unknown>).metadata as Record<string, unknown> | undefined;
   const hints = config.hints as string[] | undefined;
 
+  // Enrichment fields from start-instance (with library fallback)
+  const historyContext = (poi as any).history_context as string | null;
+  const anecdoteFr = (poi as any).local_anecdote_fr as string | null;
+  const anecdoteEn = (poi as any).local_anecdote_en as string | null;
+  const funFactFr = (poi as any).fun_fact_fr as string | null;
+  const funFactEn = (poi as any).fun_fact_en as string | null;
+  const crowdLevel = (poi as any).crowd_level as string | null;
+  const accessibilityNotes = (poi as any).accessibility_notes as string | null;
+  const libPriceInfo = (poi as any)._lib_price_info as string | null;
+  const libMustSee = (poi as any)._lib_must_see as string | null;
+  const libMustTry = (poi as any)._lib_must_try as string | null;
+  const libNearby = (poi as any)._lib_nearby as string | null;
+
+  // Choose locale-aware content (FR fallback)
+  const anecdote = anecdoteFr || anecdoteEn;
+  const funFact = funFactFr || funFactEn;
+
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [mediaLoading, setMediaLoading] = useState(false);
   const [showAll, setShowAll] = useState(false);
@@ -428,6 +445,9 @@ function POIDetail({
     || contentI18n?.fr || contentI18n?.en
     || (typeof metadataNote?.note === 'string' ? metadataNote.note : null);
 
+  // Check if we have any narrative content
+  const hasNarrativeContent = !!(historyContext || anecdote || funFact || libMustSee || libMustTry || libNearby || libPriceInfo);
+
   return (
     <div className="max-w-2xl space-y-4">
       <div>
@@ -435,6 +455,7 @@ function POIDetail({
         <div className="flex gap-2 mt-1">
           <Badge variant="outline">{poi.interaction}</Badge>
           <Badge variant="outline">{poi.zone}</Badge>
+          {crowdLevel && <Badge variant="outline">👥 {crowdLevel}</Badge>}
         </div>
       </div>
 
@@ -447,20 +468,96 @@ function POIDetail({
         />
       )}
 
-      {/* Visit mode: "À voir ici" */}
-      {isVisit && (
+      {/* Visit mode: "À voir ici" (original text) */}
+      {isVisit && visitText && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">📍 À voir ici</CardTitle>
           </CardHeader>
           <CardContent>
-            {visitText ? (
-              <p className="text-sm whitespace-pre-wrap">{visitText}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">
-                Aucun texte, ajoute une note dans la bibliothèque.
-              </p>
-            )}
+            <p className="text-sm whitespace-pre-wrap">{visitText}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Narrative enrichment blocks ── */}
+      {hasNarrativeContent && (
+        <>
+          {/* Histoire du lieu */}
+          {historyContext && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">🏛️ Histoire du lieu</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm whitespace-pre-wrap leading-relaxed">{historyContext}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Anecdote locale */}
+          {anecdote && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">💬 Anecdote locale</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm whitespace-pre-wrap leading-relaxed">{anecdote}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Le saviez-vous ? */}
+          {funFact && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">💡 Le saviez-vous ?</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm whitespace-pre-wrap">{funFact}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Infos pratiques */}
+          {(libPriceInfo || libMustSee || accessibilityNotes) && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">ℹ️ Infos pratiques</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {libPriceInfo && <p>💰 {libPriceInfo}</p>}
+                {libMustSee && <p>👁️ {libMustSee}</p>}
+                {accessibilityNotes && <p>♿ {accessibilityNotes}</p>}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* À ne pas manquer / À proximité */}
+          {(libMustTry || libNearby) && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">🗺️ À proximité</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {libMustTry && <p>⭐ {libMustTry}</p>}
+                {libNearby && <p>📍 {libNearby}</p>}
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* Fallback: no visit text AND no narrative → prompt */}
+      {isVisit && !visitText && !hasNarrativeContent && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">📍 À voir ici</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground italic">
+              Aucun texte, ajoute une note dans la bibliothèque.
+            </p>
           </CardContent>
         </Card>
       )}
