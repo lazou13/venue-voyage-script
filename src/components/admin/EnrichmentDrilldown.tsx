@@ -61,17 +61,22 @@ export default function EnrichmentDrilldown({ field, label, open, onOpenChange }
     mutationFn: async ({ id, value }: { id: string; value: string }) => {
       const { error } = await supabase
         .from('medina_pois')
-        .update({ [field]: value || null })
+        .update({ [field]: value || null } as any)
         .eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success('Sauvegardé');
+    onSuccess: (_data, variables) => {
+      const poiName = rows.find(r => r.id === variables.id)?.name ?? 'POI';
+      toast.success(`${poiName} → ${label} sauvegardé ✓`);
       setEditingId(null);
+      setShowFilled(true);
       qc.invalidateQueries({ queryKey: ['enrichment-drilldown'] });
       qc.invalidateQueries({ queryKey: ['admin-dashboard-stats'] });
     },
-    onError: () => toast.error('Erreur de sauvegarde'),
+    onError: (err) => {
+      console.error('Enrichment save error:', err);
+      toast.error('Erreur de sauvegarde');
+    },
   });
 
   const rows = data?.rows ?? [];
