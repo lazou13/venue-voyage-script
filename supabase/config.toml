@@ -15,9 +15,6 @@ verify_jwt = false
 [functions.get-media-urls]
 verify_jwt = false
 
-[functions.generate-custom-quest]
-verify_jwt = true
-
 [functions.public-generate-quest]
 verify_jwt = false
 
@@ -42,23 +39,13 @@ verify_jwt = false
 [functions.poi-extract]
 verify_jwt = false
 
-[functions.poi-enrich]
-verify_jwt = false
-
 [functions.poi-proximity]
-verify_jwt = false
-
-[functions.poi-pipeline]
 verify_jwt = false
 
 [functions.poi-worker]
 verify_jwt = false
 
 [functions.poi-classify-worker]
-verify_jwt = false
-
-
-[functions.poi-autopipeline]
 verify_jwt = false
 
 [functions.generate-quest]
@@ -92,4 +79,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.poi-fetch-photos]
+verify_jwt = false
+
+[functions.poi-watchdog]
 verify_jwt = false

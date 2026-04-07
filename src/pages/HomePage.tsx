@@ -1,14 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
-import { externalSupabase } from '@/lib/externalSupabase';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2, MapPin, Navigation, X, ChevronRight, ChevronLeft } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
-// Fix default marker icon
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
@@ -19,12 +17,11 @@ L.Icon.Default.mergeOptions({
 interface POI {
   id: string;
   name: string;
-  zone: string;
-  photo_url: string | null;
+  lat: number;
+  lng: number;
   history_context: string | null;
   local_anecdote: string | null;
-  local_anecdote_fr: string | null;
-  step_config: any;
+  category_ai: string | null;
 }
 
 interface QuestStop {
@@ -37,7 +34,6 @@ interface QuestStop {
   description?: string;
   points?: number;
   walk_time_min?: number;
-  visit_time_min?: number;
 }
 
 interface QuestResult {
@@ -61,9 +57,9 @@ export default function HomePage() {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await externalSupabase
+      const { data, error } = await supabase
         .from('medina_pois')
-        .select('id, name, zone, lat, lng, description_short, history_context, local_anecdote, photo_spot_score, category_ai')
+        .select('id, name, lat, lng, description_short, history_context, local_anecdote, category_ai')
         .eq('is_active', true)
         .not('lat', 'is', null)
         .not('lng', 'is', null)
@@ -73,12 +69,11 @@ export default function HomePage() {
         setPois(data.map((p: any) => ({
           id: p.id,
           name: p.name,
-          zone: p.zone,
-          photo_url: null,
+          lat: p.lat,
+          lng: p.lng,
           history_context: p.history_context || p.description_short,
           local_anecdote: p.local_anecdote,
-          local_anecdote_fr: null,
-          step_config: { lat: p.lat, lng: p.lng, category: p.category_ai },
+          category_ai: p.category_ai,
         })));
       }
       setLoading(false);
@@ -89,38 +84,22 @@ export default function HomePage() {
     setQuestLoading(true);
     setError(null);
     try {
-      // Try geolocation, fall back to medina center if user is too far
       let startLat = MARRAKECH_CENTER[0];
       let startLng = MARRAKECH_CENTER[1];
       try {
         const position = await new Promise<GeolocationPosition>((resolve, reject) =>
           navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
         );
-        const userLat = position.coords.latitude;
-        const userLng = position.coords.longitude;
-        // Only use real position if within ~2km of medina center
-        const dist = Math.sqrt(Math.pow(userLat - MARRAKECH_CENTER[0], 2) + Math.pow(userLng - MARRAKECH_CENTER[1], 2));
-        if (dist < 0.02) { // ~2km
-          startLat = userLat;
-          startLng = userLng;
+        const dist = Math.sqrt(Math.pow(position.coords.latitude - MARRAKECH_CENTER[0], 2) + Math.pow(position.coords.longitude - MARRAKECH_CENTER[1], 2));
+        if (dist < 0.02) {
+          startLat = position.coords.latitude;
+          startLng = position.coords.longitude;
         }
-      } catch {
-        // Geolocation denied or unavailable — use medina center
-      }
+      } catch { /* use default */ }
 
       const { data, error: fnError } = await supabase.functions.invoke('generate-quest', {
-        body: {
-          start_lat: startLat,
-          start_lng: startLng,
-          mode: 'treasure_hunt',
-          theme: 'complete',
-          max_duration_min: 90,
-          radius_m: 800,
-          max_stops: 6,
-          language: 'fr',
-        },
+        body: { start_lat: startLat, start_lng: startLng, mode: 'treasure_hunt', theme: 'complete', max_duration_min: 90, radius_m: 800, max_stops: 6, language: 'fr' },
       });
-
       if (fnError) throw new Error(fnError.message);
       if (data?.error) throw new Error(data.error);
       setQuest(data as QuestResult);
@@ -136,70 +115,43 @@ export default function HomePage() {
     iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
     iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
     shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
+    iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34],
   });
 
   return (
     <div className="relative h-screen w-full">
-      {/* Map */}
       <MapContainer center={MARRAKECH_CENTER} zoom={15} className="h-full w-full z-0">
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        {pois.map((poi) => {
-          const lat = poi.step_config?.lat;
-          const lng = poi.step_config?.lng;
-          if (!lat || !lng) return null;
-          return (
-            <Marker key={poi.id} position={[lat, lng]} icon={poiIcon}>
-              <Popup maxWidth={280}>
-                <div className="space-y-1">
-                  <h3 className="font-bold text-sm">{poi.name}</h3>
-                  {poi.history_context && (
-                    <p className="text-xs text-gray-600 line-clamp-3">{poi.history_context}</p>
-                  )}
-                  {poi.local_anecdote && (
-                    <p className="text-xs italic text-gray-500 line-clamp-2">{poi.local_anecdote}</p>
-                  )}
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
-
-        {/* Quest stop markers */}
-        {quest?.stops.map((stop, i) => (
-          <Marker
-            key={`quest-${i}`}
-            position={[stop.lat, stop.lng]}
-            icon={new L.DivIcon({
-              className: 'quest-marker',
-              html: `<div style="background:hsl(var(--primary));color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3)">${stop.order}</div>`,
-              iconSize: [28, 28],
-              iconAnchor: [14, 14],
-            })}
-          >
-            <Popup>
+        <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        {pois.map((poi) => (
+          <Marker key={poi.id} position={[poi.lat, poi.lng]} icon={poiIcon}>
+            <Popup maxWidth={280}>
               <div className="space-y-1">
-                <h3 className="font-bold text-sm">Étape {stop.order}: {stop.name}</h3>
-                {stop.description && <p className="text-xs">{stop.description}</p>}
+                <h3 className="font-bold text-sm">{poi.name}</h3>
+                {poi.history_context && <p className="text-xs text-gray-600 line-clamp-3">{poi.history_context}</p>}
+                {poi.local_anecdote && <p className="text-xs italic text-gray-500 line-clamp-2">{poi.local_anecdote}</p>}
               </div>
             </Popup>
           </Marker>
         ))}
+        {quest?.stops.map((stop, i) => (
+          <Marker key={`quest-${i}`} position={[stop.lat, stop.lng]}
+            icon={new L.DivIcon({
+              className: 'quest-marker',
+              html: `<div style="background:hsl(var(--primary));color:white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:14px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3)">${stop.order}</div>`,
+              iconSize: [28, 28], iconAnchor: [14, 14],
+            })}
+          >
+            <Popup><h3 className="font-bold text-sm">Étape {stop.order}: {stop.name}</h3></Popup>
+          </Marker>
+        ))}
       </MapContainer>
 
-      {/* Loading overlay */}
       {loading && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/60">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       )}
 
-      {/* POI count badge */}
       {!loading && !quest && (
         <div className="absolute top-4 left-4 z-10">
           <Card className="px-3 py-2 bg-background/90 backdrop-blur">
@@ -212,40 +164,18 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Start quest button */}
       {!quest && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10">
-          <Button
-            size="lg"
-            onClick={startQuest}
-            disabled={questLoading}
-            className="shadow-lg text-base px-8 py-6 rounded-full"
-          >
-            {questLoading ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Génération en cours…
-              </>
-            ) : (
-              <>
-                <Navigation className="mr-2 h-5 w-5" />
-                Démarrer une quête
-              </>
-            )}
+          <Button size="lg" onClick={startQuest} disabled={questLoading} className="shadow-lg text-base px-8 py-6 rounded-full">
+            {questLoading ? (<><Loader2 className="mr-2 h-5 w-5 animate-spin" />Génération…</>) : (<><Navigation className="mr-2 h-5 w-5" />Démarrer une quête</>)}
           </Button>
-          {error && (
-            <Card className="mt-3 p-3 bg-destructive/10 border-destructive/30 text-destructive text-sm text-center max-w-sm">
-              {error}
-            </Card>
-          )}
+          {error && <Card className="mt-3 p-3 bg-destructive/10 border-destructive/30 text-destructive text-sm text-center max-w-sm">{error}</Card>}
         </div>
       )}
 
-      {/* Quest panel */}
       {quest && (
         <div className="absolute bottom-0 left-0 right-0 z-10 bg-background/95 backdrop-blur border-t rounded-t-2xl shadow-2xl max-h-[50vh] overflow-auto">
           <div className="p-4 space-y-3">
-            {/* Header */}
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="font-bold text-lg">{quest.title}</h2>
@@ -256,57 +186,26 @@ export default function HomePage() {
                   <span>{quest.total_points} pts</span>
                 </div>
               </div>
-              <Button variant="ghost" size="icon" onClick={() => setQuest(null)}>
-                <X className="h-4 w-4" />
-              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setQuest(null)}><X className="h-4 w-4" /></Button>
             </div>
-
-            {/* Current step */}
             {quest.stops.length > 0 && (
               <Card className="p-4 border-primary/30 bg-primary/5">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="bg-primary text-primary-foreground rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold">
-                    {quest.stops[currentStep].order}
-                  </span>
+                  <span className="bg-primary text-primary-foreground rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold">{quest.stops[currentStep].order}</span>
                   <h3 className="font-semibold">{quest.stops[currentStep].name}</h3>
                 </div>
-                {quest.stops[currentStep].riddle && (
-                  <p className="text-sm mb-2 italic">🧩 {quest.stops[currentStep].riddle}</p>
-                )}
-                {quest.stops[currentStep].story && (
-                  <p className="text-sm text-muted-foreground">{quest.stops[currentStep].story}</p>
-                )}
-                {quest.stops[currentStep].description && !quest.stops[currentStep].story && (
-                  <p className="text-sm text-muted-foreground">{quest.stops[currentStep].description}</p>
-                )}
+                {quest.stops[currentStep].riddle && <p className="text-sm mb-2 italic">🧩 {quest.stops[currentStep].riddle}</p>}
+                {quest.stops[currentStep].story && <p className="text-sm text-muted-foreground">{quest.stops[currentStep].story}</p>}
+                {quest.stops[currentStep].description && !quest.stops[currentStep].story && <p className="text-sm text-muted-foreground">{quest.stops[currentStep].description}</p>}
                 <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
-                  {quest.stops[currentStep].walk_time_min != null && (
-                    <span>🚶 {quest.stops[currentStep].walk_time_min} min de marche</span>
-                  )}
-                  {quest.stops[currentStep].points != null && (
-                    <span>⭐ {quest.stops[currentStep].points} pts</span>
-                  )}
+                  {quest.stops[currentStep].walk_time_min != null && <span>🚶 {quest.stops[currentStep].walk_time_min} min</span>}
+                  {quest.stops[currentStep].points != null && <span>⭐ {quest.stops[currentStep].points} pts</span>}
                 </div>
               </Card>
             )}
-
-            {/* Navigation */}
             <div className="flex justify-between">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentStep === 0}
-                onClick={() => setCurrentStep((s) => s - 1)}
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" /> Précédent
-              </Button>
-              <Button
-                size="sm"
-                disabled={currentStep === quest.stops.length - 1}
-                onClick={() => setCurrentStep((s) => s + 1)}
-              >
-                Suivant <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
+              <Button variant="outline" size="sm" disabled={currentStep === 0} onClick={() => setCurrentStep(s => s - 1)}><ChevronLeft className="h-4 w-4 mr-1" /> Précédent</Button>
+              <Button size="sm" disabled={currentStep === quest.stops.length - 1} onClick={() => setCurrentStep(s => s + 1)}>Suivant <ChevronRight className="h-4 w-4 ml-1" /></Button>
             </div>
           </div>
         </div>
