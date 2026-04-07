@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Play, Clock, MapPin, AlertTriangle, Eye, ChevronRight, ArrowLeft, CheckCircle2, Smartphone, MessageCircle, Map as MapIcon, List } from 'lucide-react';
+import { ClientFeedbackSection } from '@/components/quest/ClientFeedbackSection';
 
 const QuestMap = lazy(() => import('@/components/quest/QuestMap'));
 
@@ -378,10 +379,14 @@ function POIDetail({
   poi,
   getMediaUrls,
   isVisit,
+  accessToken,
+  instanceId,
 }: {
   poi: NonNullable<PlayData['pois'][number]>;
   getMediaUrls: (ids: string[]) => Promise<Record<string, string>>;
   isVisit: boolean;
+  accessToken: string;
+  instanceId: string;
 }) {
   const config = poi.step_config || {};
   const geo = config.geo as Record<string, unknown> | undefined;
