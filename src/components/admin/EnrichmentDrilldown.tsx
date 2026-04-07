@@ -57,21 +57,28 @@ export default function EnrichmentDrilldown({ field, label, open, onOpenChange }
     enabled: open,
   });
 
+  const [lastSavedName, setLastSavedName] = useState('');
+
   const saveMutation = useMutation({
-    mutationFn: async ({ id, value }: { id: string; value: string }) => {
+    mutationFn: async ({ id, value, poiName }: { id: string; value: string; poiName: string }) => {
+      setLastSavedName(poiName);
       const { error } = await supabase
         .from('medina_pois')
-        .update({ [field]: value || null })
+        .update({ [field]: value || null } as any)
         .eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success('Sauvegardé');
+      toast.success(`${lastSavedName} → ${label} sauvegardé ✓`);
       setEditingId(null);
+      setShowFilled(true);
       qc.invalidateQueries({ queryKey: ['enrichment-drilldown'] });
       qc.invalidateQueries({ queryKey: ['admin-dashboard-stats'] });
     },
-    onError: () => toast.error('Erreur de sauvegarde'),
+    onError: (err) => {
+      console.error('Enrichment save error:', err);
+      toast.error('Erreur de sauvegarde');
+    },
   });
 
   const rows = data?.rows ?? [];
@@ -160,7 +167,7 @@ export default function EnrichmentDrilldown({ field, label, open, onOpenChange }
                             variant="ghost"
                             className="h-8 w-8"
                             disabled={saveMutation.isPending}
-                            onClick={() => saveMutation.mutate({ id: row.id, value: editValue })}
+                            onClick={() => saveMutation.mutate({ id: row.id, value: editValue, poiName: row.name })}
                           >
                             <Check className="h-4 w-4 text-green-600" />
                           </Button>
