@@ -1,47 +1,33 @@
 
 
-# Plan : Corriger l'affichage des enrichissements dans les visites
+# Plan : Corriger le matching des noms FR/EN pour les POIs
 
-## Diagnostic racine
+## Constat
 
-Après investigation approfondie, **trois problèmes distincts** empêchent l'enrichissement d'apparaître :
+"Place des Ferblantiers" existe dans `medina_pois` sous le nom anglais "Tinsmiths Square" (id: `5e741c86-...`). Le fallback par nom dans `start-instance` utilise `ILIKE` sur le champ `name`, qui contient le nom Google (anglais). Il ne cherche pas dans `name_fr`.
 
-### Problème 1 : `start-instance` n'a jamais été redéployé
-Les modifications ajoutées (fallback library via `library_poi_id`) ne sont pas actives en production. La fonction doit être redéployée.
-
-### Problème 2 : "Place des Ferblantiers" n'existe pas dans `medina_pois`
-Ce POI n'a pas d'entrée dans la bibliothèque, donc même le fallback `library_poi_id` ne peut rien récupérer. Il semble que certains POIs sélectionnés pour les quêtes n'ont pas de correspondance dans la bibliothèque.
-
-### Problème 3 : Le contenu générique vient du `step_config`
-Quand un POI n'a ni enrichissement propre, ni correspondance library, le player affiche le texte `story_i18n` du `step_config` — qui contient des phrases génériques comme "Ce lieu fait partie du riche patrimoine de la médina de Marrakech..."
+C'est un problème systémique : beaucoup de POIs ont leur nom Google en anglais, mais les projets B2B utilisent les noms français.
 
 ## Corrections
 
-### 1. Redéployer `start-instance`
-Déployer la edge function pour activer le fallback library déjà codé.
+### 1. Mettre à jour le `name_fr` de "Tinsmiths Square"
+- `UPDATE medina_pois SET name_fr = 'Place des Ferblantiers' WHERE id = '5e741c86-...'`
+- Vérifier et corriger les autres POIs du Mellah qui ont des noms anglais sans `name_fr`.
 
-### 2. Améliorer le fallback dans `start-instance` : recherche par nom
-Pour les POIs **sans** `library_poi_id`, ajouter un fallback par **nom approximatif** :
+### 2. Améliorer le fallback dans `start-instance`
+Actuellement le fallback cherche uniquement `ILIKE` sur `name`. Modifier pour chercher aussi dans `name_fr` et `name_en` :
 ```
-Si library_poi_id est null → chercher dans medina_pois par nom ILIKE
+.or(`name.ilike.%${searchName}%,name_fr.ilike.%${searchName}%,name_en.ilike.%${searchName}%`)
 ```
-Cela permet de rattraper les POIs créés manuellement qui correspondent à un POI de la bibliothèque.
+Cela résout le problème pour tous les POIs, pas seulement Ferblantiers.
 
-### 3. Ne pas afficher le bloc "Histoire du lieu" avec du contenu générique
-Dans `QuestPlay.tsx`, ajouter un filtre pour ne pas afficher `historyContext` s'il contient des phrases génériques connues (< 100 caractères ou contient "Ce lieu fait partie du riche patrimoine"). Mieux : ne montrer les blocs narratifs que si le contenu provient effectivement de la bibliothèque (pas du step_config).
-
-### 4. Ajouter "Place des Ferblantiers" et POIs manquants à la bibliothèque
-Optionnel mais recommandé : vérifier quels POIs utilisés dans les quêtes n'ont pas de correspondance dans `medina_pois` et les créer.
+### 3. Batch fix : remplir les `name_fr` manquants
+Identifier les POIs validés/enrichis qui ont un `name` anglais mais pas de `name_fr`, et les corriger (au moins les monuments majeurs).
 
 ## Fichiers modifiés
 
 | Fichier | Changement |
 |---|---|
-| `supabase/functions/start-instance/index.ts` | Fallback par nom si `library_poi_id` est null ; redéployer |
-| `src/pages/QuestPlay.tsx` | Filtrer le contenu générique des blocs narratifs |
-
-## Impact
-- Les visites B2B existantes avec `library_poi_id` bénéficieront immédiatement des enrichissements après redéploiement
-- Les POIs sans `library_poi_id` auront un rattrapage par nom
-- Plus de texte générique affiché comme "histoire du lieu"
+| `supabase/functions/start-instance/index.ts` | Fallback ILIKE étendu à `name_fr` et `name_en` |
+| Base de données (insert tool) | `name_fr` de Tinsmiths Square → Place des Ferblantiers + autres POIs clés |
 
