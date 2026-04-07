@@ -293,7 +293,7 @@ export default function QuestPlay() {
               ) : (
                 <main className="flex-1 overflow-y-auto p-4">
                   {selectedPoi ? (
-                    <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} isVisit={isVisit} />
+                    <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} isVisit={isVisit} accessToken={token!} instanceId={data.instance.id} />
                   ) : (
                     <EmptyState />
                   )}
@@ -304,7 +304,7 @@ export default function QuestPlay() {
             {/* Desktop main */}
             <main className="flex-1 overflow-y-auto p-4 hidden md:block">
               {selectedPoi ? (
-                <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} isVisit={isVisit} />
+                <POIDetail poi={selectedPoi} getMediaUrls={getMediaUrls} isVisit={isVisit} accessToken={token!} instanceId={data.instance.id} />
               ) : (
                 <EmptyState />
               )}
