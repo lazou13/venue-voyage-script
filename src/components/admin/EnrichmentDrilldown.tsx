@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Check, X, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, Check, X, Search, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type DbField = 'history_context' | 'local_anecdote_fr' | 'fun_fact_fr' | 'riddle_easy' | 'wikipedia_summary';

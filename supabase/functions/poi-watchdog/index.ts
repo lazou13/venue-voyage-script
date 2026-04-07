@@ -86,7 +86,20 @@ serve(async (req) => {
       });
     }
 
-    // 7. GPS duplicates (within 5m)
+    // 7. Out-of-bounds POIs (outside Marrakech bounding box)
+    const outOfBounds = withGps.filter(p =>
+      p.lat! < 31.60 || p.lat! > 31.67 || p.lng! < -8.02 || p.lng! > -7.97
+    );
+    if (outOfBounds.length > 0) {
+      alerts.push({
+        type: 'out_of_bounds',
+        severity: 'critical',
+        summary: `${outOfBounds.length} POIs actifs hors de la zone Marrakech`,
+        details: { pois: outOfBounds.slice(0, 20).map(p => ({ id: p.id, name: p.name, lat: p.lat, lng: p.lng })) },
+      });
+    }
+
+    // 8. GPS duplicates (within 5m)
     const withGps = all.filter(p => p.lat != null && p.lng != null);
     const duplicates: string[] = [];
     for (let i = 0; i < withGps.length && duplicates.length < 10; i++) {
