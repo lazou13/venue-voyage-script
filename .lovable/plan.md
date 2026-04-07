@@ -1,62 +1,47 @@
 
-Objectif
 
-Faire en sorte que les visites B2B affichent réellement les histoires et anecdotes enrichies, y compris pour les projets déjà créés.
+# Plan : Corriger l'affichage des enrichissements dans les visites
 
-Diagnostic
+## Diagnostic racine
 
-- L’enrichissement est bien stocké dans `medina_pois`.
-- Les visites B2B lisent surtout `pois` via `start-instance`.
-- `start-instance` ne renvoie aujourd’hui que `id, sort_order, name, step_config, zone, interaction`.
-- Le player B2B (`QuestPlay` / `POIDetail`) affiche surtout `story_i18n` / `contentI18n` du `step_config`.
-- Lors de l’import depuis la bibliothèque, les champs narratifs enrichis ne sont pas copiés dans `pois`.
+Après investigation approfondie, **trois problèmes distincts** empêchent l'enrichissement d'apparaître :
 
-Résultat : on enrichit la bibliothèque admin, mais le player B2B ne consomme pas ces champs, donc histoire/anecdote n’apparaissent pas.
+### Problème 1 : `start-instance` n'a jamais été redéployé
+Les modifications ajoutées (fallback library via `library_poi_id`) ne sont pas actives en production. La fonction doit être redéployée.
 
-Plan
+### Problème 2 : "Place des Ferblantiers" n'existe pas dans `medina_pois`
+Ce POI n'a pas d'entrée dans la bibliothèque, donc même le fallback `library_poi_id` ne peut rien récupérer. Il semble que certains POIs sélectionnés pour les quêtes n'ont pas de correspondance dans la bibliothèque.
 
-1. Corriger la source de données du player B2B
-- Étendre `start-instance` pour renvoyer aussi :
-  `library_poi_id`, `history_context`, `local_anecdote_fr`, `local_anecdote_en`, `fun_fact_fr`, `fun_fact_en`, `price_info`, `opening_hours`, `must_see_details`, `must_try`, `must_visit_nearby`.
-- Ajouter un fallback backend : si ces champs sont vides dans `pois`, les récupérer depuis `medina_pois` via `library_poi_id`.
-- Effet immédiat : les projets B2B existants profitent des enrichissements déjà saisis aujourd’hui.
+### Problème 3 : Le contenu générique vient du `step_config`
+Quand un POI n'a ni enrichissement propre, ni correspondance library, le player affiche le texte `story_i18n` du `step_config` — qui contient des phrases génériques comme "Ce lieu fait partie du riche patrimoine de la médina de Marrakech..."
 
-2. Corriger l’affichage dans la visite B2B
-- Mettre à jour `usePlayInstance` pour transporter ces champs.
-- Mettre à jour `QuestPlay` / `POIDetail` pour afficher de vrais blocs :
-  - Histoire du lieu
-  - Anecdote
-  - Le saviez-vous ?
-  - Infos pratiques
-  - À proximité
-- Garder un ordre de fallback propre :
-  1. contenu spécifique projet (`story_i18n` / `contentI18n`)
-  2. données snapshot dans `pois`
-  3. fallback bibliothèque injecté par `start-instance`
+## Corrections
 
-3. Corriger l’import pour les futurs projets
-- Dans `src/hooks/usePOIs.ts`, quand un POI est importé depuis `medina_pois`, copier aussi les champs enrichis dans `pois`.
-- Faire la même chose dans `supabase/functions/public-generate-quest/index.ts` pour les projets générés automatiquement.
-- Effet : les nouveaux projets embarquent directement leur contenu enrichi.
+### 1. Redéployer `start-instance`
+Déployer la edge function pour activer le fallback library déjà codé.
 
-4. Gérer correctement la langue
-- Utiliser `instance.locale` pour choisir FR / EN pour anecdote et fun fact.
-- Garder FR en fallback si la traduction demandée est absente.
+### 2. Améliorer le fallback dans `start-instance` : recherche par nom
+Pour les POIs **sans** `library_poi_id`, ajouter un fallback par **nom approximatif** :
+```
+Si library_poi_id est null → chercher dans medina_pois par nom ILIKE
+```
+Cela permet de rattraper les POIs créés manuellement qui correspondent à un POI de la bibliothèque.
 
-5. Vérification
-- Tester un projet B2B existant avec un POI enrichi aujourd’hui.
-- Tester un nouveau projet créé après import depuis la bibliothèque.
-- Vérifier qu’aucun bloc vide n’est affiché et que les textes changent bien selon la langue.
+### 3. Ne pas afficher le bloc "Histoire du lieu" avec du contenu générique
+Dans `QuestPlay.tsx`, ajouter un filtre pour ne pas afficher `historyContext` s'il contient des phrases génériques connues (< 100 caractères ou contient "Ce lieu fait partie du riche patrimoine"). Mieux : ne montrer les blocs narratifs que si le contenu provient effectivement de la bibliothèque (pas du step_config).
 
-Fichiers ciblés
+### 4. Ajouter "Place des Ferblantiers" et POIs manquants à la bibliothèque
+Optionnel mais recommandé : vérifier quels POIs utilisés dans les quêtes n'ont pas de correspondance dans `medina_pois` et les créer.
 
-- `supabase/functions/start-instance/index.ts`
-- `src/hooks/usePlayInstance.ts`
-- `src/pages/QuestPlay.tsx`
-- `src/hooks/usePOIs.ts`
-- `supabase/functions/public-generate-quest/index.ts`
+## Fichiers modifiés
 
-Détail technique
+| Fichier | Changement |
+|---|---|
+| `supabase/functions/start-instance/index.ts` | Fallback par nom si `library_poi_id` est null ; redéployer |
+| `src/pages/QuestPlay.tsx` | Filtrer le contenu générique des blocs narratifs |
 
-- Pas de migration nécessaire : les colonnes existent déjà dans `pois`.
-- Le bug n’est pas dans l’enrichissement lui-même ; il est dans la propagation des données vers `pois` et dans le rendu du player B2B.
+## Impact
+- Les visites B2B existantes avec `library_poi_id` bénéficieront immédiatement des enrichissements après redéploiement
+- Les POIs sans `library_poi_id` auront un rattrapage par nom
+- Plus de texte générique affiché comme "histoire du lieu"
+
