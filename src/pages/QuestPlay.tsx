@@ -397,10 +397,26 @@ function POIDetail({
   const hints = config.hints as string[] | undefined;
 
   // Enrichment fields from start-instance (with library fallback)
-  const historyContext = (poi as any).history_context as string | null;
-  const anecdoteFr = (poi as any).local_anecdote_fr as string | null;
+  // Filter out generic placeholder content
+  const GENERIC_PATTERNS = [
+    "ce lieu fait partie du riche patrimoine",
+    "un lieu emblématique",
+    "patrimoine de la médina",
+    "découvrez ce lieu",
+  ];
+  const isGeneric = (text: string | null): boolean => {
+    if (!text || text.length < 80) return true;
+    const lower = text.toLowerCase();
+    return GENERIC_PATTERNS.some((p) => lower.includes(p));
+  };
+
+  const rawHistory = (poi as any).history_context as string | null;
+  const historyContext = rawHistory && !isGeneric(rawHistory) ? rawHistory : null;
+  const rawAnecdoteFr = (poi as any).local_anecdote_fr as string | null;
+  const anecdoteFr = rawAnecdoteFr && !isGeneric(rawAnecdoteFr) ? rawAnecdoteFr : null;
   const anecdoteEn = (poi as any).local_anecdote_en as string | null;
-  const funFactFr = (poi as any).fun_fact_fr as string | null;
+  const rawFunFactFr = (poi as any).fun_fact_fr as string | null;
+  const funFactFr = rawFunFactFr && rawFunFactFr.length > 20 ? rawFunFactFr : null;
   const funFactEn = (poi as any).fun_fact_en as string | null;
   const crowdLevel = (poi as any).crowd_level as string | null;
   const accessibilityNotes = (poi as any).accessibility_notes as string | null;
