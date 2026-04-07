@@ -45,6 +45,34 @@ serve(async (req) => {
 
   try {
 
+    // ━━━━━━━━━━ PHASE -1: FILTER OUT-OF-BOUNDS POIs ━━━━━━━━━━
+    const { data: outOfBounds, error: oobErr } = await supabase
+      .from("medina_pois")
+      .select("id, name, lat, lng")
+      .eq("is_active", true)
+      .not("lat", "is", null)
+      .not("lng", "is", null)
+      .or("lat.lt.31.60,lat.gt.31.67,lng.lt.-8.02,lng.gt.-7.97");
+
+    if (oobErr) {
+      logs.push(`❌ Erreur Phase -1: ${oobErr.message}`);
+    } else if (outOfBounds && outOfBounds.length > 0) {
+      const oobIds = outOfBounds.map((p: any) => p.id);
+      const { error: filterErr } = await supabase
+        .from("medina_pois")
+        .update({ status: "filtered", is_active: false })
+        .in("id", oobIds);
+
+      if (filterErr) {
+        logs.push(`❌ Erreur filtrage hors zone: ${filterErr.message}`);
+      } else {
+        logs.push(`🗺️ Phase -1: ${oobIds.length} POIs hors Marrakech filtrés (${outOfBounds.slice(0, 5).map((p: any) => p.name).join(', ')})`);
+        results.push({ phase: "geo_filter", action: "filter_out_of_bounds", count: oobIds.length, logs: [] });
+      }
+    } else {
+      logs.push("✅ Phase -1: Aucun POI hors zone détecté");
+    }
+
     // ━━━━━━━━━━ PHASE 0: AUTO-VALIDATION (enriched → validated) ━━━━━━━━━━
     const { data: eligiblePois, error: eligibleErr } = await supabase
       .from("medina_pois")
@@ -56,6 +84,10 @@ serve(async (req) => {
       .not("lat", "is", null)
       .not("lng", "is", null)
       .not("name", "is", null)
+      .gte("lat", 31.60)
+      .lte("lat", 31.67)
+      .gte("lng", -8.02)
+      .lte("lng", -7.97)
       .limit(200);
 
     if (eligibleErr) throw eligibleErr;

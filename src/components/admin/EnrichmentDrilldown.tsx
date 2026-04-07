@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, Check, X, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader2, Check, X, Search, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type DbField = 'history_context' | 'local_anecdote_fr' | 'fun_fact_fr' | 'riddle_easy' | 'wikipedia_summary';
@@ -78,6 +78,26 @@ export default function EnrichmentDrilldown({ field, label, open, onOpenChange }
     onError: (err) => {
       console.error('Enrichment save error:', err);
       toast.error('Erreur de sauvegarde');
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async ({ id }: { id: string }) => {
+      const { error } = await supabase
+        .from('medina_pois')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      toast.success('POI supprimé ✓');
+      qc.invalidateQueries({ queryKey: ['enrichment-drilldown'] });
+      qc.invalidateQueries({ queryKey: ['admin-dashboard-stats'] });
+      qc.invalidateQueries({ queryKey: ['medina_pois'] });
+    },
+    onError: (err) => {
+      console.error('Delete error:', err);
+      toast.error('Erreur de suppression');
     },
   });
 
@@ -181,13 +201,27 @@ export default function EnrichmentDrilldown({ field, label, open, onOpenChange }
                           </Button>
                         </div>
                       ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => startEdit(row.id, row[field])}
-                        >
-                          Éditer
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => startEdit(row.id, row[field])}
+                          >
+                            Éditer
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => {
+                              if (window.confirm(`Supprimer "${row.name}" définitivement ?`)) {
+                                deleteMutation.mutate({ id: row.id });
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
