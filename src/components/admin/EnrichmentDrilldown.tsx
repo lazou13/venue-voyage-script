@@ -81,6 +81,10 @@ export default function EnrichmentDrilldown({ field, label, open, onOpenChange }
     },
   });
 
+  const rows = data?.rows ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
   const startEdit = (id: string, currentValue: string | null) => {
     setEditingId(id);
     setEditValue(currentValue ?? '');
