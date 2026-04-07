@@ -280,6 +280,15 @@ function GuidedContent({ stop }: { stop: Stop }) {
         </p>
       )}
 
+      {stop.fun_fact && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <span className="text-xs font-medium text-amber-700 mb-1 block">
+            💡 Le saviez-vous ?
+          </span>
+          <p className="text-sm">{stop.fun_fact}</p>
+        </div>
+      )}
+
       {(stop.price_info || stop.opening_hours || stop.must_see_details) && (
         <Collapsible>
           <CollapsibleTrigger className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors w-full">
