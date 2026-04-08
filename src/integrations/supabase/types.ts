@@ -88,6 +88,56 @@ export type Database = {
           },
         ]
       }
+      client_photos: {
+        Row: {
+          caption: string | null
+          id: string
+          is_approved: boolean | null
+          metadata: Json | null
+          photo_type: string | null
+          photo_url: string
+          player_email: string | null
+          poi_id: string | null
+          quality_score: number | null
+          quest_code: string | null
+          taken_at: string | null
+        }
+        Insert: {
+          caption?: string | null
+          id?: string
+          is_approved?: boolean | null
+          metadata?: Json | null
+          photo_type?: string | null
+          photo_url: string
+          player_email?: string | null
+          poi_id?: string | null
+          quality_score?: number | null
+          quest_code?: string | null
+          taken_at?: string | null
+        }
+        Update: {
+          caption?: string | null
+          id?: string
+          is_approved?: boolean | null
+          metadata?: Json | null
+          photo_type?: string | null
+          photo_url?: string
+          player_email?: string | null
+          poi_id?: string | null
+          quality_score?: number | null
+          quest_code?: string | null
+          taken_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_photos_poi_id_fkey"
+            columns: ["poi_id"]
+            isOneToOne: false
+            referencedRelation: "medina_pois"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_poi_recommendations: {
         Row: {
           comment: string | null
@@ -147,6 +197,65 @@ export type Database = {
             columns: ["source_instance_id"]
             isOneToOne: false
             referencedRelation: "quest_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_recommendations: {
+        Row: {
+          admin_notes: string | null
+          category_suggestion: string | null
+          comment: string
+          created_at: string | null
+          id: string
+          lat: number | null
+          lng: number | null
+          photo_url: string | null
+          player_email: string | null
+          poi_id: string | null
+          poi_name: string | null
+          quest_code: string | null
+          rating: number | null
+          status: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          category_suggestion?: string | null
+          comment: string
+          created_at?: string | null
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          photo_url?: string | null
+          player_email?: string | null
+          poi_id?: string | null
+          poi_name?: string | null
+          quest_code?: string | null
+          rating?: number | null
+          status?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          category_suggestion?: string | null
+          comment?: string
+          created_at?: string | null
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          photo_url?: string | null
+          player_email?: string | null
+          poi_id?: string | null
+          poi_name?: string | null
+          quest_code?: string | null
+          rating?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_recommendations_poi_id_fkey"
+            columns: ["poi_id"]
+            isOneToOne: false
+            referencedRelation: "medina_pois"
             referencedColumns: ["id"]
           },
         ]
@@ -1378,6 +1487,48 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      visit_types: {
+        Row: {
+          description: string | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          label_ar: string | null
+          label_en: string
+          label_fr: string
+          max_duration_min: number | null
+          min_duration_min: number | null
+          price_multiplier: number | null
+          theme_key: string | null
+        }
+        Insert: {
+          description?: string | null
+          icon?: string | null
+          id: string
+          is_active?: boolean | null
+          label_ar?: string | null
+          label_en: string
+          label_fr: string
+          max_duration_min?: number | null
+          min_duration_min?: number | null
+          price_multiplier?: number | null
+          theme_key?: string | null
+        }
+        Update: {
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          label_ar?: string | null
+          label_en?: string
+          label_fr?: string
+          max_duration_min?: number | null
+          min_duration_min?: number | null
+          price_multiplier?: number | null
+          theme_key?: string | null
         }
         Relationships: []
       }
