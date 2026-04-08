@@ -1,4 +1,4 @@
-// anecdote-enricher — Hunt Planer Pro (Perplexity sonar)
+// anecdote-enricher — Hunt Planer Pro (Perplexity sonar) — v2 anti-hallucination
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -13,29 +13,65 @@ function resolveName(row: any): string {
   return row.name_fr ?? row.name_en ?? row.name ?? 'POI';
 }
 
-async function enrichWithPerplexity(poi: any, apiKey: string): Promise<Record<string, any> | null> {
+const SYSTEM_PROMPT = `Tu es un historien-journaliste expert de Marrakech.
+Tu travailles pour un guide premium vendu à 50€.
+Tes textes doivent être vérifiables, précis, et évocateurs.
+
+RÈGLES ABSOLUES :
+- INTERDITS : 'les habitants chuchotent', 'les anciens murmurent', 'la légende dit', 'on raconte que', 'selon la tradition'. Ces formules sont des clichés vides — elles signalent une hallucination.
+- OBLIGATOIRE : citer des faits datés, des noms propres réels, des chiffres vérifiables, des événements historiques documentés.
+- Si tu n'as pas d'information vérifiable sur ce lieu, dis-le explicitement dans local_anecdote_fr avec 'Données insuffisantes' — ne pas inventer.
+- Ton direct, comme un article de magazine, pas une encyclopédie.
+
+Tu réponds uniquement en JSON valide sans markdown.`;
+
+function buildUserPrompt(poi: any): string {
   const name = resolveName(poi);
   const category = poi.category_ai ?? poi.category ?? '';
   const zone = poi.zone || '';
-  const existing = poi.description_short || '';
+  const existingContext = poi.history_context ? poi.history_context.substring(0, 100) : '';
 
-  const prompt = `Recherche approfondie sur "${name}" à Marrakech, Maroc.
-Catégorie : ${category}. Zone : ${zone}.
-${existing ? `Contexte existant : ${existing}` : ''}
+  return `Lieu : ${name}
+Catégorie : ${category}
+Zone : ${zone}
+Contexte existant : ${existingContext}
 
-Cherche dans des sources secondaires, archives, récits de voyageurs historiques, traditions orales documentées — pas seulement Wikipedia.
+STRUCTURE OBLIGATOIRE pour chaque champ :
 
-Réponds UNIQUEMENT en JSON valide sans markdown :
-{
-  "history_context": "OBLIGATOIRE : 200 à 250 mots en français. Pas moins de 200 mots — c'est une contrainte dure. Structure : époque/origine (2-3 phrases) → personnage historique avec nom précis et dates (2-3 phrases) → détails architecturaux ou culturels avec chiffres (2-3 phrases) → anecdote de détail inattendue (2 phrases) → lien avec ce que le visiteur voit aujourd'hui (1-2 phrases). Exemple de longueur attendue : 'La Koutoubia est l emblème de Marrakech, visible à des kilomètres à la ronde. Son minaret de 77 mètres, achevé en 1158 sous le sultan almohade Yacoub el-Mansour, est un chef-d œuvre de l architecture islamique qui a inspiré la Giralda de Séville et la Tour Hassan de Rabat. Son nom vient des koutoubiyine, les libraires qui tenaient boutique à ses pieds au Moyen Âge...' — ce niveau de détail et cette densité sont le minimum attendu.",
-  "local_anecdote_fr": "OBLIGATOIRE : 100 à 130 mots en français. Pas moins de 100 mots — contrainte dure. Structure : situation initiale (2 phrases) → élément perturbateur ou révélation (2-3 phrases) → résolution surprenante (2 phrases) → phrase finale qui donne de la valeur au lieu (1 phrase). Exemple de niveau attendu : 'En réalité, il existe DEUX Koutoubia côte à côte ! La première mosquée, construite en 1147, fut détruite car son mihrab n était pas parfaitement orienté vers La Mecque – une erreur impardonnable. Le sultan ordonna sa reconstruction quelques mètres plus loin...' — cette densité narrative est le minimum.",
-  "local_anecdote_en": "OBLIGATOIRE : 100 à 130 mots en English. Same narrative density as local_anecdote_fr. Natural English — not a word-for-word translation.",
-  "fun_fact_fr": "1 seule phrase percutante, 20 à 35 mots maximum. Un chiffre ou fait totalement inattendu.",
-  "fun_fact_en": "Same fun fact in English, 20 to 35 words.",
-  "crowd_level": "low ou medium ou high uniquement.",
-  "accessibility_notes": "1 phrase, 15 à 30 mots."
-}`;
+history_context (200-250 mots) :
+  Paragraphe 1 : Quand et par qui ce lieu a-t-il été créé/construit ?
+    Citer l'année exacte et le nom du fondateur si connu.
+  Paragraphe 2 : Quel événement historique précis s'y est passé ?
+    Nommer les personnes impliquées, les dates, les conséquences.
+  Paragraphe 3 : Qu'est-ce que le visiteur voit aujourd'hui
+    et pourquoi c'est remarquable ?
 
+local_anecdote_fr (100-130 mots) :
+  Une seule histoire vraie avec : qui, quoi, quand, pourquoi c'est inattendu.
+  Si aucune anecdote vérifiable : écrire 'Données insuffisantes — ${name}'
+  JAMAIS de formule 'les habitants racontent...'
+
+local_anecdote_en (100-130 mots) :
+  Traduction naturelle de local_anecdote_fr.
+  Adapter pour lecteur anglophone — pas mot à mot.
+
+fun_fact_fr (20-35 mots) :
+  1 chiffre ou fait totalement inattendu, vérifiable.
+  Ex: 'La Koutoubia a deux mosquées superposées — la première fut détruite car son mihrab était mal orienté de quelques degrés.'
+
+fun_fact_en (20-35 mots) :
+  Traduction naturelle du fun_fact_fr.
+
+crowd_level : 'low' | 'medium' | 'high'
+  Basé sur la réalité terrain, pas sur l'attractivité théorique.
+
+accessibility_notes (15-30 mots) :
+  Accès physique réel : largeur des ruelles, marches, restrictions.
+
+Réponds UNIQUEMENT en JSON valide sans markdown.`;
+}
+
+async function enrichWithPerplexity(poi: any, apiKey: string): Promise<Record<string, any> | null> {
   const resp = await fetch(PERPLEXITY_URL, {
     method: 'POST',
     headers: {
@@ -45,8 +81,8 @@ Réponds UNIQUEMENT en JSON valide sans markdown :
     body: JSON.stringify({
       model: 'sonar',
       messages: [
-        { role: 'system', content: 'Tu es un journaliste-historien spécialisé dans la médina de Marrakech. Tu écris pour des voyageurs curieux qui veulent comprendre la vraie vie d\'un lieu, pas lire un guide touristique. Tu cites des faits précis, des noms propres réels, des chiffres vérifiables. Tes anecdotes ont toujours une chute — un retournement, une ironie, une révélation. Tu parles directement au lecteur. Tu réponds uniquement en JSON valide.' },
-        { role: 'user', content: prompt },
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: buildUserPrompt(poi) },
       ],
     }),
   });
@@ -83,20 +119,21 @@ serve(async (req) => {
   try {
     const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
     const batchSize = Math.min(body.batch_size ?? 10, 20);
-    const minScore = body.min_score ?? 2.0;
     const force = body.force === true;
 
     let query = supabase
       .from('medina_pois')
       .select('id, name, name_fr, name_en, category, category_ai, zone, description_short, history_context');
-    
+
     if (!force) {
       query = query.is('local_anecdote_en', null);
     }
-    
+
     query = query
-      .gte('poi_quality_score', minScore)
+      .in('enrichment_quality', ['suspect', 'unknown', 'low_value'])
+      .gte('poi_quality_score', 4)
       .not('status', 'in', '("filtered","merged")')
+      .order('enrichment_quality', { ascending: true })
       .order('poi_quality_score', { ascending: false })
       .limit(batchSize);
 
@@ -139,7 +176,23 @@ serve(async (req) => {
         }
 
         if (Object.keys(updateData).length > 0) {
-          const { error: updErr } = await supabase.from('medina_pois').update(updateData).eq('id', poi.id);
+          // Évaluer la qualité du contenu produit
+          const hasRealFact = !result.local_anecdote_fr?.includes('chuchotent')
+            && !result.local_anecdote_fr?.includes('murmurent')
+            && !result.local_anecdote_fr?.includes('Données insuffisantes');
+
+          const quality = hasRealFact
+            && result.local_anecdote_en
+            && result.fun_fact_fr
+            && result.history_context?.length > 800
+            ? 'good'
+            : hasRealFact ? 'average' : 'suspect';
+
+          const { error: updErr } = await supabase.from('medina_pois').update({
+            ...updateData,
+            enrichment_quality: quality,
+            last_enriched_at: new Date().toISOString(),
+          }).eq('id', poi.id);
           if (!updErr) totalUpdated++;
         }
         // Delay between requests to avoid rate limiting
@@ -150,7 +203,7 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ processed: pois.length, updated: totalUpdated, source: 'perplexity-sonar' }), {
+    return new Response(JSON.stringify({ processed: pois.length, updated: totalUpdated, source: 'perplexity-sonar-v2' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {
