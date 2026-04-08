@@ -269,6 +269,11 @@ function scorePOI(poi: POI, input: EngineInput, distanceFromStart: number): numb
   // Proximity penalty (0 to -10)
   score -= (distanceFromStart / input.radius_m) * 10;
 
+  // Proximity boost: POI within 100m of start gets ×3 score
+  if (distanceFromStart < 100) {
+    score *= 3;
+  }
+
   // Bonus: instagram_spot for guided_tour + photography
   if (poi.instagram_spot && input.mode === "guided_tour" && input.theme === "photography") {
     score += 8;
@@ -667,6 +672,8 @@ function generateTeaser(
 
 // ━━━━━━━━━━━━━━ MAIN ENTRY POINT ━━━━━━━━━━━━━━
 
+const EXCLUDED_CATEGORIES = ["hotel", "riad", "lodging", "hostel"];
+
 export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput {
   // Step 1: Filter candidates
   const excludeSet = new Set(input.exclude_place_ids ?? []);
@@ -674,6 +681,7 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
     if (!p.is_active) return false;
     if (p.is_start_hub) return false;
     if (excludeSet.has(p.id)) return false;
+    if (EXCLUDED_CATEGORIES.includes((p.category_ai || "").toLowerCase())) return false;
     const dist = haversineM(input.start_lat, input.start_lng, p.lat, p.lng);
     return dist <= input.radius_m;
   });
