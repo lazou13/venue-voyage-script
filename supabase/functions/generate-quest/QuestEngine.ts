@@ -676,7 +676,7 @@ function generateTeaser(
 
 // ━━━━━━━━━━━━━━ MAIN ENTRY POINT ━━━━━━━━━━━━━━
 
-const EXCLUDED_CATEGORIES = ["hotel", "riad", "lodging", "hostel"];
+const EXCLUDED_CATEGORIES = ["hotel", "riad", "lodging", "hostel", "restaurant"];
 
 export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput {
   // Step 1: Filter candidates
