@@ -285,16 +285,19 @@ export type Database = {
           address: string | null
           agent_enriched_at: string | null
           audience_tags: string[] | null
+          best_client_photo_url: string | null
           best_time_visit: string | null
           category: string
           category_ai: string | null
           category_google: string | null
           challenge: string | null
+          client_photos_count: number | null
           created_at: string
           crowd_level: string | null
           data_sources: string[] | null
           description_short: string | null
           district: string | null
+          enrichment_quality: string | null
           enrichment_status: string | null
           foursquare_id: string | null
           fun_fact_en: string | null
@@ -310,6 +313,8 @@ export type Database = {
           is_active: boolean
           is_photo_spot: boolean | null
           is_start_hub: boolean
+          last_enriched_at: string | null
+          last_visited_at: string | null
           lat: number | null
           lng: number | null
           local_anecdote: string | null
@@ -324,6 +329,7 @@ export type Database = {
           name_en: string | null
           name_fr: string | null
           nearby_pois_data: Json | null
+          nearby_pois_ids: string[] | null
           nearby_restaurants: Json | null
           nearest_node_id: number | null
           opening_hours: Json | null
@@ -336,6 +342,7 @@ export type Database = {
           price_info: string | null
           radius_m: number
           rating: number | null
+          recommendations_count: number | null
           reviews_count: number | null
           riddle_easy: string | null
           riddle_hard: string | null
@@ -354,6 +361,7 @@ export type Database = {
           tourist_interest: string | null
           updated_at: string
           validated_at: string | null
+          visit_count: number | null
           website: string | null
           website_url: string | null
           wikidata_id: string | null
@@ -365,16 +373,19 @@ export type Database = {
           address?: string | null
           agent_enriched_at?: string | null
           audience_tags?: string[] | null
+          best_client_photo_url?: string | null
           best_time_visit?: string | null
           category?: string
           category_ai?: string | null
           category_google?: string | null
           challenge?: string | null
+          client_photos_count?: number | null
           created_at?: string
           crowd_level?: string | null
           data_sources?: string[] | null
           description_short?: string | null
           district?: string | null
+          enrichment_quality?: string | null
           enrichment_status?: string | null
           foursquare_id?: string | null
           fun_fact_en?: string | null
@@ -390,6 +401,8 @@ export type Database = {
           is_active?: boolean
           is_photo_spot?: boolean | null
           is_start_hub?: boolean
+          last_enriched_at?: string | null
+          last_visited_at?: string | null
           lat?: number | null
           lng?: number | null
           local_anecdote?: string | null
@@ -404,6 +417,7 @@ export type Database = {
           name_en?: string | null
           name_fr?: string | null
           nearby_pois_data?: Json | null
+          nearby_pois_ids?: string[] | null
           nearby_restaurants?: Json | null
           nearest_node_id?: number | null
           opening_hours?: Json | null
@@ -416,6 +430,7 @@ export type Database = {
           price_info?: string | null
           radius_m?: number
           rating?: number | null
+          recommendations_count?: number | null
           reviews_count?: number | null
           riddle_easy?: string | null
           riddle_hard?: string | null
@@ -434,6 +449,7 @@ export type Database = {
           tourist_interest?: string | null
           updated_at?: string
           validated_at?: string | null
+          visit_count?: number | null
           website?: string | null
           website_url?: string | null
           wikidata_id?: string | null
@@ -445,16 +461,19 @@ export type Database = {
           address?: string | null
           agent_enriched_at?: string | null
           audience_tags?: string[] | null
+          best_client_photo_url?: string | null
           best_time_visit?: string | null
           category?: string
           category_ai?: string | null
           category_google?: string | null
           challenge?: string | null
+          client_photos_count?: number | null
           created_at?: string
           crowd_level?: string | null
           data_sources?: string[] | null
           description_short?: string | null
           district?: string | null
+          enrichment_quality?: string | null
           enrichment_status?: string | null
           foursquare_id?: string | null
           fun_fact_en?: string | null
@@ -470,6 +489,8 @@ export type Database = {
           is_active?: boolean
           is_photo_spot?: boolean | null
           is_start_hub?: boolean
+          last_enriched_at?: string | null
+          last_visited_at?: string | null
           lat?: number | null
           lng?: number | null
           local_anecdote?: string | null
@@ -484,6 +505,7 @@ export type Database = {
           name_en?: string | null
           name_fr?: string | null
           nearby_pois_data?: Json | null
+          nearby_pois_ids?: string[] | null
           nearby_restaurants?: Json | null
           nearest_node_id?: number | null
           opening_hours?: Json | null
@@ -496,6 +518,7 @@ export type Database = {
           price_info?: string | null
           radius_m?: number
           rating?: number | null
+          recommendations_count?: number | null
           reviews_count?: number | null
           riddle_easy?: string | null
           riddle_hard?: string | null
@@ -514,6 +537,7 @@ export type Database = {
           tourist_interest?: string | null
           updated_at?: string
           validated_at?: string | null
+          visit_count?: number | null
           website?: string | null
           website_url?: string | null
           wikidata_id?: string | null
