@@ -776,6 +776,42 @@ export type Database = {
           },
         ]
       }
+      poi_quality_reports: {
+        Row: {
+          auto_fixed: number
+          dry_run: boolean
+          id: string
+          issues_detail: Json
+          needs_review: number
+          pois_to_review: string[] | null
+          quality_score: number | null
+          run_at: string
+          total_pois: number | null
+        }
+        Insert: {
+          auto_fixed?: number
+          dry_run?: boolean
+          id?: string
+          issues_detail?: Json
+          needs_review?: number
+          pois_to_review?: string[] | null
+          quality_score?: number | null
+          run_at?: string
+          total_pois?: number | null
+        }
+        Update: {
+          auto_fixed?: number
+          dry_run?: boolean
+          id?: string
+          issues_detail?: Json
+          needs_review?: number
+          pois_to_review?: string[] | null
+          quality_score?: number | null
+          run_at?: string
+          total_pois?: number | null
+        }
+        Relationships: []
+      }
       pois: {
         Row: {
           accessibility_notes: string | null

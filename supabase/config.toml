@@ -95,3 +95,6 @@ verify_jwt = false
 
 [functions.submit-recommendation]
 verify_jwt = false
+
+[functions.poi-quality-agent]
+verify_jwt = false
