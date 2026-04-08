@@ -89,3 +89,9 @@ verify_jwt = false
 
 [functions.sync-pois-export]
 verify_jwt = false
+
+[functions.collect-client-media]
+verify_jwt = false
+
+[functions.submit-recommendation]
+verify_jwt = false
