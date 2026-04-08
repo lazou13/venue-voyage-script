@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { encode as hexEncode } from "https://deno.land/std@0.224.0/encoding/hex.ts";
+
+const hexEncode = (bytes: Uint8Array): string =>
+  Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
 const NARRATIVE_VERSION = "v1";
 
@@ -7,7 +9,7 @@ const NARRATIVE_VERSION = "v1";
 async function sha256(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);
   const hash = await crypto.subtle.digest("SHA-256", data);
-  return new TextDecoder().decode(hexEncode(new Uint8Array(hash)));
+  return hexEncode(new Uint8Array(hash));
 }
 
 // ── Validate narrative structure ──
