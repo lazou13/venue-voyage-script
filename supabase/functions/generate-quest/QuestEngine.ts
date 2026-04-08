@@ -63,6 +63,8 @@ export interface POI {
   fun_fact_fr: string;
   fun_fact_en: string;
   wikipedia_summary: string;
+  crowd_level: string;
+  accessibility_notes: string;
   metadata: {
     features?: {
       audience?: string[];
@@ -631,6 +633,8 @@ function buildStops(
       stop.is_photo_spot = poi.is_photo_spot || false;
       stop.photo_tip = poi.photo_tip || undefined;
       stop.ruelle_etroite = poi.ruelle_etroite || false;
+      stop.crowd_level = poi.crowd_level || undefined;
+      stop.accessibility_notes = poi.accessibility_notes || undefined;
     }
 
     stops.push(stop);
