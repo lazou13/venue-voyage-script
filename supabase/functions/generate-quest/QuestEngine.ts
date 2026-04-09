@@ -588,7 +588,7 @@ function buildStops(
     const stop: Stop = {
       order: i + 1,
       poi_id: poi.id,
-      name: poi.name,
+      name: poi.name_fr || poi.name_en || poi.name || '',
       lat: poi.lat,
       lng: poi.lng,
       category: poi.category_ai,
