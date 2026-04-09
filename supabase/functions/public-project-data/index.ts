@@ -144,19 +144,43 @@ Deno.serve(async (req) => {
       const zone = url.searchParams.get("zone")?.trim().slice(0, 80);
       const category = url.searchParams.get("category")?.trim().slice(0, 80);
 
-      let query = sb.from("medina_pois").select("*").eq("is_active", true).eq("status", "validated");
+      let query = sb.from("medina_pois").select(`
+        id, name, name_fr, name_en, name_ar,
+        lat, lng, zone, category, category_ai,
+        category_google, status, is_active, is_start_hub,
+        rating, reviews_count, poi_quality_score,
+        address, description_short, history_context,
+        local_anecdote, local_anecdote_fr, local_anecdote_en,
+        fun_fact_fr, fun_fact_en, wikipedia_summary,
+        price_info, opening_hours, must_see_details,
+        must_try, must_visit_nearby, is_photo_spot,
+        photo_tip, ruelle_etroite, crowd_level,
+        accessibility_notes, visit_route, metadata,
+        enrichment_quality, last_enriched_at,
+        client_photos_count, visit_count,
+        best_client_photo_url, nearby_pois_ids,
+        riddle_easy, riddle_medium, riddle_hard,
+        challenge, tourist_interest, instagram_spot,
+        radius_m, district, audience_tags,
+        street_food_spot, street_food_details,
+        instagram_score, best_time_visit
+      `).eq("is_active", true).eq("status", "validated");
       if (zone) query = query.eq("zone", zone);
       if (category) query = query.eq("category", category);
 
-      const { data: pois, error } = await query.order("name");
-      if (error) throw error;
+      const { data: pois, error } = await query.order("name").limit(500);
+      if (error) { console.error("library medina_pois error:", JSON.stringify(error)); throw error; }
 
       const poiIds = (pois ?? []).map((p: any) => p.id);
       let media: any[] = [];
       if (poiIds.length > 0) {
-        const { data: mData, error: mErr } = await sb.from("poi_media").select("*").in("medina_poi_id", poiIds).order("sort_order");
-        if (mErr) throw mErr;
-        media = mData ?? [];
+        const BATCH = 50;
+        for (let i = 0; i < poiIds.length; i += BATCH) {
+          const batch = poiIds.slice(i, i + BATCH);
+          const { data: mData, error: mErr } = await sb.from("poi_media").select("*").in("medina_poi_id", batch).order("sort_order");
+          if (mErr) { console.error("poi_media batch error:", JSON.stringify(mErr)); throw mErr; }
+          media = media.concat(mData ?? []);
+        }
       }
 
       const mediaByPoi = new Map<string, any[]>();
