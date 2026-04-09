@@ -168,8 +168,8 @@ Deno.serve(async (req) => {
       if (zone) query = query.eq("zone", zone);
       if (category) query = query.eq("category", category);
 
-      const { data: pois, error } = await query.order("name");
-      if (error) throw error;
+      const { data: pois, error } = await query.order("name").limit(500);
+      if (error) { console.error("library medina_pois error:", JSON.stringify(error)); throw error; }
 
       const poiIds = (pois ?? []).map((p: any) => p.id);
       let media: any[] = [];
