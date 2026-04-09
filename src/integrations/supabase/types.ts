@@ -471,6 +471,7 @@ export type Database = {
           updated_at: string
           validated_at: string | null
           visit_count: number | null
+          visit_route: Json | null
           website: string | null
           website_url: string | null
           wikidata_id: string | null
@@ -559,6 +560,7 @@ export type Database = {
           updated_at?: string
           validated_at?: string | null
           visit_count?: number | null
+          visit_route?: Json | null
           website?: string | null
           website_url?: string | null
           wikidata_id?: string | null
@@ -647,6 +649,7 @@ export type Database = {
           updated_at?: string
           validated_at?: string | null
           visit_count?: number | null
+          visit_route?: Json | null
           website?: string | null
           website_url?: string | null
           wikidata_id?: string | null
