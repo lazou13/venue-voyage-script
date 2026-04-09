@@ -144,7 +144,27 @@ Deno.serve(async (req) => {
       const zone = url.searchParams.get("zone")?.trim().slice(0, 80);
       const category = url.searchParams.get("category")?.trim().slice(0, 80);
 
-      let query = sb.from("medina_pois").select("*").eq("is_active", true).eq("status", "validated");
+      let query = sb.from("medina_pois").select(`
+        id, name, name_fr, name_en, name_ar,
+        lat, lng, zone, category, category_ai,
+        category_google, status, is_active, is_start_hub,
+        rating, reviews_count, poi_quality_score,
+        address, description_short, history_context,
+        local_anecdote, local_anecdote_fr, local_anecdote_en,
+        fun_fact_fr, fun_fact_en, wikipedia_summary,
+        price_info, opening_hours, must_see_details,
+        must_try, must_visit_nearby, is_photo_spot,
+        photo_tip, ruelle_etroite, crowd_level,
+        accessibility_notes, visit_route, metadata,
+        enrichment_quality, last_enriched_at,
+        client_photos_count, visit_count,
+        best_client_photo_url, nearby_pois_ids,
+        riddle_easy, riddle_medium, riddle_hard,
+        challenge, tourist_interest, instagram_spot,
+        radius_m, district, audience_tags,
+        street_food_spot, street_food_details,
+        instagram_score, best_time_visit
+      `).eq("is_active", true).eq("status", "validated");
       if (zone) query = query.eq("zone", zone);
       if (category) query = query.eq("category", category);
 
