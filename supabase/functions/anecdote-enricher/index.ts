@@ -181,10 +181,11 @@ serve(async (req) => {
             && !result.local_anecdote_fr?.includes('murmurent')
             && !result.local_anecdote_fr?.includes('Données insuffisantes');
 
+          const histLen = result.history_context?.length ?? poi.history_context?.length ?? 0;
           const quality = hasRealFact
             && result.local_anecdote_en
             && result.fun_fact_fr
-            && result.history_context?.length > 800
+            && histLen > 400
             ? 'good'
             : hasRealFact ? 'average' : 'suspect';
 
