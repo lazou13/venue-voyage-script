@@ -98,3 +98,6 @@ verify_jwt = false
 
 [functions.poi-quality-agent]
 verify_jwt = false
+
+[functions.api-v2]
+verify_jwt = false
