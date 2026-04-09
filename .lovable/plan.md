@@ -1,14 +1,11 @@
 
 
-## Fix: poi-watchdog Edge Function crash
+## Fix: Redeploy poi-watchdog Edge Function
 
-**Problem:** The `poi-watchdog` function crashes with `"Cannot access 'withGps' before initialization"` because `withGps` (line 103) is referenced on line 90 before its declaration. This is a `const` temporal dead zone error.
+**Problem:** The code fix (moving `withGps` to line 30) is already in the source file, but the deployed version still runs the old code with the Temporal Dead Zone error. The logs confirm the crash is still happening at runtime.
 
-**Fix:** Move the `withGps` declaration (line 103) to before its first use (before line 90). Specifically:
+**Action:** Redeploy `poi-watchdog` so the deployed function matches the fixed source code. No code changes needed — deployment only.
 
-1. **Move line 103** (`const withGps = all.filter(...)`) to just after line 29 (`const all = pois ?? [];`), so it's available for both the out-of-bounds check (step 7) and the duplicates check (step 8).
-
-2. **Redeploy** the `poi-watchdog` function and verify it returns successfully.
-
-**Single file change:** `supabase/functions/poi-watchdog/index.ts`
+### Step
+1. Deploy `poi-watchdog` edge function to push the already-corrected source code live.
 
