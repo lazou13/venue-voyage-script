@@ -59,15 +59,12 @@ async function verifyApiKey(req: Request, cors: Record<string, string>) {
     return { error: jsonResponse({ error: "API key deactivated", code: "INACTIVE_API_KEY" }, 403, cors) };
   }
 
-  // Fire-and-forget: update last_used_at and requests_count
+  // Fire-and-forget: update last_used_at and increment requests_count
   supabaseAdmin
     .from("api_keys")
-    .update({ last_used_at: new Date().toISOString(), requests_count: (data as any).requests_count + 1 })
+    .update({ last_used_at: new Date().toISOString() })
     .eq("id", data.id)
     .then(() => {});
-
-  // Actually we need to increment properly — use rpc-less approach
-  supabaseAdmin.rpc("", {}).catch(() => {}); // no-op, just use raw update above
 
   return { apiKey: data };
 }
