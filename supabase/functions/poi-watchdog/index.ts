@@ -27,6 +27,7 @@ serve(async (req) => {
 
     if (error) throw error;
     const all = pois ?? [];
+    const withGps = all.filter(p => p.lat != null && p.lng != null);
 
     // 2. Validated POIs missing critical fields
     const validated = all.filter(p => p.status === 'validated');
