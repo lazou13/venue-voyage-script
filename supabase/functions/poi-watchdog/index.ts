@@ -100,7 +100,7 @@ serve(async (req) => {
     }
 
     // 8. GPS duplicates (within 5m)
-    const withGps = all.filter(p => p.lat != null && p.lng != null);
+    // withGps already declared above
     const duplicates: string[] = [];
     for (let i = 0; i < withGps.length && duplicates.length < 10; i++) {
       for (let j = i + 1; j < withGps.length; j++) {
