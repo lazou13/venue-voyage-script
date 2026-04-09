@@ -174,9 +174,13 @@ Deno.serve(async (req) => {
       const poiIds = (pois ?? []).map((p: any) => p.id);
       let media: any[] = [];
       if (poiIds.length > 0) {
-        const { data: mData, error: mErr } = await sb.from("poi_media").select("*").in("medina_poi_id", poiIds).order("sort_order");
-        if (mErr) throw mErr;
-        media = mData ?? [];
+        const BATCH = 50;
+        for (let i = 0; i < poiIds.length; i += BATCH) {
+          const batch = poiIds.slice(i, i + BATCH);
+          const { data: mData, error: mErr } = await sb.from("poi_media").select("*").in("medina_poi_id", batch).order("sort_order");
+          if (mErr) { console.error("poi_media batch error:", JSON.stringify(mErr)); throw mErr; }
+          media = media.concat(mData ?? []);
+        }
       }
 
       const mediaByPoi = new Map<string, any[]>();
