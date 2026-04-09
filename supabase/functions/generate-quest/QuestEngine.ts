@@ -76,6 +76,7 @@ export interface POI {
       interaction_type?: string;
     };
   };
+  visit_route?: { exit_point?: { lat: number; lng: number }; [k: string]: unknown } | null;
 }
 
 export interface Stop {
@@ -110,6 +111,7 @@ export interface Stop {
   photo_tip?: string | null;
   ruelle_etroite?: boolean;
   fun_fact?: string;
+  visit_route?: { exit_point?: { lat: number; lng: number }; [k: string]: unknown } | null;
 }
 
 export interface EngineOutput {
@@ -388,8 +390,9 @@ function nearestNeighborTSP(
     }
     const picked = remaining.splice(bestIdx, 1)[0];
     sorted.push(picked);
-    curLat = picked.lat;
-    curLng = picked.lng;
+    // Use exit_point if available for next distance calculation
+    curLat = picked.visit_route?.exit_point?.lat ?? picked.lat;
+    curLng = picked.visit_route?.exit_point?.lng ?? picked.lng;
   }
 
   return sorted;
@@ -565,8 +568,9 @@ function buildStops(
 
   for (let i = 0; i < pois.length; i++) {
     const poi = pois[i];
-    const prevLat = i === 0 ? startLat : pois[i - 1].lat;
-    const prevLng = i === 0 ? startLng : pois[i - 1].lng;
+    const prevPoi = i === 0 ? null : pois[i - 1];
+    const prevLat = prevPoi ? (prevPoi.visit_route?.exit_point?.lat ?? prevPoi.lat) : startLat;
+    const prevLng = prevPoi ? (prevPoi.visit_route?.exit_point?.lng ?? prevPoi.lng) : startLng;
     const distM = Math.round(haversineM(prevLat, prevLng, poi.lat, poi.lng));
     const walkMin = walkTimeMin(distM);
     const VISIT_TIME = input.mode === "treasure_hunt" ? VISIT_TIME_TREASURE : VISIT_TIME_GUIDED;
@@ -636,6 +640,9 @@ function buildStops(
       stop.crowd_level = poi.crowd_level || undefined;
       stop.accessibility_notes = poi.accessibility_notes || undefined;
     }
+
+    // Attach visit_route for downstream use (pgRouting exit_point)
+    stop.visit_route = poi.visit_route || null;
 
     stops.push(stop);
   }
