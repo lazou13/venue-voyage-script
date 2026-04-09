@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, MapPin, ShoppingCart, Store, HeartPulse, Sparkles, Database, Camera, Library, Shield, BarChart3, List, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, BookOpen, MapPin, ShoppingCart, Store, HeartPulse, Sparkles, Database, Camera, Library, Shield, BarChart3, List, MessageSquare, Key } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -14,6 +14,7 @@ const navItems = [
   { to: '/admin/catalog', label: 'Catalogue', icon: Store },
   { to: '/admin/health', label: 'Santé', icon: HeartPulse },
   { to: '/admin/experience-page', label: 'Page Expérience', icon: Sparkles },
+  { to: '/admin/api-keys', label: 'Clés API', icon: Key },
   { to: '/admin/enums', label: 'Enums', icon: List },
   { to: '/admin/docs', label: 'Documentation', icon: BookOpen },
 ];
