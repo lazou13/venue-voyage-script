@@ -14,6 +14,74 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_keys: {
+        Row: {
+          app_id: string | null
+          app_name: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          key: string
+          last_used_at: string | null
+          rate_limit: number | null
+          requests_count: number | null
+        }
+        Insert: {
+          app_id?: string | null
+          app_name: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          key: string
+          last_used_at?: string | null
+          rate_limit?: number | null
+          requests_count?: number | null
+        }
+        Update: {
+          app_id?: string | null
+          app_name?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          key?: string
+          last_used_at?: string | null
+          rate_limit?: number | null
+          requests_count?: number | null
+        }
+        Relationships: []
+      }
+      api_usage: {
+        Row: {
+          api_key_id: string | null
+          created_at: string | null
+          id: string
+          request_count: number | null
+          window_start: string | null
+        }
+        Insert: {
+          api_key_id?: string | null
+          created_at?: string | null
+          id?: string
+          request_count?: number | null
+          window_start?: string | null
+        }
+        Update: {
+          api_key_id?: string | null
+          created_at?: string | null
+          id?: string
+          request_count?: number | null
+          window_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_usage_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_configs: {
         Row: {
           created_at: string
