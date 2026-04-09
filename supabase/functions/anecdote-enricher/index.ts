@@ -46,10 +46,21 @@ history_context (200-250 mots) :
   Paragraphe 3 : Qu'est-ce que le visiteur voit aujourd'hui
     et pourquoi c'est remarquable ?
 
-local_anecdote_fr (100-130 mots) :
-  Une seule histoire vraie avec : qui, quoi, quand, pourquoi c'est inattendu.
-  Si aucune anecdote vérifiable : écrire 'Données insuffisantes — ${name}'
-  JAMAIS de formule 'les habitants racontent...'
+local_anecdote_fr (80-100 mots MAXIMUM) :
+  RÈGLE ABSOLUE : 1 seul fait surprenant ou inattendu.
+  STRUCTURE OBLIGATOIRE :
+  - Phrase 1 : LE FAIT BRUT, direct, sans introduction.
+    Ex: 'En 1926, le protectorat français tenta de transformer Jemaa el-Fna en parking municipal.'
+  - Phrases 2-3 : Ce qui s'est passé concrètement.
+  - Phrase finale : Pourquoi c'est inattendu ou ce que ça révèle sur le lieu aujourd'hui.
+  INTERDITS ABSOLUS :
+  - Commencer par 'Imaginez', 'Saviez-vous', 'Il était une fois'
+  - Faire plus de 100 mots
+  - Répéter des informations déjà dans history_context
+  - Formules vagues : 'ce lieu fascinant', 'incontournable'
+  Si aucun fait vérifiable disponible :
+  Écrire 'Données insuffisantes — ${name}'
+  Ne JAMAIS inventer.
 
 local_anecdote_en (100-130 mots) :
   Traduction naturelle de local_anecdote_fr.
