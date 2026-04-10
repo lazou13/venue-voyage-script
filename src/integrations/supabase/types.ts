@@ -458,10 +458,13 @@ export type Database = {
       }
       medina_pois: {
         Row: {
+          accessibility_info: string | null
           accessibility_notes: string | null
           address: string | null
           agent_enriched_at: string | null
+          architect: string | null
           audience_tags: string[] | null
+          average_visit_duration: number | null
           best_client_photo_url: string | null
           best_time_visit: string | null
           category: string
@@ -469,18 +472,25 @@ export type Database = {
           category_google: string | null
           challenge: string | null
           client_photos_count: number | null
+          construction_date: string | null
           created_at: string
           crowd_level: string | null
           data_sources: string[] | null
           description_short: string | null
+          difficulty_score: number | null
           district: string | null
           enrichment_quality: string | null
           enrichment_status: string | null
           foursquare_id: string | null
           fun_fact_en: string | null
           fun_fact_fr: string | null
+          fun_facts: Json | null
           geom: unknown
           google_raw: Json | null
+          guided_tour_score: number | null
+          hero_image: string | null
+          historical_period: string | null
+          historical_significance: number | null
           history_context: string | null
           hub_theme: string | null
           id: string
@@ -497,6 +507,7 @@ export type Database = {
           local_anecdote: string | null
           local_anecdote_en: string | null
           local_anecdote_fr: string | null
+          media_attribution: string | null
           metadata: Json
           must_see_details: string | null
           must_try: string | null
@@ -512,6 +523,7 @@ export type Database = {
           opening_hours: Json | null
           osm_id: string | null
           phone: string | null
+          photo_opportunity_score: number | null
           photo_spot_score: number | null
           photo_tip: string | null
           place_id: string | null
@@ -529,28 +541,41 @@ export type Database = {
           souks_nearby: string[] | null
           status: string
           step_config: Json
+          story_ar: string | null
+          story_en: string | null
+          story_fr: string | null
           street_food_details: string | null
           street_food_spot: boolean | null
           street_type: string | null
           subcategory: string | null
+          team_building_score: number | null
           terrain_validated: boolean | null
           terrain_validated_at: string | null
+          thumbnail: string | null
           tourist_interest: string | null
+          treasure_hunt_score: number | null
+          unesco_status: boolean | null
           updated_at: string
           validated_at: string | null
           visit_count: number | null
           visit_route: Json | null
+          visitor_tips: Json | null
           website: string | null
           website_url: string | null
+          wikidata_description: string | null
           wikidata_id: string | null
+          wikimedia_images: Json | null
           wikipedia_summary: string | null
           zone: string
         }
         Insert: {
+          accessibility_info?: string | null
           accessibility_notes?: string | null
           address?: string | null
           agent_enriched_at?: string | null
+          architect?: string | null
           audience_tags?: string[] | null
+          average_visit_duration?: number | null
           best_client_photo_url?: string | null
           best_time_visit?: string | null
           category?: string
@@ -558,18 +583,25 @@ export type Database = {
           category_google?: string | null
           challenge?: string | null
           client_photos_count?: number | null
+          construction_date?: string | null
           created_at?: string
           crowd_level?: string | null
           data_sources?: string[] | null
           description_short?: string | null
+          difficulty_score?: number | null
           district?: string | null
           enrichment_quality?: string | null
           enrichment_status?: string | null
           foursquare_id?: string | null
           fun_fact_en?: string | null
           fun_fact_fr?: string | null
+          fun_facts?: Json | null
           geom?: unknown
           google_raw?: Json | null
+          guided_tour_score?: number | null
+          hero_image?: string | null
+          historical_period?: string | null
+          historical_significance?: number | null
           history_context?: string | null
           hub_theme?: string | null
           id?: string
@@ -586,6 +618,7 @@ export type Database = {
           local_anecdote?: string | null
           local_anecdote_en?: string | null
           local_anecdote_fr?: string | null
+          media_attribution?: string | null
           metadata?: Json
           must_see_details?: string | null
           must_try?: string | null
@@ -601,6 +634,7 @@ export type Database = {
           opening_hours?: Json | null
           osm_id?: string | null
           phone?: string | null
+          photo_opportunity_score?: number | null
           photo_spot_score?: number | null
           photo_tip?: string | null
           place_id?: string | null
@@ -618,28 +652,41 @@ export type Database = {
           souks_nearby?: string[] | null
           status?: string
           step_config?: Json
+          story_ar?: string | null
+          story_en?: string | null
+          story_fr?: string | null
           street_food_details?: string | null
           street_food_spot?: boolean | null
           street_type?: string | null
           subcategory?: string | null
+          team_building_score?: number | null
           terrain_validated?: boolean | null
           terrain_validated_at?: string | null
+          thumbnail?: string | null
           tourist_interest?: string | null
+          treasure_hunt_score?: number | null
+          unesco_status?: boolean | null
           updated_at?: string
           validated_at?: string | null
           visit_count?: number | null
           visit_route?: Json | null
+          visitor_tips?: Json | null
           website?: string | null
           website_url?: string | null
+          wikidata_description?: string | null
           wikidata_id?: string | null
+          wikimedia_images?: Json | null
           wikipedia_summary?: string | null
           zone?: string
         }
         Update: {
+          accessibility_info?: string | null
           accessibility_notes?: string | null
           address?: string | null
           agent_enriched_at?: string | null
+          architect?: string | null
           audience_tags?: string[] | null
+          average_visit_duration?: number | null
           best_client_photo_url?: string | null
           best_time_visit?: string | null
           category?: string
@@ -647,18 +694,25 @@ export type Database = {
           category_google?: string | null
           challenge?: string | null
           client_photos_count?: number | null
+          construction_date?: string | null
           created_at?: string
           crowd_level?: string | null
           data_sources?: string[] | null
           description_short?: string | null
+          difficulty_score?: number | null
           district?: string | null
           enrichment_quality?: string | null
           enrichment_status?: string | null
           foursquare_id?: string | null
           fun_fact_en?: string | null
           fun_fact_fr?: string | null
+          fun_facts?: Json | null
           geom?: unknown
           google_raw?: Json | null
+          guided_tour_score?: number | null
+          hero_image?: string | null
+          historical_period?: string | null
+          historical_significance?: number | null
           history_context?: string | null
           hub_theme?: string | null
           id?: string
@@ -675,6 +729,7 @@ export type Database = {
           local_anecdote?: string | null
           local_anecdote_en?: string | null
           local_anecdote_fr?: string | null
+          media_attribution?: string | null
           metadata?: Json
           must_see_details?: string | null
           must_try?: string | null
@@ -690,6 +745,7 @@ export type Database = {
           opening_hours?: Json | null
           osm_id?: string | null
           phone?: string | null
+          photo_opportunity_score?: number | null
           photo_spot_score?: number | null
           photo_tip?: string | null
           place_id?: string | null
@@ -707,20 +763,30 @@ export type Database = {
           souks_nearby?: string[] | null
           status?: string
           step_config?: Json
+          story_ar?: string | null
+          story_en?: string | null
+          story_fr?: string | null
           street_food_details?: string | null
           street_food_spot?: boolean | null
           street_type?: string | null
           subcategory?: string | null
+          team_building_score?: number | null
           terrain_validated?: boolean | null
           terrain_validated_at?: string | null
+          thumbnail?: string | null
           tourist_interest?: string | null
+          treasure_hunt_score?: number | null
+          unesco_status?: boolean | null
           updated_at?: string
           validated_at?: string | null
           visit_count?: number | null
           visit_route?: Json | null
+          visitor_tips?: Json | null
           website?: string | null
           website_url?: string | null
+          wikidata_description?: string | null
           wikidata_id?: string | null
+          wikimedia_images?: Json | null
           wikipedia_summary?: string | null
           zone?: string
         }
