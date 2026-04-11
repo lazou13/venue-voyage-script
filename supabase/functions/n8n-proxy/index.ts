@@ -348,7 +348,147 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ error: `Unknown action: ${action}`, available: ["auto-agent", "list-library", "clear-library", "stats", "enrich_poi", "score_poi"] }), {
+    if (action === "download_images") {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+
+      const { data: pois, error } = await supabase
+        .from("medina_pois")
+        .select("id, name, name_fr, name_en, wikidata_id, wikimedia_images")
+        .eq("enrichment_status", "content_done")
+        .is("hero_image", null)
+        .not("wikidata_id", "is", null)
+        .order("poi_quality_score", { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+      if (!pois || pois.length === 0) {
+        return new Response(JSON.stringify({ ok: true, processed: 0, message: "Aucun POI à traiter" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let processed = 0;
+      const logs: string[] = [];
+
+      for (const poi of pois) {
+        try {
+          const displayName = poi.name_fr || poi.name_en || poi.name;
+
+          // 1. Fetch Wikidata entity to get P18 (image) claims
+          const wdResp = await fetch(
+            `https://www.wikidata.org/wiki/Special:EntityData/${poi.wikidata_id}.json`
+          );
+          if (!wdResp.ok) {
+            logs.push(`⚠️ Wikidata ${wdResp.status} for ${displayName}`);
+            continue;
+          }
+          const wdData = await wdResp.json();
+          const entity = wdData.entities?.[poi.wikidata_id!];
+          if (!entity) { logs.push(`⚠️ No entity for ${displayName}`); continue; }
+
+          // Extract image filenames from P18 (image), P373 fallback not needed
+          const p18Claims = entity.claims?.P18 || [];
+          const fileNames: string[] = p18Claims
+            .map((c: any) => c.mainsnak?.datavalue?.value)
+            .filter(Boolean)
+            .slice(0, 4);
+
+          // Also try P3451 (nighttime view) and P8517 (winter view) as bonus
+          for (const prop of ["P3451", "P8517", "P154"]) {
+            const extra = entity.claims?.[prop] || [];
+            for (const c of extra) {
+              const v = c.mainsnak?.datavalue?.value;
+              if (v && !fileNames.includes(v) && fileNames.length < 4) fileNames.push(v);
+            }
+          }
+
+          if (fileNames.length === 0) {
+            logs.push(`⚠️ No images for ${displayName}`);
+            // Still mark as media_done so pipeline continues
+            await supabase.from("medina_pois").update({
+              enrichment_status: "media_done",
+              last_enriched_at: new Date().toISOString(),
+            }).eq("id", poi.id);
+            continue;
+          }
+
+          const uploadedUrls: string[] = [];
+          let heroUrl: string | null = null;
+
+          for (let i = 0; i < fileNames.length; i++) {
+            const fileName = fileNames[i];
+            const encodedName = encodeURIComponent(fileName.replace(/ /g, "_"));
+
+            // Wikimedia Commons thumbnail URL (800px wide)
+            const commonsUrl = `https://commons.wikimedia.org/wiki/Special:FilePath/${encodedName}?width=800`;
+
+            try {
+              const imgResp = await fetch(commonsUrl, { redirect: "follow" });
+              if (!imgResp.ok) {
+                logs.push(`  ⚠️ ${fileName}: HTTP ${imgResp.status}`);
+                continue;
+              }
+
+              const blob = await imgResp.arrayBuffer();
+              const contentType = imgResp.headers.get("content-type") ?? "image/jpeg";
+              const ext = contentType.includes("png") ? "png" : "jpg";
+              const storagePath = `${poi.id}/${i === 0 ? "hero" : `gallery_${i}`}.${ext}`;
+
+              const { error: upErr } = await supabase.storage
+                .from("poi-images")
+                .upload(storagePath, new Uint8Array(blob), {
+                  contentType,
+                  upsert: true,
+                });
+
+              if (upErr) {
+                logs.push(`  ⚠️ Upload ${fileName}: ${upErr.message}`);
+                continue;
+              }
+
+              const publicUrl = `${supabaseUrl}/storage/v1/object/public/poi-images/${storagePath}`;
+              uploadedUrls.push(publicUrl);
+              if (i === 0) heroUrl = publicUrl;
+            } catch (imgErr) {
+              logs.push(`  ⚠️ ${fileName}: ${imgErr instanceof Error ? imgErr.message : "error"}`);
+            }
+
+            // Small delay between downloads
+            await new Promise(r => setTimeout(r, 500));
+          }
+
+          // Update POI
+          const { error: updErr } = await supabase
+            .from("medina_pois")
+            .update({
+              hero_image: heroUrl,
+              thumbnail: heroUrl,
+              wikimedia_images: uploadedUrls.map(url => ({ url, source: "wikimedia" })),
+              media_attribution: "Wikimedia Commons",
+              enrichment_status: "media_done",
+              last_enriched_at: new Date().toISOString(),
+            })
+            .eq("id", poi.id);
+
+          if (updErr) {
+            logs.push(`❌ DB error ${displayName}: ${updErr.message}`);
+          } else {
+            processed++;
+            logs.push(`✅ ${displayName}: ${uploadedUrls.length} images`);
+          }
+        } catch (e) {
+          logs.push(`❌ ${e instanceof Error ? e.message : "unknown"}`);
+        }
+
+        await new Promise(r => setTimeout(r, 1000));
+      }
+
+      return new Response(JSON.stringify({ ok: true, processed, total: pois.length, logs }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: `Unknown action: ${action}`, available: ["auto-agent", "list-library", "clear-library", "stats", "enrich_poi", "score_poi", "download_images"] }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
