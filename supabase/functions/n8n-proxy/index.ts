@@ -488,7 +488,164 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ error: `Unknown action: ${action}`, available: ["auto-agent", "list-library", "clear-library", "stats", "enrich_poi", "score_poi", "download_images"] }), {
+    if (action === "enrich_wikidata") {
+      const { data: pois, error } = await supabase
+        .from("medina_pois")
+        .select("id, name, name_fr, name_en, lat, lng")
+        .eq("enrichment_status", "pending")
+        .is("wikidata_id", null)
+        .not("lat", "is", null)
+        .not("lng", "is", null)
+        .order("poi_quality_score", { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+      if (!pois || pois.length === 0) {
+        return new Response(JSON.stringify({ ok: true, enriched: 0, message: "Aucun POI à enrichir" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let enriched = 0;
+      const logs: string[] = [];
+
+      for (const poi of pois) {
+        try {
+          const displayName = poi.name_fr || poi.name_en || poi.name;
+          const searchName = (poi.name_fr || poi.name_en || poi.name).trim();
+
+          // 1. Search Wikidata by name + coordinates radius
+          const searchUrl = `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(searchName)}&language=fr&uselang=fr&type=item&limit=5&format=json`;
+          const searchResp = await fetch(searchUrl);
+          if (!searchResp.ok) {
+            logs.push(`⚠️ Wikidata search ${searchResp.status} for ${displayName}`);
+            continue;
+          }
+          const searchData = await searchResp.json();
+          const candidates = searchData.search || [];
+
+          if (candidates.length === 0) {
+            logs.push(`⚠️ No Wikidata result for "${searchName}"`);
+            // Mark as wikidata_done anyway to not block pipeline
+            await supabase.from("medina_pois").update({
+              enrichment_status: "wikidata_done",
+              last_enriched_at: new Date().toISOString(),
+            }).eq("id", poi.id);
+            enriched++;
+            continue;
+          }
+
+          // 2. Try each candidate – pick the one with coordinates closest to POI
+          let bestQid: string | null = null;
+          let bestDesc = "";
+          let bestDist = Infinity;
+          let bestEntity: any = null;
+
+          for (const candidate of candidates.slice(0, 3)) {
+            const qid = candidate.id;
+            const entityResp = await fetch(
+              `https://www.wikidata.org/wiki/Special:EntityData/${qid}.json`
+            );
+            if (!entityResp.ok) continue;
+            const entityData = await entityResp.json();
+            const ent = entityData.entities?.[qid];
+            if (!ent) continue;
+
+            // Check P625 (coordinate location)
+            const coords = ent.claims?.P625?.[0]?.mainsnak?.datavalue?.value;
+            if (coords && poi.lat && poi.lng) {
+              const dlat = coords.latitude - poi.lat;
+              const dlng = coords.longitude - poi.lng;
+              const dist = Math.sqrt(dlat * dlat + dlng * dlng);
+              if (dist < bestDist) {
+                bestDist = dist;
+                bestQid = qid;
+                bestDesc = ent.descriptions?.fr?.value || ent.descriptions?.en?.value || candidate.description || "";
+                bestEntity = ent;
+              }
+            } else if (!bestQid) {
+              // No coords but first match
+              bestQid = qid;
+              bestDesc = ent.descriptions?.fr?.value || ent.descriptions?.en?.value || candidate.description || "";
+              bestEntity = ent;
+            }
+
+            await new Promise(r => setTimeout(r, 300));
+          }
+
+          if (!bestQid || !bestEntity) {
+            logs.push(`⚠️ No valid entity for ${displayName}`);
+            await supabase.from("medina_pois").update({
+              enrichment_status: "wikidata_done",
+              last_enriched_at: new Date().toISOString(),
+            }).eq("id", poi.id);
+            enriched++;
+            continue;
+          }
+
+          // 3. Extract historical info from claims
+          const getClaimValue = (prop: string) => {
+            const claim = bestEntity.claims?.[prop]?.[0]?.mainsnak?.datavalue?.value;
+            if (!claim) return null;
+            if (typeof claim === "string") return claim;
+            if (claim.text) return claim.text;
+            if (claim.time) return claim.time.replace(/^\+/, "").split("T")[0];
+            if (claim.id) return claim.id; // QID reference
+            return null;
+          };
+
+          const getLabel = (prop: string) => {
+            const qidRef = getClaimValue(prop);
+            if (!qidRef || !qidRef.startsWith?.("Q")) return null;
+            // We won't resolve labels for now, just store QID
+            return qidRef;
+          };
+
+          const updateData: Record<string, any> = {
+            wikidata_id: bestQid,
+            wikidata_description: bestDesc,
+            enrichment_status: "wikidata_done",
+            last_enriched_at: new Date().toISOString(),
+          };
+
+          // P84 = architect, P571 = inception date, P1435 = heritage status
+          const architect = getClaimValue("P84");
+          if (architect) updateData.architect = architect;
+
+          const constructionDate = getClaimValue("P571");
+          if (constructionDate) updateData.construction_date = constructionDate;
+
+          const historicalPeriod = getClaimValue("P2348");
+          if (historicalPeriod) updateData.historical_period = historicalPeriod;
+
+          // P1435 = heritage designation → unesco flag
+          const heritage = bestEntity.claims?.P1435;
+          if (heritage && heritage.length > 0) updateData.unesco_status = true;
+
+          const { error: updErr } = await supabase
+            .from("medina_pois")
+            .update(updateData)
+            .eq("id", poi.id);
+
+          if (updErr) {
+            logs.push(`❌ DB error ${displayName}: ${updErr.message}`);
+          } else {
+            enriched++;
+            logs.push(`✅ ${displayName} → ${bestQid} (${bestDesc.substring(0, 60)})`);
+          }
+        } catch (e) {
+          logs.push(`❌ ${e instanceof Error ? e.message : "unknown"}`);
+        }
+
+        await new Promise(r => setTimeout(r, 500));
+      }
+
+      return new Response(JSON.stringify({ ok: true, enriched, total: pois.length, logs }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: `Unknown action: ${action}`, available: ["auto-agent", "list-library", "clear-library", "stats", "enrich_poi", "score_poi", "download_images", "enrich_wikidata"] }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
