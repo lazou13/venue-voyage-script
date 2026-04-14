@@ -44,6 +44,14 @@ serve(async (req) => {
     }
   }
 
+  // Method 3: Service role key (for internal edge-function-to-edge-function calls)
+  if (!isAuthed && authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.replace("Bearer ", "");
+    if (token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+      isAuthed = true;
+    }
+  }
+
   if (!isAuthed) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
@@ -691,7 +699,7 @@ serve(async (req) => {
         .from("medina_pois")
         .select("id, name, name_fr, name_en, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, history_context, history_context_en, story_fr, story_en, riddle_easy, riddle_easy_en, wikipedia_summary, wikipedia_summary_en")
         .eq("is_active", true)
-        .or("and(local_anecdote_fr.not.is.null,local_anecdote_en.is.null),and(history_context.not.is.null,history_context_en.is.null),and(riddle_easy.not.is.null,riddle_easy_en.is.null),and(name_fr.not.is.null,name_en.is.null),and(story_fr.not.is.null,story_en.is.null)")
+        .or("and(local_anecdote_fr.not.is.null,local_anecdote_en.is.null),and(history_context.not.is.null,history_context_en.is.null),and(riddle_easy.not.is.null,riddle_easy_en.is.null),and(name_fr.not.is.null,name_en.is.null),and(story_fr.not.is.null,story_en.is.null),name_en.is.null")
         .order("poi_quality_score", { ascending: false, nullsFirst: false })
         .limit(batchSize);
 
@@ -714,7 +722,7 @@ serve(async (req) => {
           if (poi.local_anecdote_fr) fieldsToTranslate.local_anecdote_fr = poi.local_anecdote_fr;
           if (poi.fun_fact_fr && !poi.fun_fact_en) fieldsToTranslate.fun_fact_fr = poi.fun_fact_fr;
           if (poi.history_context && !poi.history_context_en) fieldsToTranslate.history_context = poi.history_context;
-          if (poi.name_fr && !poi.name_en) fieldsToTranslate.name_fr = poi.name_fr;
+          if (!poi.name_en) fieldsToTranslate.name = poi.name_fr || poi.name;
           if (poi.story_fr && !poi.story_en) fieldsToTranslate.story_fr = poi.story_fr;
           if (poi.riddle_easy && !poi.riddle_easy_en) fieldsToTranslate.riddle_easy = poi.riddle_easy;
           if (poi.wikipedia_summary && !poi.wikipedia_summary_en) fieldsToTranslate.wikipedia_summary = poi.wikipedia_summary;
@@ -760,6 +768,7 @@ serve(async (req) => {
                       if (k === "history_context") return "history_context_en";
                       if (k === "riddle_easy") return "riddle_easy_en";
                       if (k === "wikipedia_summary") return "wikipedia_summary_en";
+                      if (k === "name") return "name_en";
                       return k.replace("_fr", "_en");
                     }),
                     additionalProperties: false,
