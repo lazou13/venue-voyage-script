@@ -687,7 +687,7 @@ serve(async (req) => {
 
       const { data: pois, error } = await supabase
         .from("medina_pois")
-        .select("id, name, name_fr, name_en, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, history_context, story_fr, story_en")
+        .select("id, name, name_fr, name_en, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, history_context, history_context_en, story_fr, story_en, riddle_easy, riddle_easy_en, wikipedia_summary, wikipedia_summary_en")
         .not("local_anecdote_fr", "is", null)
         .is("local_anecdote_en", null)
         .order("poi_quality_score", { ascending: false })
