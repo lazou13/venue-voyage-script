@@ -454,15 +454,23 @@ export default function AdminPOIPipeline() {
         return;
       }
 
+      // Clean & merge use admin-run-cleanup; enrich uses poi-enricher
+      if (step === "clean" || step === "merge") {
+        const { data, error } = await supabase.functions.invoke("admin-run-cleanup", {
+          body: { action: step },
+        });
+        if (error) throw error;
+        setLogs(prev => [...prev, `✅ ${step} terminé`, ...(data?.logs ?? [])]);
+        toast({ title: "Pipeline terminé", description: `Étape "${step}" exécutée avec succès.` });
+        refetchStats();
+        return;
+      }
+
       const fnName = step === "worker" ? "poi-worker"
-        : step === "all" ? "poi-pipeline"
-        : step === "clean" || step === "merge" ? "poi-pipeline"
+        : step === "enrich" ? "poi-enricher"
         : `poi-${step}`;
       const fnBody = step === "worker" ? {}
-        : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
         : step === "enrich" ? { batch_size: 10 }
-        : step === "clean" ? { step: "clean" }
-        : step === "merge" ? { step: "merge" }
         : {};
       
       const { data, error } = await supabase.functions.invoke(fnName, { body: fnBody });
