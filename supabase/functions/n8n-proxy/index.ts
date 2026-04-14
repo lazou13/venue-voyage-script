@@ -645,7 +645,131 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ error: `Unknown action: ${action}`, available: ["auto-agent", "list-library", "clear-library", "stats", "enrich_poi", "score_poi", "download_images", "enrich_wikidata"] }), {
+    if (action === "translate_pois") {
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      if (!LOVABLE_API_KEY) {
+        return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const batchSize = body.batch_size || 5;
+
+      const { data: pois, error } = await supabase
+        .from("medina_pois")
+        .select("id, name, name_fr, name_en, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, history_context, story_fr, story_en")
+        .not("local_anecdote_fr", "is", null)
+        .is("local_anecdote_en", null)
+        .order("poi_quality_score", { ascending: false })
+        .limit(batchSize);
+
+      if (error) throw error;
+      if (!pois || pois.length === 0) {
+        return new Response(JSON.stringify({ ok: true, translated: 0, message: "Aucun POI à traduire" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let translated = 0;
+      const logs: string[] = [];
+
+      for (const poi of pois) {
+        try {
+          const displayName = poi.name_fr || poi.name;
+
+          // Build fields to translate
+          const fieldsToTranslate: Record<string, string> = {};
+          if (poi.local_anecdote_fr) fieldsToTranslate.local_anecdote_fr = poi.local_anecdote_fr;
+          if (poi.fun_fact_fr && !poi.fun_fact_en) fieldsToTranslate.fun_fact_fr = poi.fun_fact_fr;
+          if (poi.history_context) fieldsToTranslate.history_context = poi.history_context;
+          if (poi.name_fr && !poi.name_en) fieldsToTranslate.name_fr = poi.name_fr;
+          if (poi.story_fr && !poi.story_en) fieldsToTranslate.story_fr = poi.story_fr;
+
+          if (Object.keys(fieldsToTranslate).length === 0) {
+            logs.push(`⏭️ ${displayName}: rien à traduire`);
+            continue;
+          }
+
+          const fieldsList = Object.entries(fieldsToTranslate)
+            .map(([k, v]) => `### ${k}\n${v}`)
+            .join("\n\n");
+
+          const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              messages: [
+                { role: "system", content: "You are a professional French-to-English translator specializing in Moroccan cultural heritage and tourism. Translate naturally, preserving the tone, cultural references, and proper nouns. Keep Arabic/Amazigh terms as-is with brief explanation if needed." },
+                { role: "user", content: `Translate each of the following French texts to English. The texts are about "${displayName}", a point of interest in the Marrakech medina.\n\n${fieldsList}` },
+              ],
+              tools: [{
+                type: "function",
+                function: {
+                  name: "save_translations",
+                  description: "Save English translations of POI content fields",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      local_anecdote_en: { type: "string", description: "English translation of local_anecdote_fr" },
+                      fun_fact_en: { type: "string", description: "English translation of fun_fact_fr" },
+                      history_context_en: { type: "string", description: "English translation of history_context" },
+                      name_en: { type: "string", description: "English translation of name_fr" },
+                      story_en: { type: "string", description: "English translation of story_fr" },
+                    },
+                    required: Object.keys(fieldsToTranslate).map(k => k.replace("_fr", "_en").replace("history_context", "history_context_en")),
+                    additionalProperties: false,
+                  },
+                },
+              }],
+              tool_choice: { type: "function", function: { name: "save_translations" } },
+            }),
+          });
+
+          if (!aiResp.ok) {
+            const errText = await aiResp.text();
+            logs.push(`⚠️ AI ${aiResp.status} for ${displayName}: ${errText.substring(0, 100)}`);
+            if (aiResp.status === 429) await new Promise(r => setTimeout(r, 10000));
+            continue;
+          }
+
+          const aiData = await aiResp.json();
+          const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+          if (!toolCall) { logs.push(`⚠️ No tool call for ${displayName}`); continue; }
+
+          const t = JSON.parse(toolCall.function.arguments);
+
+          const updateData: Record<string, string> = {};
+          if (t.local_anecdote_en) updateData.local_anecdote_en = t.local_anecdote_en;
+          if (t.fun_fact_en) updateData.fun_fact_en = t.fun_fact_en;
+          if (t.name_en) updateData.name_en = t.name_en;
+          if (t.story_en) updateData.story_en = t.story_en;
+          // Store history_context_en in description_short (existing EN-friendly column)
+          if (t.history_context_en) updateData.description_short = t.history_context_en;
+
+          const { error: updErr } = await supabase
+            .from("medina_pois")
+            .update(updateData)
+            .eq("id", poi.id);
+
+          if (updErr) { logs.push(`❌ DB error ${displayName}: ${updErr.message}`); }
+          else { translated++; logs.push(`✅ ${displayName} (${Object.keys(updateData).join(", ")})`); }
+        } catch (e) {
+          logs.push(`❌ ${e instanceof Error ? e.message : "unknown"}`);
+        }
+
+        await new Promise(r => setTimeout(r, 1500));
+      }
+
+      return new Response(JSON.stringify({ ok: true, translated, total: pois.length, logs }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: `Unknown action: ${action}`, available: ["auto-agent", "list-library", "clear-library", "stats", "enrich_poi", "score_poi", "download_images", "enrich_wikidata", "translate_pois"] }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
