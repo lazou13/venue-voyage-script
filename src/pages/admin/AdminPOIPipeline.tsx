@@ -10,7 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import EnrichmentPipelineCard from "@/components/admin/EnrichmentPipelineCard";
 import AgentMonitoringCard from "@/components/admin/AgentMonitoringCard";
 
-type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details" | "reclassify" | "rescore-riads";
+type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details" | "reclassify" | "rescore-riads" | "fun-facts" | "translate-en";
 
 export default function AdminPOIPipeline() {
   const { toast } = useToast();
@@ -232,6 +232,59 @@ export default function AdminPOIPipeline() {
         refetchStats();
         return;
       }
+
+      if (step === "fun-facts") {
+        let totalProcessed = 0;
+        let round = 1;
+
+        while (true) {
+          setLogs(prev => [...prev, `✨ Anecdotes batch ${round}...`]);
+
+          const { data, error } = await supabase.functions.invoke("n8n-proxy", {
+            body: { action: "generate_fun_facts", batch_size: 5 },
+          });
+
+          if (error) throw error;
+          if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
+          const processed = data?.processed ?? data?.updated ?? 0;
+          totalProcessed += processed;
+
+          if (processed === 0) break;
+          round++;
+          await new Promise(r => setTimeout(r, 2000));
+        }
+
+        setLogs(prev => [...prev, `✅ Anecdotes terminé — ${totalProcessed} POIs enrichis`]);
+        toast({ title: "Anecdotes générées", description: `${totalProcessed} POIs enrichis.` });
+        refetchStats();
+        return;
+      }
+
+      if (step === "translate-en") {
+        let totalProcessed = 0;
+        let round = 1;
+
+        while (true) {
+          setLogs(prev => [...prev, `🌐 Traduction batch ${round}...`]);
+
+          const { data, error } = await supabase.functions.invoke("n8n-proxy", {
+            body: { action: "translate_pois", batch_size: 5 },
+          });
+
+          if (error) throw error;
+          if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
+          const processed = data?.processed ?? data?.updated ?? 0;
+          totalProcessed += processed;
+
+          if (processed === 0) break;
+          round++;
+          await new Promise(r => setTimeout(r, 2000));
+        }
+
+        setLogs(prev => [...prev, `✅ Traduction terminée — ${totalProcessed} POIs traduits`]);
+        toast({ title: "Traduction terminée", description: `${totalProcessed} POIs traduits en anglais.` });
+        refetchStats();
+        return;
 
       const fnName = step === "worker" ? "poi-worker"
         : step === "autopipeline" ? "poi-autopipeline"
