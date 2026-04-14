@@ -138,7 +138,9 @@ export default function AdminDashboard() {
   const enrichmentCoverage: { label: string; value: number; total: number; field: DbField | 'photos' }[] = [
     { label: 'Histoires', value: stats.withHistory, total: stats.total, field: 'history_context' },
     { label: 'Anecdotes FR', value: stats.withAnecdote, total: stats.total, field: 'local_anecdote_fr' },
-    { label: 'Fun Facts', value: stats.withFunFact, total: stats.total, field: 'fun_fact_fr' },
+    { label: 'Anecdotes EN', value: stats.withAnecdoteEn, total: stats.total, field: 'local_anecdote_en' },
+    { label: 'Fun Facts FR', value: stats.withFunFact, total: stats.total, field: 'fun_fact_fr' },
+    { label: 'Fun Facts EN', value: stats.withFunFactEn, total: stats.total, field: 'fun_fact_en' },
     { label: 'Énigmes', value: stats.withRiddle, total: stats.total, field: 'riddle_easy' },
     { label: 'Wikipedia', value: stats.withWikipedia, total: stats.total, field: 'wikipedia_summary' },
     { label: 'Photos', value: stats.withPhoto, total: stats.total, field: 'photos' },
