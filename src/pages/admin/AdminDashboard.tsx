@@ -61,16 +61,18 @@ async function fetchStats(): Promise<Stats> {
   // Enrichment coverage — sample active POIs
   const { data: sample } = await supabase
     .from('medina_pois')
-    .select('local_anecdote_fr, riddle_easy, wikipedia_summary, history_context, fun_fact_fr')
+    .select('local_anecdote_fr, local_anecdote_en, riddle_easy, wikipedia_summary, history_context, fun_fact_fr, fun_fact_en')
     .eq('is_active', true)
     .limit(1000);
 
   const rows = sample ?? [];
   const withAnecdote = rows.filter((r: any) => r.local_anecdote_fr && r.local_anecdote_fr.length > 10).length;
+  const withAnecdoteEn = rows.filter((r: any) => r.local_anecdote_en && r.local_anecdote_en.length > 10).length;
   const withRiddle = rows.filter((r: any) => r.riddle_easy && r.riddle_easy.length > 5).length;
   const withWikipedia = rows.filter((r: any) => r.wikipedia_summary && r.wikipedia_summary.length > 10).length;
   const withHistory = rows.filter((r: any) => r.history_context && r.history_context.length > 10).length;
   const withFunFact = rows.filter((r: any) => r.fun_fact_fr && r.fun_fact_fr.length > 5).length;
+  const withFunFactEn = rows.filter((r: any) => r.fun_fact_en && r.fun_fact_en.length > 5).length;
 
   // Photos with media
   const withPhoto = mediaCount ?? 0;
