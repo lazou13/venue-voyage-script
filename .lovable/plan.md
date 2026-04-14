@@ -1,30 +1,48 @@
 
 
-## Diagnostic : 0 POIs traduits
+## Plan : Corriger le bouton Autopipeline
 
-### Cause
-Le code client dans `AdminPOIPipeline.tsx` (ligne 292) lit le champ `processed` ou `updated` dans la réponse, mais la fonction `n8n-proxy` retourne le champ **`translated`** :
+### Probleme
+Le bouton "Autopipeline" appelle `poi-autopipeline` — une Edge Function qui **n'existe pas**. L'appel echoue systematiquement. De plus, meme si elle existait, les etapes "anecdotes" et "traduction EN" ne seraient pas incluses car elles ne font pas partie de l'orchestrateur `enrichment-pipeline`.
 
-```text
-Client:   data?.processed ?? data?.updated ?? 0    → toujours 0
-Serveur:  { ok: true, translated: 1, total: 1 }    → le bon champ est "translated"
-```
+### Solution
+Remplacer la logique du bouton "Autopipeline" pour qu'il execute sequentiellement toutes les etapes existantes dans l'ordre, en reutilisant la fonction `runStep()` deja en place. Cela appelle les vraies Edge Functions une par une.
 
-La traduction fonctionne réellement (je viens de tester : 1 POI traduit avec succès), mais le compteur affiche toujours 0, et le `if (processed === 0) break;` arrête la boucle immédiatement après le premier batch.
+### Modifications
 
-### Correction
+**Fichier : `src/pages/admin/AdminPOIPipeline.tsx`**
 
-**Fichier : `src/pages/admin/AdminPOIPipeline.tsx`, ligne 292**
+1. Creer une fonction `runAutopipeline()` qui execute sequentiellement :
+   - `extract` → `classify` → `enrich` → `clean` → `merge` → `proximity` → `backfill-details` → `fetch-photos` → `fun-facts` → `translate-en`
+   - Chaque etape met a jour les logs et `stepResult`
+   - Si une etape echoue, log l'erreur et continue a la suivante
 
-Ajouter `data?.translated` dans la lecture du compteur :
+2. Modifier le bouton Autopipeline pour appeler `runAutopipeline()` au lieu de `runStep("autopipeline")`
+
+3. Supprimer la reference a `poi-autopipeline` dans le mapping `fnName`
+
+### Detail technique
 
 ```typescript
-// Avant
-const processed = data?.processed ?? data?.updated ?? 0;
-
-// Après
-const processed = data?.translated ?? data?.processed ?? data?.updated ?? 0;
+const runAutopipeline = async () => {
+  const steps: StepKey[] = [
+    "extract", "classify", "enrich", "clean", "merge", 
+    "proximity", "backfill-details", "fetch-photos", 
+    "fun-facts", "translate-en"
+  ];
+  setRunning("autopipeline");
+  for (const step of steps) {
+    setLogs(prev => [...prev, `🔄 Autopipeline — étape: ${step}...`]);
+    try {
+      await runStep(step); // refactorer runStep pour ne pas gerer running/finally
+    } catch (e) {
+      setLogs(prev => [...prev, `⚠️ ${step} échoué, passage à la suite`]);
+    }
+  }
+  setRunning(null);
+  toast({ title: "Autopipeline terminé" });
+};
 ```
 
-Changement d'une seule ligne. Les 998 POIs en attente de traduction seront ensuite traités correctement par la boucle auto-loop.
+Cela necessite un leger refactoring de `runStep` pour extraire la logique d'execution sans le `setRunning`/`finally`, ou bien appeler directement chaque branche inline.
 
