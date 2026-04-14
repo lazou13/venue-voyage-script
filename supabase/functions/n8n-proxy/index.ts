@@ -879,7 +879,32 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ error: `Unknown action: ${action}`, available: ["auto-agent", "list-library", "clear-library", "stats", "enrich_poi", "score_poi", "download_images", "enrich_wikidata", "translate_pois", "generate_fun_facts"] }), {
+    if (action === "sync_projects") {
+      const targets = [
+        { name: "Questride B2C/B2B", url: "https://brhckhyrbpjfnieexggq.supabase.co/functions/v1/sync-pois-import" },
+        { name: "Quest Rides PRO", url: "https://zdzycbqwypriveenxnsh.supabase.co/functions/v1/sync-pois-import" },
+      ];
+
+      const results: Record<string, any> = {};
+      for (const t of targets) {
+        try {
+          const res = await fetch(t.url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ source: "hpp-n8n-proxy" }),
+          });
+          results[t.name] = await res.json();
+        } catch (e) {
+          results[t.name] = { error: e instanceof Error ? e.message : "unknown" };
+        }
+      }
+
+      return new Response(JSON.stringify({ ok: true, results }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: `Unknown action: ${action}`, available: ["auto-agent", "list-library", "clear-library", "stats", "enrich_poi", "score_poi", "download_images", "enrich_wikidata", "translate_pois", "generate_fun_facts", "sync_projects"] }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
