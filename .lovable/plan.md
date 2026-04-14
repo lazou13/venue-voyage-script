@@ -1,44 +1,74 @@
 
+Objectif
 
-## Plan : Supprimer les noms arabes des POIs
+Corriger l’action “Anecdotes” pour qu’elle avance réellement de lot en lot, qu’elle ne donne plus l’impression de retraiter toujours les mêmes POIs, et qu’elle ne s’arrête plus au premier incident réseau.
 
-### Approche
+Constat confirmé
 
-Créer un script SQL + Edge Function en deux temps :
+- Dans `src/pages/admin/AdminPOIPipeline.tsx`, le bouton `Anecdotes` n’appelle pas le vrai enrichisseur d’anecdotes : il appelle `n8n-proxy` avec `action: "generate_fun_facts"`.
+- Le vrai traitement d’anecdotes complètes existe déjà dans `src/components/admin/EnrichmentPipelineCard.tsx` via `anecdote-enricher`.
+- La capture ne montre pas “1 seul batch” côté backend : on voit plusieurs lots réussir, puis un arrêt sur `Failed to send a request to the Edge Function`. Le problème principal est donc un mélange de :
+  1. mauvais câblage UI (Anecdotes = fun facts),
+  2. arrêt immédiat au moindre échec réseau,
+  3. ordre de sélection pas assez stable pour rassurer visuellement.
+- État actuel en base :
+  - environ 421 POIs sans anecdotes complètes (`local_anecdote_en` manquant),
+  - environ 663 POIs sans `fun_fact_fr`.
+  Donc il y a bien 2 pipelines différents qui sont aujourd’hui confondus.
 
-### Étape 1 — Noms mixtes (Latin + Arabe) : nettoyage SQL direct
+Plan de correction
 
-Pour les POIs dont le `name` contient à la fois des caractères latins et arabes (ex: "Shawarma Bab Alhara شاورما باب الحارة"), une migration SQL supprimera la partie arabe et conservera la partie latine :
+1. Séparer clairement “Anecdotes” et “Fun facts”
+- Renommer l’étape actuelle `fun-facts` en `Fun facts`.
+- Ajouter une vraie étape `anecdotes` dans `AdminPOIPipeline.tsx`.
+- Cette nouvelle étape appellera `anecdote-enricher` par lots de 5, comme dans `EnrichmentPipelineCard`.
 
-```sql
-UPDATE medina_pois 
-SET name_ar = name,  -- sauvegarder l'original en name_ar
-    name = regexp_replace(name, '[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]+', '', 'g'),
-    name = trim(regexp_replace(name, '\s+', ' ', 'g'))
-WHERE name ~ '[\u0600-\u06FF]' 
-  AND name ~ '[a-zA-ZÀ-ÿ]';
-```
+2. Réutiliser la bonne logique de boucle
+- Reprendre le pattern déjà présent dans `EnrichmentPipelineCard` pour le client-side loop.
+- Le compteur de l’étape `anecdotes` devra lire `updated`.
+- Le compteur de l’étape `fun-facts` devra continuer à lire `generated`.
 
-### Étape 2 — Noms 100% arabes : traduction IA puis remplacement
+3. Ajouter une vraie tolérance aux erreurs réseau
+- Introduire un helper de retry côté page admin (`invokeWithRetry` ou équivalent).
+- 3 tentatives par batch avec backoff progressif.
+- Si une tentative échoue, log explicite dans les logs.
+- La boucle ne s’arrête qu’après échec final du batch.
 
-Pour les ~30-40 POIs dont le nom est entièrement en arabe, ajouter un bouton "Traduire noms arabes" dans le pipeline (ou exécuter via un script one-shot) qui :
-1. Sélectionne les POIs où `name ~ '[\u0600-\u06FF]'` (ceux qui restent après l'étape 1)
-2. Sauvegarde le nom actuel dans `name_ar`
-3. Appelle la fonction `translate` existante (from: `ar`, to: `fr`) pour obtenir un nom français
-4. Met à jour `name` avec la traduction et `name_fr` avec la même valeur
+4. Stabiliser l’ordre des batches côté backend
+- Dans `supabase/functions/anecdote-enricher/index.ts`, ajouter un ordre secondaire stable (`id`, ou `last_enriched_at` puis `id`).
+- Dans `supabase/functions/n8n-proxy/index.ts` pour `generate_fun_facts`, ajouter aussi un ordre secondaire stable.
+- But : éviter l’impression de “toujours le même lot” quand beaucoup de POIs ont le même score.
 
-### Étape 3 — Sécurité future dans le pipeline d'extraction
+5. Retourner un indicateur de reste à traiter
+- Faire renvoyer `remaining` par `anecdote-enricher` après chaque batch.
+- Utiliser `remaining` / `total_remaining` dans l’UI pour afficher une progression plus lisible.
 
-Dans `poi-extract` ou le code d'import, ajouter un filtre post-import qui applique automatiquement la même logique (strip arabe des mixtes, flag les purs arabes pour traduction).
+6. Corriger l’autopipeline
+- Remplacer l’étape actuelle ambiguë par :
+  - `anecdotes`
+  - puis `fun-facts`
+  - puis `translate-en`
+- Ainsi, l’autopipeline suit l’ordre logique du contenu long vers le contenu court puis la traduction.
 
-### Fichiers modifiés
+Fichiers à modifier
 
-1. **Migration SQL** — Nettoyage des noms mixtes + sauvegarde en `name_ar`
-2. **`src/pages/admin/AdminPOIPipeline.tsx`** — Ajout d'une étape "Nettoyer noms arabes" qui traduit les noms purement arabes restants via l'Edge Function `translate`
+- `src/pages/admin/AdminPOIPipeline.tsx`
+- `supabase/functions/anecdote-enricher/index.ts`
+- `supabase/functions/n8n-proxy/index.ts`
 
-### Résultat attendu
+Détails techniques
 
-- 0 nom en arabe dans la colonne `name`
-- Les noms arabes originaux préservés dans `name_ar`
-- Les noms traduits en français dans `name` et `name_fr`
+- Pas de migration base nécessaire.
+- Le vrai enrichissement narratif reste `anecdote-enricher`.
+- `generate_fun_facts` doit rester un traitement distinct, avec un libellé distinct.
+- Les toasts, logs et libellés UI doivent être alignés :
+  - `Anecdotes` = contenu complet,
+  - `Fun facts` = phrase courte surprise.
 
+Résultat attendu
+
+- Le bouton `Anecdotes` traite bien les vrais POIs sans anecdote complète.
+- Les lots avancent de manière déterministe.
+- Une erreur réseau ponctuelle ne casse plus tout le run.
+- L’interface ne mélange plus anecdotes complètes et fun facts.
+- L’autopipeline enchaîne les bonnes étapes dans le bon ordre.
