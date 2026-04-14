@@ -769,7 +769,117 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ error: `Unknown action: ${action}`, available: ["auto-agent", "list-library", "clear-library", "stats", "enrich_poi", "score_poi", "download_images", "enrich_wikidata", "translate_pois"] }), {
+    if (action === "generate_fun_facts") {
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      if (!LOVABLE_API_KEY) {
+        return new Response(JSON.stringify({ error: "LOVABLE_API_KEY not configured" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const batchSize = body.batch_size || 5;
+
+      const { data: pois, error } = await supabase
+        .from("medina_pois")
+        .select("id, name, name_fr, name_en, category, category_ai, local_anecdote_fr, history_context, wikipedia_summary")
+        .is("fun_fact_fr", null)
+        .not("local_anecdote_fr", "is", null)
+        .order("poi_quality_score", { ascending: false })
+        .limit(batchSize);
+
+      if (error) throw error;
+      if (!pois || pois.length === 0) {
+        const { count } = await supabase.from("medina_pois").select("id", { count: "exact", head: true }).is("fun_fact_fr", null).not("local_anecdote_fr", "is", null);
+        return new Response(JSON.stringify({ ok: true, generated: 0, total_remaining: count || 0, message: "Aucun POI à traiter" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      let generated = 0;
+      const logs: string[] = [];
+
+      for (const poi of pois) {
+        try {
+          const displayName = poi.name_fr || poi.name_en || poi.name;
+          const category = poi.category_ai || poi.category || "lieu";
+
+          const contextParts = [
+            `Catégorie: ${category}`,
+            poi.local_anecdote_fr && `Anecdote: ${poi.local_anecdote_fr.substring(0, 500)}`,
+            poi.history_context && `Histoire: ${poi.history_context.substring(0, 500)}`,
+            poi.wikipedia_summary && `Wikipedia: ${poi.wikipedia_summary.substring(0, 300)}`,
+          ].filter(Boolean).join("\n");
+
+          const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              messages: [
+                { role: "system", content: "Tu es un expert en patrimoine marocain. Génère UN SEUL fait surprenant, vérifiable, en une phrase percutante (20-40 mots). Pas de 'Saviez-vous que'. Pas d'introduction. Juste le fait brut." },
+                { role: "user", content: `Génère un fun fact pour ce lieu de Marrakech:\n\nNom: "${displayName}"\n${contextParts}` },
+              ],
+              tools: [{
+                type: "function",
+                function: {
+                  name: "set_fun_fact",
+                  description: "Définit le fun fact FR et EN pour un POI",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      fun_fact_fr: { type: "string", description: "Fait surprenant en français (20-40 mots, une seule phrase)" },
+                      fun_fact_en: { type: "string", description: "English translation of the fun fact (one sentence)" },
+                    },
+                    required: ["fun_fact_fr", "fun_fact_en"],
+                    additionalProperties: false,
+                  },
+                },
+              }],
+              tool_choice: { type: "function", function: { name: "set_fun_fact" } },
+            }),
+          });
+
+          if (!aiResp.ok) {
+            const errText = await aiResp.text();
+            logs.push(`⚠️ AI ${aiResp.status} for ${displayName}: ${errText.substring(0, 100)}`);
+            if (aiResp.status === 429) await new Promise(r => setTimeout(r, 10000));
+            continue;
+          }
+
+          const aiData = await aiResp.json();
+          const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+          if (!toolCall) { logs.push(`⚠️ No tool call for ${displayName}`); continue; }
+
+          const parsed = JSON.parse(toolCall.function.arguments);
+
+          const { error: updErr } = await supabase
+            .from("medina_pois")
+            .update({
+              fun_fact_fr: parsed.fun_fact_fr,
+              fun_fact_en: parsed.fun_fact_en,
+            })
+            .eq("id", poi.id);
+
+          if (updErr) { logs.push(`❌ DB error ${displayName}: ${updErr.message}`); }
+          else { generated++; logs.push(`✅ ${displayName}: ${parsed.fun_fact_fr.substring(0, 80)}…`); }
+        } catch (e) {
+          logs.push(`❌ ${e instanceof Error ? e.message : "unknown"}`);
+        }
+
+        await new Promise(r => setTimeout(r, 1500));
+      }
+
+      const { count } = await supabase.from("medina_pois").select("id", { count: "exact", head: true }).is("fun_fact_fr", null).not("local_anecdote_fr", "is", null);
+
+      return new Response(JSON.stringify({ ok: true, generated, total_remaining: count || 0, logs }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: `Unknown action: ${action}`, available: ["auto-agent", "list-library", "clear-library", "stats", "enrich_poi", "score_poi", "download_images", "enrich_wikidata", "translate_pois", "generate_fun_facts"] }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
