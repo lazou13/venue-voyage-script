@@ -285,6 +285,7 @@ export default function AdminPOIPipeline() {
         toast({ title: "Traduction terminée", description: `${totalProcessed} POIs traduits en anglais.` });
         refetchStats();
         return;
+      }
 
       const fnName = step === "worker" ? "poi-worker"
         : step === "autopipeline" ? "poi-autopipeline"
