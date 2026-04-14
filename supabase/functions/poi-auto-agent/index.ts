@@ -269,8 +269,8 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${ANON_KEY}`,
-              'apikey': ANON_KEY,
+              'Authorization': `Bearer ${SERVICE_KEY}`,
+              'apikey': SERVICE_KEY,
             },
             body: JSON.stringify({ action: "translate_pois", batch_size: 10 }),
             signal: AbortSignal.timeout(55000),
