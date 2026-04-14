@@ -10,11 +10,41 @@ const corsHeaders = {
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  // Authenticate via X-API-Key header
+  // Authenticate via X-API-Key header OR Supabase admin auth
   const apiKey = req.headers.get("x-api-key");
   const N8N_API_KEY = Deno.env.get("N8N_API_KEY");
+  const authHeader = req.headers.get("authorization");
 
-  if (!N8N_API_KEY || apiKey !== N8N_API_KEY) {
+  let isAuthed = false;
+
+  // Method 1: x-api-key matches N8N_API_KEY
+  if (N8N_API_KEY && apiKey === N8N_API_KEY) {
+    isAuthed = true;
+  }
+
+  // Method 2: Supabase JWT from an admin user
+  if (!isAuthed && authHeader?.startsWith("Bearer ")) {
+    const anonClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+    );
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user } } = await anonClient.auth.getUser(token);
+    if (user) {
+      const svcClient = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+      const { data: roles } = await svcClient
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin");
+      if (roles && roles.length > 0) isAuthed = true;
+    }
+  }
+
+  if (!isAuthed) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

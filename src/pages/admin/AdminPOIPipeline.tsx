@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2, Camera } from "lucide-react";
+import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2, Camera, Sparkles, Languages } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import EnrichmentPipelineCard from "@/components/admin/EnrichmentPipelineCard";
 import AgentMonitoringCard from "@/components/admin/AgentMonitoringCard";
