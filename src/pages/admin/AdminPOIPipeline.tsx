@@ -304,6 +304,74 @@ export default function AdminPOIPipeline() {
         return;
       }
 
+      if (step === "clean-arabic") {
+        setLogs(prev => [...prev, `🔤 Recherche des POIs avec noms en arabe...`]);
+        
+        // Fetch POIs with Arabic names
+        const { data: arabicPois, error: fetchErr } = await supabase
+          .from("medina_pois")
+          .select("id, name, name_ar, name_fr")
+          .filter("name", "like", "%") // get all, filter client-side for regex
+          ;
+        if (fetchErr) throw fetchErr;
+        
+        const arabicRegex = /[\u0600-\u06FF]/;
+        const hasLatin = /[a-zA-ZÀ-ÿ]/;
+        const toTranslate = (arabicPois ?? []).filter((p: any) => arabicRegex.test(p.name));
+        
+        if (toTranslate.length === 0) {
+          setLogs(prev => [...prev, `✅ Aucun nom arabe trouvé — rien à faire`]);
+          setStepResult(prev => ({ ...prev, "clean-arabic": { processed: 0, done: true } }));
+          return;
+        }
+        
+        setLogs(prev => [...prev, `📋 ${toTranslate.length} POIs avec noms arabes trouvés`]);
+        let translated = 0;
+        let cleaned = 0;
+        
+        for (const poi of toTranslate) {
+          const name = (poi as any).name as string;
+          
+          if (hasLatin.test(name)) {
+            // Mixed: strip Arabic, keep Latin
+            const latinOnly = name.replace(/[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]+/g, '').replace(/\s+/g, ' ').trim();
+            const { error: upErr } = await supabase
+              .from("medina_pois")
+              .update({ name: latinOnly, name_ar: (poi as any).name_ar || name } as any)
+              .eq("id", (poi as any).id);
+            if (!upErr) cleaned++;
+            setLogs(prev => [...prev, `🧹 "${name}" → "${latinOnly}"`]);
+          } else {
+            // Pure Arabic: translate via edge function
+            try {
+              const { data: trData, error: trErr } = await supabase.functions.invoke("translate", {
+                body: { text: name, from: "ar", to: "fr" },
+              });
+              if (trErr) throw trErr;
+              const frName = trData?.translated?.trim();
+              if (frName) {
+                const { error: upErr } = await supabase
+                  .from("medina_pois")
+                  .update({ name: frName, name_fr: frName, name_ar: (poi as any).name_ar || name } as any)
+                  .eq("id", (poi as any).id);
+                if (!upErr) translated++;
+                setLogs(prev => [...prev, `🌐 "${name}" → "${frName}"`]);
+              }
+            } catch (e) {
+              setLogs(prev => [...prev, `⚠️ Échec traduction: "${name}"`]);
+            }
+            await new Promise(r => setTimeout(r, 500)); // rate limit
+          }
+          setStepResult(prev => ({ ...prev, "clean-arabic": { processed: cleaned + translated, done: false } }));
+        }
+        
+        setLogs(prev => [...prev, `✅ Nettoyage terminé — ${cleaned} nettoyés, ${translated} traduits`]);
+        setStepResult(prev => ({ ...prev, "clean-arabic": { processed: cleaned + translated, done: true } }));
+        toast({ title: "Noms arabes nettoyés", description: `${cleaned} nettoyés, ${translated} traduits.` });
+        refetchStats();
+        return;
+      }
+
       const fnName = step === "worker" ? "poi-worker"
         : step === "all" ? "poi-pipeline"
         : step === "clean" || step === "merge" ? "poi-pipeline"
