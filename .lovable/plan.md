@@ -1,32 +1,44 @@
 
 
-## Plan : Ajouter les colonnes EN manquantes à SYNC_COLS dans api-v2
+## Plan : Accélérer l'agent autonome
 
-### Problème
+### Constat
 
-`SYNC_COLS` dans `api-v2/index.ts` (ligne 139) n'expose pas les champs EN traduits par Phase 2.5 : `history_context_en`, `riddle_easy_en`, `wikipedia_summary_en`, `story_fr`, `story_en`.
+- **477 POIs** encore sans traduction EN (sur 827 actifs)
+- **16/15 visites** générées (bibliothèque complète)
+- Agent enrichissement (Phase 1) : terminé
+- **Cron actuel** : toutes les **heures** — trop lent pour 477 traductions à 5/batch = ~95 cycles nécessaires
 
-QRP ne peut donc pas les importer lors de la synchronisation.
+### Goulots d'étranglement identifiés
 
-### Modification
+| Problème | Actuel | Cible |
+|----------|--------|-------|
+| Fréquence cron | 1x/heure | **toutes les 15 min** |
+| Traductions par cycle | 10 batches × 5 = 50 max | **20 batches × 5 = 100 max** |
+| Délai entre batches traduction | 2 secondes | **800ms** |
+| Visites par cycle | 1 seule (`break` après la 1ère) | Pas de changement (bibliothèque déjà complète) |
 
-**Fichier** : `supabase/functions/api-v2/index.ts` (ligne 139)
+### Modifications
 
-Ajouter à la fin de `SYNC_COLS` :
-- `history_context_en`
-- `riddle_easy_en`
-- `wikipedia_summary_en`
-- `story_fr`
-- `story_en`
+#### 1. Edge Function `poi-auto-agent/index.ts`
 
-Résultat :
-```
-const SYNC_COLS = `id, name, name_fr, name_en, name_ar, ..., enrichment_status, history_context_en, riddle_easy_en, wikipedia_summary_en, story_fr, story_en`;
-```
+**Phase 2.5 (traductions)** — lignes 266-288 :
+- Augmenter la boucle de `10` à `20` itérations
+- Réduire le délai entre batches de `2000ms` à `800ms`
+- Augmenter `batch_size` de `5` à `10`
 
-Puis redéployer la fonction `api-v2`.
+Résultat : jusqu'à **200 POIs traduits par cycle** au lieu de 50.
 
-### Côté QRP
+#### 2. Cron : passer de 1x/heure à toutes les 15 minutes
 
-Le plan QRP est correct — il devra ajouter ces mêmes champs dans `SYNC_FIELDS` de son côté. Mais ça se fait dans le projet QRP, pas ici.
+Mettre à jour le job cron existant (jobid 2) pour le schedule `*/15 * * * *`.
+
+#### 3. Ajout d'un log de synthèse à la fin
+
+Ajouter un résumé clair du travail restant pour le monitoring.
+
+### Résultat attendu
+
+- Les 477 POIs manquants seront traduits en **~3-4 heures** au lieu de ~4 jours
+- Le monitoring dans les logs sera plus lisible
 
