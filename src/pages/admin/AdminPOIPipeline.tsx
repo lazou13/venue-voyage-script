@@ -34,6 +34,24 @@ export default function AdminPOIPipeline() {
   const [logs, setLogs] = useState<string[]>([]);
   const [extractionProgress, setExtractionProgress] = useState<{ current: number; total: number } | null>(null);
   const [stepResult, setStepResult] = useState<Record<string, { processed: number; done: boolean }>>({});
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [showRunLogs, setShowRunLogs] = useState(false);
+
+  // Poll for active pipeline run
+  const { data: latestRun, refetch: refetchRun } = useQuery({
+    queryKey: ["pipeline-run-latest"],
+    refetchInterval: 5000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pipeline_runs")
+        .select("*")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+  });
 
   const { data: stats, refetch: refetchStats } = useQuery({
     queryKey: ["poi-pipeline-stats"],
