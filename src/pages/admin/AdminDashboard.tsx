@@ -219,7 +219,7 @@ export default function AdminDashboard() {
           <CardTitle className="text-lg">Couverture d'enrichissement</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+          <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
             {enrichmentCoverage.map(({ label, value, total, field }) => (
               <div
                 key={label}
