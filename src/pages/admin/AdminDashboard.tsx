@@ -233,9 +233,10 @@ export default function AdminDashboard() {
         <CardHeader>
           <CardTitle className="text-lg">Couverture d'enrichissement</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
-            {enrichmentCoverage.map(({ label, value, total, field }) => (
+        <CardContent className="space-y-4">
+          <p className="text-sm font-medium">🇫🇷 Français</p>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+            {enrichmentCoverageFr.map(({ label, value, total, field }) => (
               <div
                 key={label}
                 className="text-center p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors hover:ring-1 hover:ring-primary/30"
@@ -244,7 +245,29 @@ export default function AdminDashboard() {
                     navigate('/admin/media-library');
                   } else {
                     setDrilldownField(field);
-                    setDrilldownLabel(label);
+                    setDrilldownLabel(label + ' FR');
+                  }
+                }}
+              >
+                <p className="text-2xl font-bold"><Pct value={value} total={total} /></p>
+                <p className="text-xs text-muted-foreground mt-1">{label}</p>
+                <p className="text-xs text-muted-foreground">{value}/{total}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-sm font-medium">🇬🇧 English</p>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+            {enrichmentCoverageEn.map(({ label, value, total, field }) => (
+              <div
+                key={label}
+                className="text-center p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors hover:ring-1 hover:ring-primary/30"
+                onClick={() => {
+                  if (field === 'photos') {
+                    navigate('/admin/media-library');
+                  } else {
+                    setDrilldownField(field);
+                    setDrilldownLabel(label + ' EN');
                   }
                 }}
               >
