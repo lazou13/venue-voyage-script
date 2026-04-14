@@ -1,26 +1,35 @@
 
 
-## Plan : Ajouter "Générer anecdotes" et "Traduire EN" au Pipeline POI
+## Plan : Barre de progression et résultat par action
 
-### Approche
-
-Ajouter deux nouvelles actions dans la section "Actions manuelles" de `AdminPOIPipeline.tsx`. Chaque action appellera `n8n-proxy` via `supabase.functions.invoke` (qui injecte automatiquement l'anon key), avec un auto-loop client-side par batch de 5 jusqu'à épuisement.
+### Problème actuel
+Les actions manuelles sont en grille sans indication de progression individuelle ni résultat final. La barre de progression globale `extractionProgress` n'est utilisée que par certaines étapes.
 
 ### Modifications
 
-**Fichier : `src/pages/admin/AdminPOIPipeline.tsx`**
+**Fichier unique : `src/pages/admin/AdminPOIPipeline.tsx`**
 
-1. Ajouter `"fun-facts"` et `"translate-en"` au type `StepKey`
-2. Ajouter deux cas dans `runStep()` :
-   - `fun-facts` : boucle appelant `n8n-proxy` avec `{"action": "generate_fun_facts", "batch_size": 5}`, compteur via `data.processed` ou `data.updated`, arrêt quand 0
-   - `translate-en` : boucle appelant `n8n-proxy` avec `{"action": "translate_pois", "batch_size": 5}`, même logique
-3. Ajouter deux boutons dans la grille d'actions manuelles avec icônes appropriées (Sparkles pour anecdotes, Languages pour traductions)
-4. Toast de succès avec total traité, toast d'erreur en cas d'échec
+1. **Nouveau state `stepResult`** — Un `Record<StepKey, { processed: number; total?: number; progress: number }>` pour stocker la progression et le résultat de chaque action individuellement.
 
-### Détails techniques
+2. **Mise à jour des auto-loops** — Dans chaque branche de `runStep()` (fun-facts, translate-en, fetch-photos, classify, backfill-details, extract), mettre à jour `stepResult[step]` avec le nombre traité et le pourcentage de progression à chaque itération.
 
-- Utilisation de `supabase.functions.invoke("n8n-proxy", { body })` — pas besoin de gérer manuellement l'API key, le SDK injecte l'anon key
-- **Correction** : `n8n-proxy` utilise `x-api-key` (pas le Bearer token). Il faudra passer par `fetch` directement avec le header `apikey` ET vérifier si le proxy accepte aussi l'anon key comme auth alternative, OU ajouter un fallback dans le proxy pour accepter l'auth Supabase standard
-- Auto-loop avec délai de 2s entre batches pour éviter le rate limiting
-- Logs en temps réel dans le panneau existant
+3. **Layout vertical avec barre de progression inline** — Remplacer la grille `grid-cols-2 md:grid-cols-4` par une liste verticale `flex flex-col gap-2`. Chaque action devient une ligne contenant :
+   - Le bouton (largeur fixe ~200px)
+   - Une description courte du rôle (`text-sm text-muted-foreground`)
+   - Si `stepResult[step]` existe : une mini `<Progress>` (largeur ~120px) + le compteur `X traités`
+
+4. **Résultat final persistant** — Quand une étape se termine, `stepResult[step]` reste affiché avec une icône ✓ verte et le total traité, jusqu'au prochain lancement.
+
+5. **Ordre d'exécution logique** des boutons :
+   - Extraire → Classifier → Enrichir → Nettoyer → Fusionner → Proximité → Backfill → Photos → Anecdotes → Traduire EN → Re-classifier → Re-scorer → Autopipeline → Rafraîchir
+
+### Rendu visuel attendu
+
+```text
+[Extraire        ] Extrait les POIs depuis OpenStreetMap          ✓ 842 importés
+[Classifier      ] Classifie par catégorie IA                    [████░░] 120/200
+[Enrichir        ] Enrichit descriptions et métadonnées
+[Nettoyer        ] Supprime doublons et POIs faible qualité
+...
+```
 
