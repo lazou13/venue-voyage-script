@@ -1,36 +1,33 @@
 
 
-## Traduction batch des POIs en anglais via n8n-proxy
+## Générer les Fun Facts pour 998 POIs
 
-### Contexte
-- **1008 POIs** ont `local_anecdote_fr` sans traduction anglaise
-- **1055 POIs** ont `history_context` (en français) sans équivalent anglais
-- **47 POIs** ont déjà `fun_fact_fr` + `fun_fact_en`
-- **0 POIs** ont `story_en`
+### Constat
+- **47 POIs** ont `fun_fact_fr` / `fun_fact_en` (enrichis via `anecdote-enricher`)
+- **998 POIs** ont `local_anecdote_fr` mais **pas** de `fun_fact_fr`
+- La colonne JSONB `fun_facts` est toujours `[]` — les vrais fun facts sont dans `fun_fact_fr` / `fun_fact_en` (colonnes texte)
 
 ### Plan
 
-Ajouter une action `translate_pois` dans `supabase/functions/n8n-proxy/index.ts` qui :
+Ajouter une action `generate_fun_facts` dans `supabase/functions/n8n-proxy/index.ts` :
 
-1. **Fetch** 5 POIs avec `local_anecdote_fr IS NOT NULL AND local_anecdote_en IS NULL`
-2. **Pour chaque POI**, envoyer un seul appel Gemini 2.5 Flash avec tool calling pour traduire en batch tous les champs FR disponibles :
-   - `local_anecdote_fr` → `local_anecdote_en`
-   - `fun_fact_fr` → `fun_fact_en`  
-   - `history_context` → `history_context_en` (nouveau champ, ou on stocke dans `description_short` en anglais)
-   - `name` → `name_en`
-3. **Update** chaque POI avec les traductions
-4. **Retourner** `{ ok: true, translated: N }`
+1. **Fetch** N POIs (défaut 5) avec `fun_fact_fr IS NULL AND local_anecdote_fr IS NOT NULL`
+2. **Pour chaque POI**, appeler Gemini 2.5 Flash avec tool calling :
+   - Contexte : `name`, `category`, `local_anecdote_fr`, `history_context`, `wikipedia_summary`
+   - Générer `fun_fact_fr` (1 phrase percutante, fait surprenant vérifiable, 20-40 mots) et `fun_fact_en` (traduction)
+3. **Update** `fun_fact_fr` + `fun_fact_en` sur chaque POI
+4. **Retourner** `{ ok: true, generated: N, total_remaining: M }`
 
-**Payload n8n** : `{"action": "translate_pois", "batch_size": 5}`
+**Payload n8n** : `{"action": "generate_fun_facts", "batch_size": 5}`
 
-Appeler en boucle depuis n8n jusqu'à ce que `translated = 0`.
+Boucler jusqu'à `generated = 0`.
 
 ### Détails techniques
-- Un seul appel AI par POI (concatène tous les champs FR dans le prompt, structured output via tool calling)
-- Délai 1.5s entre POIs pour éviter le rate-limiting
-- Utilise `LOVABLE_API_KEY` déjà configuré
-- Pas de nouvelle migration nécessaire (les colonnes `local_anecdote_en`, `fun_fact_en`, `name_en` existent déjà)
+- Prompt contraint : "Un seul fait surprenant, vérifiable, en une phrase. Pas de 'Saviez-vous que'. Pas d'introduction."
+- Délai 1.5s entre POIs
+- Gestion 429/402
+- ~70 lignes ajoutées dans `n8n-proxy/index.ts`
 
 ### Fichier modifié
-- `supabase/functions/n8n-proxy/index.ts` — ajout du bloc `translate_pois` (~70 lignes)
+- `supabase/functions/n8n-proxy/index.ts`
 
