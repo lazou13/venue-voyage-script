@@ -64,7 +64,7 @@ async function fetchStats(): Promise<Stats> {
   // Enrichment coverage — sample active POIs
   const { data: sample } = await supabase
     .from('medina_pois')
-    .select('local_anecdote_fr, local_anecdote_en, riddle_easy, wikipedia_summary, history_context, fun_fact_fr, fun_fact_en')
+    .select('local_anecdote_fr, local_anecdote_en, riddle_easy, riddle_easy_en, wikipedia_summary, wikipedia_summary_en, history_context, history_context_en, fun_fact_fr, fun_fact_en')
     .eq('is_active', true)
     .limit(1000);
 
@@ -72,12 +72,14 @@ async function fetchStats(): Promise<Stats> {
   const withAnecdote = rows.filter((r: any) => r.local_anecdote_fr && r.local_anecdote_fr.length > 10).length;
   const withAnecdoteEn = rows.filter((r: any) => r.local_anecdote_en && r.local_anecdote_en.length > 10).length;
   const withRiddle = rows.filter((r: any) => r.riddle_easy && r.riddle_easy.length > 5).length;
+  const withRiddleEn = rows.filter((r: any) => r.riddle_easy_en && r.riddle_easy_en.length > 5).length;
   const withWikipedia = rows.filter((r: any) => r.wikipedia_summary && r.wikipedia_summary.length > 10).length;
+  const withWikipediaEn = rows.filter((r: any) => r.wikipedia_summary_en && r.wikipedia_summary_en.length > 10).length;
   const withHistory = rows.filter((r: any) => r.history_context && r.history_context.length > 10).length;
+  const withHistoryEn = rows.filter((r: any) => r.history_context_en && r.history_context_en.length > 10).length;
   const withFunFact = rows.filter((r: any) => r.fun_fact_fr && r.fun_fact_fr.length > 5).length;
   const withFunFactEn = rows.filter((r: any) => r.fun_fact_en && r.fun_fact_en.length > 5).length;
 
-  // Photos with media
   const withPhoto = mediaCount ?? 0;
 
   return {
@@ -90,9 +92,12 @@ async function fetchStats(): Promise<Stats> {
     withAnecdote,
     withAnecdoteEn,
     withRiddle,
-    withPhoto: withPhoto,
+    withRiddleEn,
+    withPhoto,
     withWikipedia,
+    withWikipediaEn,
     withHistory,
+    withHistoryEn,
     withFunFact,
     withFunFactEn,
     mediaCount: mediaCount ?? 0,
