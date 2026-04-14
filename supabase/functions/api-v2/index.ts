@@ -136,6 +136,8 @@ const POI_LIST_COLS = `id, name, name_fr, name_en, name_ar, lat, lng, category, 
 
 const POI_DETAIL_COLS = `id, name, name_fr, name_en, name_ar, lat, lng, category, category_ai, category_google, subcategory, status, is_active, is_start_hub, hub_theme, rating, reviews_count, poi_quality_score, address, description_short, history_context, local_anecdote, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, instagram_spot, instagram_score, instagram_tips, photo_tip, is_photo_spot, photo_spot_score, best_time_visit, crowd_level, opening_hours, price_info, accessibility_notes, street_food_spot, street_food_details, must_try, must_see_details, must_visit_nearby, audience_tags, route_tags, district, zone, radius_m, riddle_easy, riddle_medium, riddle_hard, challenge, tourist_interest, best_client_photo_url, nearby_pois_ids, wikidata_id, wikipedia_summary, website_url, phone, created_at, updated_at`;
 
+const SYNC_COLS = `id, name, name_fr, name_en, name_ar, lat, lng, zone, category, history_context, description_short, local_anecdote, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, riddle_easy, riddle_medium, riddle_hard, crowd_level, accessibility_notes, photo_tip, is_photo_spot, instagram_spot, must_try, must_see_details, must_visit_nearby, poi_quality_score, enrichment_status`;
+
 // ── Route: list POIs ─────────────────────────────────────────────
 async function handleListPois(url: URL, lang: string) {
   const category = url.searchParams.get("category");
@@ -248,6 +250,35 @@ async function handleGetPoi(id: string, lang: string) {
   };
 }
 
+// ── Route: sync (bulk enrichment export) ─────────────────────────
+async function handleSyncPois(url: URL) {
+  const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "200"), 1), 200);
+  const offset = Math.max(parseInt(url.searchParams.get("offset") || "0"), 0);
+  const enrichedOnly = url.searchParams.get("enriched_only") === "true";
+
+  let query = supabaseAdmin
+    .from("medina_pois")
+    .select(SYNC_COLS, { count: "exact" })
+    .eq("is_active", true)
+    .not("lat", "is", null)
+    .not("lng", "is", null);
+
+  if (enrichedOnly) {
+    query = query.or("local_anecdote_fr.not.is.null,history_context.not.is.null,fun_fact_fr.not.is.null");
+  }
+
+  query = query.order("id").range(offset, offset + limit - 1);
+
+  const { data: pois, count, error } = await query;
+
+  if (error) {
+    return { error: error.message, pois: [], total: 0 };
+  }
+
+  const total = count || 0;
+  return { pois: pois || [], total, limit, offset, has_more: offset + limit < total };
+}
+
 // ── Haversine ────────────────────────────────────────────────────
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
@@ -303,5 +334,11 @@ Deno.serve(async (req) => {
     return jsonResponse(poi, 200, allHeaders);
   }
 
-  return jsonResponse({ error: "Unknown route. Use ?route=pois or ?route=poi&id=..." }, 400, allHeaders);
+  if (route === "sync") {
+    const result = await handleSyncPois(url);
+    if (result.error) return jsonResponse({ error: result.error }, 500, allHeaders);
+    return jsonResponse(result, 200, allHeaders);
+  }
+
+  return jsonResponse({ error: "Unknown route. Use ?route=pois or ?route=poi&id=... or ?route=sync" }, 400, allHeaders);
 });
