@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,10 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2, Camera, Sparkles, Languages } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2, Camera, Sparkles, Languages, Eye, Clock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import EnrichmentPipelineCard from "@/components/admin/EnrichmentPipelineCard";
 import AgentMonitoringCard from "@/components/admin/AgentMonitoringCard";
+import { formatDistanceToNow } from "date-fns";
+import { fr } from "date-fns/locale";
 
 type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details" | "reclassify" | "rescore-riads" | "anecdotes" | "fun-facts" | "translate-en" | "clean-arabic";
 
