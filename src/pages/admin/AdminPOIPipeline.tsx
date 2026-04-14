@@ -516,24 +516,75 @@ export default function AdminPOIPipeline() {
     setLogs(["🚀 Autopipeline démarré..."]);
     setStepResult(prev => ({ ...prev, autopipeline: { processed: 0, done: false } }));
     let completedSteps = 0;
+    const runLogs: string[] = ["🚀 Autopipeline démarré..."];
+
+    // Insert pipeline_runs row
+    let runId: string | null = null;
+    try {
+      const { data: insertData, error: insertErr } = await supabase
+        .from("pipeline_runs")
+        .insert({
+          status: "running",
+          current_step: pipelineSteps[0],
+          total_steps: pipelineSteps.length,
+          completed_steps: [],
+          logs: runLogs,
+        } as any)
+        .select("id")
+        .single();
+      if (!insertErr && insertData) {
+        runId = (insertData as any).id;
+        setActiveRunId(runId);
+      }
+    } catch (_) { /* best effort */ }
+
+    const updateRun = async (patch: Record<string, unknown>) => {
+      if (!runId) return;
+      try {
+        await supabase.from("pipeline_runs").update(patch as any).eq("id", runId);
+        refetchRun();
+      } catch (_) {}
+    };
+
+    const completedList: string[] = [];
 
     for (const step of pipelineSteps) {
-      setLogs(prev => [...prev, `\n🔄 Autopipeline — étape: ${step}...`]);
+      const logLine = `\n🔄 Autopipeline — étape: ${step}...`;
+      setLogs(prev => [...prev, logLine]);
+      runLogs.push(logLine);
+      await updateRun({ current_step: step, logs: runLogs });
+
       try {
         await runStepInner(step);
         completedSteps++;
+        completedList.push(step);
         setStepResult(prev => ({ ...prev, autopipeline: { processed: completedSteps, done: false } }));
+        const doneLog = `✅ ${step} terminé`;
+        runLogs.push(doneLog);
+        await updateRun({ completed_steps: completedList, logs: runLogs });
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Erreur";
-        setLogs(prev => [...prev, `⚠️ ${step} échoué: ${msg} — passage à la suite`]);
+        const errLog = `⚠️ ${step} échoué: ${msg} — passage à la suite`;
+        setLogs(prev => [...prev, errLog]);
+        runLogs.push(errLog);
+        await updateRun({ logs: runLogs });
       }
     }
 
+    await updateRun({
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      completed_steps: completedList,
+      logs: runLogs,
+    });
+
     setRunning(null);
+    setActiveRunId(null);
     setExtractionProgress(null);
     setStepResult(prev => ({ ...prev, autopipeline: { processed: completedSteps, done: true } }));
     toast({ title: "Autopipeline terminé", description: `${completedSteps}/${pipelineSteps.length} étapes réussies.` });
     refetchStats();
+    refetchRun();
   };
 
   const active = stats?.active ?? 0;
