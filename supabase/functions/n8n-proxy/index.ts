@@ -751,8 +751,15 @@ serve(async (req) => {
                       history_context_en: { type: "string", description: "English translation of history_context" },
                       name_en: { type: "string", description: "English translation of name_fr" },
                       story_en: { type: "string", description: "English translation of story_fr" },
+                      riddle_easy_en: { type: "string", description: "English translation of riddle_easy" },
+                      wikipedia_summary_en: { type: "string", description: "English translation of wikipedia_summary" },
                     },
-                    required: Object.keys(fieldsToTranslate).map(k => k.replace("_fr", "_en").replace("history_context", "history_context_en")),
+                    required: Object.keys(fieldsToTranslate).map(k => {
+                      if (k === "history_context") return "history_context_en";
+                      if (k === "riddle_easy") return "riddle_easy_en";
+                      if (k === "wikipedia_summary") return "wikipedia_summary_en";
+                      return k.replace("_fr", "_en");
+                    }),
                     additionalProperties: false,
                   },
                 },
