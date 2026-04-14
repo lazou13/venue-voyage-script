@@ -1,27 +1,53 @@
 
-## Plan : Ajouter la couverture d'enrichissement EN au dashboard
 
-### Ce qui manque
+## Plan : Ligne complète de couverture d'enrichissement EN
 
-Le dashboard affiche uniquement les métriques FR (Anecdotes FR, Fun Facts FR). Il faut ajouter les équivalents anglais, cliquables avec le même drill-down.
+### Objectif
+
+Ajouter une deuxième ligne "English" sous la ligne "Français" dans la section "Couverture d'enrichissement", avec les mêmes 6 catégories cliquables.
+
+### Colonnes manquantes dans la base
+
+La table `medina_pois` possède déjà `local_anecdote_en`, `fun_fact_en` et `story_en`, mais il manque :
+
+| Colonne à créer | Équivalent FR |
+|---|---|
+| `history_context_en` | `history_context` |
+| `riddle_easy_en` | `riddle_easy` |
+| `wikipedia_summary_en` | `wikipedia_summary` |
 
 ### Modifications
 
-#### 1. `src/pages/admin/AdminDashboard.tsx`
+#### 1. Migration — 3 nouvelles colonnes
 
-- **Type `DbField`** : étendre avec `'local_anecdote_en' | 'fun_fact_en'`
-- **`fetchStats()`** : ajouter `local_anecdote_en` et `fun_fact_en` dans le `select`, calculer `withAnecdoteEn` et `withFunFactEn`
-- **Interface `Stats`** : ajouter `withAnecdoteEn`, `withFunFactEn`
-- **`enrichmentCoverage`** : ajouter 2 entrées :
-  - `{ label: 'Anecdotes EN', value: stats.withAnecdoteEn, total: stats.total, field: 'local_anecdote_en' }`
-  - `{ label: 'Fun Facts EN', value: stats.withFunFactEn, total: stats.total, field: 'fun_fact_en' }`
-- Passer la grille de `grid-cols-6` à `grid-cols-4 md:grid-cols-8` pour accueillir 8 métriques
+```sql
+ALTER TABLE medina_pois ADD COLUMN history_context_en text;
+ALTER TABLE medina_pois ADD COLUMN riddle_easy_en text;
+ALTER TABLE medina_pois ADD COLUMN wikipedia_summary_en text;
+```
 
-#### 2. `src/components/admin/EnrichmentDrilldown.tsx`
+#### 2. `src/pages/admin/AdminDashboard.tsx`
 
-- **Type `DbField`** : étendre avec `'local_anecdote_en' | 'fun_fact_en'`
-- Le reste fonctionne déjà de manière générique (le champ est passé en prop)
+- **`DbField`** : ajouter `'history_context_en' | 'riddle_easy_en' | 'wikipedia_summary_en'`
+- **`fetchStats()`** : ajouter les 3 champs dans le `select`, calculer `withHistoryEn`, `withRiddleEn`, `withWikipediaEn`
+- **Interface `Stats`** : ajouter ces 3 compteurs + garder `withAnecdoteEn`, `withFunFactEn`
+- **Séparer en 2 tableaux** :
+  - `enrichmentCoverageFr` : Histoires, Anecdotes FR, Fun Facts FR, Énigmes, Wikipedia, Photos (6 items)
+  - `enrichmentCoverageEn` : Histoires EN, Anecdotes EN, Fun Facts EN, Énigmes EN, Wikipedia EN, Photos (6 items — Photos pointe vers la même media-library)
+- **JSX** : 2 grilles avec sous-titres "🇫🇷 Français" et "🇬🇧 English"
+
+#### 3. `src/components/admin/EnrichmentDrilldown.tsx`
+
+- **`DbField`** : ajouter `'history_context_en' | 'riddle_easy_en' | 'wikipedia_summary_en'`
+- Le reste fonctionne déjà de manière générique
 
 ### Résultat
 
-8 métriques cliquables : Histoires, Anecdotes FR, Anecdotes EN, Fun Facts FR, Fun Facts EN, Énigmes, Wikipedia, Photos — toutes avec drill-down interactif.
+Deux lignes identiques dans la couverture d'enrichissement :
+```text
+🇫🇷 Français :  Histoires | Anecdotes FR | Fun Facts FR | Énigmes | Wikipedia | Photos
+🇬🇧 English  :  Histoires EN | Anecdotes EN | Fun Facts EN | Énigmes EN | Wikipedia EN | Photos
+```
+
+Chaque métrique est cliquable avec drill-down pour voir/éditer les POIs manquants ou remplis.
+
