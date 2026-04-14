@@ -1,35 +1,30 @@
 
 
-## Plan : Barre de progression et résultat par action
+## Diagnostic : 0 POIs traduits
 
-### Problème actuel
-Les actions manuelles sont en grille sans indication de progression individuelle ni résultat final. La barre de progression globale `extractionProgress` n'est utilisée que par certaines étapes.
-
-### Modifications
-
-**Fichier unique : `src/pages/admin/AdminPOIPipeline.tsx`**
-
-1. **Nouveau state `stepResult`** — Un `Record<StepKey, { processed: number; total?: number; progress: number }>` pour stocker la progression et le résultat de chaque action individuellement.
-
-2. **Mise à jour des auto-loops** — Dans chaque branche de `runStep()` (fun-facts, translate-en, fetch-photos, classify, backfill-details, extract), mettre à jour `stepResult[step]` avec le nombre traité et le pourcentage de progression à chaque itération.
-
-3. **Layout vertical avec barre de progression inline** — Remplacer la grille `grid-cols-2 md:grid-cols-4` par une liste verticale `flex flex-col gap-2`. Chaque action devient une ligne contenant :
-   - Le bouton (largeur fixe ~200px)
-   - Une description courte du rôle (`text-sm text-muted-foreground`)
-   - Si `stepResult[step]` existe : une mini `<Progress>` (largeur ~120px) + le compteur `X traités`
-
-4. **Résultat final persistant** — Quand une étape se termine, `stepResult[step]` reste affiché avec une icône ✓ verte et le total traité, jusqu'au prochain lancement.
-
-5. **Ordre d'exécution logique** des boutons :
-   - Extraire → Classifier → Enrichir → Nettoyer → Fusionner → Proximité → Backfill → Photos → Anecdotes → Traduire EN → Re-classifier → Re-scorer → Autopipeline → Rafraîchir
-
-### Rendu visuel attendu
+### Cause
+Le code client dans `AdminPOIPipeline.tsx` (ligne 292) lit le champ `processed` ou `updated` dans la réponse, mais la fonction `n8n-proxy` retourne le champ **`translated`** :
 
 ```text
-[Extraire        ] Extrait les POIs depuis OpenStreetMap          ✓ 842 importés
-[Classifier      ] Classifie par catégorie IA                    [████░░] 120/200
-[Enrichir        ] Enrichit descriptions et métadonnées
-[Nettoyer        ] Supprime doublons et POIs faible qualité
-...
+Client:   data?.processed ?? data?.updated ?? 0    → toujours 0
+Serveur:  { ok: true, translated: 1, total: 1 }    → le bon champ est "translated"
 ```
+
+La traduction fonctionne réellement (je viens de tester : 1 POI traduit avec succès), mais le compteur affiche toujours 0, et le `if (processed === 0) break;` arrête la boucle immédiatement après le premier batch.
+
+### Correction
+
+**Fichier : `src/pages/admin/AdminPOIPipeline.tsx`, ligne 292**
+
+Ajouter `data?.translated` dans la lecture du compteur :
+
+```typescript
+// Avant
+const processed = data?.processed ?? data?.updated ?? 0;
+
+// Après
+const processed = data?.translated ?? data?.processed ?? data?.updated ?? 0;
+```
+
+Changement d'une seule ligne. Les 998 POIs en attente de traduction seront ensuite traités correctement par la boucle auto-loop.
 
