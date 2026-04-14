@@ -1,33 +1,49 @@
 
 
-## Générer les Fun Facts pour 998 POIs
+## Mise à jour des app_id + stratégie hybride API v2 / Sync
 
-### Constat
-- **47 POIs** ont `fun_fact_fr` / `fun_fact_en` (enrichis via `anecdote-enricher`)
-- **998 POIs** ont `local_anecdote_fr` mais **pas** de `fun_fact_fr`
-- La colonne JSONB `fun_facts` est toujours `[]` — les vrais fun facts sont dans `fun_fact_fr` / `fun_fact_en` (colonnes texte)
+### 1. Corriger les app_id des clés API (HPP)
 
-### Plan
+Migration SQL pour mettre à jour les références :
+- `Questride B2C/B2B` : app_id `cflyexnquulsjpzbbayh` → `brhckhyrbpjfnieexggq`
+- `QUEST RIDES PRO` : app_id `xaccaoedtbwywjotqhih` → `zdzycbqwypriveenxnsh`
 
-Ajouter une action `generate_fun_facts` dans `supabase/functions/n8n-proxy/index.ts` :
+### 2. Stratégie recommandée : hybride
 
-1. **Fetch** N POIs (défaut 5) avec `fun_fact_fr IS NULL AND local_anecdote_fr IS NOT NULL`
-2. **Pour chaque POI**, appeler Gemini 2.5 Flash avec tool calling :
-   - Contexte : `name`, `category`, `local_anecdote_fr`, `history_context`, `wikipedia_summary`
-   - Générer `fun_fact_fr` (1 phrase percutante, fait surprenant vérifiable, 20-40 mots) et `fun_fact_en` (traduction)
-3. **Update** `fun_fact_fr` + `fun_fact_en` sur chaque POI
-4. **Retourner** `{ ok: true, generated: N, total_remaining: M }`
+```text
+┌─────────────────────────────────────────────────┐
+│              Hunt Planner Pro (HPP)              │
+│         Source de vérité des POIs enrichis       │
+├─────────────┬───────────────────────────────────┤
+│  API v2     │  sync-pois-export                 │
+│  (temps réel)│  (batch périodique)               │
+└──────┬──────┴──────────┬────────────────────────┘
+       │                 │
+       ▼                 ▼
+┌──────────────┐  ┌──────────────────┐
+│  Questride   │  │  Quest Rides PRO │
+│  B2C/B2B     │  │  Player          │
+│              │  │                  │
+│  API v2 pour │  │  API v2 pour     │
+│  - catalogue │  │  - détails POI   │
+│  - recherche │  │  - fun facts     │
+│              │  │                  │
+│  Sync pour   │  │  Sync pour       │
+│  - tours     │  │  - tours miroir  │
+│    existants │  │    existants     │
+└──────────────┘  └──────────────────┘
+```
 
-**Payload n8n** : `{"action": "generate_fun_facts", "batch_size": 5}`
+### 3. Ajouter action `sync_projects` dans n8n-proxy (HPP)
 
-Boucler jusqu'à `generated = 0`.
+Action qui appelle `sync-pois-import` sur les deux projets externes (plan précédent, inchangé).
 
-### Détails techniques
-- Prompt contraint : "Un seul fait surprenant, vérifiable, en une phrase. Pas de 'Saviez-vous que'. Pas d'introduction."
-- Délai 1.5s entre POIs
-- Gestion 429/402
-- ~70 lignes ajoutées dans `n8n-proxy/index.ts`
+### 4. Créer `sync-pois-import` sur Quest Rides PRO
 
-### Fichier modifié
-- `supabase/functions/n8n-proxy/index.ts`
+Nouvelle Edge Function dans le projet `treasure-trail-tribe` qui importe les POIs enrichis depuis HPP (matching par nom + GPS).
+
+### Fichiers modifiés
+- **HPP** : migration SQL pour corriger les `app_id`
+- **HPP** : `supabase/functions/n8n-proxy/index.ts` — ajout action `sync_projects`
+- **Quest Rides PRO** : `supabase/functions/sync-pois-import/index.ts` — nouveau fichier
 
