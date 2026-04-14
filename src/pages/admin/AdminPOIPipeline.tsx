@@ -79,11 +79,10 @@ export default function AdminPOIPipeline() {
     },
   });
 
-  const runStep = async (step: StepKey) => {
-    setRunning(step);
-    setLogs([`▶ Lancement: ${step}...`]);
-    setExtractionProgress(null);
+  const runStepInner = async (step: StepKey) => {
     setStepResult(prev => ({ ...prev, [step]: { processed: 0, done: false } }));
+
+    if (step === "autopipeline") return; // handled by runAutopipeline
 
     try {
       if (step === "extract") {
@@ -306,12 +305,10 @@ export default function AdminPOIPipeline() {
       }
 
       const fnName = step === "worker" ? "poi-worker"
-        : step === "autopipeline" ? "poi-autopipeline"
         : step === "all" ? "poi-pipeline"
         : step === "clean" || step === "merge" ? "poi-pipeline"
         : `poi-${step}`;
       const fnBody = step === "worker" ? {}
-        : step === "autopipeline" ? {}
         : step === "all" ? { step: "all", limit: 500, batch_size: 5 }
         : step === "enrich" ? { batch_size: 10 }
         : step === "clean" ? { step: "clean" }
@@ -338,11 +335,55 @@ export default function AdminPOIPipeline() {
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erreur inconnue";
       setLogs(prev => [...prev, `❌ Erreur: ${msg}`]);
+      throw e; // re-throw for autopipeline to catch
+    }
+  };
+
+  const runStep = async (step: StepKey) => {
+    if (step === "autopipeline") return runAutopipeline();
+    setRunning(step);
+    setLogs([`▶ Lancement: ${step}...`]);
+    setExtractionProgress(null);
+    try {
+      await runStepInner(step);
+      toast({ title: "Terminé", description: `Étape "${step}" exécutée avec succès.` });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Erreur inconnue";
       toast({ title: "Erreur", description: msg, variant: "destructive" });
     } finally {
       setRunning(null);
       setExtractionProgress(null);
     }
+  };
+
+  const runAutopipeline = async () => {
+    const pipelineSteps: StepKey[] = [
+      "extract", "classify", "enrich", "clean", "merge",
+      "proximity", "backfill-details", "fetch-photos",
+      "fun-facts", "translate-en",
+    ];
+    setRunning("autopipeline");
+    setLogs(["🚀 Autopipeline démarré..."]);
+    setStepResult(prev => ({ ...prev, autopipeline: { processed: 0, done: false } }));
+    let completedSteps = 0;
+
+    for (const step of pipelineSteps) {
+      setLogs(prev => [...prev, `\n🔄 Autopipeline — étape: ${step}...`]);
+      try {
+        await runStepInner(step);
+        completedSteps++;
+        setStepResult(prev => ({ ...prev, autopipeline: { processed: completedSteps, done: false } }));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Erreur";
+        setLogs(prev => [...prev, `⚠️ ${step} échoué: ${msg} — passage à la suite`]);
+      }
+    }
+
+    setRunning(null);
+    setExtractionProgress(null);
+    setStepResult(prev => ({ ...prev, autopipeline: { processed: completedSteps, done: true } }));
+    toast({ title: "Autopipeline terminé", description: `${completedSteps}/${pipelineSteps.length} étapes réussies.` });
+    refetchStats();
   };
 
   const active = stats?.active ?? 0;
