@@ -46,6 +46,10 @@ history_context (200-250 mots) :
   Paragraphe 3 : Qu'est-ce que le visiteur voit aujourd'hui
     et pourquoi c'est remarquable ?
 
+history_context_en (200-250 words) :
+  Natural English translation of history_context.
+  Adapt for an English-speaking audience — not word-for-word.
+
 local_anecdote_fr (80-100 mots MAXIMUM) :
   RÈGLE ABSOLUE : 1 seul fait surprenant ou inattendu.
   STRUCTURE OBLIGATOIRE :
