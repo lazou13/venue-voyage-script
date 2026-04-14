@@ -1,48 +1,44 @@
 
 
-## Plan : Corriger le bouton Autopipeline
+## Plan : Supprimer les noms arabes des POIs
 
-### Probleme
-Le bouton "Autopipeline" appelle `poi-autopipeline` — une Edge Function qui **n'existe pas**. L'appel echoue systematiquement. De plus, meme si elle existait, les etapes "anecdotes" et "traduction EN" ne seraient pas incluses car elles ne font pas partie de l'orchestrateur `enrichment-pipeline`.
+### Approche
 
-### Solution
-Remplacer la logique du bouton "Autopipeline" pour qu'il execute sequentiellement toutes les etapes existantes dans l'ordre, en reutilisant la fonction `runStep()` deja en place. Cela appelle les vraies Edge Functions une par une.
+Créer un script SQL + Edge Function en deux temps :
 
-### Modifications
+### Étape 1 — Noms mixtes (Latin + Arabe) : nettoyage SQL direct
 
-**Fichier : `src/pages/admin/AdminPOIPipeline.tsx`**
+Pour les POIs dont le `name` contient à la fois des caractères latins et arabes (ex: "Shawarma Bab Alhara شاورما باب الحارة"), une migration SQL supprimera la partie arabe et conservera la partie latine :
 
-1. Creer une fonction `runAutopipeline()` qui execute sequentiellement :
-   - `extract` → `classify` → `enrich` → `clean` → `merge` → `proximity` → `backfill-details` → `fetch-photos` → `fun-facts` → `translate-en`
-   - Chaque etape met a jour les logs et `stepResult`
-   - Si une etape echoue, log l'erreur et continue a la suivante
-
-2. Modifier le bouton Autopipeline pour appeler `runAutopipeline()` au lieu de `runStep("autopipeline")`
-
-3. Supprimer la reference a `poi-autopipeline` dans le mapping `fnName`
-
-### Detail technique
-
-```typescript
-const runAutopipeline = async () => {
-  const steps: StepKey[] = [
-    "extract", "classify", "enrich", "clean", "merge", 
-    "proximity", "backfill-details", "fetch-photos", 
-    "fun-facts", "translate-en"
-  ];
-  setRunning("autopipeline");
-  for (const step of steps) {
-    setLogs(prev => [...prev, `🔄 Autopipeline — étape: ${step}...`]);
-    try {
-      await runStep(step); // refactorer runStep pour ne pas gerer running/finally
-    } catch (e) {
-      setLogs(prev => [...prev, `⚠️ ${step} échoué, passage à la suite`]);
-    }
-  }
-  setRunning(null);
-  toast({ title: "Autopipeline terminé" });
-};
+```sql
+UPDATE medina_pois 
+SET name_ar = name,  -- sauvegarder l'original en name_ar
+    name = regexp_replace(name, '[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]+', '', 'g'),
+    name = trim(regexp_replace(name, '\s+', ' ', 'g'))
+WHERE name ~ '[\u0600-\u06FF]' 
+  AND name ~ '[a-zA-ZÀ-ÿ]';
 ```
 
-Cela necessite un leger refactoring de `runStep` pour extraire la logique d'execution sans le `setRunning`/`finally`, ou bien appeler directement chaque branche inline.
+### Étape 2 — Noms 100% arabes : traduction IA puis remplacement
+
+Pour les ~30-40 POIs dont le nom est entièrement en arabe, ajouter un bouton "Traduire noms arabes" dans le pipeline (ou exécuter via un script one-shot) qui :
+1. Sélectionne les POIs où `name ~ '[\u0600-\u06FF]'` (ceux qui restent après l'étape 1)
+2. Sauvegarde le nom actuel dans `name_ar`
+3. Appelle la fonction `translate` existante (from: `ar`, to: `fr`) pour obtenir un nom français
+4. Met à jour `name` avec la traduction et `name_fr` avec la même valeur
+
+### Étape 3 — Sécurité future dans le pipeline d'extraction
+
+Dans `poi-extract` ou le code d'import, ajouter un filtre post-import qui applique automatiquement la même logique (strip arabe des mixtes, flag les purs arabes pour traduction).
+
+### Fichiers modifiés
+
+1. **Migration SQL** — Nettoyage des noms mixtes + sauvegarde en `name_ar`
+2. **`src/pages/admin/AdminPOIPipeline.tsx`** — Ajout d'une étape "Nettoyer noms arabes" qui traduit les noms purement arabes restants via l'Edge Function `translate`
+
+### Résultat attendu
+
+- 0 nom en arabe dans la colonne `name`
+- Les noms arabes originaux préservés dans `name_ar`
+- Les noms traduits en français dans `name` et `name_fr`
 
