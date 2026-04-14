@@ -7,7 +7,7 @@ import { Loader2, MapPin, CheckCircle, AlertTriangle, Camera, Library, Image, Me
 import EnrichmentDrilldown from '@/components/admin/EnrichmentDrilldown';
 import { useNavigate } from 'react-router-dom';
 
-type DbField = 'history_context' | 'local_anecdote_fr' | 'fun_fact_fr' | 'riddle_easy' | 'wikipedia_summary';
+type DbField = 'history_context' | 'local_anecdote_fr' | 'local_anecdote_en' | 'fun_fact_fr' | 'fun_fact_en' | 'riddle_easy' | 'wikipedia_summary';
 
 interface Stats {
   total: number;
@@ -17,11 +17,13 @@ interface Stats {
   filtered: number;
   classified: number;
   withAnecdote: number;
+  withAnecdoteEn: number;
   withRiddle: number;
   withPhoto: number;
   withWikipedia: number;
   withHistory: number;
   withFunFact: number;
+  withFunFactEn: number;
   mediaCount: number;
   toursCount: number;
   clientPhotos: number;
@@ -59,16 +61,18 @@ async function fetchStats(): Promise<Stats> {
   // Enrichment coverage — sample active POIs
   const { data: sample } = await supabase
     .from('medina_pois')
-    .select('local_anecdote_fr, riddle_easy, wikipedia_summary, history_context, fun_fact_fr')
+    .select('local_anecdote_fr, local_anecdote_en, riddle_easy, wikipedia_summary, history_context, fun_fact_fr, fun_fact_en')
     .eq('is_active', true)
     .limit(1000);
 
   const rows = sample ?? [];
   const withAnecdote = rows.filter((r: any) => r.local_anecdote_fr && r.local_anecdote_fr.length > 10).length;
+  const withAnecdoteEn = rows.filter((r: any) => r.local_anecdote_en && r.local_anecdote_en.length > 10).length;
   const withRiddle = rows.filter((r: any) => r.riddle_easy && r.riddle_easy.length > 5).length;
   const withWikipedia = rows.filter((r: any) => r.wikipedia_summary && r.wikipedia_summary.length > 10).length;
   const withHistory = rows.filter((r: any) => r.history_context && r.history_context.length > 10).length;
   const withFunFact = rows.filter((r: any) => r.fun_fact_fr && r.fun_fact_fr.length > 5).length;
+  const withFunFactEn = rows.filter((r: any) => r.fun_fact_en && r.fun_fact_en.length > 5).length;
 
   // Photos with media
   const withPhoto = mediaCount ?? 0;
@@ -81,11 +85,13 @@ async function fetchStats(): Promise<Stats> {
     filtered: filtered ?? 0,
     classified: classified ?? 0,
     withAnecdote,
+    withAnecdoteEn,
     withRiddle,
     withPhoto: withPhoto,
     withWikipedia,
     withHistory,
     withFunFact,
+    withFunFactEn,
     mediaCount: mediaCount ?? 0,
     toursCount: toursCount ?? 0,
     clientPhotos: clientPhotos ?? 0,
@@ -132,7 +138,9 @@ export default function AdminDashboard() {
   const enrichmentCoverage: { label: string; value: number; total: number; field: DbField | 'photos' }[] = [
     { label: 'Histoires', value: stats.withHistory, total: stats.total, field: 'history_context' },
     { label: 'Anecdotes FR', value: stats.withAnecdote, total: stats.total, field: 'local_anecdote_fr' },
-    { label: 'Fun Facts', value: stats.withFunFact, total: stats.total, field: 'fun_fact_fr' },
+    { label: 'Anecdotes EN', value: stats.withAnecdoteEn, total: stats.total, field: 'local_anecdote_en' },
+    { label: 'Fun Facts FR', value: stats.withFunFact, total: stats.total, field: 'fun_fact_fr' },
+    { label: 'Fun Facts EN', value: stats.withFunFactEn, total: stats.total, field: 'fun_fact_en' },
     { label: 'Énigmes', value: stats.withRiddle, total: stats.total, field: 'riddle_easy' },
     { label: 'Wikipedia', value: stats.withWikipedia, total: stats.total, field: 'wikipedia_summary' },
     { label: 'Photos', value: stats.withPhoto, total: stats.total, field: 'photos' },
@@ -211,7 +219,7 @@ export default function AdminDashboard() {
           <CardTitle className="text-lg">Couverture d'enrichissement</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+          <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
             {enrichmentCoverage.map(({ label, value, total, field }) => (
               <div
                 key={label}
