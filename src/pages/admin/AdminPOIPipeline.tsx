@@ -11,7 +11,7 @@ import { useQuery } from "@tanstack/react-query";
 import EnrichmentPipelineCard from "@/components/admin/EnrichmentPipelineCard";
 import AgentMonitoringCard from "@/components/admin/AgentMonitoringCard";
 
-type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details" | "reclassify" | "rescore-riads" | "fun-facts" | "translate-en";
+type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details" | "reclassify" | "rescore-riads" | "fun-facts" | "translate-en" | "clean-arabic";
 
 export default function AdminPOIPipeline() {
   const { toast } = useToast();
