@@ -143,14 +143,21 @@ export default function AdminDashboard() {
     { label: 'Recommandations', value: stats.clientRecos, icon: MessageSquare, color: 'text-teal-600' },
   ];
 
-  const enrichmentCoverage: { label: string; value: number; total: number; field: DbField | 'photos' }[] = [
+  const enrichmentCoverageFr: { label: string; value: number; total: number; field: DbField | 'photos' }[] = [
     { label: 'Histoires', value: stats.withHistory, total: stats.total, field: 'history_context' },
-    { label: 'Anecdotes FR', value: stats.withAnecdote, total: stats.total, field: 'local_anecdote_fr' },
-    { label: 'Anecdotes EN', value: stats.withAnecdoteEn, total: stats.total, field: 'local_anecdote_en' },
-    { label: 'Fun Facts FR', value: stats.withFunFact, total: stats.total, field: 'fun_fact_fr' },
-    { label: 'Fun Facts EN', value: stats.withFunFactEn, total: stats.total, field: 'fun_fact_en' },
+    { label: 'Anecdotes', value: stats.withAnecdote, total: stats.total, field: 'local_anecdote_fr' },
+    { label: 'Fun Facts', value: stats.withFunFact, total: stats.total, field: 'fun_fact_fr' },
     { label: 'Énigmes', value: stats.withRiddle, total: stats.total, field: 'riddle_easy' },
     { label: 'Wikipedia', value: stats.withWikipedia, total: stats.total, field: 'wikipedia_summary' },
+    { label: 'Photos', value: stats.withPhoto, total: stats.total, field: 'photos' },
+  ];
+
+  const enrichmentCoverageEn: { label: string; value: number; total: number; field: DbField | 'photos' }[] = [
+    { label: 'History', value: stats.withHistoryEn, total: stats.total, field: 'history_context_en' },
+    { label: 'Anecdotes', value: stats.withAnecdoteEn, total: stats.total, field: 'local_anecdote_en' },
+    { label: 'Fun Facts', value: stats.withFunFactEn, total: stats.total, field: 'fun_fact_en' },
+    { label: 'Riddles', value: stats.withRiddleEn, total: stats.total, field: 'riddle_easy_en' },
+    { label: 'Wikipedia', value: stats.withWikipediaEn, total: stats.total, field: 'wikipedia_summary_en' },
     { label: 'Photos', value: stats.withPhoto, total: stats.total, field: 'photos' },
   ];
 
