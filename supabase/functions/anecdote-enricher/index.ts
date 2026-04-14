@@ -146,6 +146,7 @@ serve(async (req) => {
       .not('status', 'in', '("filtered","merged")')
       .order('enrichment_quality', { ascending: true })
       .order('poi_quality_score', { ascending: false })
+      .order('id', { ascending: true })
       .limit(batchSize);
 
     const { data: pois, error } = await query;
@@ -215,7 +216,16 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ processed: pois.length, updated: totalUpdated, source: 'perplexity-sonar-v2' }), {
+    // Count remaining
+    let remainingCount = 0;
+    try {
+      let rq = supabase.from('medina_pois').select('id', { count: 'exact', head: true }).is('local_anecdote_en', null);
+      rq = rq.in('enrichment_quality', ['suspect', 'unknown', 'low_value']).gte('poi_quality_score', 4).not('status', 'in', '("filtered","merged")');
+      const { count } = await rq;
+      remainingCount = count ?? 0;
+    } catch {}
+
+    return new Response(JSON.stringify({ processed: pois.length, updated: totalUpdated, remaining: remainingCount, source: 'perplexity-sonar-v2' }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {

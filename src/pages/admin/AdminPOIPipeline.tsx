@@ -11,7 +11,19 @@ import { useQuery } from "@tanstack/react-query";
 import EnrichmentPipelineCard from "@/components/admin/EnrichmentPipelineCard";
 import AgentMonitoringCard from "@/components/admin/AgentMonitoringCard";
 
-type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details" | "reclassify" | "rescore-riads" | "fun-facts" | "translate-en" | "clean-arabic";
+type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details" | "reclassify" | "rescore-riads" | "anecdotes" | "fun-facts" | "translate-en" | "clean-arabic";
+
+const invokeWithRetry = async (fnName: string, body: Record<string, unknown>, maxRetries = 3): Promise<{ data: any; error: any }> => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const { data, error } = await supabase.functions.invoke(fnName, { body });
+    if (!error) return { data, error: null };
+    const msg = error?.message ?? '';
+    const isTransient = msg.includes('Failed to send') || msg.includes('network') || msg.includes('timeout') || msg.includes('ECONNRESET');
+    if (!isTransient || attempt === maxRetries) return { data, error };
+    await new Promise(r => setTimeout(r, 2000 * attempt));
+  }
+  return { data: null, error: new Error('Max retries reached') };
+};
 
 export default function AdminPOIPipeline() {
   const { toast } = useToast();
@@ -246,31 +258,80 @@ export default function AdminPOIPipeline() {
         return;
       }
 
-      if (step === "fun-facts") {
+      if (step === "anecdotes") {
         let totalProcessed = 0;
         let round = 1;
+        let consecutiveErrors = 0;
 
         while (true) {
-          setLogs(prev => [...prev, `✨ Anecdotes batch ${round}...`]);
+          setLogs(prev => [...prev, `📖 Anecdotes batch ${round}...`]);
 
-          const { data, error } = await supabase.functions.invoke("n8n-proxy", {
-            body: { action: "generate_fun_facts", batch_size: 5 },
-          });
+          const { data, error } = await invokeWithRetry("anecdote-enricher", { batch_size: 5 });
 
-          if (error) throw error;
-          if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
-          const processed = data?.generated ?? data?.enriched ?? data?.processed ?? data?.updated ?? 0;
+          if (error) {
+            consecutiveErrors++;
+            setLogs(prev => [...prev, `⚠️ Erreur batch ${round}: ${error.message}`]);
+            if (consecutiveErrors >= 3) { setLogs(prev => [...prev, `❌ 3 erreurs consécutives — arrêt`]); break; }
+            await new Promise(r => setTimeout(r, 3000));
+            continue;
+          }
+          consecutiveErrors = 0;
+          if (data?.error) { setLogs(prev => [...prev, `⚠️ ${data.error}`]); break; }
+
+          const processed = data?.updated ?? 0;
+          const remaining = data?.remaining ?? 0;
           totalProcessed += processed;
-          setStepResult(prev => ({ ...prev, "fun-facts": { processed: totalProcessed, done: false } }));
+          setStepResult(prev => ({ ...prev, "anecdotes": { processed: totalProcessed, done: false } }));
+          if (remaining > 0) setExtractionProgress({ current: totalProcessed, total: totalProcessed + remaining });
 
           if (processed === 0) break;
           round++;
           await new Promise(r => setTimeout(r, 2000));
         }
 
+        setExtractionProgress(null);
         setLogs(prev => [...prev, `✅ Anecdotes terminé — ${totalProcessed} POIs enrichis`]);
-        setStepResult(prev => ({ ...prev, "fun-facts": { processed: totalProcessed, done: true } }));
+        setStepResult(prev => ({ ...prev, "anecdotes": { processed: totalProcessed, done: true } }));
         toast({ title: "Anecdotes générées", description: `${totalProcessed} POIs enrichis.` });
+        refetchStats();
+        return;
+      }
+
+      if (step === "fun-facts") {
+        let totalProcessed = 0;
+        let round = 1;
+        let consecutiveErrors = 0;
+
+        while (true) {
+          setLogs(prev => [...prev, `✨ Fun facts batch ${round}...`]);
+
+          const { data, error } = await invokeWithRetry("n8n-proxy", { action: "generate_fun_facts", batch_size: 5 });
+
+          if (error) {
+            consecutiveErrors++;
+            setLogs(prev => [...prev, `⚠️ Erreur batch ${round}: ${error.message}`]);
+            if (consecutiveErrors >= 3) { setLogs(prev => [...prev, `❌ 3 erreurs consécutives — arrêt`]); break; }
+            await new Promise(r => setTimeout(r, 3000));
+            continue;
+          }
+          consecutiveErrors = 0;
+          if (data?.error) { setLogs(prev => [...prev, `⚠️ ${data.error}`]); break; }
+
+          const processed = data?.generated ?? 0;
+          const remaining = data?.total_remaining ?? 0;
+          totalProcessed += processed;
+          setStepResult(prev => ({ ...prev, "fun-facts": { processed: totalProcessed, done: false } }));
+          if (remaining > 0) setExtractionProgress({ current: totalProcessed, total: totalProcessed + remaining });
+
+          if (processed === 0) break;
+          round++;
+          await new Promise(r => setTimeout(r, 2000));
+        }
+
+        setExtractionProgress(null);
+        setLogs(prev => [...prev, `✅ Fun facts terminé — ${totalProcessed} POIs enrichis`]);
+        setStepResult(prev => ({ ...prev, "fun-facts": { processed: totalProcessed, done: true } }));
+        toast({ title: "Fun facts générés", description: `${totalProcessed} POIs enrichis.` });
         refetchStats();
         return;
       }
@@ -428,7 +489,7 @@ export default function AdminPOIPipeline() {
     const pipelineSteps: StepKey[] = [
       "extract", "classify", "enrich", "clean", "merge",
       "proximity", "backfill-details", "fetch-photos",
-      "fun-facts", "translate-en",
+      "anecdotes", "fun-facts", "translate-en",
     ];
     setRunning("autopipeline");
     setLogs(["🚀 Autopipeline démarré..."]);
@@ -597,7 +658,8 @@ export default function AdminPOIPipeline() {
               { key: "proximity" as StepKey, icon: Route, label: "Proximité", desc: "Calcule les POIs voisins pour chaque point d'intérêt", variant: "outline" as const },
               { key: "backfill-details" as StepKey, icon: Rocket, label: "Backfill", desc: "Récupère prix, horaires et infos pratiques manquantes", variant: "default" as const },
               { key: "fetch-photos" as StepKey, icon: Camera, label: "Photos Google", desc: "Télécharge les photos Google Places pour chaque POI", variant: "secondary" as const },
-              { key: "fun-facts" as StepKey, icon: Sparkles, label: "Anecdotes", desc: "Génère fun facts et anecdotes locales via IA", variant: "secondary" as const },
+              { key: "anecdotes" as StepKey, icon: Sparkles, label: "Anecdotes", desc: "Génère anecdotes complètes via Perplexity (history, anecdote FR/EN, accessibilité)", variant: "secondary" as const },
+              { key: "fun-facts" as StepKey, icon: Sparkles, label: "Fun facts", desc: "Génère un fait surprenant court (1 phrase) via IA", variant: "secondary" as const },
               { key: "translate-en" as StepKey, icon: Languages, label: "Traduire EN", desc: "Traduit nom, description et histoire en anglais", variant: "secondary" as const },
               { key: "clean-arabic" as StepKey, icon: Languages, label: "Nettoyer arabes", desc: "Supprime les noms arabes et les traduit en français", variant: "destructive" as const },
             ] as const).map(({ key, icon: Icon, label, desc, variant }) => {
