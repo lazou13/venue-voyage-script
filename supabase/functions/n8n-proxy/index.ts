@@ -786,8 +786,9 @@ serve(async (req) => {
           if (t.fun_fact_en) updateData.fun_fact_en = t.fun_fact_en;
           if (t.name_en) updateData.name_en = t.name_en;
           if (t.story_en) updateData.story_en = t.story_en;
-          // Store history_context_en in description_short (existing EN-friendly column)
-          if (t.history_context_en) updateData.description_short = t.history_context_en;
+          if (t.history_context_en) updateData.history_context_en = t.history_context_en;
+          if (t.riddle_easy_en) updateData.riddle_easy_en = t.riddle_easy_en;
+          if (t.wikipedia_summary_en) updateData.wikipedia_summary_en = t.wikipedia_summary_en;
 
           const { error: updErr } = await supabase
             .from("medina_pois")
