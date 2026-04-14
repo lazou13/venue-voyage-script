@@ -1,74 +1,37 @@
 
-Objectif
 
-Corriger l’action “Anecdotes” pour qu’elle avance réellement de lot en lot, qu’elle ne donne plus l’impression de retraiter toujours les mêmes POIs, et qu’elle ne s’arrête plus au premier incident réseau.
+## Plan: Ajouter une route `sync` a l'API v2 pour Quest Rides PRO
 
-Constat confirmé
+### Probleme
 
-- Dans `src/pages/admin/AdminPOIPipeline.tsx`, le bouton `Anecdotes` n’appelle pas le vrai enrichisseur d’anecdotes : il appelle `n8n-proxy` avec `action: "generate_fun_facts"`.
-- Le vrai traitement d’anecdotes complètes existe déjà dans `src/components/admin/EnrichmentPipelineCard.tsx` via `anecdote-enricher`.
-- La capture ne montre pas “1 seul batch” côté backend : on voit plusieurs lots réussir, puis un arrêt sur `Failed to send a request to the Edge Function`. Le problème principal est donc un mélange de :
-  1. mauvais câblage UI (Anecdotes = fun facts),
-  2. arrêt immédiat au moindre échec réseau,
-  3. ordre de sélection pas assez stable pour rassurer visuellement.
-- État actuel en base :
-  - environ 421 POIs sans anecdotes complètes (`local_anecdote_en` manquant),
-  - environ 663 POIs sans `fun_fact_fr`.
-  Donc il y a bien 2 pipelines différents qui sont aujourd’hui confondus.
+Quest Rides PRO veut importer les POIs enrichis depuis HPP. L'approche actuelle (appeler `?route=poi&id=X` pour chacun des ~1000 POIs) ferait ~1000 requetes individuelles — lent et fragile. De plus, le detail POI actuel ne renvoie pas tous les champs necessaires (riddles, crowd_level, accessibility_notes, photo_tip, is_photo_spot, must_try, must_see_details, must_visit_nearby, enrichment_status, poi_quality_score, name_fr).
 
-Plan de correction
+### Solution
 
-1. Séparer clairement “Anecdotes” et “Fun facts”
-- Renommer l’étape actuelle `fun-facts` en `Fun facts`.
-- Ajouter une vraie étape `anecdotes` dans `AdminPOIPipeline.tsx`.
-- Cette nouvelle étape appellera `anecdote-enricher` par lots de 5, comme dans `EnrichmentPipelineCard`.
+Ajouter une route `?route=sync` a `api-v2` qui renvoie en bulk tous les champs enrichis necessaires, pagines par 200.
 
-2. Réutiliser la bonne logique de boucle
-- Reprendre le pattern déjà présent dans `EnrichmentPipelineCard` pour le client-side loop.
-- Le compteur de l’étape `anecdotes` devra lire `updated`.
-- Le compteur de l’étape `fun-facts` devra continuer à lire `generated`.
+### Ce qui change dans `api-v2/index.ts`
 
-3. Ajouter une vraie tolérance aux erreurs réseau
-- Introduire un helper de retry côté page admin (`invokeWithRetry` ou équivalent).
-- 3 tentatives par batch avec backoff progressif.
-- Si une tentative échoue, log explicite dans les logs.
-- La boucle ne s’arrête qu’après échec final du batch.
+1. **Nouvelle route `sync`** — renvoie les POIs actifs avec TOUS les champs d'enrichissement, pagines (limit max 200, offset)
+2. **Champs retournes** : id, name, name_fr, name_en, name_ar, lat, lng, zone, category, history_context, description_short, local_anecdote, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, riddle_easy, riddle_medium, riddle_hard, crowd_level, accessibility_notes, photo_tip, is_photo_spot, instagram_spot, must_try, must_see_details, must_visit_nearby, poi_quality_score, enrichment_status
+3. **Filtre optionnel** : `?enriched_only=true` pour ne renvoyer que les POIs ayant au moins un champ enrichi (local_anecdote_fr, history_context, ou fun_fact_fr non null)
 
-4. Stabiliser l’ordre des batches côté backend
-- Dans `supabase/functions/anecdote-enricher/index.ts`, ajouter un ordre secondaire stable (`id`, ou `last_enriched_at` puis `id`).
-- Dans `supabase/functions/n8n-proxy/index.ts` pour `generate_fun_facts`, ajouter aussi un ordre secondaire stable.
-- But : éviter l’impression de “toujours le même lot” quand beaucoup de POIs ont le même score.
+```text
+GET ?route=sync&limit=200&offset=0&enriched_only=true
+→ { pois: [...], total, limit, offset, has_more }
+```
 
-5. Retourner un indicateur de reste à traiter
-- Faire renvoyer `remaining` par `anecdote-enricher` après chaque batch.
-- Utiliser `remaining` / `total_remaining` dans l’UI pour afficher une progression plus lisible.
+### Fichier modifie
 
-6. Corriger l’autopipeline
-- Remplacer l’étape actuelle ambiguë par :
-  - `anecdotes`
-  - puis `fun-facts`
-  - puis `translate-en`
-- Ainsi, l’autopipeline suit l’ordre logique du contenu long vers le contenu court puis la traduction.
+- `supabase/functions/api-v2/index.ts` — ajout de `handleSyncPois()` + route `sync`
 
-Fichiers à modifier
+### Ce que PRO doit faire de son cote
 
-- `src/pages/admin/AdminPOIPipeline.tsx`
-- `supabase/functions/anecdote-enricher/index.ts`
-- `supabase/functions/n8n-proxy/index.ts`
+PRO appellera `?route=sync&limit=200&offset=0&enriched_only=true` en boucle, match par nom+GPS, et update sa table locale. Pas besoin de faire 1000 appels individuels.
 
-Détails techniques
+### Resultat attendu
 
-- Pas de migration base nécessaire.
-- Le vrai enrichissement narratif reste `anecdote-enricher`.
-- `generate_fun_facts` doit rester un traitement distinct, avec un libellé distinct.
-- Les toasts, logs et libellés UI doivent être alignés :
-  - `Anecdotes` = contenu complet,
-  - `Fun facts` = phrase courte surprise.
+- PRO peut importer en ~5 requetes au lieu de ~1000
+- Tous les champs enrichis sont exposes
+- L'API key + rate limit existants protegent l'endpoint
 
-Résultat attendu
-
-- Le bouton `Anecdotes` traite bien les vrais POIs sans anecdote complète.
-- Les lots avancent de manière déterministe.
-- Une erreur réseau ponctuelle ne casse plus tout le run.
-- L’interface ne mélange plus anecdotes complètes et fun facts.
-- L’autopipeline enchaîne les bonnes étapes dans le bon ordre.
