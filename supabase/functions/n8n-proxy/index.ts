@@ -768,6 +768,7 @@ serve(async (req) => {
                       if (k === "history_context") return "history_context_en";
                       if (k === "riddle_easy") return "riddle_easy_en";
                       if (k === "wikipedia_summary") return "wikipedia_summary_en";
+                      if (k === "name") return "name_en";
                       return k.replace("_fr", "_en");
                     }),
                     additionalProperties: false,
