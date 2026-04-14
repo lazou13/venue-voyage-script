@@ -815,6 +815,7 @@ serve(async (req) => {
         .is("fun_fact_fr", null)
         .not("local_anecdote_fr", "is", null)
         .order("poi_quality_score", { ascending: false })
+        .order("id", { ascending: true })
         .limit(batchSize);
 
       if (error) throw error;
