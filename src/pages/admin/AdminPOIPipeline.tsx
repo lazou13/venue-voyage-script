@@ -103,6 +103,7 @@ export default function AdminPOIPipeline() {
           if (error) throw error;
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           grandTotal += data?.total_inserted ?? 0;
+          setStepResult(prev => ({ ...prev, extract: { processed: grandTotal, done: false } }));
 
           if (data?.next_offset != null) {
             offset = data.next_offset;
@@ -113,6 +114,7 @@ export default function AdminPOIPipeline() {
 
         setExtractionProgress({ current: totalTypes, total: totalTypes });
         setLogs(prev => [...prev, `✅ Extraction terminée — ${grandTotal} POIs insérés au total`]);
+        setStepResult(prev => ({ ...prev, extract: { processed: grandTotal, done: true } }));
         toast({ title: "Extraction terminée", description: `${grandTotal} POIs insérés.` });
         refetchStats();
         return;
@@ -129,12 +131,14 @@ export default function AdminPOIPipeline() {
           if (error) throw error;
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           totalClassified += data?.classified ?? 0;
+          setStepResult(prev => ({ ...prev, classify: { processed: totalClassified, done: false } }));
 
           if ((data?.classified ?? 0) === 0) break;
           round++;
         }
 
         setLogs(prev => [...prev, `✅ Classification terminée — ${totalClassified} POIs classifiés`]);
+        setStepResult(prev => ({ ...prev, classify: { processed: totalClassified, done: true } }));
         toast({ title: "Classification terminée", description: `${totalClassified} POIs classifiés.` });
         refetchStats();
         return;
@@ -148,6 +152,7 @@ export default function AdminPOIPipeline() {
           .not("status", "in", '("filtered","merged")');
         if (error) throw error;
         setLogs(prev => [...prev, `✅ Reset effectué. Relancez "Classifier" pour re-classifier.`]);
+        setStepResult(prev => ({ ...prev, reclassify: { processed: 0, done: true } }));
         toast({ title: "Reset effectué", description: "Relancez la classification." });
         refetchStats();
         return;
