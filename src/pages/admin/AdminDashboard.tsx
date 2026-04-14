@@ -17,11 +17,13 @@ interface Stats {
   filtered: number;
   classified: number;
   withAnecdote: number;
+  withAnecdoteEn: number;
   withRiddle: number;
   withPhoto: number;
   withWikipedia: number;
   withHistory: number;
   withFunFact: number;
+  withFunFactEn: number;
   mediaCount: number;
   toursCount: number;
   clientPhotos: number;
