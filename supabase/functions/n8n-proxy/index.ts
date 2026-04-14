@@ -685,12 +685,14 @@ serve(async (req) => {
 
       const batchSize = body.batch_size || 5;
 
+      // Broader filter: catch any POI missing ANY EN translation
+      // Use raw SQL filter via .or() to cover all cases
       const { data: pois, error } = await supabase
         .from("medina_pois")
         .select("id, name, name_fr, name_en, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, history_context, history_context_en, story_fr, story_en, riddle_easy, riddle_easy_en, wikipedia_summary, wikipedia_summary_en")
-        .not("local_anecdote_fr", "is", null)
-        .is("local_anecdote_en", null)
-        .order("poi_quality_score", { ascending: false })
+        .eq("is_active", true)
+        .or("and(local_anecdote_fr.not.is.null,local_anecdote_en.is.null),and(history_context.not.is.null,history_context_en.is.null),and(riddle_easy.not.is.null,riddle_easy_en.is.null),and(name_fr.not.is.null,name_en.is.null),and(story_fr.not.is.null,story_en.is.null)")
+        .order("poi_quality_score", { ascending: false, nullsFirst: false })
         .limit(batchSize);
 
       if (error) throw error;
