@@ -508,6 +508,14 @@ export default function AdminPOIPipeline() {
               {running === "backfill-details" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Rocket className="w-3 h-3" />}
               Backfill détails pratiques ({stats?.withPriceInfo ?? 0}/{active})
             </Button>
+            <Button onClick={() => runStep("fun-facts")} disabled={!!running} variant="secondary" size="sm" className="gap-1">
+              {running === "fun-facts" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+              Anecdotes (auto-loop)
+            </Button>
+            <Button onClick={() => runStep("translate-en")} disabled={!!running} variant="secondary" size="sm" className="gap-1">
+              {running === "translate-en" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Languages className="w-3 h-3" />}
+              Traduire EN (auto-loop)
+            </Button>
           </div>
         </CardContent>
       </Card>
