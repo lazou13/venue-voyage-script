@@ -7,7 +7,7 @@ import { Loader2, MapPin, CheckCircle, AlertTriangle, Camera, Library, Image, Me
 import EnrichmentDrilldown from '@/components/admin/EnrichmentDrilldown';
 import { useNavigate } from 'react-router-dom';
 
-type DbField = 'history_context' | 'local_anecdote_fr' | 'local_anecdote_en' | 'fun_fact_fr' | 'fun_fact_en' | 'riddle_easy' | 'wikipedia_summary';
+type DbField = 'history_context' | 'history_context_en' | 'local_anecdote_fr' | 'local_anecdote_en' | 'fun_fact_fr' | 'fun_fact_en' | 'riddle_easy' | 'riddle_easy_en' | 'wikipedia_summary' | 'wikipedia_summary_en';
 
 interface Stats {
   total: number;
@@ -19,9 +19,12 @@ interface Stats {
   withAnecdote: number;
   withAnecdoteEn: number;
   withRiddle: number;
+  withRiddleEn: number;
   withPhoto: number;
   withWikipedia: number;
+  withWikipediaEn: number;
   withHistory: number;
+  withHistoryEn: number;
   withFunFact: number;
   withFunFactEn: number;
   mediaCount: number;
@@ -61,7 +64,7 @@ async function fetchStats(): Promise<Stats> {
   // Enrichment coverage — sample active POIs
   const { data: sample } = await supabase
     .from('medina_pois')
-    .select('local_anecdote_fr, local_anecdote_en, riddle_easy, wikipedia_summary, history_context, fun_fact_fr, fun_fact_en')
+    .select('local_anecdote_fr, local_anecdote_en, riddle_easy, riddle_easy_en, wikipedia_summary, wikipedia_summary_en, history_context, history_context_en, fun_fact_fr, fun_fact_en')
     .eq('is_active', true)
     .limit(1000);
 
@@ -69,12 +72,14 @@ async function fetchStats(): Promise<Stats> {
   const withAnecdote = rows.filter((r: any) => r.local_anecdote_fr && r.local_anecdote_fr.length > 10).length;
   const withAnecdoteEn = rows.filter((r: any) => r.local_anecdote_en && r.local_anecdote_en.length > 10).length;
   const withRiddle = rows.filter((r: any) => r.riddle_easy && r.riddle_easy.length > 5).length;
+  const withRiddleEn = rows.filter((r: any) => r.riddle_easy_en && r.riddle_easy_en.length > 5).length;
   const withWikipedia = rows.filter((r: any) => r.wikipedia_summary && r.wikipedia_summary.length > 10).length;
+  const withWikipediaEn = rows.filter((r: any) => r.wikipedia_summary_en && r.wikipedia_summary_en.length > 10).length;
   const withHistory = rows.filter((r: any) => r.history_context && r.history_context.length > 10).length;
+  const withHistoryEn = rows.filter((r: any) => r.history_context_en && r.history_context_en.length > 10).length;
   const withFunFact = rows.filter((r: any) => r.fun_fact_fr && r.fun_fact_fr.length > 5).length;
   const withFunFactEn = rows.filter((r: any) => r.fun_fact_en && r.fun_fact_en.length > 5).length;
 
-  // Photos with media
   const withPhoto = mediaCount ?? 0;
 
   return {
@@ -87,9 +92,12 @@ async function fetchStats(): Promise<Stats> {
     withAnecdote,
     withAnecdoteEn,
     withRiddle,
-    withPhoto: withPhoto,
+    withRiddleEn,
+    withPhoto,
     withWikipedia,
+    withWikipediaEn,
     withHistory,
+    withHistoryEn,
     withFunFact,
     withFunFactEn,
     mediaCount: mediaCount ?? 0,
@@ -135,14 +143,21 @@ export default function AdminDashboard() {
     { label: 'Recommandations', value: stats.clientRecos, icon: MessageSquare, color: 'text-teal-600' },
   ];
 
-  const enrichmentCoverage: { label: string; value: number; total: number; field: DbField | 'photos' }[] = [
+  const enrichmentCoverageFr: { label: string; value: number; total: number; field: DbField | 'photos' }[] = [
     { label: 'Histoires', value: stats.withHistory, total: stats.total, field: 'history_context' },
-    { label: 'Anecdotes FR', value: stats.withAnecdote, total: stats.total, field: 'local_anecdote_fr' },
-    { label: 'Anecdotes EN', value: stats.withAnecdoteEn, total: stats.total, field: 'local_anecdote_en' },
-    { label: 'Fun Facts FR', value: stats.withFunFact, total: stats.total, field: 'fun_fact_fr' },
-    { label: 'Fun Facts EN', value: stats.withFunFactEn, total: stats.total, field: 'fun_fact_en' },
+    { label: 'Anecdotes', value: stats.withAnecdote, total: stats.total, field: 'local_anecdote_fr' },
+    { label: 'Fun Facts', value: stats.withFunFact, total: stats.total, field: 'fun_fact_fr' },
     { label: 'Énigmes', value: stats.withRiddle, total: stats.total, field: 'riddle_easy' },
     { label: 'Wikipedia', value: stats.withWikipedia, total: stats.total, field: 'wikipedia_summary' },
+    { label: 'Photos', value: stats.withPhoto, total: stats.total, field: 'photos' },
+  ];
+
+  const enrichmentCoverageEn: { label: string; value: number; total: number; field: DbField | 'photos' }[] = [
+    { label: 'History', value: stats.withHistoryEn, total: stats.total, field: 'history_context_en' },
+    { label: 'Anecdotes', value: stats.withAnecdoteEn, total: stats.total, field: 'local_anecdote_en' },
+    { label: 'Fun Facts', value: stats.withFunFactEn, total: stats.total, field: 'fun_fact_en' },
+    { label: 'Riddles', value: stats.withRiddleEn, total: stats.total, field: 'riddle_easy_en' },
+    { label: 'Wikipedia', value: stats.withWikipediaEn, total: stats.total, field: 'wikipedia_summary_en' },
     { label: 'Photos', value: stats.withPhoto, total: stats.total, field: 'photos' },
   ];
 
@@ -218,9 +233,10 @@ export default function AdminDashboard() {
         <CardHeader>
           <CardTitle className="text-lg">Couverture d'enrichissement</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
-            {enrichmentCoverage.map(({ label, value, total, field }) => (
+        <CardContent className="space-y-4">
+          <p className="text-sm font-medium">🇫🇷 Français</p>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+            {enrichmentCoverageFr.map(({ label, value, total, field }) => (
               <div
                 key={label}
                 className="text-center p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors hover:ring-1 hover:ring-primary/30"
@@ -229,7 +245,29 @@ export default function AdminDashboard() {
                     navigate('/admin/media-library');
                   } else {
                     setDrilldownField(field);
-                    setDrilldownLabel(label);
+                    setDrilldownLabel(label + ' FR');
+                  }
+                }}
+              >
+                <p className="text-2xl font-bold"><Pct value={value} total={total} /></p>
+                <p className="text-xs text-muted-foreground mt-1">{label}</p>
+                <p className="text-xs text-muted-foreground">{value}/{total}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-sm font-medium">🇬🇧 English</p>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
+            {enrichmentCoverageEn.map(({ label, value, total, field }) => (
+              <div
+                key={label}
+                className="text-center p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors hover:ring-1 hover:ring-primary/30"
+                onClick={() => {
+                  if (field === 'photos') {
+                    navigate('/admin/media-library');
+                  } else {
+                    setDrilldownField(field);
+                    setDrilldownLabel(label + ' EN');
                   }
                 }}
               >

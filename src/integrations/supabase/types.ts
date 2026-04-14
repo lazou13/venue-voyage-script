@@ -579,6 +579,7 @@ export type Database = {
           historical_period: string | null
           historical_significance: number | null
           history_context: string | null
+          history_context_en: string | null
           hub_theme: string | null
           id: string
           instagram_score: number | null
@@ -621,6 +622,7 @@ export type Database = {
           recommendations_count: number | null
           reviews_count: number | null
           riddle_easy: string | null
+          riddle_easy_en: string | null
           riddle_hard: string | null
           riddle_medium: string | null
           route_tags: string[] | null
@@ -653,6 +655,7 @@ export type Database = {
           wikidata_id: string | null
           wikimedia_images: Json | null
           wikipedia_summary: string | null
+          wikipedia_summary_en: string | null
           zone: string
         }
         Insert: {
@@ -690,6 +693,7 @@ export type Database = {
           historical_period?: string | null
           historical_significance?: number | null
           history_context?: string | null
+          history_context_en?: string | null
           hub_theme?: string | null
           id?: string
           instagram_score?: number | null
@@ -732,6 +736,7 @@ export type Database = {
           recommendations_count?: number | null
           reviews_count?: number | null
           riddle_easy?: string | null
+          riddle_easy_en?: string | null
           riddle_hard?: string | null
           riddle_medium?: string | null
           route_tags?: string[] | null
@@ -764,6 +769,7 @@ export type Database = {
           wikidata_id?: string | null
           wikimedia_images?: Json | null
           wikipedia_summary?: string | null
+          wikipedia_summary_en?: string | null
           zone?: string
         }
         Update: {
@@ -801,6 +807,7 @@ export type Database = {
           historical_period?: string | null
           historical_significance?: number | null
           history_context?: string | null
+          history_context_en?: string | null
           hub_theme?: string | null
           id?: string
           instagram_score?: number | null
@@ -843,6 +850,7 @@ export type Database = {
           recommendations_count?: number | null
           reviews_count?: number | null
           riddle_easy?: string | null
+          riddle_easy_en?: string | null
           riddle_hard?: string | null
           riddle_medium?: string | null
           route_tags?: string[] | null
@@ -875,6 +883,7 @@ export type Database = {
           wikidata_id?: string | null
           wikimedia_images?: Json | null
           wikipedia_summary?: string | null
+          wikipedia_summary_en?: string | null
           zone?: string
         }
         Relationships: []
