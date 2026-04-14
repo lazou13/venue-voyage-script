@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
+import { Separator } from "@/components/ui/separator";
 import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2, Camera, Sparkles, Languages } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import EnrichmentPipelineCard from "@/components/admin/EnrichmentPipelineCard";
@@ -17,6 +18,7 @@ export default function AdminPOIPipeline() {
   const [running, setRunning] = useState<StepKey | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
   const [extractionProgress, setExtractionProgress] = useState<{ current: number; total: number } | null>(null);
+  const [stepResult, setStepResult] = useState<Record<string, { processed: number; done: boolean }>>({});
 
   const { data: stats, refetch: refetchStats } = useQuery({
     queryKey: ["poi-pipeline-stats"],
@@ -81,6 +83,7 @@ export default function AdminPOIPipeline() {
     setRunning(step);
     setLogs([`▶ Lancement: ${step}...`]);
     setExtractionProgress(null);
+    setStepResult(prev => ({ ...prev, [step]: { processed: 0, done: false } }));
 
     try {
       if (step === "extract") {
@@ -100,6 +103,7 @@ export default function AdminPOIPipeline() {
           if (error) throw error;
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           grandTotal += data?.total_inserted ?? 0;
+          setStepResult(prev => ({ ...prev, extract: { processed: grandTotal, done: false } }));
 
           if (data?.next_offset != null) {
             offset = data.next_offset;
@@ -110,6 +114,7 @@ export default function AdminPOIPipeline() {
 
         setExtractionProgress({ current: totalTypes, total: totalTypes });
         setLogs(prev => [...prev, `✅ Extraction terminée — ${grandTotal} POIs insérés au total`]);
+        setStepResult(prev => ({ ...prev, extract: { processed: grandTotal, done: true } }));
         toast({ title: "Extraction terminée", description: `${grandTotal} POIs insérés.` });
         refetchStats();
         return;
@@ -126,12 +131,14 @@ export default function AdminPOIPipeline() {
           if (error) throw error;
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           totalClassified += data?.classified ?? 0;
+          setStepResult(prev => ({ ...prev, classify: { processed: totalClassified, done: false } }));
 
           if ((data?.classified ?? 0) === 0) break;
           round++;
         }
 
         setLogs(prev => [...prev, `✅ Classification terminée — ${totalClassified} POIs classifiés`]);
+        setStepResult(prev => ({ ...prev, classify: { processed: totalClassified, done: true } }));
         toast({ title: "Classification terminée", description: `${totalClassified} POIs classifiés.` });
         refetchStats();
         return;
@@ -145,6 +152,7 @@ export default function AdminPOIPipeline() {
           .not("status", "in", '("filtered","merged")');
         if (error) throw error;
         setLogs(prev => [...prev, `✅ Reset effectué. Relancez "Classifier" pour re-classifier.`]);
+        setStepResult(prev => ({ ...prev, reclassify: { processed: 0, done: true } }));
         toast({ title: "Reset effectué", description: "Relancez la classification." });
         refetchStats();
         return;
@@ -167,11 +175,13 @@ export default function AdminPOIPipeline() {
           if (classErr) throw classErr;
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           totalClassified += data?.classified ?? 0;
+          setStepResult(prev => ({ ...prev, "rescore-riads": { processed: totalClassified, done: false } }));
           if ((data?.classified ?? 0) === 0) break;
           round++;
         }
 
         setLogs(prev => [...prev, `✅ Re-scoring riads terminé — ${totalClassified} POIs reclassifiés`]);
+        setStepResult(prev => ({ ...prev, "rescore-riads": { processed: totalClassified, done: true } }));
         toast({ title: "Riads re-scorés", description: `${totalClassified} riads reclassifiés avec le nouveau prompt.` });
         refetchStats();
         return;
@@ -192,6 +202,7 @@ export default function AdminPOIPipeline() {
           if (error) throw error;
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           totalUpdated += data?.updated ?? 0;
+          setStepResult(prev => ({ ...prev, "backfill-details": { processed: totalUpdated, done: false } }));
 
           if ((data?.processed ?? 0) === 0 || (data?.updated ?? 0) === 0) break;
           round++;
@@ -199,6 +210,7 @@ export default function AdminPOIPipeline() {
 
         setExtractionProgress({ current: totalUpdated, total: active });
         setLogs(prev => [...prev, `✅ Backfill terminé — ${totalUpdated} POIs mis à jour`]);
+        setStepResult(prev => ({ ...prev, "backfill-details": { processed: totalUpdated, done: true } }));
         toast({ title: "Backfill terminé", description: `${totalUpdated} POIs enrichis.` });
         refetchStats();
         return;
@@ -215,6 +227,7 @@ export default function AdminPOIPipeline() {
           if (error) throw error;
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           totalFetched += data?.fetched ?? 0;
+          setStepResult(prev => ({ ...prev, "fetch-photos": { processed: totalFetched, done: false } }));
 
           const remaining = data?.remaining ?? 0;
           if (remaining > 0) {
@@ -228,6 +241,7 @@ export default function AdminPOIPipeline() {
 
         setExtractionProgress(null);
         setLogs(prev => [...prev, `✅ Photos terminé — ${totalFetched} photos récupérées`]);
+        setStepResult(prev => ({ ...prev, "fetch-photos": { processed: totalFetched, done: true } }));
         toast({ title: "Photos terminé", description: `${totalFetched} photos Google récupérées.` });
         refetchStats();
         return;
@@ -248,6 +262,7 @@ export default function AdminPOIPipeline() {
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           const processed = data?.processed ?? data?.updated ?? 0;
           totalProcessed += processed;
+          setStepResult(prev => ({ ...prev, "fun-facts": { processed: totalProcessed, done: false } }));
 
           if (processed === 0) break;
           round++;
@@ -255,6 +270,7 @@ export default function AdminPOIPipeline() {
         }
 
         setLogs(prev => [...prev, `✅ Anecdotes terminé — ${totalProcessed} POIs enrichis`]);
+        setStepResult(prev => ({ ...prev, "fun-facts": { processed: totalProcessed, done: true } }));
         toast({ title: "Anecdotes générées", description: `${totalProcessed} POIs enrichis.` });
         refetchStats();
         return;
@@ -275,6 +291,7 @@ export default function AdminPOIPipeline() {
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           const processed = data?.processed ?? data?.updated ?? 0;
           totalProcessed += processed;
+          setStepResult(prev => ({ ...prev, "translate-en": { processed: totalProcessed, done: false } }));
 
           if (processed === 0) break;
           round++;
@@ -282,6 +299,7 @@ export default function AdminPOIPipeline() {
         }
 
         setLogs(prev => [...prev, `✅ Traduction terminée — ${totalProcessed} POIs traduits`]);
+        setStepResult(prev => ({ ...prev, "translate-en": { processed: totalProcessed, done: true } }));
         toast({ title: "Traduction terminée", description: `${totalProcessed} POIs traduits en anglais.` });
         refetchStats();
         return;
@@ -457,65 +475,88 @@ export default function AdminPOIPipeline() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Actions manuelles</CardTitle>
-          <CardDescription>Le pipeline tourne automatiquement. Ces boutons permettent de forcer une étape.</CardDescription>
+          <CardDescription>Le pipeline tourne automatiquement. Ces boutons permettent de forcer une étape dans l'ordre.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Button onClick={() => runStep("autopipeline")} disabled={!!running} size="sm" className="gap-1">
-              {running === "autopipeline" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-              Autopipeline
-            </Button>
-            <Button onClick={() => runStep("classify")} disabled={!!running} variant="outline" size="sm" className="gap-1">
-              {running === "classify" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Tags className="w-3 h-3" />}
-              Classifier (auto-loop)
-            </Button>
-            <Button onClick={() => runStep("reclassify")} disabled={!!running} variant="destructive" size="sm" className="gap-1">
-              {running === "reclassify" ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-              Re-classifier tout
-            </Button>
-            <Button onClick={() => runStep("rescore-riads")} disabled={!!running} variant="secondary" size="sm" className="gap-1">
-              {running === "rescore-riads" ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-              Re-scorer riads
-            </Button>
-            <Button onClick={() => runStep("worker")} disabled={!!running} variant="outline" size="sm" className="gap-1">
-              {running === "worker" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Brain className="w-3 h-3" />}
-              Enrichir
-            </Button>
-            <Button onClick={() => runStep("extract")} disabled={!!running} variant="outline" size="sm" className="gap-1">
-              {running === "extract" ? <Loader2 className="w-3 h-3 animate-spin" /> : <MapPin className="w-3 h-3" />}
-              Extraire
-            </Button>
-            <Button onClick={() => runStep("clean")} disabled={!!running} variant="outline" size="sm" className="gap-1">
-              {running === "clean" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-              Nettoyer
-            </Button>
-            <Button onClick={() => runStep("merge")} disabled={!!running} variant="outline" size="sm" className="gap-1">
-              {running === "merge" ? <Loader2 className="w-3 h-3 animate-spin" /> : <GitMerge className="w-3 h-3" />}
-              Fusionner
-            </Button>
-            <Button onClick={() => runStep("proximity")} disabled={!!running} variant="outline" size="sm" className="gap-1">
-              {running === "proximity" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Route className="w-3 h-3" />}
-              Proximité
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => refetchStats()} className="gap-1">
-              <RefreshCw className="w-3 h-3" /> Rafraîchir
-            </Button>
-            <Button onClick={() => runStep("fetch-photos")} disabled={!!running} variant="secondary" size="sm" className="gap-1">
-              {running === "fetch-photos" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
-              Photos Google (auto-loop)
-            </Button>
-            <Button onClick={() => runStep("backfill-details")} disabled={!!running} variant="default" size="sm" className="gap-1 col-span-2">
-              {running === "backfill-details" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Rocket className="w-3 h-3" />}
-              Backfill détails pratiques ({stats?.withPriceInfo ?? 0}/{active})
-            </Button>
-            <Button onClick={() => runStep("fun-facts")} disabled={!!running} variant="secondary" size="sm" className="gap-1">
-              {running === "fun-facts" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-              Anecdotes (auto-loop)
-            </Button>
-            <Button onClick={() => runStep("translate-en")} disabled={!!running} variant="secondary" size="sm" className="gap-1">
-              {running === "translate-en" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Languages className="w-3 h-3" />}
-              Traduire EN (auto-loop)
-            </Button>
+          <div className="flex flex-col gap-2">
+            {([
+              { key: "extract" as StepKey, icon: MapPin, label: "Extraire", desc: "Extrait les POIs depuis OpenStreetMap par types (monuments, restaurants, etc.)", variant: "outline" as const },
+              { key: "classify" as StepKey, icon: Tags, label: "Classifier", desc: "Classifie chaque POI par catégorie IA et attribue un score qualité", variant: "outline" as const },
+              { key: "worker" as StepKey, icon: Brain, label: "Enrichir", desc: "Enrichit les POIs avec descriptions, contexte historique et métadonnées", variant: "outline" as const },
+              { key: "clean" as StepKey, icon: Trash2, label: "Nettoyer", desc: "Supprime les doublons et POIs de faible qualité", variant: "outline" as const },
+              { key: "merge" as StepKey, icon: GitMerge, label: "Fusionner", desc: "Fusionne les POIs proches qui désignent le même lieu", variant: "outline" as const },
+              { key: "proximity" as StepKey, icon: Route, label: "Proximité", desc: "Calcule les POIs voisins pour chaque point d'intérêt", variant: "outline" as const },
+              { key: "backfill-details" as StepKey, icon: Rocket, label: "Backfill", desc: "Récupère prix, horaires et infos pratiques manquantes", variant: "default" as const },
+              { key: "fetch-photos" as StepKey, icon: Camera, label: "Photos Google", desc: "Télécharge les photos Google Places pour chaque POI", variant: "secondary" as const },
+              { key: "fun-facts" as StepKey, icon: Sparkles, label: "Anecdotes", desc: "Génère fun facts et anecdotes locales via IA", variant: "secondary" as const },
+              { key: "translate-en" as StepKey, icon: Languages, label: "Traduire EN", desc: "Traduit nom, description et histoire en anglais", variant: "secondary" as const },
+            ] as const).map(({ key, icon: Icon, label, desc, variant }) => {
+              const result = stepResult[key];
+              return (
+                <div key={key} className="flex items-center gap-3">
+                  <Button onClick={() => runStep(key)} disabled={!!running} variant={variant} size="sm" className="gap-1 w-[180px] shrink-0 justify-start">
+                    {running === key ? <Loader2 className="w-3 h-3 animate-spin" /> : <Icon className="w-3 h-3" />}
+                    {label}
+                  </Button>
+                  <span className="text-sm text-muted-foreground flex-1 min-w-0 truncate">{desc}</span>
+                  {result && (
+                    <div className="flex items-center gap-2 shrink-0 w-[160px]">
+                      {result.done ? (
+                        <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> {result.processed} traités
+                        </span>
+                      ) : (
+                        <>
+                          <Progress value={undefined} className="h-1.5 w-[80px] animate-pulse" />
+                          <span className="text-xs text-muted-foreground font-medium">{result.processed} traités</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            <Separator className="my-2" />
+
+            {/* Destructive / reset actions */}
+            {([
+              { key: "reclassify" as StepKey, icon: RefreshCw, label: "Re-classifier", desc: "Réinitialise toutes les classifications pour recommencer", variant: "destructive" as const },
+              { key: "rescore-riads" as StepKey, icon: RefreshCw, label: "Re-scorer riads", desc: "Réinitialise et reclassifie uniquement les riads", variant: "secondary" as const },
+            ] as const).map(({ key, icon: Icon, label, desc, variant }) => {
+              const result = stepResult[key];
+              return (
+                <div key={key} className="flex items-center gap-3">
+                  <Button onClick={() => runStep(key)} disabled={!!running} variant={variant} size="sm" className="gap-1 w-[180px] shrink-0 justify-start">
+                    {running === key ? <Loader2 className="w-3 h-3 animate-spin" /> : <Icon className="w-3 h-3" />}
+                    {label}
+                  </Button>
+                  <span className="text-sm text-muted-foreground flex-1 min-w-0 truncate">{desc}</span>
+                  {result?.done && (
+                    <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-medium shrink-0">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Terminé
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+
+            <Separator className="my-2" />
+
+            {/* Global actions */}
+            <div className="flex items-center gap-3">
+              <Button onClick={() => runStep("autopipeline")} disabled={!!running} size="sm" className="gap-1 w-[180px] shrink-0 justify-start">
+                {running === "autopipeline" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                Autopipeline
+              </Button>
+              <span className="text-sm text-muted-foreground flex-1">Lance toutes les étapes automatiquement dans l'ordre</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" onClick={() => refetchStats()} className="gap-1 w-[180px] shrink-0 justify-start">
+                <RefreshCw className="w-3 h-3" /> Rafraîchir
+              </Button>
+              <span className="text-sm text-muted-foreground flex-1">Met à jour les statistiques affichées</span>
+            </div>
           </div>
         </CardContent>
       </Card>
