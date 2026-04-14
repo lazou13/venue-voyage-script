@@ -711,9 +711,11 @@ serve(async (req) => {
           const fieldsToTranslate: Record<string, string> = {};
           if (poi.local_anecdote_fr) fieldsToTranslate.local_anecdote_fr = poi.local_anecdote_fr;
           if (poi.fun_fact_fr && !poi.fun_fact_en) fieldsToTranslate.fun_fact_fr = poi.fun_fact_fr;
-          if (poi.history_context) fieldsToTranslate.history_context = poi.history_context;
+          if (poi.history_context && !poi.history_context_en) fieldsToTranslate.history_context = poi.history_context;
           if (poi.name_fr && !poi.name_en) fieldsToTranslate.name_fr = poi.name_fr;
           if (poi.story_fr && !poi.story_en) fieldsToTranslate.story_fr = poi.story_fr;
+          if (poi.riddle_easy && !poi.riddle_easy_en) fieldsToTranslate.riddle_easy = poi.riddle_easy;
+          if (poi.wikipedia_summary && !poi.wikipedia_summary_en) fieldsToTranslate.wikipedia_summary = poi.wikipedia_summary;
 
           if (Object.keys(fieldsToTranslate).length === 0) {
             logs.push(`⏭️ ${displayName}: rien à traduire`);
