@@ -83,6 +83,7 @@ export default function AdminPOIPipeline() {
     setRunning(step);
     setLogs([`▶ Lancement: ${step}...`]);
     setExtractionProgress(null);
+    setStepResult(prev => ({ ...prev, [step]: { processed: 0, done: false } }));
 
     try {
       if (step === "extract") {
