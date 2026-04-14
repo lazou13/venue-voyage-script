@@ -7,7 +7,7 @@ import { Loader2, MapPin, CheckCircle, AlertTriangle, Camera, Library, Image, Me
 import EnrichmentDrilldown from '@/components/admin/EnrichmentDrilldown';
 import { useNavigate } from 'react-router-dom';
 
-type DbField = 'history_context' | 'local_anecdote_fr' | 'local_anecdote_en' | 'fun_fact_fr' | 'fun_fact_en' | 'riddle_easy' | 'wikipedia_summary';
+type DbField = 'history_context' | 'history_context_en' | 'local_anecdote_fr' | 'local_anecdote_en' | 'fun_fact_fr' | 'fun_fact_en' | 'riddle_easy' | 'riddle_easy_en' | 'wikipedia_summary' | 'wikipedia_summary_en';
 
 interface Stats {
   total: number;
@@ -19,9 +19,12 @@ interface Stats {
   withAnecdote: number;
   withAnecdoteEn: number;
   withRiddle: number;
+  withRiddleEn: number;
   withPhoto: number;
   withWikipedia: number;
+  withWikipediaEn: number;
   withHistory: number;
+  withHistoryEn: number;
   withFunFact: number;
   withFunFactEn: number;
   mediaCount: number;
