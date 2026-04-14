@@ -260,7 +260,7 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
       logs.push(`🌐 Phase 2.5: ${missingEnCount} POIs avec contenu FR sans traduction EN — lancement traduction...`);
 
       const BASE_URL = Deno.env.get("SUPABASE_URL")!;
-      const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       let totalTranslated = 0;
 
       for (let batch = 0; batch < 20; batch++) {

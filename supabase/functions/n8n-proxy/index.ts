@@ -44,6 +44,14 @@ serve(async (req) => {
     }
   }
 
+  // Method 3: Service role key (for internal edge-function-to-edge-function calls)
+  if (!isAuthed && authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.replace("Bearer ", "");
+    if (token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+      isAuthed = true;
+    }
+  }
+
   if (!isAuthed) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
