@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,10 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
-import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2, Camera, Sparkles, Languages } from "lucide-react";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2, Camera, Sparkles, Languages, Eye, Clock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import EnrichmentPipelineCard from "@/components/admin/EnrichmentPipelineCard";
 import AgentMonitoringCard from "@/components/admin/AgentMonitoringCard";
+import { formatDistanceToNow } from "date-fns";
+import { fr } from "date-fns/locale";
 
 type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details" | "reclassify" | "rescore-riads" | "anecdotes" | "fun-facts" | "translate-en" | "clean-arabic";
 
@@ -31,6 +34,24 @@ export default function AdminPOIPipeline() {
   const [logs, setLogs] = useState<string[]>([]);
   const [extractionProgress, setExtractionProgress] = useState<{ current: number; total: number } | null>(null);
   const [stepResult, setStepResult] = useState<Record<string, { processed: number; done: boolean }>>({});
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [showRunLogs, setShowRunLogs] = useState(false);
+
+  // Poll for active pipeline run
+  const { data: latestRun, refetch: refetchRun } = useQuery({
+    queryKey: ["pipeline-run-latest"],
+    refetchInterval: 5000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pipeline_runs")
+        .select("*")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+  });
 
   const { data: stats, refetch: refetchStats } = useQuery({
     queryKey: ["poi-pipeline-stats"],
@@ -495,24 +516,75 @@ export default function AdminPOIPipeline() {
     setLogs(["🚀 Autopipeline démarré..."]);
     setStepResult(prev => ({ ...prev, autopipeline: { processed: 0, done: false } }));
     let completedSteps = 0;
+    const runLogs: string[] = ["🚀 Autopipeline démarré..."];
+
+    // Insert pipeline_runs row
+    let runId: string | null = null;
+    try {
+      const { data: insertData, error: insertErr } = await supabase
+        .from("pipeline_runs")
+        .insert({
+          status: "running",
+          current_step: pipelineSteps[0],
+          total_steps: pipelineSteps.length,
+          completed_steps: [],
+          logs: runLogs,
+        } as any)
+        .select("id")
+        .single();
+      if (!insertErr && insertData) {
+        runId = (insertData as any).id;
+        setActiveRunId(runId);
+      }
+    } catch (_) { /* best effort */ }
+
+    const updateRun = async (patch: Record<string, unknown>) => {
+      if (!runId) return;
+      try {
+        await supabase.from("pipeline_runs").update(patch as any).eq("id", runId);
+        refetchRun();
+      } catch (_) {}
+    };
+
+    const completedList: string[] = [];
 
     for (const step of pipelineSteps) {
-      setLogs(prev => [...prev, `\n🔄 Autopipeline — étape: ${step}...`]);
+      const logLine = `\n🔄 Autopipeline — étape: ${step}...`;
+      setLogs(prev => [...prev, logLine]);
+      runLogs.push(logLine);
+      await updateRun({ current_step: step, logs: runLogs });
+
       try {
         await runStepInner(step);
         completedSteps++;
+        completedList.push(step);
         setStepResult(prev => ({ ...prev, autopipeline: { processed: completedSteps, done: false } }));
+        const doneLog = `✅ ${step} terminé`;
+        runLogs.push(doneLog);
+        await updateRun({ completed_steps: completedList, logs: runLogs });
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Erreur";
-        setLogs(prev => [...prev, `⚠️ ${step} échoué: ${msg} — passage à la suite`]);
+        const errLog = `⚠️ ${step} échoué: ${msg} — passage à la suite`;
+        setLogs(prev => [...prev, errLog]);
+        runLogs.push(errLog);
+        await updateRun({ logs: runLogs });
       }
     }
 
+    await updateRun({
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      completed_steps: completedList,
+      logs: runLogs,
+    });
+
     setRunning(null);
+    setActiveRunId(null);
     setExtractionProgress(null);
     setStepResult(prev => ({ ...prev, autopipeline: { processed: completedSteps, done: true } }));
     toast({ title: "Autopipeline terminé", description: `${completedSteps}/${pipelineSteps.length} étapes réussies.` });
     refetchStats();
+    refetchRun();
   };
 
   const active = stats?.active ?? 0;
@@ -555,6 +627,45 @@ export default function AdminPOIPipeline() {
       </div>
 
       <AgentMonitoringCard />
+
+      {/* Pipeline run status banner */}
+      {latestRun && (
+        <Alert className={latestRun.status === 'running' ? 'border-primary bg-primary/5' : latestRun.status === 'completed' ? 'border-green-500 bg-green-500/5' : 'border-destructive bg-destructive/5'}>
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2">
+              {latestRun.status === 'running' ? (
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              ) : latestRun.status === 'completed' ? (
+                <CheckCircle2 className="w-4 h-4 text-green-600" />
+              ) : (
+                <Clock className="w-4 h-4 text-destructive" />
+              )}
+              <AlertTitle className="mb-0">
+                {latestRun.status === 'running'
+                  ? `Autopipeline en cours — étape ${latestRun.current_step} (${(latestRun.completed_steps || []).length}/${latestRun.total_steps})`
+                  : latestRun.status === 'completed'
+                    ? `Autopipeline terminé ${latestRun.completed_at ? formatDistanceToNow(new Date(latestRun.completed_at), { addSuffix: true, locale: fr }) : ''}`
+                    : `Autopipeline échoué ${latestRun.error_message ? `— ${latestRun.error_message}` : ''}`
+                }
+              </AlertTitle>
+            </div>
+            <Button variant="ghost" size="sm" className="gap-1" onClick={() => setShowRunLogs(!showRunLogs)}>
+              <Eye className="w-3 h-3" /> {showRunLogs ? 'Masquer' : 'Voir les logs'}
+            </Button>
+          </div>
+          {showRunLogs && latestRun.logs && (
+            <AlertDescription className="mt-2">
+              <div className="bg-muted rounded-md p-3 max-h-48 overflow-y-auto font-mono text-xs space-y-0.5">
+                {(latestRun.logs as string[]).map((line: string, i: number) => (
+                  <div key={i} className={line.includes("⚠") || line.includes("❌") ? "text-orange-500" : line.includes("✓") || line.includes("✅") ? "text-green-600 dark:text-green-400" : "text-foreground"}>
+                    {line}
+                  </div>
+                ))}
+              </div>
+            </AlertDescription>
+          )}
+        </Alert>
+      )}
 
       <EnrichmentPipelineCard />
 

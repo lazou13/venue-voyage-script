@@ -950,6 +950,42 @@ export type Database = {
           },
         ]
       }
+      pipeline_runs: {
+        Row: {
+          completed_at: string | null
+          completed_steps: string[] | null
+          current_step: string | null
+          error_message: string | null
+          id: string
+          logs: string[] | null
+          started_at: string | null
+          status: string
+          total_steps: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_steps?: string[] | null
+          current_step?: string | null
+          error_message?: string | null
+          id?: string
+          logs?: string[] | null
+          started_at?: string | null
+          status?: string
+          total_steps?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          completed_steps?: string[] | null
+          current_step?: string | null
+          error_message?: string | null
+          id?: string
+          logs?: string[] | null
+          started_at?: string | null
+          status?: string
+          total_steps?: number | null
+        }
+        Relationships: []
+      }
       poi_media: {
         Row: {
           caption: string | null
