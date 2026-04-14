@@ -687,7 +687,7 @@ serve(async (req) => {
 
       const { data: pois, error } = await supabase
         .from("medina_pois")
-        .select("id, name, name_fr, name_en, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, history_context, story_fr, story_en")
+        .select("id, name, name_fr, name_en, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, history_context, history_context_en, story_fr, story_en, riddle_easy, riddle_easy_en, wikipedia_summary, wikipedia_summary_en")
         .not("local_anecdote_fr", "is", null)
         .is("local_anecdote_en", null)
         .order("poi_quality_score", { ascending: false })
@@ -711,9 +711,11 @@ serve(async (req) => {
           const fieldsToTranslate: Record<string, string> = {};
           if (poi.local_anecdote_fr) fieldsToTranslate.local_anecdote_fr = poi.local_anecdote_fr;
           if (poi.fun_fact_fr && !poi.fun_fact_en) fieldsToTranslate.fun_fact_fr = poi.fun_fact_fr;
-          if (poi.history_context) fieldsToTranslate.history_context = poi.history_context;
+          if (poi.history_context && !poi.history_context_en) fieldsToTranslate.history_context = poi.history_context;
           if (poi.name_fr && !poi.name_en) fieldsToTranslate.name_fr = poi.name_fr;
           if (poi.story_fr && !poi.story_en) fieldsToTranslate.story_fr = poi.story_fr;
+          if (poi.riddle_easy && !poi.riddle_easy_en) fieldsToTranslate.riddle_easy = poi.riddle_easy;
+          if (poi.wikipedia_summary && !poi.wikipedia_summary_en) fieldsToTranslate.wikipedia_summary = poi.wikipedia_summary;
 
           if (Object.keys(fieldsToTranslate).length === 0) {
             logs.push(`⏭️ ${displayName}: rien à traduire`);
@@ -749,8 +751,15 @@ serve(async (req) => {
                       history_context_en: { type: "string", description: "English translation of history_context" },
                       name_en: { type: "string", description: "English translation of name_fr" },
                       story_en: { type: "string", description: "English translation of story_fr" },
+                      riddle_easy_en: { type: "string", description: "English translation of riddle_easy" },
+                      wikipedia_summary_en: { type: "string", description: "English translation of wikipedia_summary" },
                     },
-                    required: Object.keys(fieldsToTranslate).map(k => k.replace("_fr", "_en").replace("history_context", "history_context_en")),
+                    required: Object.keys(fieldsToTranslate).map(k => {
+                      if (k === "history_context") return "history_context_en";
+                      if (k === "riddle_easy") return "riddle_easy_en";
+                      if (k === "wikipedia_summary") return "wikipedia_summary_en";
+                      return k.replace("_fr", "_en");
+                    }),
                     additionalProperties: false,
                   },
                 },
@@ -777,8 +786,9 @@ serve(async (req) => {
           if (t.fun_fact_en) updateData.fun_fact_en = t.fun_fact_en;
           if (t.name_en) updateData.name_en = t.name_en;
           if (t.story_en) updateData.story_en = t.story_en;
-          // Store history_context_en in description_short (existing EN-friendly column)
-          if (t.history_context_en) updateData.description_short = t.history_context_en;
+          if (t.history_context_en) updateData.history_context_en = t.history_context_en;
+          if (t.riddle_easy_en) updateData.riddle_easy_en = t.riddle_easy_en;
+          if (t.wikipedia_summary_en) updateData.wikipedia_summary_en = t.wikipedia_summary_en;
 
           const { error: updErr } = await supabase
             .from("medina_pois")

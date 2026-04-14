@@ -46,6 +46,10 @@ history_context (200-250 mots) :
   Paragraphe 3 : Qu'est-ce que le visiteur voit aujourd'hui
     et pourquoi c'est remarquable ?
 
+history_context_en (200-250 words) :
+  Natural English translation of history_context.
+  Adapt for an English-speaking audience — not word-for-word.
+
 local_anecdote_fr (80-100 mots MAXIMUM) :
   RÈGLE ABSOLUE : 1 seul fait surprenant ou inattendu.
   STRUCTURE OBLIGATOIRE :
@@ -166,6 +170,9 @@ serve(async (req) => {
         const updateData: Record<string, unknown> = {};
         if (result.history_context && (force || !poi.history_context)) {
           updateData.history_context = result.history_context;
+        }
+        if (result.history_context_en) {
+          updateData.history_context_en = result.history_context_en;
         }
         if (result.local_anecdote_fr) {
           updateData.local_anecdote = result.local_anecdote_fr;
