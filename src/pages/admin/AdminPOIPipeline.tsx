@@ -259,7 +259,7 @@ export default function AdminPOIPipeline() {
 
           if (error) throw error;
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
-          const processed = data?.enriched ?? data?.processed ?? data?.updated ?? 0;
+          const processed = data?.generated ?? data?.enriched ?? data?.processed ?? data?.updated ?? 0;
           totalProcessed += processed;
           setStepResult(prev => ({ ...prev, "fun-facts": { processed: totalProcessed, done: false } }));
 
