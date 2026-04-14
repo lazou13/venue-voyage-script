@@ -1,44 +1,65 @@
 
 
-## Plan : Accélérer l'agent autonome
+## Plan : Corriger l'authentification agent → n8n-proxy et lancer la traduction
 
-### Constat
+### Problème identifié
 
-- **477 POIs** encore sans traduction EN (sur 827 actifs)
-- **16/15 visites** générées (bibliothèque complète)
-- Agent enrichissement (Phase 1) : terminé
-- **Cron actuel** : toutes les **heures** — trop lent pour 477 traductions à 5/batch = ~95 cycles nécessaires
+L'agent `poi-auto-agent` appelle `n8n-proxy` avec le `ANON_KEY` en Bearer token. Or `n8n-proxy` n'accepte que :
+1. Un header `x-api-key` correspondant à `N8N_API_KEY`
+2. Un JWT d'un utilisateur admin Supabase
 
-### Goulots d'étranglement identifiés
+Le `ANON_KEY` n'est ni l'un ni l'autre → **401 Unauthorized** → `translated: 0` → l'agent s'arrête immédiatement.
 
-| Problème | Actuel | Cible |
-|----------|--------|-------|
-| Fréquence cron | 1x/heure | **toutes les 15 min** |
-| Traductions par cycle | 10 batches × 5 = 50 max | **20 batches × 5 = 100 max** |
-| Délai entre batches traduction | 2 secondes | **800ms** |
-| Visites par cycle | 1 seule (`break` après la 1ère) | Pas de changement (bibliothèque déjà complète) |
+**Preuve** : l'appel direct via curl (avec auth admin) fonctionne et traduit 2 POIs correctement.
 
-### Modifications
+### Correction
 
-#### 1. Edge Function `poi-auto-agent/index.ts`
+**Fichier** : `supabase/functions/poi-auto-agent/index.ts` (lignes 262-275)
 
-**Phase 2.5 (traductions)** — lignes 266-288 :
-- Augmenter la boucle de `10` à `20` itérations
-- Réduire le délai entre batches de `2000ms` à `800ms`
-- Augmenter `batch_size` de `5` à `10`
+Remplacer `ANON_KEY` par `SERVICE_ROLE_KEY` pour l'appel interne à `n8n-proxy`. C'est le même pattern que `n8n-proxy` utilise déjà pour appeler `poi-auto-agent` (ligne 66).
 
-Résultat : jusqu'à **200 POIs traduits par cycle** au lieu de 50.
+```typescript
+// Avant (ligne 263)
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
-#### 2. Cron : passer de 1x/heure à toutes les 15 minutes
+// Après
+const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+```
 
-Mettre à jour le job cron existant (jobid 2) pour le schedule `*/15 * * * *`.
+Et dans le fetch (ligne 273-274) :
+```typescript
+'Authorization': `Bearer ${SERVICE_KEY}`,
+'apikey': SERVICE_KEY,
+```
 
-#### 3. Ajout d'un log de synthèse à la fin
+**Mais** cela ne suffira pas car `n8n-proxy` vérifie un JWT utilisateur admin, pas un service_role key. Il faut aussi ajouter une 3ème méthode d'auth dans `n8n-proxy` :
 
-Ajouter un résumé clair du travail restant pour le monitoring.
+**Fichier** : `supabase/functions/n8n-proxy/index.ts` (après ligne 44)
 
-### Résultat attendu
+Ajouter la reconnaissance du service_role :
+```typescript
+// Method 3: Service role key (for internal edge-function-to-edge-function calls)
+if (!isAuthed && authHeader?.startsWith("Bearer ")) {
+  const token = authHeader.replace("Bearer ", "");
+  if (token === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
+    isAuthed = true;
+  }
+}
+```
 
-- Les 477 POIs manquants seront traduits en **~3-4 heures** au lieu de ~4 jours
-- Le monitoring dans les logs sera plus lisible
+### Après correction
+
+Redéployer les deux fonctions et lancer l'agent. Les 803+ POIs manquant de `name_en` et autres champs EN seront traduits automatiquement par le cron toutes les 15 minutes (~200 POIs/cycle).
+
+### État actuel des traductions (827 POIs actifs)
+
+| Champ | Rempli | Manquant |
+|-------|--------|----------|
+| name_en | 24 | **803** |
+| history_context_en | 367 | 460 |
+| local_anecdote_en | 572 | 255 |
+| fun_fact_en | 599 | 228 |
+| riddle_easy_en | 299 | 528 |
+| wikipedia_summary_en | 1 | 826 |
+| story_en | 1 | 826 |
 
