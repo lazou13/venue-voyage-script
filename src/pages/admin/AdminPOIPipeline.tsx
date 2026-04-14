@@ -628,6 +628,45 @@ export default function AdminPOIPipeline() {
 
       <AgentMonitoringCard />
 
+      {/* Pipeline run status banner */}
+      {latestRun && (
+        <Alert className={latestRun.status === 'running' ? 'border-primary bg-primary/5' : latestRun.status === 'completed' ? 'border-green-500 bg-green-500/5' : 'border-destructive bg-destructive/5'}>
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2">
+              {latestRun.status === 'running' ? (
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              ) : latestRun.status === 'completed' ? (
+                <CheckCircle2 className="w-4 h-4 text-green-600" />
+              ) : (
+                <Clock className="w-4 h-4 text-destructive" />
+              )}
+              <AlertTitle className="mb-0">
+                {latestRun.status === 'running'
+                  ? `Autopipeline en cours — étape ${latestRun.current_step} (${(latestRun.completed_steps || []).length}/${latestRun.total_steps})`
+                  : latestRun.status === 'completed'
+                    ? `Autopipeline terminé ${latestRun.completed_at ? formatDistanceToNow(new Date(latestRun.completed_at), { addSuffix: true, locale: fr }) : ''}`
+                    : `Autopipeline échoué ${latestRun.error_message ? `— ${latestRun.error_message}` : ''}`
+                }
+              </AlertTitle>
+            </div>
+            <Button variant="ghost" size="sm" className="gap-1" onClick={() => setShowRunLogs(!showRunLogs)}>
+              <Eye className="w-3 h-3" /> {showRunLogs ? 'Masquer' : 'Voir les logs'}
+            </Button>
+          </div>
+          {showRunLogs && latestRun.logs && (
+            <AlertDescription className="mt-2">
+              <div className="bg-muted rounded-md p-3 max-h-48 overflow-y-auto font-mono text-xs space-y-0.5">
+                {(latestRun.logs as string[]).map((line: string, i: number) => (
+                  <div key={i} className={line.includes("⚠") || line.includes("❌") ? "text-orange-500" : line.includes("✓") || line.includes("✅") ? "text-green-600 dark:text-green-400" : "text-foreground"}>
+                    {line}
+                  </div>
+                ))}
+              </div>
+            </AlertDescription>
+          )}
+        </Alert>
+      )}
+
       <EnrichmentPipelineCard />
 
       {/* Extraction Progress */}

@@ -234,6 +234,65 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
       logs.push("✅ Phase 1: Tous les POIs sont déjà enrichis par l'agent");
     }
 
+    // ━━━━━━━━━━ PHASE 2.5: EN COMPLETENESS (auto-translate missing EN) ━━━━━━━━━━
+    const enFields = [
+      { fr: 'history_context', en: 'history_context_en' },
+      { fr: 'local_anecdote_fr', en: 'local_anecdote_en' },
+      { fr: 'fun_fact_fr', en: 'fun_fact_en' },
+      { fr: 'riddle_easy', en: 'riddle_easy_en' },
+      { fr: 'wikipedia_summary', en: 'wikipedia_summary_en' },
+    ];
+
+    // Check how many POIs have FR content but missing EN
+    const { data: missingEnPois, error: enCheckErr } = await supabase
+      .from("medina_pois")
+      .select("id")
+      .not("status", "in", '("filtered","merged")')
+      .not("history_context", "is", null)
+      .is("history_context_en", null)
+      .limit(50);
+
+    const missingEnCount = missingEnPois?.length ?? 0;
+
+    if (enCheckErr) {
+      logs.push(`❌ Phase 2.5: Erreur vérification EN: ${enCheckErr.message}`);
+    } else if (missingEnCount > 0) {
+      logs.push(`🌐 Phase 2.5: ${missingEnCount} POIs avec contenu FR sans traduction EN — lancement traduction...`);
+
+      const BASE_URL = Deno.env.get("SUPABASE_URL")!;
+      const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+      let totalTranslated = 0;
+
+      for (let batch = 0; batch < 10; batch++) {
+        try {
+          const resp = await fetch(`${BASE_URL}/functions/v1/n8n-proxy`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${ANON_KEY}`,
+              'apikey': ANON_KEY,
+            },
+            body: JSON.stringify({ action: "translate_pois", batch_size: 5 }),
+            signal: AbortSignal.timeout(55000),
+          });
+          const tData = await resp.json();
+          const translated = tData?.translated ?? tData?.processed ?? 0;
+          totalTranslated += translated;
+          if (translated === 0) break;
+          // Rate limit between batches
+          await new Promise(r => setTimeout(r, 2000));
+        } catch (e) {
+          logs.push(`⚠️ Phase 2.5 batch erreur: ${e instanceof Error ? e.message : 'timeout'}`);
+          break;
+        }
+      }
+
+      logs.push(`✅ Phase 2.5: ${totalTranslated} POIs traduits en anglais`);
+      results.push({ phase: "en_completeness", action: "translate_pois", count: totalTranslated, logs: [] });
+    } else {
+      logs.push("✅ Phase 2.5: Tous les POIs avec contenu FR ont leur traduction EN");
+    }
+
     // ━━━━━━━━━━ PHASE 2: GENERATE LIBRARY VISITS (AI-driven POI selection) ━━━━━━━━━━
     const { data: existingVisits } = await supabase
       .from("quest_library")
