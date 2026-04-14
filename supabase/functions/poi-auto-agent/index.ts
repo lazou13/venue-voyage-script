@@ -263,7 +263,7 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
       const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
       let totalTranslated = 0;
 
-      for (let batch = 0; batch < 10; batch++) {
+      for (let batch = 0; batch < 20; batch++) {
         try {
           const resp = await fetch(`${BASE_URL}/functions/v1/n8n-proxy`, {
             method: 'POST',
@@ -272,15 +272,14 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
               'Authorization': `Bearer ${ANON_KEY}`,
               'apikey': ANON_KEY,
             },
-            body: JSON.stringify({ action: "translate_pois", batch_size: 5 }),
+            body: JSON.stringify({ action: "translate_pois", batch_size: 10 }),
             signal: AbortSignal.timeout(55000),
           });
           const tData = await resp.json();
           const translated = tData?.translated ?? tData?.processed ?? 0;
           totalTranslated += translated;
           if (translated === 0) break;
-          // Rate limit between batches
-          await new Promise(r => setTimeout(r, 2000));
+          await new Promise(r => setTimeout(r, 800));
         } catch (e) {
           logs.push(`⚠️ Phase 2.5 batch erreur: ${e instanceof Error ? e.message : 'timeout'}`);
           break;
