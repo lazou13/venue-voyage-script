@@ -171,6 +171,9 @@ serve(async (req) => {
         if (result.history_context && (force || !poi.history_context)) {
           updateData.history_context = result.history_context;
         }
+        if (result.history_context_en) {
+          updateData.history_context_en = result.history_context_en;
+        }
         if (result.local_anecdote_fr) {
           updateData.local_anecdote = result.local_anecdote_fr;
           updateData.local_anecdote_fr = result.local_anecdote_fr;
