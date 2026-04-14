@@ -599,6 +599,7 @@ export default function AdminPOIPipeline() {
               { key: "fetch-photos" as StepKey, icon: Camera, label: "Photos Google", desc: "Télécharge les photos Google Places pour chaque POI", variant: "secondary" as const },
               { key: "fun-facts" as StepKey, icon: Sparkles, label: "Anecdotes", desc: "Génère fun facts et anecdotes locales via IA", variant: "secondary" as const },
               { key: "translate-en" as StepKey, icon: Languages, label: "Traduire EN", desc: "Traduit nom, description et histoire en anglais", variant: "secondary" as const },
+              { key: "clean-arabic" as StepKey, icon: Languages, label: "Nettoyer arabes", desc: "Supprime les noms arabes et les traduit en français", variant: "destructive" as const },
             ] as const).map(({ key, icon: Icon, label, desc, variant }) => {
               const result = stepResult[key];
               return (
