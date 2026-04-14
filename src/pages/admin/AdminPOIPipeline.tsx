@@ -175,11 +175,13 @@ export default function AdminPOIPipeline() {
           if (classErr) throw classErr;
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           totalClassified += data?.classified ?? 0;
+          setStepResult(prev => ({ ...prev, "rescore-riads": { processed: totalClassified, done: false } }));
           if ((data?.classified ?? 0) === 0) break;
           round++;
         }
 
         setLogs(prev => [...prev, `✅ Re-scoring riads terminé — ${totalClassified} POIs reclassifiés`]);
+        setStepResult(prev => ({ ...prev, "rescore-riads": { processed: totalClassified, done: true } }));
         toast({ title: "Riads re-scorés", description: `${totalClassified} riads reclassifiés avec le nouveau prompt.` });
         refetchStats();
         return;
@@ -200,6 +202,7 @@ export default function AdminPOIPipeline() {
           if (error) throw error;
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           totalUpdated += data?.updated ?? 0;
+          setStepResult(prev => ({ ...prev, "backfill-details": { processed: totalUpdated, done: false } }));
 
           if ((data?.processed ?? 0) === 0 || (data?.updated ?? 0) === 0) break;
           round++;
@@ -207,6 +210,7 @@ export default function AdminPOIPipeline() {
 
         setExtractionProgress({ current: totalUpdated, total: active });
         setLogs(prev => [...prev, `✅ Backfill terminé — ${totalUpdated} POIs mis à jour`]);
+        setStepResult(prev => ({ ...prev, "backfill-details": { processed: totalUpdated, done: true } }));
         toast({ title: "Backfill terminé", description: `${totalUpdated} POIs enrichis.` });
         refetchStats();
         return;
@@ -223,6 +227,7 @@ export default function AdminPOIPipeline() {
           if (error) throw error;
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           totalFetched += data?.fetched ?? 0;
+          setStepResult(prev => ({ ...prev, "fetch-photos": { processed: totalFetched, done: false } }));
 
           const remaining = data?.remaining ?? 0;
           if (remaining > 0) {
@@ -236,6 +241,7 @@ export default function AdminPOIPipeline() {
 
         setExtractionProgress(null);
         setLogs(prev => [...prev, `✅ Photos terminé — ${totalFetched} photos récupérées`]);
+        setStepResult(prev => ({ ...prev, "fetch-photos": { processed: totalFetched, done: true } }));
         toast({ title: "Photos terminé", description: `${totalFetched} photos Google récupérées.` });
         refetchStats();
         return;
@@ -256,6 +262,7 @@ export default function AdminPOIPipeline() {
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           const processed = data?.processed ?? data?.updated ?? 0;
           totalProcessed += processed;
+          setStepResult(prev => ({ ...prev, "fun-facts": { processed: totalProcessed, done: false } }));
 
           if (processed === 0) break;
           round++;
@@ -263,6 +270,7 @@ export default function AdminPOIPipeline() {
         }
 
         setLogs(prev => [...prev, `✅ Anecdotes terminé — ${totalProcessed} POIs enrichis`]);
+        setStepResult(prev => ({ ...prev, "fun-facts": { processed: totalProcessed, done: true } }));
         toast({ title: "Anecdotes générées", description: `${totalProcessed} POIs enrichis.` });
         refetchStats();
         return;
@@ -283,6 +291,7 @@ export default function AdminPOIPipeline() {
           if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
           const processed = data?.processed ?? data?.updated ?? 0;
           totalProcessed += processed;
+          setStepResult(prev => ({ ...prev, "translate-en": { processed: totalProcessed, done: false } }));
 
           if (processed === 0) break;
           round++;
@@ -290,6 +299,7 @@ export default function AdminPOIPipeline() {
         }
 
         setLogs(prev => [...prev, `✅ Traduction terminée — ${totalProcessed} POIs traduits`]);
+        setStepResult(prev => ({ ...prev, "translate-en": { processed: totalProcessed, done: true } }));
         toast({ title: "Traduction terminée", description: `${totalProcessed} POIs traduits en anglais.` });
         refetchStats();
         return;
