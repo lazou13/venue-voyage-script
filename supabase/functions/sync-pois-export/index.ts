@@ -27,7 +27,9 @@ Deno.serve(async (req) => {
       "best_time_visit", "crowd_level", "accessibility_notes",
       "photo_tip", "is_photo_spot", "instagram_spot",
       "must_try", "must_see_details", "must_visit_nearby",
-      "poi_quality_score", "status", "enrichment_status"
+      "poi_quality_score", "status", "enrichment_status",
+      "audio_url_fr", "audio_url_en", "audio_url_ar",
+      "anecdote_audio_url_fr", "anecdote_audio_url_en"
     ].join(",");
 
     // Paginate to get all POIs (bypass 1000 row limit)

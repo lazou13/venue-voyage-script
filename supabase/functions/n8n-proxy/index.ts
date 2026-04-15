@@ -969,6 +969,22 @@ serve(async (req) => {
       });
     }
 
+    if (action === "pull_audio") {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const res = await fetch(`${supabaseUrl}/functions/v1/pull-audio-from-questride`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({}),
+      });
+      const result = await res.json();
+      return new Response(JSON.stringify({ ok: true, ...result }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "sync_projects") {
       const targets = [
         { name: "Questride B2C/B2B", url: "https://brhckhyrbpjfnieexggq.supabase.co/functions/v1/sync-pois-import" },
@@ -994,7 +1010,7 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ error: `Unknown action: ${action}`, available: ["auto-agent", "list-library", "clear-library", "stats", "enrich_poi", "score_poi", "download_images", "enrich_wikidata", "translate_pois", "generate_fun_facts", "sync_projects"] }), {
+    return new Response(JSON.stringify({ error: `Unknown action: ${action}`, available: ["auto-agent", "list-library", "clear-library", "stats", "enrich_poi", "score_poi", "download_images", "enrich_wikidata", "translate_pois", "generate_fun_facts", "pull_audio", "sync_projects"] }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
