@@ -14,7 +14,7 @@ import AgentMonitoringCard from "@/components/admin/AgentMonitoringCard";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 
-type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details" | "reclassify" | "rescore-riads" | "anecdotes" | "fun-facts" | "translate-en" | "clean-arabic";
+type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details" | "reclassify" | "rescore-riads" | "anecdotes" | "fun-facts" | "translate-en" | "clean-arabic" | "pull-audio";
 
 const invokeWithRetry = async (fnName: string, body: Record<string, unknown>, maxRetries = 3): Promise<{ data: any; error: any }> => {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -382,6 +382,20 @@ export default function AdminPOIPipeline() {
         setLogs(prev => [...prev, `✅ Traduction terminée — ${totalProcessed} POIs traduits`]);
         setStepResult(prev => ({ ...prev, "translate-en": { processed: totalProcessed, done: true } }));
         toast({ title: "Traduction terminée", description: `${totalProcessed} POIs traduits en anglais.` });
+        refetchStats();
+        return;
+      }
+
+      if (step === "pull-audio") {
+        setLogs(prev => [...prev, `🔊 Pull audio depuis Questride...`]);
+        const { data, error } = await supabase.functions.invoke("n8n-proxy", {
+          body: { action: "pull_audio" },
+        });
+        if (error) throw error;
+        if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
+        setLogs(prev => [...prev, `✅ Audio pull terminé — ${data?.matched ?? 0} matchés, ${data?.updated ?? 0} mis à jour, ${data?.skipped ?? 0} ignorés`]);
+        setStepResult(prev => ({ ...prev, "pull-audio": { processed: data?.updated ?? 0, done: true } }));
+        toast({ title: "Audio synchronisés", description: `${data?.updated ?? 0} POIs mis à jour avec audio.` });
         refetchStats();
         return;
       }
@@ -781,6 +795,7 @@ export default function AdminPOIPipeline() {
               { key: "fun-facts" as StepKey, icon: Sparkles, label: "Fun facts", desc: "Génère un fait surprenant court (1 phrase) via IA", variant: "secondary" as const },
               { key: "translate-en" as StepKey, icon: Languages, label: "Traduire EN", desc: "Traduit nom, description et histoire en anglais", variant: "secondary" as const },
               { key: "clean-arabic" as StepKey, icon: Languages, label: "Nettoyer arabes", desc: "Supprime les noms arabes et les traduit en français", variant: "destructive" as const },
+              { key: "pull-audio" as StepKey, icon: RefreshCw, label: "Pull Audio", desc: "Récupère les URLs audio FR/EN/AR depuis Questride", variant: "secondary" as const },
             ] as const).map(({ key, icon: Icon, label, desc, variant }) => {
               const result = stepResult[key];
               return (
