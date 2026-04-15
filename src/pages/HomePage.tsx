@@ -58,7 +58,7 @@ export default function HomePage() {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase
+      const { data, error } = await externalSupabase
         .from('medina_pois')
         .select('id, name, lat, lng, description_short, history_context, local_anecdote, category_ai')
         .eq('is_active', true)
