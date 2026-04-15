@@ -21,7 +21,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAdminLoading, setIsAdminLoading] = useState(false);
 
-  // Check admin role whenever user changes
   useEffect(() => {
     if (!user) {
       setIsAdmin(false);
@@ -44,20 +43,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user?.id]);
 
   useEffect(() => {
-    // Restore session first
+    // 1. Set up listener FIRST (Supabase recommended order)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        // Mark ready on first auth event if not already
+        setIsReady(true);
+      }
+    );
+
+    // 2. THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setIsReady(true);
     });
-
-    // Then listen for changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-      }
-    );
 
     return () => subscription.unsubscribe();
   }, []);
