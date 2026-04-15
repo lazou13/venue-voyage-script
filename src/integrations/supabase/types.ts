@@ -547,6 +547,7 @@ export type Database = {
         Row: {
           accessibility_info: string | null
           accessibility_notes: string | null
+          accessibility_notes_en: string | null
           address: string | null
           agent_enriched_at: string | null
           architect: string | null
@@ -554,6 +555,7 @@ export type Database = {
           average_visit_duration: number | null
           best_client_photo_url: string | null
           best_time_visit: string | null
+          best_time_visit_en: string | null
           category: string
           category_ai: string | null
           category_google: string | null
@@ -598,8 +600,11 @@ export type Database = {
           media_attribution: string | null
           metadata: Json
           must_see_details: string | null
+          must_see_details_en: string | null
           must_try: string | null
+          must_try_en: string | null
           must_visit_nearby: string | null
+          must_visit_nearby_en: string | null
           name: string
           name_ar: string | null
           name_en: string | null
@@ -614,9 +619,11 @@ export type Database = {
           photo_opportunity_score: number | null
           photo_spot_score: number | null
           photo_tip: string | null
+          photo_tip_en: string | null
           place_id: string | null
           poi_quality_score: number | null
           price_info: string | null
+          price_info_en: string | null
           radius_m: number
           rating: number | null
           recommendations_count: number | null
@@ -634,6 +641,7 @@ export type Database = {
           story_en: string | null
           story_fr: string | null
           street_food_details: string | null
+          street_food_details_en: string | null
           street_food_spot: boolean | null
           street_type: string | null
           subcategory: string | null
@@ -642,6 +650,7 @@ export type Database = {
           terrain_validated_at: string | null
           thumbnail: string | null
           tourist_interest: string | null
+          tourist_tips_en: string | null
           treasure_hunt_score: number | null
           unesco_status: boolean | null
           updated_at: string
@@ -661,6 +670,7 @@ export type Database = {
         Insert: {
           accessibility_info?: string | null
           accessibility_notes?: string | null
+          accessibility_notes_en?: string | null
           address?: string | null
           agent_enriched_at?: string | null
           architect?: string | null
@@ -668,6 +678,7 @@ export type Database = {
           average_visit_duration?: number | null
           best_client_photo_url?: string | null
           best_time_visit?: string | null
+          best_time_visit_en?: string | null
           category?: string
           category_ai?: string | null
           category_google?: string | null
@@ -712,8 +723,11 @@ export type Database = {
           media_attribution?: string | null
           metadata?: Json
           must_see_details?: string | null
+          must_see_details_en?: string | null
           must_try?: string | null
+          must_try_en?: string | null
           must_visit_nearby?: string | null
+          must_visit_nearby_en?: string | null
           name: string
           name_ar?: string | null
           name_en?: string | null
@@ -728,9 +742,11 @@ export type Database = {
           photo_opportunity_score?: number | null
           photo_spot_score?: number | null
           photo_tip?: string | null
+          photo_tip_en?: string | null
           place_id?: string | null
           poi_quality_score?: number | null
           price_info?: string | null
+          price_info_en?: string | null
           radius_m?: number
           rating?: number | null
           recommendations_count?: number | null
@@ -748,6 +764,7 @@ export type Database = {
           story_en?: string | null
           story_fr?: string | null
           street_food_details?: string | null
+          street_food_details_en?: string | null
           street_food_spot?: boolean | null
           street_type?: string | null
           subcategory?: string | null
@@ -756,6 +773,7 @@ export type Database = {
           terrain_validated_at?: string | null
           thumbnail?: string | null
           tourist_interest?: string | null
+          tourist_tips_en?: string | null
           treasure_hunt_score?: number | null
           unesco_status?: boolean | null
           updated_at?: string
@@ -775,6 +793,7 @@ export type Database = {
         Update: {
           accessibility_info?: string | null
           accessibility_notes?: string | null
+          accessibility_notes_en?: string | null
           address?: string | null
           agent_enriched_at?: string | null
           architect?: string | null
@@ -782,6 +801,7 @@ export type Database = {
           average_visit_duration?: number | null
           best_client_photo_url?: string | null
           best_time_visit?: string | null
+          best_time_visit_en?: string | null
           category?: string
           category_ai?: string | null
           category_google?: string | null
@@ -826,8 +846,11 @@ export type Database = {
           media_attribution?: string | null
           metadata?: Json
           must_see_details?: string | null
+          must_see_details_en?: string | null
           must_try?: string | null
+          must_try_en?: string | null
           must_visit_nearby?: string | null
+          must_visit_nearby_en?: string | null
           name?: string
           name_ar?: string | null
           name_en?: string | null
@@ -842,9 +865,11 @@ export type Database = {
           photo_opportunity_score?: number | null
           photo_spot_score?: number | null
           photo_tip?: string | null
+          photo_tip_en?: string | null
           place_id?: string | null
           poi_quality_score?: number | null
           price_info?: string | null
+          price_info_en?: string | null
           radius_m?: number
           rating?: number | null
           recommendations_count?: number | null
@@ -862,6 +887,7 @@ export type Database = {
           story_en?: string | null
           story_fr?: string | null
           street_food_details?: string | null
+          street_food_details_en?: string | null
           street_food_spot?: boolean | null
           street_type?: string | null
           subcategory?: string | null
@@ -870,6 +896,7 @@ export type Database = {
           terrain_validated_at?: string | null
           thumbnail?: string | null
           tourist_interest?: string | null
+          tourist_tips_en?: string | null
           treasure_hunt_score?: number | null
           unesco_status?: boolean | null
           updated_at?: string

@@ -697,9 +697,9 @@ serve(async (req) => {
       // Use raw SQL filter via .or() to cover all cases
       const { data: pois, error } = await supabase
         .from("medina_pois")
-        .select("id, name, name_fr, name_en, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, history_context, history_context_en, story_fr, story_en, riddle_easy, riddle_easy_en, wikipedia_summary, wikipedia_summary_en")
+        .select("id, name, name_fr, name_en, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, history_context, history_context_en, story_fr, story_en, riddle_easy, riddle_easy_en, wikipedia_summary, wikipedia_summary_en, must_see_details, must_see_details_en, must_try, must_try_en, must_visit_nearby, must_visit_nearby_en, photo_tip, photo_tip_en, tourist_tips, tourist_tips_en, price_info, price_info_en, accessibility_notes, accessibility_notes_en, best_time_visit, best_time_visit_en, street_food_details, street_food_details_en")
         .eq("is_active", true)
-        .or("and(local_anecdote_fr.not.is.null,local_anecdote_en.is.null),and(history_context.not.is.null,history_context_en.is.null),and(riddle_easy.not.is.null,riddle_easy_en.is.null),and(name_fr.not.is.null,name_en.is.null),and(story_fr.not.is.null,story_en.is.null),name_en.is.null")
+        .or("and(local_anecdote_fr.not.is.null,local_anecdote_en.is.null),and(history_context.not.is.null,history_context_en.is.null),and(riddle_easy.not.is.null,riddle_easy_en.is.null),and(name_fr.not.is.null,name_en.is.null),and(story_fr.not.is.null,story_en.is.null),name_en.is.null,and(must_see_details.not.is.null,must_see_details_en.is.null),and(must_try.not.is.null,must_try_en.is.null),and(must_visit_nearby.not.is.null,must_visit_nearby_en.is.null),and(photo_tip.not.is.null,photo_tip_en.is.null),and(tourist_tips.not.is.null,tourist_tips_en.is.null),and(price_info.not.is.null,price_info_en.is.null),and(accessibility_notes.not.is.null,accessibility_notes_en.is.null),and(best_time_visit.not.is.null,best_time_visit_en.is.null),and(street_food_details.not.is.null,street_food_details_en.is.null)")
         .order("poi_quality_score", { ascending: false, nullsFirst: false })
         .limit(batchSize);
 
@@ -726,6 +726,15 @@ serve(async (req) => {
           if (poi.story_fr && !poi.story_en) fieldsToTranslate.story_fr = poi.story_fr;
           if (poi.riddle_easy && !poi.riddle_easy_en) fieldsToTranslate.riddle_easy = poi.riddle_easy;
           if (poi.wikipedia_summary && !poi.wikipedia_summary_en) fieldsToTranslate.wikipedia_summary = poi.wikipedia_summary;
+          if (poi.must_see_details && !poi.must_see_details_en) fieldsToTranslate.must_see_details = poi.must_see_details;
+          if (poi.must_try && !poi.must_try_en) fieldsToTranslate.must_try = poi.must_try;
+          if (poi.must_visit_nearby && !poi.must_visit_nearby_en) fieldsToTranslate.must_visit_nearby = poi.must_visit_nearby;
+          if (poi.photo_tip && !poi.photo_tip_en) fieldsToTranslate.photo_tip = poi.photo_tip;
+          if (poi.tourist_tips && !poi.tourist_tips_en) fieldsToTranslate.tourist_tips = poi.tourist_tips;
+          if (poi.price_info && !poi.price_info_en) fieldsToTranslate.price_info = poi.price_info;
+          if (poi.accessibility_notes && !poi.accessibility_notes_en) fieldsToTranslate.accessibility_notes = poi.accessibility_notes;
+          if (poi.best_time_visit && !poi.best_time_visit_en) fieldsToTranslate.best_time_visit = poi.best_time_visit;
+          if (poi.street_food_details && !poi.street_food_details_en) fieldsToTranslate.street_food_details = poi.street_food_details;
 
           if (Object.keys(fieldsToTranslate).length === 0) {
             logs.push(`⏭️ ${displayName}: rien à traduire`);
@@ -763,13 +772,33 @@ serve(async (req) => {
                       story_en: { type: "string", description: "English translation of story_fr" },
                       riddle_easy_en: { type: "string", description: "English translation of riddle_easy" },
                       wikipedia_summary_en: { type: "string", description: "English translation of wikipedia_summary" },
+                      must_see_details_en: { type: "string", description: "English translation of must_see_details" },
+                      must_try_en: { type: "string", description: "English translation of must_try" },
+                      must_visit_nearby_en: { type: "string", description: "English translation of must_visit_nearby" },
+                      photo_tip_en: { type: "string", description: "English translation of photo_tip" },
+                      tourist_tips_en: { type: "string", description: "English translation of tourist_tips" },
+                      price_info_en: { type: "string", description: "English translation of price_info" },
+                      accessibility_notes_en: { type: "string", description: "English translation of accessibility_notes" },
+                      best_time_visit_en: { type: "string", description: "English translation of best_time_visit" },
+                      street_food_details_en: { type: "string", description: "English translation of street_food_details" },
                     },
                     required: Object.keys(fieldsToTranslate).map(k => {
-                      if (k === "history_context") return "history_context_en";
-                      if (k === "riddle_easy") return "riddle_easy_en";
-                      if (k === "wikipedia_summary") return "wikipedia_summary_en";
-                      if (k === "name") return "name_en";
-                      return k.replace("_fr", "_en");
+                      const directMap: Record<string, string> = {
+                        history_context: "history_context_en",
+                        riddle_easy: "riddle_easy_en",
+                        wikipedia_summary: "wikipedia_summary_en",
+                        name: "name_en",
+                        must_see_details: "must_see_details_en",
+                        must_try: "must_try_en",
+                        must_visit_nearby: "must_visit_nearby_en",
+                        photo_tip: "photo_tip_en",
+                        tourist_tips: "tourist_tips_en",
+                        price_info: "price_info_en",
+                        accessibility_notes: "accessibility_notes_en",
+                        best_time_visit: "best_time_visit_en",
+                        street_food_details: "street_food_details_en",
+                      };
+                      return directMap[k] || k.replace("_fr", "_en");
                     }),
                     additionalProperties: false,
                   },
@@ -800,6 +829,15 @@ serve(async (req) => {
           if (t.history_context_en) updateData.history_context_en = t.history_context_en;
           if (t.riddle_easy_en) updateData.riddle_easy_en = t.riddle_easy_en;
           if (t.wikipedia_summary_en) updateData.wikipedia_summary_en = t.wikipedia_summary_en;
+          if (t.must_see_details_en) updateData.must_see_details_en = t.must_see_details_en;
+          if (t.must_try_en) updateData.must_try_en = t.must_try_en;
+          if (t.must_visit_nearby_en) updateData.must_visit_nearby_en = t.must_visit_nearby_en;
+          if (t.photo_tip_en) updateData.photo_tip_en = t.photo_tip_en;
+          if (t.tourist_tips_en) updateData.tourist_tips_en = t.tourist_tips_en;
+          if (t.price_info_en) updateData.price_info_en = t.price_info_en;
+          if (t.accessibility_notes_en) updateData.accessibility_notes_en = t.accessibility_notes_en;
+          if (t.best_time_visit_en) updateData.best_time_visit_en = t.best_time_visit_en;
+          if (t.street_food_details_en) updateData.street_food_details_en = t.street_food_details_en;
 
           const { error: updErr } = await supabase
             .from("medina_pois")
