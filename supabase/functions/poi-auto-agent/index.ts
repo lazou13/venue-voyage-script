@@ -241,15 +241,23 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
       { fr: 'fun_fact_fr', en: 'fun_fact_en' },
       { fr: 'riddle_easy', en: 'riddle_easy_en' },
       { fr: 'wikipedia_summary', en: 'wikipedia_summary_en' },
+      { fr: 'must_see_details', en: 'must_see_details_en' },
+      { fr: 'must_try', en: 'must_try_en' },
+      { fr: 'must_visit_nearby', en: 'must_visit_nearby_en' },
+      { fr: 'photo_tip', en: 'photo_tip_en' },
+      { fr: 'tourist_tips', en: 'tourist_tips_en' },
+      { fr: 'price_info', en: 'price_info_en' },
+      { fr: 'accessibility_notes', en: 'accessibility_notes_en' },
+      { fr: 'best_time_visit', en: 'best_time_visit_en' },
+      { fr: 'street_food_details', en: 'street_food_details_en' },
     ];
 
-    // Check how many POIs have FR content but missing EN
+    // Check how many POIs have FR content but missing EN (check multiple fields)
     const { data: missingEnPois, error: enCheckErr } = await supabase
       .from("medina_pois")
       .select("id")
       .not("status", "in", '("filtered","merged")')
-      .not("history_context", "is", null)
-      .is("history_context_en", null)
+      .or("and(history_context.not.is.null,history_context_en.is.null),and(must_see_details.not.is.null,must_see_details_en.is.null),and(must_try.not.is.null,must_try_en.is.null),and(must_visit_nearby.not.is.null,must_visit_nearby_en.is.null),and(photo_tip.not.is.null,photo_tip_en.is.null),and(tourist_tips.not.is.null,tourist_tips_en.is.null),and(price_info.not.is.null,price_info_en.is.null)")
       .limit(50);
 
     const missingEnCount = missingEnPois?.length ?? 0;
