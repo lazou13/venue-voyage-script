@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { supabase } from '@/integrations/supabase/client';
+import { externalSupabase } from '@/lib/externalSupabase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Loader2, MapPin, Navigation, X, ChevronRight, ChevronLeft } from 'lucide-react';
@@ -57,7 +58,7 @@ export default function HomePage() {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase
+      const { data, error } = await externalSupabase
         .from('medina_pois')
         .select('id, name, lat, lng, description_short, history_context, local_anecdote, category_ai')
         .eq('is_active', true)
