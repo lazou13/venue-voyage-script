@@ -1,0 +1,1 @@
+ALTER TABLE public.medina_pois ADD COLUMN IF NOT EXISTS tourist_tips text DEFAULT NULL;

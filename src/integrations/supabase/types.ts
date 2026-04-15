@@ -650,6 +650,7 @@ export type Database = {
           terrain_validated_at: string | null
           thumbnail: string | null
           tourist_interest: string | null
+          tourist_tips: string | null
           tourist_tips_en: string | null
           treasure_hunt_score: number | null
           unesco_status: boolean | null
@@ -773,6 +774,7 @@ export type Database = {
           terrain_validated_at?: string | null
           thumbnail?: string | null
           tourist_interest?: string | null
+          tourist_tips?: string | null
           tourist_tips_en?: string | null
           treasure_hunt_score?: number | null
           unesco_status?: boolean | null
@@ -896,6 +898,7 @@ export type Database = {
           terrain_validated_at?: string | null
           thumbnail?: string | null
           tourist_interest?: string | null
+          tourist_tips?: string | null
           tourist_tips_en?: string | null
           treasure_hunt_score?: number | null
           unesco_status?: boolean | null
