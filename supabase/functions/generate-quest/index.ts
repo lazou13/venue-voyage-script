@@ -227,8 +227,8 @@ serve(async (req) => {
     }
 
     // Add routing metadata
-    (result as Record<string, unknown>).routing_method = routeEnhanced ? "pgrouting" : "haversine";
-    (result as Record<string, unknown>).algorithm_version = routeEnhanced ? "4.0.0-spatial" : "3.0.0";
+    (result as unknown as Record<string, unknown>).routing_method = routeEnhanced ? "pgrouting" : "haversine";
+    (result as unknown as Record<string, unknown>).algorithm_version = routeEnhanced ? "4.0.0-spatial" : "3.0.0";
 
     // Try to save to generated_quests (ignore if table doesn't exist yet)
     try {
