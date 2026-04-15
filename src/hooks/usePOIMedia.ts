@@ -122,7 +122,7 @@ export function usePOIMedia(medinaPoiId: string | undefined) {
       if (!medinaPoiId) return [];
       const { data, error } = await supabase
         .from('poi_media')
-        .select('*')
+        .select('id, created_at, medina_poi_id, media_type, storage_path, storage_bucket, mime_type, size_bytes, duration_sec, caption, is_cover, sort_order, role_tags, extra')
         .eq('medina_poi_id', medinaPoiId)
         .order('sort_order');
       if (error) throw error;

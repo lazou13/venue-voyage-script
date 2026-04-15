@@ -10,7 +10,7 @@ export function useQuestInstances(orderId: string | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('quest_instances')
-        .select('*')
+        .select('id, created_at, updated_at, order_id, project_id, access_token, status, ttl_minutes, starts_at, expires_at, device_id, device_uses, devices_allowed, score')
         .eq('order_id', orderId!)
         .order('created_at', { ascending: false });
       if (error) throw error;
