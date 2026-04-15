@@ -490,6 +490,7 @@ Génère en une seule réponse :
           for (let i = 1; i < selectedPois.length; i++) {
             const prev = selectedPois[i - 1];
             const curr = selectedPois[i];
+            if (!curr || !prev) continue;
             totalDist += Math.sqrt(Math.pow((curr.lat - prev.lat) * 111320, 2) + Math.pow((curr.lng - prev.lng) * 111320 * Math.cos(curr.lat * Math.PI / 180), 2));
           }
           const walkTime = Math.round(totalDist / 50);
@@ -510,8 +511,9 @@ Génère en une seule réponse :
           // Build stops_data from original POI data
           const stopsData = selectedPois.map((p: any, i: number) => {
             const original = culturalPois[p.idx];
-            const prevDist = i === 0 ? 0 : Math.round(
-              Math.sqrt(Math.pow((p.lat - selectedPois[i-1].lat) * 111320, 2) + Math.pow((p.lng - selectedPois[i-1].lng) * 111320 * Math.cos(p.lat * Math.PI / 180), 2))
+            const prevPoi = i > 0 ? selectedPois[i-1] : null;
+            const prevDist = !prevPoi ? 0 : Math.round(
+              Math.sqrt(Math.pow((p.lat - prevPoi.lat) * 111320, 2) + Math.pow((p.lng - prevPoi.lng) * 111320 * Math.cos(p.lat * Math.PI / 180), 2))
             );
             const cat = p.category || 'other';
             return {

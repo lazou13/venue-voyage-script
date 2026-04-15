@@ -193,7 +193,7 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.error("promote-marker-to-library error:", err);
     return new Response(
-      JSON.stringify({ error: err.message || "Erreur interne" }),
+      JSON.stringify({ error: err instanceof Error ? err.message : "Erreur interne" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
