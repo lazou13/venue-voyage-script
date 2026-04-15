@@ -1,18 +1,17 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { Loader2, Rocket, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
 
 const STEPS = [
-  { key: "wikidata", label: "Wikidata IDs", estimatedMs: 15000 },
-  { key: "poi_enricher", label: "Enrichissement Wikidata", estimatedMs: 25000 },
-  { key: "photo", label: "Photos Wikimedia", estimatedMs: 12000 },
-  { key: "wiki_name", label: "Wikipedia noms", estimatedMs: 10000 },
-  { key: "anecdote", label: "Anecdotes IA", estimatedMs: 30000 },
-  { key: "riddle", label: "Énigmes IA", estimatedMs: 35000 },
+  { key: "wikidata", label: "Wikidata IDs" },
+  { key: "poi_enricher", label: "Enrichissement Wikidata" },
+  { key: "photo", label: "Photos Wikimedia" },
+  { key: "wiki_name", label: "Wikipedia noms" },
+  { key: "anecdote", label: "Anecdotes (Perplexity)" },
+  { key: "riddle", label: "Énigmes IA" },
 ] as const;
 
 type StepStatus = "pending" | "running" | "success" | "error";
@@ -30,15 +29,49 @@ export default function EnrichmentPipelineCard() {
   const [progress, setProgress] = useState(0);
   const [logs, setLogs] = useState<string[]>([]);
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const abortRef = useRef(false);
 
-  const clearTimers = useCallback(() => {
-    timersRef.current.forEach(clearTimeout);
-    timersRef.current = [];
-  }, []);
+  const updateStep = (key: string, patch: Partial<StepState>) => {
+    setSteps(prev => prev.map(st => st.key === key ? { ...st, ...patch } : st));
+  };
+
+  const addLog = (line: string) => setLogs(prev => [...prev, line]);
+
+  const runClientLoop = async (
+    fnName: string,
+    stepKey: string,
+    body: Record<string, unknown>,
+    maxIter: number,
+    countField: string,
+  ): Promise<number> => {
+    let total = 0;
+    for (let i = 0; i < maxIter; i++) {
+      if (abortRef.current) break;
+      const { data, error } = await supabase.functions.invoke(fnName, { body });
+      if (error) {
+        addLog(`  ⚠ ${error.message}`);
+        break;
+      }
+      const errMsg = (data as any)?.error;
+      if (errMsg) {
+        addLog(`  ⚠ ${errMsg}`);
+        break;
+      }
+      const count = (data as any)?.[countField] ?? 0;
+      total += count;
+      if (count > 0) {
+        addLog(`  … ${fnName}: +${count} (total ${total})`);
+        updateStep(stepKey, { detail: `${total} traités` });
+      }
+      if (count === 0) break;
+      await new Promise(r => setTimeout(r, 500));
+    }
+    return total;
+  };
 
   const launch = async () => {
     setRunning(true);
+    abortRef.current = false;
     setLogs([]);
     setSummary(null);
 
@@ -46,46 +79,64 @@ export default function EnrichmentPipelineCard() {
     setSteps(initialSteps);
     setProgress(0);
 
-    // Simulate sequential progress
-    let cumulativeMs = 0;
-    STEPS.forEach((s, i) => {
-      const startAt = cumulativeMs;
-      timersRef.current.push(setTimeout(() => {
-        setSteps(prev => prev.map((st, idx) => idx === i ? { ...st, status: "running" } : st));
-        setProgress(Math.round((i / STEPS.length) * 100));
-      }, startAt));
-      cumulativeMs += s.estimatedMs;
-    });
+    const results: Record<string, unknown> = {};
+
+    // Phase 1: orchestrator for steps 1-4
+    const orchestratorSteps = ["wikidata", "poi_enricher", "photo", "wiki_name"];
+    orchestratorSteps.forEach(k => updateStep(k, { status: "running" }));
+    addLog("▶ Lancement orchestrateur (4 étapes)…");
 
     try {
       const { data, error } = await supabase.functions.invoke("enrichment-pipeline", {
-        body: { steps: STEPS.map(s => s.key) },
+        body: { steps: orchestratorSteps },
       });
 
-      clearTimers();
+      if (error) throw new Error(error.message);
+      const orchResults = (data?.results ?? {}) as Record<string, Record<string, unknown>>;
+      const orchLog = (data?.log ?? []) as string[];
+      orchLog.forEach(l => addLog(l));
+      Object.assign(results, orchResults);
 
-      if (error) throw error;
-
-      const results = (data?.results ?? {}) as Record<string, Record<string, unknown>>;
-      const log = (data?.log ?? []) as string[];
-
-      setLogs(log);
-      setSummary(results);
-
-      setSteps(prev => prev.map(st => {
-        const r = results[st.key] ?? results[st.key.replace("_", "-")] ?? results[mapResultKey(st.key)];
+      orchestratorSteps.forEach(k => {
+        const r = orchResults[k] ?? orchResults[k.replace("_", "-")] ?? orchResults[mapResultKey(k)];
         const hasError = r && (r as any)?.error;
-        return { ...st, status: hasError ? "error" : "success", detail: hasError ? String((r as any).error) : formatResult(r) };
-      }));
-      setProgress(100);
+        updateStep(k, {
+          status: hasError ? "error" : "success",
+          detail: hasError ? String((r as any).error) : formatResult(r),
+        });
+      });
+      setProgress(50);
     } catch (e) {
-      clearTimers();
       const msg = e instanceof Error ? e.message : "Erreur inconnue";
-      setLogs(prev => [...prev, `❌ ${msg}`]);
-      setSteps(prev => prev.map(st => st.status === "running" ? { ...st, status: "error", detail: msg } : st));
-    } finally {
+      addLog(`❌ Orchestrateur: ${msg}`);
+      orchestratorSteps.forEach(k => updateStep(k, { status: "error", detail: msg }));
       setRunning(false);
+      return;
     }
+
+    // Phase 2: client-side loops for anecdotes + riddles
+    if (!abortRef.current) {
+      updateStep("anecdote", { status: "running" });
+      addLog("▶ anecdote-enricher (client-side)…");
+      const anecTotal = await runClientLoop("anecdote-enricher", "anecdote", { batch_size: 5, min_score: 0 }, 80, "updated");
+      results.anecdote_enricher = { updated: anecTotal };
+      updateStep("anecdote", { status: "success", detail: `${anecTotal} anecdotes` });
+      addLog(`  ✓ ${anecTotal} anecdotes générées`);
+      setProgress(75);
+    }
+
+    if (!abortRef.current) {
+      updateStep("riddle", { status: "running" });
+      addLog("▶ riddle-generator (client-side)…");
+      const riddleTotal = await runClientLoop("riddle-generator", "riddle", { batch_size: 10, min_score: 0 }, 40, "updated");
+      results.riddle_generator = { updated: riddleTotal };
+      updateStep("riddle", { status: "success", detail: `${riddleTotal} énigmes` });
+      addLog(`  ✓ ${riddleTotal} énigmes générées`);
+      setProgress(100);
+    }
+
+    setSummary(results);
+    setRunning(false);
   };
 
   return (
@@ -156,8 +207,6 @@ function mapResultKey(key: string): string {
     poi_enricher: "poi_enricher",
     photo: "photo_fetcher",
     wiki_name: "wiki_name",
-    anecdote: "anecdote_enricher",
-    riddle: "riddle_generator",
   };
   return map[key] ?? key;
 }

@@ -48,6 +48,23 @@ export interface POI {
   is_start_hub: boolean;
   is_active: boolean;
   radius_m: number;
+  // Enriched fields
+  price_info: string;
+  opening_hours: Record<string, string> | null;
+  must_see_details: string;
+  must_try: string;
+  must_visit_nearby: string;
+  is_photo_spot: boolean;
+  photo_tip: string;
+  ruelle_etroite: boolean;
+  // Perplexity enriched fields
+  local_anecdote_fr: string;
+  local_anecdote_en: string;
+  fun_fact_fr: string;
+  fun_fact_en: string;
+  wikipedia_summary: string;
+  crowd_level: string;
+  accessibility_notes: string;
   metadata: {
     features?: {
       audience?: string[];
@@ -59,6 +76,7 @@ export interface POI {
       interaction_type?: string;
     };
   };
+  visit_route?: { exit_point?: { lat: number; lng: number }; [k: string]: unknown } | null;
 }
 
 export interface Stop {
@@ -83,6 +101,17 @@ export interface Stop {
   photo_spot?: boolean;
   address?: string;
   description?: string;
+  // Enriched fields
+  price_info?: string | null;
+  opening_hours?: Record<string, string> | null;
+  must_see_details?: string | null;
+  must_try?: string | null;
+  must_visit_nearby?: string | null;
+  is_photo_spot?: boolean;
+  photo_tip?: string | null;
+  ruelle_etroite?: boolean;
+  fun_fact?: string;
+  visit_route?: { exit_point?: { lat: number; lng: number }; [k: string]: unknown } | null;
 }
 
 export interface EngineOutput {
@@ -244,6 +273,11 @@ function scorePOI(poi: POI, input: EngineInput, distanceFromStart: number): numb
   // Proximity penalty (0 to -10)
   score -= (distanceFromStart / input.radius_m) * 10;
 
+  // Proximity boost: POI within 100m of start gets ×3 score
+  if (distanceFromStart < 100) {
+    score *= 3;
+  }
+
   // Bonus: instagram_spot for guided_tour + photography
   if (poi.instagram_spot && input.mode === "guided_tour" && input.theme === "photography") {
     score += 8;
@@ -356,8 +390,9 @@ function nearestNeighborTSP(
     }
     const picked = remaining.splice(bestIdx, 1)[0];
     sorted.push(picked);
-    curLat = picked.lat;
-    curLng = picked.lng;
+    // Use exit_point if available for next distance calculation
+    curLat = picked.visit_route?.exit_point?.lat ?? picked.lat;
+    curLng = picked.visit_route?.exit_point?.lng ?? picked.lng;
   }
 
   return sorted;
@@ -533,8 +568,9 @@ function buildStops(
 
   for (let i = 0; i < pois.length; i++) {
     const poi = pois[i];
-    const prevLat = i === 0 ? startLat : pois[i - 1].lat;
-    const prevLng = i === 0 ? startLng : pois[i - 1].lng;
+    const prevPoi = i === 0 ? null : pois[i - 1];
+    const prevLat = prevPoi ? (prevPoi.visit_route?.exit_point?.lat ?? prevPoi.lat) : startLat;
+    const prevLng = prevPoi ? (prevPoi.visit_route?.exit_point?.lng ?? prevPoi.lng) : startLng;
     const distM = Math.round(haversineM(prevLat, prevLng, poi.lat, poi.lng));
     const walkMin = walkTimeMin(distM);
     const VISIT_TIME = input.mode === "treasure_hunt" ? VISIT_TIME_TREASURE : VISIT_TIME_GUIDED;
@@ -552,7 +588,7 @@ function buildStops(
     const stop: Stop = {
       order: i + 1,
       poi_id: poi.id,
-      name: poi.name,
+      name: poi.name_fr || poi.name_en || poi.name || '',
       lat: poi.lat,
       lng: poi.lng,
       category: poi.category_ai,
@@ -568,15 +604,45 @@ function buildStops(
       stop.points = points;
       stop.validation_radius_m = poi.radius_m ?? 30;
     } else {
-      // guided_tour
+      // guided_tour — use enriched Perplexity content with language fallback
       stop.story = poi.tourist_interest || poi.description_short || undefined;
-      stop.history_context = poi.history_context || undefined;
-      stop.local_anecdote = poi.local_anecdote || undefined;
+
+      // history_context: already 200+ words from Perplexity; fallback to wikipedia_summary
+      const historyRaw = poi.history_context || "";
+      stop.history_context = historyRaw.length >= 100
+        ? historyRaw
+        : (poi.wikipedia_summary || historyRaw || undefined);
+
+      // local_anecdote: prefer localized long version (100-130 words)
+      if (input.language === "en") {
+        stop.local_anecdote = poi.local_anecdote_en || poi.local_anecdote || undefined;
+      } else {
+        stop.local_anecdote = poi.local_anecdote_fr || poi.local_anecdote || undefined;
+      }
+
+      // fun_fact: new enriched field
+      const funFact = input.language === "en" ? poi.fun_fact_en : poi.fun_fact_fr;
+      stop.fun_fact = funFact || undefined;
+
       stop.tourist_tips = buildTouristTip(poi);
       stop.photo_spot = poi.instagram_spot || (poi.metadata?.features?.visual_impact ?? 0) >= 7;
       stop.address = poi.address || undefined;
       stop.description = poi.description_short || undefined;
+      // Enriched fields
+      stop.price_info = poi.price_info || undefined;
+      stop.opening_hours = poi.opening_hours || undefined;
+      stop.must_see_details = poi.must_see_details || undefined;
+      stop.must_try = poi.must_try || undefined;
+      stop.must_visit_nearby = poi.must_visit_nearby || undefined;
+      stop.is_photo_spot = poi.is_photo_spot || false;
+      stop.photo_tip = poi.photo_tip || undefined;
+      stop.ruelle_etroite = poi.ruelle_etroite || false;
+      stop.crowd_level = poi.crowd_level || undefined;
+      stop.accessibility_notes = poi.accessibility_notes || undefined;
     }
+
+    // Attach visit_route for downstream use (pgRouting exit_point)
+    stop.visit_route = poi.visit_route || null;
 
     stops.push(stop);
   }
@@ -617,6 +683,8 @@ function generateTeaser(
 
 // ━━━━━━━━━━━━━━ MAIN ENTRY POINT ━━━━━━━━━━━━━━
 
+const EXCLUDED_CATEGORIES = ["hotel", "riad", "lodging", "hostel", "restaurant"];
+
 export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput {
   // Step 1: Filter candidates
   const excludeSet = new Set(input.exclude_place_ids ?? []);
@@ -624,6 +692,7 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
     if (!p.is_active) return false;
     if (p.is_start_hub) return false;
     if (excludeSet.has(p.id)) return false;
+    if (EXCLUDED_CATEGORIES.includes((p.category_ai || "").toLowerCase())) return false;
     const dist = haversineM(input.start_lat, input.start_lng, p.lat, p.lng);
     return dist <= input.radius_m;
   });

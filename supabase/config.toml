@@ -15,9 +15,6 @@ verify_jwt = false
 [functions.get-media-urls]
 verify_jwt = false
 
-[functions.generate-custom-quest]
-verify_jwt = true
-
 [functions.public-generate-quest]
 verify_jwt = false
 
@@ -42,23 +39,13 @@ verify_jwt = false
 [functions.poi-extract]
 verify_jwt = false
 
-[functions.poi-enrich]
-verify_jwt = false
-
 [functions.poi-proximity]
-verify_jwt = false
-
-[functions.poi-pipeline]
 verify_jwt = false
 
 [functions.poi-worker]
 verify_jwt = false
 
 [functions.poi-classify-worker]
-verify_jwt = false
-
-
-[functions.poi-autopipeline]
 verify_jwt = false
 
 [functions.generate-quest]
@@ -84,3 +71,39 @@ verify_jwt = false
 
 [functions.riddle-generator]
 verify_jwt = false
+
+[functions.poi-backfill-details]
+verify_jwt = false
+
+[functions.poi-auto-agent]
+verify_jwt = false
+
+[functions.poi-fetch-photos]
+verify_jwt = false
+
+[functions.poi-watchdog]
+verify_jwt = false
+
+[functions.client-feedback]
+verify_jwt = false
+
+[functions.sync-pois-export]
+verify_jwt = false
+
+[functions.collect-client-media]
+verify_jwt = false
+
+[functions.submit-recommendation]
+verify_jwt = false
+
+[functions.poi-quality-agent]
+verify_jwt = false
+
+[functions.pull-audio-from-questride]
+verify_jwt = false
+
+[functions.api-v2]
+verify_jwt = false
+
+[functions.process-email-queue]
+verify_jwt = true

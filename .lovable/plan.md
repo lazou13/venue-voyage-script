@@ -1,49 +1,32 @@
 
 
-# Fix POI Enrichment Data for Quest Rides Pro
+## Plan : Exposer les colonnes audio + EN dans `public-project-data`
 
-## Problem
+### Problème
+HPP a bien les 26 POIs avec audio (via `pull-audio-from-questride`) et les colonnes EN (via la migration précédente), mais `public-project-data?mode=library` ne les inclut pas dans son `SELECT`. Les projets consommateurs (TTT, PRO) qui lisent cette API ne reçoivent donc ni audio ni traductions EN.
 
-Quest Rides Pro fetches enrichment data from this project's `medina_pois` table via REST API. The query requests these columns: `price_info`, `opening_hours`, `must_see_details`, `must_try`, `must_visit_nearby`, `is_photo_spot`, `photo_tip`, `ruelle_etroite`, `wikipedia_summary`, `website_url`.
+### Correction
 
-**But these columns don't exist in `medina_pois`.** The table only has `history_context`, `local_anecdote`, `website` (not `website_url`), and `instagram_spot` (not `is_photo_spot`). The REST API query fails silently, returning no enrichment data, so every POI shows the same generic fallback text.
+**1 seul fichier : `supabase/functions/public-project-data/index.ts`**
 
-## Solution (2 parts)
+Ajouter au `SELECT` du mode `library` (ligne 166, après `best_time_visit`) :
 
-### Part 1: Add missing columns to `medina_pois` (this project)
+```
+audio_url_fr, audio_url_en, audio_url_ar,
+anecdote_audio_url_fr, anecdote_audio_url_en,
+history_context_en, wikipedia_summary_en, riddle_easy_en,
+must_see_details_en, must_try_en, must_visit_nearby_en,
+photo_tip_en, tourist_tips, tourist_tips_en,
+price_info_en, accessibility_notes_en,
+best_time_visit_en, street_food_details_en
+```
 
-Database migration to add:
-- `price_info` (text) — pricing info
-- `opening_hours` (jsonb) — structured hours
-- `must_see_details` (text) — what to see
-- `must_try` (text) — what to try
-- `must_visit_nearby` (text) — nearby recommendations
-- `is_photo_spot` (boolean, default false) — photo spot flag
-- `photo_tip` (text) — photo advice
-- `ruelle_etroite` (boolean, default false) — narrow alley warning
-- `wikipedia_summary` (text) — Wikipedia extract
-- `website_url` (text) — website URL (alias for existing `website`)
+### Résultat
+- `public-project-data?mode=library` retournera les URLs audio pour les 26+ POIs enrichis
+- Les champs EN traduits seront aussi exposés
+- Les projets TTT et PRO pourront les consommer immédiatement via leur sync existant
 
-### Part 2: Populate the new columns via AI enrichment
-
-Update the `poi-enrich` edge function to also generate `price_info`, `opening_hours`, `must_see_details`, `must_try`, `must_visit_nearby`, `is_photo_spot`, `photo_tip`, `ruelle_etroite` fields. The existing `history_context` data (370 POIs already enriched) will continue to work.
-
-Also update `poi-autopipeline` to include these fields.
-
-### Part 3: Backfill `website_url` from `website`
-
-A simple migration: `UPDATE medina_pois SET website_url = website WHERE website IS NOT NULL AND website_url IS NULL`.
-
-## Files changed
-
-| File | Change |
-|------|--------|
-| Migration SQL | Add 10 columns to `medina_pois` + backfill `website_url` |
-| `supabase/functions/poi-enrich/index.ts` | Add new fields to AI tool schema and update payload |
-| `supabase/functions/poi-autopipeline/index.ts` | Same: add new fields to AI tool schema |
-| `supabase/functions/anecdote-enricher/index.ts` | Optionally generate `must_try`, `must_see_details` |
-
-## Impact
-
-Once columns exist and are populated, Quest Rides Pro's `enrichStepsFromPOIs()` will successfully fetch personalized data per POI. "Histoire du lieu" will show real `history_context` (already populated for 370 POIs), and "Infos pratiques" will show real `price_info` and `opening_hours` instead of generic fallbacks.
+### Impact
+- Aucun breaking change (ajout de colonnes uniquement)
+- Déploiement immédiat de l'Edge Function
 

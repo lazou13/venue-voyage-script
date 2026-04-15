@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { encode as hexEncode } from "https://deno.land/std@0.224.0/encoding/hex.ts";
+
+const hexEncode = (bytes: Uint8Array): string =>
+  Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 
 const NARRATIVE_VERSION = "v1";
 
@@ -7,7 +9,7 @@ const NARRATIVE_VERSION = "v1";
 async function sha256(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);
   const hash = await crypto.subtle.digest("SHA-256", data);
-  return new TextDecoder().decode(hexEncode(new Uint8Array(hash)));
+  return hexEncode(new Uint8Array(hash));
 }
 
 // ── Validate narrative structure ──
@@ -696,6 +698,14 @@ Deno.serve(async (req) => {
         sort_order: idx,
         step_config: stepConfig,
         library_poi_id: mpoi.id,
+        // Copy enrichment fields from library
+        history_context: mpoi.history_context || null,
+        local_anecdote_fr: mpoi.local_anecdote_fr || null,
+        local_anecdote_en: mpoi.local_anecdote_en || null,
+        fun_fact_fr: mpoi.fun_fact_fr || null,
+        fun_fact_en: mpoi.fun_fact_en || null,
+        crowd_level: mpoi.crowd_level || null,
+        accessibility_notes: mpoi.accessibility_notes || null,
       };
     });
 

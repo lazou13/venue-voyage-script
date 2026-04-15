@@ -10,34 +10,43 @@ const GOOGLE_API_KEY = Deno.env.get("GOOGLE_PLACES_API_KEY")!;
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// GPS grid covering the médina of Marrakech — maille 200m systématique
-// Bbox: south=31.624, west=-7.995, north=31.638, east=-7.975
-// Généré avec pas lat=0.0018° (~200m), pas lng=0.0025° (~200m)
 const MEDINA_POINTS = (() => {
   const points: { lat: number; lng: number }[] = [];
-  // Grille systématique 200m × 200m sur la médina
-  for (let lat = 31.6245; lat <= 31.638; lat += 0.0018) {
-    for (let lng = -7.995; lng <= -7.975; lng += 0.0025) {
+  for (let lat = 31.6245; lat <= 31.638; lat += 0.0009) {
+    for (let lng = -7.995; lng <= -7.975; lng += 0.0012) {
       points.push({
-        lat: Math.round(lat * 10000) / 10000,
-        lng: Math.round(lng * 10000) / 10000,
+        lat: Math.round(lat * 100000) / 100000,
+        lng: Math.round(lng * 100000) / 100000,
       });
     }
   }
-  // Points supplémentaires sur les zones clés non couvertes par la grille
   const keyPoints = [
-    { lat: 31.6258, lng: -7.9890 }, // Jemaa el-Fna
-    { lat: 31.6241, lng: -7.9843 }, // Mellah / Palais Bahia
-    { lat: 31.6320, lng: -7.9879 }, // Souk Semmarine
-    { lat: 31.6285, lng: -7.9873 }, // Ben Youssef / Derb el Cadi
-    { lat: 31.6215, lng: -7.9872 }, // Kasbah / Tombeaux Saadiens
-    { lat: 31.6238, lng: -7.9921 }, // Bab Doukkala
-    { lat: 31.6305, lng: -7.9950 }, // Bab el-Khemis
-    { lat: 31.6199, lng: -7.9857 }, // Bab Agnaou / Bab er-Robb
-    { lat: 31.6270, lng: -7.9812 }, // Mellah central
-    { lat: 31.6348, lng: -7.9918 }, // Bab el-Khemis nord
+    { lat: 31.6258, lng: -7.9890 },
+    { lat: 31.6241, lng: -7.9843 },
+    { lat: 31.6320, lng: -7.9879 },
+    { lat: 31.6285, lng: -7.9873 },
+    { lat: 31.6215, lng: -7.9872 },
+    { lat: 31.6238, lng: -7.9921 },
+    { lat: 31.6305, lng: -7.9950 },
+    { lat: 31.6199, lng: -7.9857 },
+    { lat: 31.6270, lng: -7.9812 },
+    { lat: 31.6348, lng: -7.9918 },
+    { lat: 31.6293, lng: -7.9905 },
+    { lat: 31.6275, lng: -7.9850 },
+    { lat: 31.6250, lng: -7.9860 },
+    { lat: 31.6245, lng: -7.9880 },
+    { lat: 31.6310, lng: -7.9860 },
+    { lat: 31.6335, lng: -7.9870 },
+    { lat: 31.6360, lng: -7.9850 },
+    { lat: 31.6300, lng: -7.9920 },
+    { lat: 31.6265, lng: -7.9935 },
+    { lat: 31.6280, lng: -7.9830 },
+    { lat: 31.6225, lng: -7.9855 },
+    { lat: 31.6230, lng: -7.9830 },
+    { lat: 31.6315, lng: -7.9835 },
+    { lat: 31.6340, lng: -7.9900 },
+    { lat: 31.6255, lng: -7.9910 },
   ];
-  // Éviter doublons exacts
   const seen = new Set(points.map(p => `${p.lat},${p.lng}`));
   for (const kp of keyPoints) {
     const key = `${kp.lat},${kp.lng}`;
@@ -46,16 +55,18 @@ const MEDINA_POINTS = (() => {
   return points;
 })();
 
-const RADIUS = 300; // Réduit à 300m (grille dense = moins de recouvrement)
+const RADIUS = 150;
 
 const TYPES = [
   "tourist_attraction", "museum", "restaurant", "cafe",
   "lodging", "store", "art_gallery", "mosque", "spa",
   "library", "jewelry_store", "clothing_store", "shoe_store",
   "book_store", "bakery", "food", "bar", "night_club",
+  "park", "place_of_worship", "pharmacy", "market",
+  "point_of_interest", "landmark", "travel_agency", "shopping_mall",
 ];
 
-const MAX_PAGES = 3; // Google returns max 20 results per page → 60 max per type+point
+const MAX_PAGES = 3;
 
 interface PlaceResult {
   place_id: string;
@@ -75,10 +86,7 @@ interface NearbyResponse {
 }
 
 async function fetchPlaces(
-  type: string,
-  lat: number,
-  lng: number,
-  pageToken?: string
+  type: string, lat: number, lng: number, pageToken?: string
 ): Promise<NearbyResponse> {
   const params = new URLSearchParams({
     location: `${lat},${lng}`,
@@ -87,7 +95,6 @@ async function fetchPlaces(
     key: GOOGLE_API_KEY,
   });
   if (pageToken) params.set("pagetoken", pageToken);
-
   const res = await fetch(
     `https://maps.googleapis.com/maps/api/place/nearbysearch/json?${params}`
   );
@@ -99,14 +106,24 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
 
   try {
+    // Read pagination params
+    const body = await req.json().catch(() => ({}));
+    const typeOffset = Number(body.type_offset ?? 0);
+    const typesPerBatch = Number(body.types_per_batch ?? 3);
+
+    const typesSlice = TYPES.slice(typeOffset, typeOffset + typesPerBatch);
+    const hasMore = typeOffset + typesPerBatch < TYPES.length;
+    const nextOffset = hasMore ? typeOffset + typesPerBatch : null;
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
     const logs: string[] = [];
     const seenPlaceIds = new Set<string>();
     let totalInserted = 0;
-    let totalSkipped = 0;
     let totalDuplicates = 0;
 
-    for (const type of TYPES) {
+    logs.push(`📦 Batch: types ${typeOffset + 1}–${typeOffset + typesSlice.length}/${TYPES.length} (${typesSlice.join(", ")})`);
+
+    for (const type of typesSlice) {
       for (const point of MEDINA_POINTS) {
         let pageToken: string | undefined;
         let page = 0;
@@ -115,14 +132,10 @@ serve(async (req) => {
 
         do {
           if (pageToken) await new Promise((r) => setTimeout(r, 2000));
-
           const data = await fetchPlaces(type, point.lat, point.lng, pageToken);
 
-          // Log Google status for debugging
           if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-            logs.push(
-              `[${type}] point=${point.lat},${point.lng} page=${page + 1} status=${data.status} error=${data.error_message ?? "none"}`
-            );
+            logs.push(`[${type}] point=${point.lat},${point.lng} page=${page + 1} status=${data.status} error=${data.error_message ?? "none"}`);
             break;
           }
 
@@ -131,27 +144,18 @@ serve(async (req) => {
           page++;
           pointResults += results.length;
 
-          // Build rows, dedup in-memory
           const rows: Record<string, unknown>[] = [];
           for (const place of results) {
-            if (seenPlaceIds.has(place.place_id)) {
-              totalDuplicates++;
-              continue;
-            }
+            if (seenPlaceIds.has(place.place_id)) { totalDuplicates++; continue; }
             seenPlaceIds.add(place.place_id);
-
             rows.push({
               place_id: place.place_id,
               name: place.name,
               lat: place.geometry.location.lat,
               lng: place.geometry.location.lng,
               category_google: type,
-              category:
-                type === "restaurant" || type === "cafe"
-                  ? "restaurant"
-                  : type === "lodging"
-                    ? "hotel"
-                    : "generic",
+              category: type === "restaurant" || type === "cafe" ? "restaurant"
+                : type === "lodging" ? "hotel" : "generic",
               rating: place.rating ?? null,
               reviews_count: place.user_ratings_total ?? 0,
               address: place.vicinity ?? "",
@@ -162,16 +166,12 @@ serve(async (req) => {
             });
           }
 
-          // Batch upsert (ignoreDuplicates acts as ON CONFLICT DO NOTHING)
           if (rows.length > 0) {
             const { error, count } = await supabase
               .from("medina_pois")
               .upsert(rows, { onConflict: "place_id", ignoreDuplicates: true, count: "exact" });
-
             if (error) {
-              logs.push(
-                `[upsert-error] ${type} point=${point.lat},${point.lng}: ${error.message}`
-              );
+              logs.push(`[upsert-error] ${type} point=${point.lat},${point.lng}: ${error.message}`);
             } else {
               const inserted = count ?? rows.length;
               pointInserted += inserted;
@@ -181,26 +181,23 @@ serve(async (req) => {
         } while (pageToken && page < MAX_PAGES);
 
         if (pointResults > 0) {
-          logs.push(
-            `[${type}] point=${point.lat},${point.lng} results=${pointResults} inserted=${pointInserted} pages=${page}`
-          );
+          logs.push(`[${type}] point=${point.lat},${point.lng} results=${pointResults} inserted=${pointInserted} pages=${page}`);
         }
       }
     }
 
-    totalSkipped = totalDuplicates;
-    logs.push(
-      `--- DONE: ${totalInserted} inserted, ${totalSkipped} duplicates skipped, ${seenPlaceIds.size} unique place_ids seen (${MEDINA_POINTS.length} grid points × ${TYPES.length} types) ---`
-    );
+    logs.push(`--- Batch done: ${totalInserted} inserted, ${totalDuplicates} duplicates, ${seenPlaceIds.size} unique ---`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        types_processed: TYPES.length,
+        types_processed: typesSlice.length,
+        type_offset: typeOffset,
+        next_offset: nextOffset,
+        total_types: TYPES.length,
         points_processed: MEDINA_POINTS.length,
-      grid_size: MEDINA_POINTS.length,
         total_inserted: totalInserted,
-        total_skipped: totalSkipped,
+        total_skipped: totalDuplicates,
         unique_places: seenPlaceIds.size,
         logs,
       }),
@@ -209,13 +206,8 @@ serve(async (req) => {
   } catch (e) {
     console.error("poi-extract error:", e);
     return new Response(
-      JSON.stringify({
-        error: e instanceof Error ? e.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

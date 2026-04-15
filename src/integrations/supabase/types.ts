@@ -14,6 +14,74 @@ export type Database = {
   }
   public: {
     Tables: {
+      api_keys: {
+        Row: {
+          app_id: string | null
+          app_name: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          key: string
+          last_used_at: string | null
+          rate_limit: number | null
+          requests_count: number | null
+        }
+        Insert: {
+          app_id?: string | null
+          app_name: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          key: string
+          last_used_at?: string | null
+          rate_limit?: number | null
+          requests_count?: number | null
+        }
+        Update: {
+          app_id?: string | null
+          app_name?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          key?: string
+          last_used_at?: string | null
+          rate_limit?: number | null
+          requests_count?: number | null
+        }
+        Relationships: []
+      }
+      api_usage: {
+        Row: {
+          api_key_id: string | null
+          created_at: string | null
+          id: string
+          request_count: number | null
+          window_start: string | null
+        }
+        Insert: {
+          api_key_id?: string | null
+          created_at?: string | null
+          id?: string
+          request_count?: number | null
+          window_start?: string | null
+        }
+        Update: {
+          api_key_id?: string | null
+          created_at?: string | null
+          id?: string
+          request_count?: number | null
+          window_start?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_usage_api_key_id_fkey"
+            columns: ["api_key_id"]
+            isOneToOne: false
+            referencedRelation: "api_keys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       app_configs: {
         Row: {
           created_at: string
@@ -87,6 +155,265 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      client_photos: {
+        Row: {
+          caption: string | null
+          id: string
+          is_approved: boolean | null
+          metadata: Json | null
+          photo_type: string | null
+          photo_url: string
+          player_email: string | null
+          poi_id: string | null
+          quality_score: number | null
+          quest_code: string | null
+          taken_at: string | null
+        }
+        Insert: {
+          caption?: string | null
+          id?: string
+          is_approved?: boolean | null
+          metadata?: Json | null
+          photo_type?: string | null
+          photo_url: string
+          player_email?: string | null
+          poi_id?: string | null
+          quality_score?: number | null
+          quest_code?: string | null
+          taken_at?: string | null
+        }
+        Update: {
+          caption?: string | null
+          id?: string
+          is_approved?: boolean | null
+          metadata?: Json | null
+          photo_type?: string | null
+          photo_url?: string
+          player_email?: string | null
+          poi_id?: string | null
+          quality_score?: number | null
+          quest_code?: string | null
+          taken_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_photos_poi_id_fkey"
+            columns: ["poi_id"]
+            isOneToOne: false
+            referencedRelation: "medina_pois"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_poi_recommendations: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          lat: number | null
+          lng: number | null
+          medina_poi_id: string | null
+          photo_url: string | null
+          poi_name: string | null
+          rating: number | null
+          reviewed_at: string | null
+          source_instance_id: string | null
+          source_project: string | null
+          status: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          medina_poi_id?: string | null
+          photo_url?: string | null
+          poi_name?: string | null
+          rating?: number | null
+          reviewed_at?: string | null
+          source_instance_id?: string | null
+          source_project?: string | null
+          status?: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          medina_poi_id?: string | null
+          photo_url?: string | null
+          poi_name?: string | null
+          rating?: number | null
+          reviewed_at?: string | null
+          source_instance_id?: string | null
+          source_project?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_poi_recommendations_medina_poi_id_fkey"
+            columns: ["medina_poi_id"]
+            isOneToOne: false
+            referencedRelation: "medina_pois"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_poi_recommendations_source_instance_id_fkey"
+            columns: ["source_instance_id"]
+            isOneToOne: false
+            referencedRelation: "quest_instances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_recommendations: {
+        Row: {
+          admin_notes: string | null
+          category_suggestion: string | null
+          comment: string
+          created_at: string | null
+          id: string
+          lat: number | null
+          lng: number | null
+          photo_url: string | null
+          player_email: string | null
+          poi_id: string | null
+          poi_name: string | null
+          quest_code: string | null
+          rating: number | null
+          status: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          category_suggestion?: string | null
+          comment: string
+          created_at?: string | null
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          photo_url?: string | null
+          player_email?: string | null
+          poi_id?: string | null
+          poi_name?: string | null
+          quest_code?: string | null
+          rating?: number | null
+          status?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          category_suggestion?: string | null
+          comment?: string
+          created_at?: string | null
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          photo_url?: string | null
+          player_email?: string | null
+          poi_id?: string | null
+          poi_name?: string | null
+          quest_code?: string | null
+          rating?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_recommendations_poi_id_fkey"
+            columns: ["poi_id"]
+            isOneToOne: false
+            referencedRelation: "medina_pois"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_send_log: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          message_id: string | null
+          metadata: Json | null
+          recipient_email: string
+          status: string
+          template_name: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          metadata?: Json | null
+          recipient_email: string
+          status: string
+          template_name: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          metadata?: Json | null
+          recipient_email?: string
+          status?: string
+          template_name?: string
+        }
+        Relationships: []
+      }
+      email_send_state: {
+        Row: {
+          auth_email_ttl_minutes: number
+          batch_size: number
+          id: number
+          retry_after_until: string | null
+          send_delay_ms: number
+          transactional_email_ttl_minutes: number
+          updated_at: string
+        }
+        Insert: {
+          auth_email_ttl_minutes?: number
+          batch_size?: number
+          id?: number
+          retry_after_until?: string | null
+          send_delay_ms?: number
+          transactional_email_ttl_minutes?: number
+          updated_at?: string
+        }
+        Update: {
+          auth_email_ttl_minutes?: number
+          batch_size?: number
+          id?: number
+          retry_after_until?: string | null
+          send_delay_ms?: number
+          transactional_email_ttl_minutes?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_unsubscribe_tokens: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: []
       }
       forbidden_zones: {
         Row: {
@@ -218,198 +545,390 @@ export type Database = {
       }
       medina_pois: {
         Row: {
+          accessibility_info: string | null
+          accessibility_notes: string | null
+          accessibility_notes_en: string | null
           address: string | null
+          agent_enriched_at: string | null
+          anecdote_audio_url_en: string | null
+          anecdote_audio_url_fr: string | null
+          architect: string | null
+          audience_tags: string[] | null
+          audio_url_ar: string | null
+          audio_url_en: string | null
+          audio_url_fr: string | null
+          average_visit_duration: number | null
+          best_client_photo_url: string | null
+          best_time_visit: string | null
+          best_time_visit_en: string | null
           category: string
           category_ai: string | null
           category_google: string | null
           challenge: string | null
+          client_photos_count: number | null
+          construction_date: string | null
           created_at: string
+          crowd_level: string | null
           data_sources: string[] | null
           description_short: string | null
+          difficulty_score: number | null
           district: string | null
+          enrichment_quality: string | null
           enrichment_status: string | null
           foursquare_id: string | null
+          fun_fact_en: string | null
+          fun_fact_fr: string | null
+          fun_facts: Json | null
           geom: unknown
           google_raw: Json | null
+          guided_tour_score: number | null
+          hero_image: string | null
+          historical_period: string | null
+          historical_significance: number | null
           history_context: string | null
+          history_context_en: string | null
           hub_theme: string | null
           id: string
+          instagram_score: number | null
           instagram_spot: boolean | null
+          instagram_tips: string | null
           is_active: boolean
           is_photo_spot: boolean | null
           is_start_hub: boolean
+          last_enriched_at: string | null
+          last_visited_at: string | null
           lat: number | null
           lng: number | null
           local_anecdote: string | null
+          local_anecdote_en: string | null
+          local_anecdote_fr: string | null
+          media_attribution: string | null
           metadata: Json
           must_see_details: string | null
+          must_see_details_en: string | null
           must_try: string | null
+          must_try_en: string | null
           must_visit_nearby: string | null
+          must_visit_nearby_en: string | null
           name: string
           name_ar: string | null
           name_en: string | null
           name_fr: string | null
           nearby_pois_data: Json | null
+          nearby_pois_ids: string[] | null
           nearby_restaurants: Json | null
           nearest_node_id: number | null
           opening_hours: Json | null
           osm_id: string | null
           phone: string | null
+          photo_opportunity_score: number | null
           photo_spot_score: number | null
           photo_tip: string | null
+          photo_tip_en: string | null
           place_id: string | null
           poi_quality_score: number | null
           price_info: string | null
+          price_info_en: string | null
           radius_m: number
           rating: number | null
+          recommendations_count: number | null
           reviews_count: number | null
           riddle_easy: string | null
+          riddle_easy_en: string | null
           riddle_hard: string | null
           riddle_medium: string | null
+          route_tags: string[] | null
           ruelle_etroite: boolean | null
           souks_nearby: string[] | null
           status: string
           step_config: Json
+          story_ar: string | null
+          story_en: string | null
+          story_fr: string | null
+          street_food_details: string | null
+          street_food_details_en: string | null
+          street_food_spot: boolean | null
           street_type: string | null
           subcategory: string | null
+          team_building_score: number | null
           terrain_validated: boolean | null
           terrain_validated_at: string | null
+          thumbnail: string | null
           tourist_interest: string | null
+          tourist_tips: string | null
+          tourist_tips_en: string | null
+          treasure_hunt_score: number | null
+          unesco_status: boolean | null
           updated_at: string
+          validated_at: string | null
+          visit_count: number | null
+          visit_route: Json | null
+          visitor_tips: Json | null
           website: string | null
           website_url: string | null
+          wikidata_description: string | null
           wikidata_id: string | null
+          wikimedia_images: Json | null
           wikipedia_summary: string | null
+          wikipedia_summary_en: string | null
           zone: string
         }
         Insert: {
+          accessibility_info?: string | null
+          accessibility_notes?: string | null
+          accessibility_notes_en?: string | null
           address?: string | null
+          agent_enriched_at?: string | null
+          anecdote_audio_url_en?: string | null
+          anecdote_audio_url_fr?: string | null
+          architect?: string | null
+          audience_tags?: string[] | null
+          audio_url_ar?: string | null
+          audio_url_en?: string | null
+          audio_url_fr?: string | null
+          average_visit_duration?: number | null
+          best_client_photo_url?: string | null
+          best_time_visit?: string | null
+          best_time_visit_en?: string | null
           category?: string
           category_ai?: string | null
           category_google?: string | null
           challenge?: string | null
+          client_photos_count?: number | null
+          construction_date?: string | null
           created_at?: string
+          crowd_level?: string | null
           data_sources?: string[] | null
           description_short?: string | null
+          difficulty_score?: number | null
           district?: string | null
+          enrichment_quality?: string | null
           enrichment_status?: string | null
           foursquare_id?: string | null
+          fun_fact_en?: string | null
+          fun_fact_fr?: string | null
+          fun_facts?: Json | null
           geom?: unknown
           google_raw?: Json | null
+          guided_tour_score?: number | null
+          hero_image?: string | null
+          historical_period?: string | null
+          historical_significance?: number | null
           history_context?: string | null
+          history_context_en?: string | null
           hub_theme?: string | null
           id?: string
+          instagram_score?: number | null
           instagram_spot?: boolean | null
+          instagram_tips?: string | null
           is_active?: boolean
           is_photo_spot?: boolean | null
           is_start_hub?: boolean
+          last_enriched_at?: string | null
+          last_visited_at?: string | null
           lat?: number | null
           lng?: number | null
           local_anecdote?: string | null
+          local_anecdote_en?: string | null
+          local_anecdote_fr?: string | null
+          media_attribution?: string | null
           metadata?: Json
           must_see_details?: string | null
+          must_see_details_en?: string | null
           must_try?: string | null
+          must_try_en?: string | null
           must_visit_nearby?: string | null
+          must_visit_nearby_en?: string | null
           name: string
           name_ar?: string | null
           name_en?: string | null
           name_fr?: string | null
           nearby_pois_data?: Json | null
+          nearby_pois_ids?: string[] | null
           nearby_restaurants?: Json | null
           nearest_node_id?: number | null
           opening_hours?: Json | null
           osm_id?: string | null
           phone?: string | null
+          photo_opportunity_score?: number | null
           photo_spot_score?: number | null
           photo_tip?: string | null
+          photo_tip_en?: string | null
           place_id?: string | null
           poi_quality_score?: number | null
           price_info?: string | null
+          price_info_en?: string | null
           radius_m?: number
           rating?: number | null
+          recommendations_count?: number | null
           reviews_count?: number | null
           riddle_easy?: string | null
+          riddle_easy_en?: string | null
           riddle_hard?: string | null
           riddle_medium?: string | null
+          route_tags?: string[] | null
           ruelle_etroite?: boolean | null
           souks_nearby?: string[] | null
           status?: string
           step_config?: Json
+          story_ar?: string | null
+          story_en?: string | null
+          story_fr?: string | null
+          street_food_details?: string | null
+          street_food_details_en?: string | null
+          street_food_spot?: boolean | null
           street_type?: string | null
           subcategory?: string | null
+          team_building_score?: number | null
           terrain_validated?: boolean | null
           terrain_validated_at?: string | null
+          thumbnail?: string | null
           tourist_interest?: string | null
+          tourist_tips?: string | null
+          tourist_tips_en?: string | null
+          treasure_hunt_score?: number | null
+          unesco_status?: boolean | null
           updated_at?: string
+          validated_at?: string | null
+          visit_count?: number | null
+          visit_route?: Json | null
+          visitor_tips?: Json | null
           website?: string | null
           website_url?: string | null
+          wikidata_description?: string | null
           wikidata_id?: string | null
+          wikimedia_images?: Json | null
           wikipedia_summary?: string | null
+          wikipedia_summary_en?: string | null
           zone?: string
         }
         Update: {
+          accessibility_info?: string | null
+          accessibility_notes?: string | null
+          accessibility_notes_en?: string | null
           address?: string | null
+          agent_enriched_at?: string | null
+          anecdote_audio_url_en?: string | null
+          anecdote_audio_url_fr?: string | null
+          architect?: string | null
+          audience_tags?: string[] | null
+          audio_url_ar?: string | null
+          audio_url_en?: string | null
+          audio_url_fr?: string | null
+          average_visit_duration?: number | null
+          best_client_photo_url?: string | null
+          best_time_visit?: string | null
+          best_time_visit_en?: string | null
           category?: string
           category_ai?: string | null
           category_google?: string | null
           challenge?: string | null
+          client_photos_count?: number | null
+          construction_date?: string | null
           created_at?: string
+          crowd_level?: string | null
           data_sources?: string[] | null
           description_short?: string | null
+          difficulty_score?: number | null
           district?: string | null
+          enrichment_quality?: string | null
           enrichment_status?: string | null
           foursquare_id?: string | null
+          fun_fact_en?: string | null
+          fun_fact_fr?: string | null
+          fun_facts?: Json | null
           geom?: unknown
           google_raw?: Json | null
+          guided_tour_score?: number | null
+          hero_image?: string | null
+          historical_period?: string | null
+          historical_significance?: number | null
           history_context?: string | null
+          history_context_en?: string | null
           hub_theme?: string | null
           id?: string
+          instagram_score?: number | null
           instagram_spot?: boolean | null
+          instagram_tips?: string | null
           is_active?: boolean
           is_photo_spot?: boolean | null
           is_start_hub?: boolean
+          last_enriched_at?: string | null
+          last_visited_at?: string | null
           lat?: number | null
           lng?: number | null
           local_anecdote?: string | null
+          local_anecdote_en?: string | null
+          local_anecdote_fr?: string | null
+          media_attribution?: string | null
           metadata?: Json
           must_see_details?: string | null
+          must_see_details_en?: string | null
           must_try?: string | null
+          must_try_en?: string | null
           must_visit_nearby?: string | null
+          must_visit_nearby_en?: string | null
           name?: string
           name_ar?: string | null
           name_en?: string | null
           name_fr?: string | null
           nearby_pois_data?: Json | null
+          nearby_pois_ids?: string[] | null
           nearby_restaurants?: Json | null
           nearest_node_id?: number | null
           opening_hours?: Json | null
           osm_id?: string | null
           phone?: string | null
+          photo_opportunity_score?: number | null
           photo_spot_score?: number | null
           photo_tip?: string | null
+          photo_tip_en?: string | null
           place_id?: string | null
           poi_quality_score?: number | null
           price_info?: string | null
+          price_info_en?: string | null
           radius_m?: number
           rating?: number | null
+          recommendations_count?: number | null
           reviews_count?: number | null
           riddle_easy?: string | null
+          riddle_easy_en?: string | null
           riddle_hard?: string | null
           riddle_medium?: string | null
+          route_tags?: string[] | null
           ruelle_etroite?: boolean | null
           souks_nearby?: string[] | null
           status?: string
           step_config?: Json
+          story_ar?: string | null
+          story_en?: string | null
+          story_fr?: string | null
+          street_food_details?: string | null
+          street_food_details_en?: string | null
+          street_food_spot?: boolean | null
           street_type?: string | null
           subcategory?: string | null
+          team_building_score?: number | null
           terrain_validated?: boolean | null
           terrain_validated_at?: string | null
+          thumbnail?: string | null
           tourist_interest?: string | null
+          tourist_tips?: string | null
+          tourist_tips_en?: string | null
+          treasure_hunt_score?: number | null
+          unesco_status?: boolean | null
           updated_at?: string
+          validated_at?: string | null
+          visit_count?: number | null
+          visit_route?: Json | null
+          visitor_tips?: Json | null
           website?: string | null
           website_url?: string | null
+          wikidata_description?: string | null
           wikidata_id?: string | null
+          wikimedia_images?: Json | null
           wikipedia_summary?: string | null
+          wikipedia_summary_en?: string | null
           zone?: string
         }
         Relationships: []
@@ -476,6 +995,42 @@ export type Database = {
           },
         ]
       }
+      pipeline_runs: {
+        Row: {
+          completed_at: string | null
+          completed_steps: string[] | null
+          current_step: string | null
+          error_message: string | null
+          id: string
+          logs: string[] | null
+          started_at: string | null
+          status: string
+          total_steps: number | null
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_steps?: string[] | null
+          current_step?: string | null
+          error_message?: string | null
+          id?: string
+          logs?: string[] | null
+          started_at?: string | null
+          status?: string
+          total_steps?: number | null
+        }
+        Update: {
+          completed_at?: string | null
+          completed_steps?: string[] | null
+          current_step?: string | null
+          error_message?: string | null
+          id?: string
+          logs?: string[] | null
+          started_at?: string | null
+          status?: string
+          total_steps?: number | null
+        }
+        Relationships: []
+      }
       poi_media: {
         Row: {
           caption: string | null
@@ -534,6 +1089,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      poi_quality_reports: {
+        Row: {
+          auto_fixed: number
+          dry_run: boolean
+          id: string
+          issues_detail: Json
+          needs_review: number
+          pois_to_review: string[] | null
+          quality_score: number | null
+          run_at: string
+          total_pois: number | null
+        }
+        Insert: {
+          auto_fixed?: number
+          dry_run?: boolean
+          id?: string
+          issues_detail?: Json
+          needs_review?: number
+          pois_to_review?: string[] | null
+          quality_score?: number | null
+          run_at?: string
+          total_pois?: number | null
+        }
+        Update: {
+          auto_fixed?: number
+          dry_run?: boolean
+          id?: string
+          issues_detail?: Json
+          needs_review?: number
+          pois_to_review?: string[] | null
+          quality_score?: number | null
+          run_at?: string
+          total_pois?: number | null
+        }
+        Relationships: []
       }
       pois: {
         Row: {
@@ -843,6 +1434,84 @@ export type Database = {
           },
         ]
       }
+      quest_library: {
+        Row: {
+          agent_version: string | null
+          audience: string
+          best_time: string | null
+          created_at: string | null
+          description_en: string | null
+          description_fr: string | null
+          difficulty: string
+          distance_m: number | null
+          duration_min: number | null
+          generated_at: string | null
+          highlights: string[] | null
+          id: string
+          mode: string
+          quality_score: number | null
+          start_hub: string
+          start_lat: number
+          start_lng: number
+          stops_count: number | null
+          stops_data: Json | null
+          theme: string
+          title_en: string | null
+          title_fr: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          agent_version?: string | null
+          audience: string
+          best_time?: string | null
+          created_at?: string | null
+          description_en?: string | null
+          description_fr?: string | null
+          difficulty?: string
+          distance_m?: number | null
+          duration_min?: number | null
+          generated_at?: string | null
+          highlights?: string[] | null
+          id?: string
+          mode?: string
+          quality_score?: number | null
+          start_hub: string
+          start_lat: number
+          start_lng: number
+          stops_count?: number | null
+          stops_data?: Json | null
+          theme?: string
+          title_en?: string | null
+          title_fr?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          agent_version?: string | null
+          audience?: string
+          best_time?: string | null
+          created_at?: string | null
+          description_en?: string | null
+          description_fr?: string | null
+          difficulty?: string
+          distance_m?: number | null
+          duration_min?: number | null
+          generated_at?: string | null
+          highlights?: string[] | null
+          id?: string
+          mode?: string
+          quality_score?: number | null
+          start_hub?: string
+          start_lat?: number
+          start_lng?: number
+          stops_count?: number | null
+          stops_data?: Json | null
+          theme?: string
+          title_en?: string | null
+          title_fr?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       quest_narratives_cache: {
         Row: {
           audience: string
@@ -878,6 +1547,69 @@ export type Database = {
           theme?: string
         }
         Relationships: []
+      }
+      quest_photos: {
+        Row: {
+          caption: string | null
+          created_at: string
+          device_id: string | null
+          id: string
+          lat: number | null
+          lng: number | null
+          media_type: string
+          medina_poi_id: string | null
+          quest_instance_id: string | null
+          source_instance_id: string | null
+          source_project: string | null
+          storage_bucket: string
+          storage_path: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          media_type?: string
+          medina_poi_id?: string | null
+          quest_instance_id?: string | null
+          source_instance_id?: string | null
+          source_project?: string | null
+          storage_bucket?: string
+          storage_path: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          device_id?: string | null
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          media_type?: string
+          medina_poi_id?: string | null
+          quest_instance_id?: string | null
+          source_instance_id?: string | null
+          source_project?: string | null
+          storage_bucket?: string
+          storage_path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quest_photos_medina_poi_id_fkey"
+            columns: ["medina_poi_id"]
+            isOneToOne: false
+            referencedRelation: "medina_pois"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quest_photos_quest_instance_id_fkey"
+            columns: ["quest_instance_id"]
+            isOneToOne: false
+            referencedRelation: "quest_instances"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       route_markers: {
         Row: {
@@ -1087,6 +1819,30 @@ export type Database = {
           },
         ]
       }
+      suppressed_emails: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          metadata: Json | null
+          reason: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          metadata?: Json | null
+          reason: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          metadata?: Json | null
+          reason?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1105,6 +1861,81 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      visit_types: {
+        Row: {
+          description: string | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          label_ar: string | null
+          label_en: string
+          label_fr: string
+          max_duration_min: number | null
+          min_duration_min: number | null
+          price_multiplier: number | null
+          theme_key: string | null
+        }
+        Insert: {
+          description?: string | null
+          icon?: string | null
+          id: string
+          is_active?: boolean | null
+          label_ar?: string | null
+          label_en: string
+          label_fr: string
+          max_duration_min?: number | null
+          min_duration_min?: number | null
+          price_multiplier?: number | null
+          theme_key?: string | null
+        }
+        Update: {
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          label_ar?: string | null
+          label_en?: string
+          label_fr?: string
+          max_duration_min?: number | null
+          min_duration_min?: number | null
+          price_multiplier?: number | null
+          theme_key?: string | null
+        }
+        Relationships: []
+      }
+      watchdog_reports: {
+        Row: {
+          created_at: string
+          details: Json
+          id: string
+          report_type: string
+          resolved: boolean
+          resolved_at: string | null
+          severity: string
+          summary: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json
+          id?: string
+          report_type: string
+          resolved?: boolean
+          resolved_at?: string | null
+          severity?: string
+          summary: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json
+          id?: string
+          report_type?: string
+          resolved?: boolean
+          resolved_at?: string | null
+          severity?: string
+          summary?: string
         }
         Relationships: []
       }
@@ -1989,6 +2820,10 @@ export type Database = {
           }
       clean_low_quality_pois: { Args: never; Returns: Json }
       cleanup_expired_data: { Args: never; Returns: Json }
+      delete_email: {
+        Args: { message_id: number; queue_name: string }
+        Returns: boolean
+      }
       disablelongtransactions: { Args: never; Returns: string }
       dropgeometrycolumn:
         | {
@@ -2021,6 +2856,10 @@ export type Database = {
         | { Args: { schema_name: string; table_name: string }; Returns: string }
         | { Args: { table_name: string }; Returns: string }
       enablelongtransactions: { Args: never; Returns: string }
+      enqueue_email: {
+        Args: { payload: Json; queue_name: string }
+        Returns: number
+      }
       equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
       find_catalog_project: {
         Args: { p_slug: string }
@@ -2158,6 +2997,15 @@ export type Database = {
       link_pois_to_nearest_nodes: { Args: never; Returns: number }
       longtransactionsenabled: { Args: never; Returns: boolean }
       merge_duplicate_pois: { Args: never; Returns: Json }
+      move_to_dlq: {
+        Args: {
+          dlq_name: string
+          message_id: number
+          payload: Json
+          source_queue: string
+        }
+        Returns: number
+      }
       nearby_nodes_knn: {
         Args: { p_lat: number; p_limit?: number; p_lng: number }
         Returns: {
@@ -2290,6 +3138,14 @@ export type Database = {
       }
       postgis_version: { Args: never; Returns: string }
       postgis_wagyu_version: { Args: never; Returns: string }
+      read_email_batch: {
+        Args: { batch_size: number; queue_name: string; vt: number }
+        Returns: {
+          message: Json
+          msg_id: number
+          read_ct: number
+        }[]
+      }
       st_3dclosestpoint: {
         Args: { geom1: unknown; geom2: unknown }
         Returns: unknown

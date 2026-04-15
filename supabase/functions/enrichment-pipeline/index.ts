@@ -8,12 +8,17 @@ const corsHeaders = {
 };
 
 const BASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 async function callFn(name: string, body: Record<string, unknown>) {
   try {
     const resp = await fetch(`${BASE_URL}/functions/v1/${name}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SERVICE_KEY}`,
+        'apikey': SERVICE_KEY,
+      },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(55000),
     });
@@ -67,21 +72,7 @@ serve(async (req) => {
     log.push(`  ✓ ${total} POIs enrichis via Wikipedia`);
   }
 
-  if (steps.includes('anecdote')) {
-    log.push('▶ anecdote-enricher...');
-    let total = 0;
-    for (let i = 0; i < 10; i++) { const r = await callFn('anecdote-enricher', { batch_size: 20, min_score: 0 }); if (!r.ok) { log.push(`  ⚠ ${(r.data as any)?.error}`); break; } const c = (r.data as any)?.updated ?? 0; total += c; if (c === 0) break; await sleep(1500); }
-    results.anecdote_enricher = { updated: total };
-    log.push(`  ✓ ${total} anecdotes générées`);
-  }
-
-  if (steps.includes('riddle')) {
-    log.push('▶ riddle-generator...');
-    let total = 0;
-    for (let i = 0; i < 15; i++) { const r = await callFn('riddle-generator', { batch_size: 40, min_score: 0 }); if (!r.ok) { log.push(`  ⚠ ${(r.data as any)?.error}`); break; } const c = (r.data as any)?.updated ?? 0; total += c; if (c === 0) break; await sleep(1500); }
-    results.riddle_generator = { updated: total };
-    log.push(`  ✓ ${total} énigmes générées`);
-  }
+  // anecdote + riddle steps removed — handled client-side to avoid timeout
 
   let stats = null;
   try {

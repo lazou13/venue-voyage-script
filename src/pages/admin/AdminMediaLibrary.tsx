@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,49 +8,80 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { PhotoLightbox, LightboxPhoto } from '@/components/intake/shared/PhotoLightbox';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { Download, Image, MapPin, Calendar, CheckSquare, Loader2, Trash2 } from 'lucide-react';
-import JSZip from 'jszip';
 import { useToast } from '@/hooks/use-toast';
+
+const PAGE_SIZE = 50;
 
 interface PhotoItem {
   url: string;
   markerId: string;
-  note: string | null;
   lat: number;
   lng: number;
   createdAt: string;
   traceName: string | null;
   projectId: string;
+  projectName: string | null;
+  note: string | null;
 }
 
 export default function AdminMediaLibrary() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [filterProject, setFilterProject] = useState<string>('all');
   const [filterTrace, setFilterTrace] = useState<string>('all');
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [page, setPage] = useState(0);
 
-  const { data: markers = [], isLoading } = useQuery({
-    queryKey: ['media-library-markers'],
+  // Fetch projects for filter
+  const { data: projects = [] } = useQuery({
+    queryKey: ['media-library-projects'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('route_markers')
-        .select('id, lat, lng, note, photo_url, photo_urls, created_at, trace_id, route_traces!inner(name, project_id)')
+        .from('projects')
+        .select('id, hotel_name')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     },
   });
 
+  // Paginated markers query with server-side project filter
+  const { data: markersResult, isLoading } = useQuery({
+    queryKey: ['media-library-markers', filterProject, page],
+    queryFn: async () => {
+      let query = supabase
+        .from('route_markers')
+        .select('id, lat, lng, photo_url, photo_urls, created_at, trace_id, route_traces!inner(name, project_id, projects!inner(hotel_name))', { count: 'exact' })
+        .order('created_at', { ascending: false });
+
+      if (filterProject !== 'all') {
+        query = query.eq('route_traces.project_id', filterProject);
+      }
+
+      const from = page * PAGE_SIZE;
+      query = query.range(from, from + PAGE_SIZE - 1);
+
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return { markers: data || [], total: count || 0 };
+    },
+  });
+
+  const markers = markersResult?.markers || [];
+  const totalMarkers = markersResult?.total || 0;
+
   // Flatten markers into individual photo items
   const photos = useMemo<PhotoItem[]>(() => {
     const items: PhotoItem[] = [];
     for (const m of markers) {
-      const trace = m.route_traces as unknown as { name: string | null; project_id: string };
+      const trace = m.route_traces as unknown as { name: string | null; project_id: string; projects: { hotel_name: string } };
       const urls: string[] = [];
       if (m.photo_urls && Array.isArray(m.photo_urls) && m.photo_urls.length > 0) {
         urls.push(...m.photo_urls.filter(Boolean));
@@ -61,19 +92,20 @@ export default function AdminMediaLibrary() {
         items.push({
           url,
           markerId: m.id,
-          note: m.note,
+          note: null,
           lat: Number(m.lat),
           lng: Number(m.lng),
           createdAt: m.created_at,
           traceName: trace?.name || null,
           projectId: trace?.project_id || '',
+          projectName: trace?.projects?.hotel_name || null,
         });
       }
     }
     return items;
   }, [markers]);
 
-  // Unique traces for filter
+  // Unique traces for filter (from current page data)
   const traceOptions = useMemo(() => {
     const map = new Map<string, string>();
     for (const m of markers) {
@@ -91,13 +123,15 @@ export default function AdminMediaLibrary() {
     });
   }, [photos, filterTrace, markers]);
 
-  const toggleSelect = (url: string) => {
+  const totalPages = Math.max(1, Math.ceil(totalMarkers / PAGE_SIZE));
+
+  const toggleSelect = useCallback((url: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(url)) next.delete(url); else next.add(url);
       return next;
     });
-  };
+  }, []);
 
   const toggleAll = () => {
     if (selectedIds.size === filtered.length) {
@@ -112,6 +146,7 @@ export default function AdminMediaLibrary() {
     if (urls.length === 0) return;
     setIsDownloading(true);
     try {
+      const { default: JSZip } = await import('jszip');
       const zip = new JSZip();
       await Promise.all(urls.map(async (url, i) => {
         const res = await fetch(url);
@@ -183,6 +218,13 @@ export default function AdminMediaLibrary() {
     lng: p.lng,
   }));
 
+  const handlePageChange = (newPage: number) => {
+    if (newPage < 0 || newPage >= totalPages) return;
+    setPage(newPage);
+    setSelectedIds(new Set());
+    setFilterTrace('all');
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -198,11 +240,23 @@ export default function AdminMediaLibrary() {
           <h2 className="text-xl font-bold text-foreground">Médiathèque</h2>
           <Badge variant="secondary">
             <Image className="w-3 h-3 mr-1" />
-            {filtered.length} photos
+            {totalMarkers} markers · {filtered.length} photos
           </Badge>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
+          <Select value={filterProject} onValueChange={(v) => { setFilterProject(v); setPage(0); setFilterTrace('all'); }}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Tous les projets" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les projets</SelectItem>
+              {projects.map(p => (
+                <SelectItem key={p.id} value={p.id}>{p.hotel_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Select value={filterTrace} onValueChange={setFilterTrace}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Toutes les traces" />
@@ -253,9 +307,10 @@ export default function AdminMediaLibrary() {
                 <div className="relative aspect-square">
                   <img
                     src={photo.url}
-                    alt={photo.note || `Photo ${i + 1}`}
+                    alt={`Photo ${i + 1}`}
                     className="w-full h-full object-cover"
                     loading="lazy"
+                    decoding="async"
                     onClick={() => { setLightboxIndex(i); setLightboxOpen(true); }}
                   />
                   <div className="absolute top-2 left-2" onClick={e => e.stopPropagation()}>
@@ -267,9 +322,6 @@ export default function AdminMediaLibrary() {
                   </div>
                 </div>
                 <CardContent className="p-2 space-y-1">
-                  {photo.note && (
-                    <p className="text-xs text-foreground line-clamp-1">{photo.note}</p>
-                  )}
                   <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                     <span className="flex items-center gap-0.5">
                       <MapPin className="w-2.5 h-2.5" />
@@ -280,16 +332,67 @@ export default function AdminMediaLibrary() {
                       {new Date(photo.createdAt).toLocaleDateString('fr')}
                     </span>
                   </div>
-                  {photo.traceName && (
-                    <Badge variant="outline" className="text-[10px] px-1 py-0">
-                      {photo.traceName}
-                    </Badge>
+                  {(photo.traceName || photo.projectName) && (
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {photo.projectName && (
+                        <Badge variant="outline" className="text-[10px] px-1 py-0">
+                          {photo.projectName}
+                        </Badge>
+                      )}
+                      {photo.traceName && (
+                        <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                          {photo.traceName}
+                        </Badge>
+                      )}
+                    </div>
                   )}
                 </CardContent>
               </Card>
             );
           })}
         </div>
+      )}
+
+      {totalPages > 1 && (
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                onClick={() => handlePageChange(page - 1)}
+                className={page === 0 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+              />
+            </PaginationItem>
+            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+              let p: number;
+              if (totalPages <= 7) {
+                p = i;
+              } else if (page < 3) {
+                p = i;
+              } else if (page > totalPages - 4) {
+                p = totalPages - 7 + i;
+              } else {
+                p = page - 3 + i;
+              }
+              return (
+                <PaginationItem key={p}>
+                  <PaginationLink
+                    isActive={p === page}
+                    onClick={() => handlePageChange(p)}
+                    className="cursor-pointer"
+                  >
+                    {p + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              );
+            })}
+            <PaginationItem>
+              <PaginationNext
+                onClick={() => handlePageChange(page + 1)}
+                className={page >= totalPages - 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
       )}
 
       <PhotoLightbox
