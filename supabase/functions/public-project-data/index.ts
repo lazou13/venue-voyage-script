@@ -163,7 +163,14 @@ Deno.serve(async (req) => {
         challenge, tourist_interest, instagram_spot,
         radius_m, district, audience_tags,
         street_food_spot, street_food_details,
-        instagram_score, best_time_visit
+        instagram_score, best_time_visit,
+        audio_url_fr, audio_url_en, audio_url_ar,
+        anecdote_audio_url_fr, anecdote_audio_url_en,
+        history_context_en, wikipedia_summary_en, riddle_easy_en,
+        must_see_details_en, must_try_en, must_visit_nearby_en,
+        photo_tip_en, tourist_tips, tourist_tips_en,
+        price_info_en, accessibility_notes_en,
+        best_time_visit_en, street_food_details_en
       `).eq("is_active", true).eq("status", "validated");
       if (zone) query = query.eq("zone", zone);
       if (category) query = query.eq("category", category);
