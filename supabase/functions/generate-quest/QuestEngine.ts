@@ -111,6 +111,8 @@ export interface Stop {
   photo_tip?: string | null;
   ruelle_etroite?: boolean;
   fun_fact?: string;
+  crowd_level?: string;
+  accessibility_notes?: string;
   visit_route?: { exit_point?: { lat: number; lng: number }; [k: string]: unknown } | null;
 }
 
@@ -588,7 +590,7 @@ function buildStops(
     const stop: Stop = {
       order: i + 1,
       poi_id: poi.id,
-      name: poi.name_fr || poi.name_en || poi.name || '',
+      name: poi.name || '',
       lat: poi.lat,
       lng: poi.lng,
       category: poi.category_ai,
