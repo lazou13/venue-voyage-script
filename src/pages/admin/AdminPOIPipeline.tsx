@@ -386,6 +386,20 @@ export default function AdminPOIPipeline() {
         return;
       }
 
+      if (step === "pull-audio") {
+        setLogs(prev => [...prev, `🔊 Pull audio depuis Questride...`]);
+        const { data, error } = await supabase.functions.invoke("n8n-proxy", {
+          body: { action: "pull_audio" },
+        });
+        if (error) throw error;
+        if (data?.logs) setLogs(prev => [...prev, ...data.logs]);
+        setLogs(prev => [...prev, `✅ Audio pull terminé — ${data?.matched ?? 0} matchés, ${data?.updated ?? 0} mis à jour, ${data?.skipped ?? 0} ignorés`]);
+        setStepResult(prev => ({ ...prev, "pull-audio": { processed: data?.updated ?? 0, done: true } }));
+        toast({ title: "Audio synchronisés", description: `${data?.updated ?? 0} POIs mis à jour avec audio.` });
+        refetchStats();
+        return;
+      }
+
       if (step === "clean-arabic") {
         setLogs(prev => [...prev, `🔤 Recherche des POIs avec noms en arabe...`]);
         
