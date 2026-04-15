@@ -1,32 +1,60 @@
 
 
-## Plan : Exposer les colonnes audio + EN dans `public-project-data`
+## Plan : Corriger les erreurs de build TypeScript
 
-### Problème
-HPP a bien les 26 POIs avec audio (via `pull-audio-from-questride`) et les colonnes EN (via la migration précédente), mais `public-project-data?mode=library` ne les inclut pas dans son `SELECT`. Les projets consommateurs (TTT, PRO) qui lisent cette API ne reçoivent donc ni audio ni traductions EN.
+### Contexte
+HPP expose correctement les audio (22 POIs avec audio confirmé en DB, endpoint `public-project-data?mode=library` fonctionnel). Le problème audio est côté PRO (déjà corrigé par PRO). Les erreurs ci-dessous sont des problèmes TypeScript pré-existants à corriger.
 
-### Correction
+### Erreurs à corriger
 
-**1 seul fichier : `supabase/functions/public-project-data/index.ts`**
+#### 1. `src/hooks/usePOIs.ts` (lignes 311-317)
+**Problème** : L'insert dans la table `pois` référence des colonnes (`history_context`, `local_anecdote_fr`, etc.) qui n'existent pas dans le type généré de la table `pois`.
 
-Ajouter au `SELECT` du mode `library` (ligne 166, après `best_time_visit`) :
+**Correction** : Supprimer ces 7 lignes (311-317) de l'objet insert, car la table `pois` n'a pas ces colonnes. Les données enrichies viennent de `medina_pois`, pas de `pois`.
 
-```
-audio_url_fr, audio_url_en, audio_url_ar,
-anecdote_audio_url_fr, anecdote_audio_url_en,
-history_context_en, wikipedia_summary_en, riddle_easy_en,
-must_see_details_en, must_try_en, must_visit_nearby_en,
-photo_tip_en, tourist_tips, tourist_tips_en,
-price_info_en, accessibility_notes_en,
-best_time_visit_en, street_food_details_en
-```
+#### 2. `supabase/functions/generate-quest/QuestEngine.ts` (lignes 591, 640-641)
+**Problème** : 
+- `name_fr`/`name_en` n'existent pas sur `ScoredPOI` (qui est `POI & { _score }`)
+- `crowd_level`/`accessibility_notes` n'existent pas sur `Stop`
 
-### Résultat
-- `public-project-data?mode=library` retournera les URLs audio pour les 26+ POIs enrichis
-- Les champs EN traduits seront aussi exposés
-- Les projets TTT et PRO pourront les consommer immédiatement via leur sync existant
+**Correction** :
+- Ligne 591 : `POI` a `name` mais pas `name_fr`/`name_en`. Remplacer par `poi.name || ''`
+- Lignes 640-641 : Ajouter `crowd_level?: string` et `accessibility_notes?: string` à l'interface `Stop`
+
+#### 3. `supabase/functions/generate-quest/index.ts` (lignes 230-231)
+**Problème** : Cast `EngineOutput as Record<string, unknown>` échoue car les types ne se chevauchent pas assez.
+
+**Correction** : Passer par `unknown` d'abord : `(result as unknown as Record<string, unknown>)`
+
+#### 4. `supabase/functions/poi-auto-agent/index.ts` (ligne 493, 514)
+**Problème** : `curr`/`prev` potentiellement `undefined` dans des calculs de distance.
+
+**Correction** : Ajouter des vérifications `!` ou des guards `if (!curr || !prev) continue`
+
+#### 5. `supabase/functions/promote-marker-to-library/index.ts` (ligne 196)
+**Problème** : `err` est de type `unknown` dans le catch.
+
+**Correction** : `(err instanceof Error ? err.message : "Erreur interne")`
+
+#### 6. `supabase/functions/process-email-queue/index.ts` (multiples erreurs)
+**Problème** : Types incompatibles avec le schéma Supabase auto-généré (table `email_send_log` non reconnue, RPC `move_to_dlq` non typée, paramètres `any` implicites).
+
+**Correction** : Ajouter des casts `as any` ciblés et des annotations de type explicites pour les paramètres `msg` et `id`.
+
+### Fichiers modifiés
+- `src/hooks/usePOIs.ts`
+- `supabase/functions/generate-quest/QuestEngine.ts`
+- `supabase/functions/generate-quest/index.ts`
+- `supabase/functions/poi-auto-agent/index.ts`
+- `supabase/functions/promote-marker-to-library/index.ts`
+- `supabase/functions/process-email-queue/index.ts`
 
 ### Impact
-- Aucun breaking change (ajout de colonnes uniquement)
-- Déploiement immédiat de l'Edge Function
+- Aucun changement fonctionnel
+- Résolution de toutes les erreurs de type bloquant le build
+
+### Prompt pour QUEST RIDES PRO
+Pas de nouveau prompt nécessaire — les 3 corrections PRO sont déjà appliquées. Il reste à :
+1. Exécuter `sync-pois-import` côté PRO pour remplir les `audio_url_en` depuis HPP
+2. Générer une nouvelle visite EN pour vérifier l'audio
 
