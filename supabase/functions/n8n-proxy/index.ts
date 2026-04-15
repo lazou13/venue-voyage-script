@@ -697,9 +697,9 @@ serve(async (req) => {
       // Use raw SQL filter via .or() to cover all cases
       const { data: pois, error } = await supabase
         .from("medina_pois")
-        .select("id, name, name_fr, name_en, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, history_context, history_context_en, story_fr, story_en, riddle_easy, riddle_easy_en, wikipedia_summary, wikipedia_summary_en")
+        .select("id, name, name_fr, name_en, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, history_context, history_context_en, story_fr, story_en, riddle_easy, riddle_easy_en, wikipedia_summary, wikipedia_summary_en, must_see_details, must_see_details_en, must_try, must_try_en, must_visit_nearby, must_visit_nearby_en, photo_tip, photo_tip_en, tourist_tips, tourist_tips_en, price_info, price_info_en, accessibility_notes, accessibility_notes_en, best_time_visit, best_time_visit_en, street_food_details, street_food_details_en")
         .eq("is_active", true)
-        .or("and(local_anecdote_fr.not.is.null,local_anecdote_en.is.null),and(history_context.not.is.null,history_context_en.is.null),and(riddle_easy.not.is.null,riddle_easy_en.is.null),and(name_fr.not.is.null,name_en.is.null),and(story_fr.not.is.null,story_en.is.null),name_en.is.null")
+        .or("and(local_anecdote_fr.not.is.null,local_anecdote_en.is.null),and(history_context.not.is.null,history_context_en.is.null),and(riddle_easy.not.is.null,riddle_easy_en.is.null),and(name_fr.not.is.null,name_en.is.null),and(story_fr.not.is.null,story_en.is.null),name_en.is.null,and(must_see_details.not.is.null,must_see_details_en.is.null),and(must_try.not.is.null,must_try_en.is.null),and(must_visit_nearby.not.is.null,must_visit_nearby_en.is.null),and(photo_tip.not.is.null,photo_tip_en.is.null),and(tourist_tips.not.is.null,tourist_tips_en.is.null),and(price_info.not.is.null,price_info_en.is.null),and(accessibility_notes.not.is.null,accessibility_notes_en.is.null),and(best_time_visit.not.is.null,best_time_visit_en.is.null),and(street_food_details.not.is.null,street_food_details_en.is.null)")
         .order("poi_quality_score", { ascending: false, nullsFirst: false })
         .limit(batchSize);
 
