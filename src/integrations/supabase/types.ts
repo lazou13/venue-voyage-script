@@ -550,8 +550,13 @@ export type Database = {
           accessibility_notes_en: string | null
           address: string | null
           agent_enriched_at: string | null
+          anecdote_audio_url_en: string | null
+          anecdote_audio_url_fr: string | null
           architect: string | null
           audience_tags: string[] | null
+          audio_url_ar: string | null
+          audio_url_en: string | null
+          audio_url_fr: string | null
           average_visit_duration: number | null
           best_client_photo_url: string | null
           best_time_visit: string | null
@@ -674,8 +679,13 @@ export type Database = {
           accessibility_notes_en?: string | null
           address?: string | null
           agent_enriched_at?: string | null
+          anecdote_audio_url_en?: string | null
+          anecdote_audio_url_fr?: string | null
           architect?: string | null
           audience_tags?: string[] | null
+          audio_url_ar?: string | null
+          audio_url_en?: string | null
+          audio_url_fr?: string | null
           average_visit_duration?: number | null
           best_client_photo_url?: string | null
           best_time_visit?: string | null
@@ -798,8 +808,13 @@ export type Database = {
           accessibility_notes_en?: string | null
           address?: string | null
           agent_enriched_at?: string | null
+          anecdote_audio_url_en?: string | null
+          anecdote_audio_url_fr?: string | null
           architect?: string | null
           audience_tags?: string[] | null
+          audio_url_ar?: string | null
+          audio_url_en?: string | null
+          audio_url_fr?: string | null
           average_visit_duration?: number | null
           best_client_photo_url?: string | null
           best_time_visit?: string | null
