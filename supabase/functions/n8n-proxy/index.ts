@@ -726,6 +726,15 @@ serve(async (req) => {
           if (poi.story_fr && !poi.story_en) fieldsToTranslate.story_fr = poi.story_fr;
           if (poi.riddle_easy && !poi.riddle_easy_en) fieldsToTranslate.riddle_easy = poi.riddle_easy;
           if (poi.wikipedia_summary && !poi.wikipedia_summary_en) fieldsToTranslate.wikipedia_summary = poi.wikipedia_summary;
+          if (poi.must_see_details && !poi.must_see_details_en) fieldsToTranslate.must_see_details = poi.must_see_details;
+          if (poi.must_try && !poi.must_try_en) fieldsToTranslate.must_try = poi.must_try;
+          if (poi.must_visit_nearby && !poi.must_visit_nearby_en) fieldsToTranslate.must_visit_nearby = poi.must_visit_nearby;
+          if (poi.photo_tip && !poi.photo_tip_en) fieldsToTranslate.photo_tip = poi.photo_tip;
+          if (poi.tourist_tips && !poi.tourist_tips_en) fieldsToTranslate.tourist_tips = poi.tourist_tips;
+          if (poi.price_info && !poi.price_info_en) fieldsToTranslate.price_info = poi.price_info;
+          if (poi.accessibility_notes && !poi.accessibility_notes_en) fieldsToTranslate.accessibility_notes = poi.accessibility_notes;
+          if (poi.best_time_visit && !poi.best_time_visit_en) fieldsToTranslate.best_time_visit = poi.best_time_visit;
+          if (poi.street_food_details && !poi.street_food_details_en) fieldsToTranslate.street_food_details = poi.street_food_details;
 
           if (Object.keys(fieldsToTranslate).length === 0) {
             logs.push(`⏭️ ${displayName}: rien à traduire`);
