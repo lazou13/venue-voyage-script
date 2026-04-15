@@ -1,37 +1,31 @@
 
 
-## Plan : Corriger l'Autopipeline
+## Plan : Login inline dans l'admin (stop les redirections /auth)
 
-### Problèmes identifiés
+### Contexte
+- Vous êtes bloqué sur `/auth` à chaque refresh ou expiration
+- `ProtectedRoute` ligne 21 fait `Navigate to="/auth"` dès que `user` est null
+- `AuthContext` appelle `getSession()` avant `onAuthStateChange()` (race condition)
+- Bonne nouvelle : les traductions EN sont quasi-complètes (1008/1008 name_en, 1000/1008 history_context_en)
 
-1. **Noms de fonctions incorrects** dans `AdminPOIPipeline.tsx` (ligne 457-460) :
-   - `enrich` appelle `poi-enrich` → devrait être `poi-enricher`
-   - `clean` et `merge` appellent `poi-pipeline` → cette fonction n'existe pas. La logique clean/merge est dans `admin-run-cleanup` (SQL functions)
-   
-2. **Auth cassée dans `enrichment-pipeline`** : utilise encore `ANON_KEY` pour appeler d'autres fonctions (même bug que `poi-auto-agent`)
+### Corrections (3 fichiers)
 
-3. **`extract` échoue** probablement à cause d'un timeout ou d'une erreur réseau (à vérifier après correction des noms)
+**1. `src/contexts/AuthContext.tsx`**
+- Inverser l'ordre : `onAuthStateChange` d'abord, `getSession()` ensuite (recommandation Supabase officielle)
+- Empêche les faux états "déconnecté" au refresh
 
-### Corrections
+**2. `src/components/ProtectedRoute.tsx`**
+- Remplacer `<Navigate to="/auth">` par un formulaire de connexion inline compact
+- Email + mot de passe directement dans la page admin courante
+- Après connexion réussie, l'utilisateur reste sur sa route (`/admin/poi-pipeline`, etc.)
+- Plus jamais de perte de contexte
 
-**Fichier : `src/pages/admin/AdminPOIPipeline.tsx`**
+**3. `src/pages/admin/AdminLayout.tsx`**
+- Bouton déconnexion redirige vers `/` au lieu de `/auth`
 
-1. Corriger le mapping des noms de fonctions (lignes 457-460) :
-   - `enrich` → `poi-enricher`
-   - `clean` → appeler `admin-run-cleanup` avec `{ action: "clean" }` (ou exécuter directement la SQL function `clean_low_quality_pois` via RPC)
-   - `merge` → appeler `admin-run-cleanup` avec `{ action: "merge" }` (ou RPC `merge_duplicate_pois`)
-
-2. Ajouter `invokeWithRetry` pour les étapes extract, enrich, clean, merge (comme déjà fait pour anecdotes/fun-facts) afin de gérer les erreurs réseau transitoires
-
-**Fichier : `supabase/functions/enrichment-pipeline/index.ts`**
-
-3. Remplacer `ANON_KEY` par `SERVICE_ROLE_KEY` dans les appels internes (lignes 11, 19) — même correction que pour `poi-auto-agent`
-
-### Vérification des étapes clean/merge
-
-Il faut vérifier si `admin-run-cleanup` gère les actions clean et merge, ou si ce sont des RPC SQL directes. Si ce sont des fonctions SQL (`clean_low_quality_pois`, `merge_duplicate_pois`), les étapes clean/merge doivent appeler `supabase.rpc()` directement côté client au lieu d'invoquer une Edge Function.
-
-### Résultat attendu
-
-L'autopipeline exécutera les 11 étapes sans erreur 404 ni "Failed to send".
+### Résultat
+- Zéro redirection vers `/auth` depuis l'admin
+- Session restaurée correctement au refresh
+- Si session expire : formulaire de reconnexion sur place
+- Sécurité backend (RLS) inchangée
 
