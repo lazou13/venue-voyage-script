@@ -783,11 +783,22 @@ serve(async (req) => {
                       street_food_details_en: { type: "string", description: "English translation of street_food_details" },
                     },
                     required: Object.keys(fieldsToTranslate).map(k => {
-                      if (k === "history_context") return "history_context_en";
-                      if (k === "riddle_easy") return "riddle_easy_en";
-                      if (k === "wikipedia_summary") return "wikipedia_summary_en";
-                      if (k === "name") return "name_en";
-                      return k.replace("_fr", "_en");
+                      const directMap: Record<string, string> = {
+                        history_context: "history_context_en",
+                        riddle_easy: "riddle_easy_en",
+                        wikipedia_summary: "wikipedia_summary_en",
+                        name: "name_en",
+                        must_see_details: "must_see_details_en",
+                        must_try: "must_try_en",
+                        must_visit_nearby: "must_visit_nearby_en",
+                        photo_tip: "photo_tip_en",
+                        tourist_tips: "tourist_tips_en",
+                        price_info: "price_info_en",
+                        accessibility_notes: "accessibility_notes_en",
+                        best_time_visit: "best_time_visit_en",
+                        street_food_details: "street_food_details_en",
+                      };
+                      return directMap[k] || k.replace("_fr", "_en");
                     }),
                     additionalProperties: false,
                   },
