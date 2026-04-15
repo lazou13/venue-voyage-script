@@ -1,31 +1,34 @@
 
 
-## Plan : Login inline dans l'admin (stop les redirections /auth)
+## Plan : Résoudre les conflits Git (2 fichiers)
 
 ### Contexte
-- Vous êtes bloqué sur `/auth` à chaque refresh ou expiration
-- `ProtectedRoute` ligne 21 fait `Navigate to="/auth"` dès que `user` est null
-- `AuthContext` appelle `getSession()` avant `onAuthStateChange()` (race condition)
-- Bonne nouvelle : les traductions EN sont quasi-complètes (1008/1008 name_en, 1000/1008 history_context_en)
 
-### Corrections (3 fichiers)
+Le push GitHub (38c8a744) a introduit `src/lib/externalSupabase.ts` et modifié `src/pages/HomePage.tsx` pour lire les POIs depuis le Supabase externe (xaccaoedtbwywjotqhih = QUEST RIDES PRO). Lovable n'a pas ce fichier et a sa propre version de HomePage qui utilise le client interne.
 
-**1. `src/contexts/AuthContext.tsx`**
-- Inverser l'ordre : `onAuthStateChange` d'abord, `getSession()` ensuite (recommandation Supabase officielle)
-- Empêche les faux états "déconnecté" au refresh
+### Résolution
 
-**2. `src/components/ProtectedRoute.tsx`**
-- Remplacer `<Navigate to="/auth">` par un formulaire de connexion inline compact
-- Email + mot de passe directement dans la page admin courante
-- Après connexion réussie, l'utilisateur reste sur sa route (`/admin/poi-pipeline`, etc.)
-- Plus jamais de perte de contexte
+**1. Créer `src/lib/externalSupabase.ts`**
 
-**3. `src/pages/admin/AdminLayout.tsx`**
-- Bouton déconnexion redirige vers `/` au lieu de `/auth`
+Créer le client secondaire pointant vers le Supabase externe PRO, conformément à la stratégie dual-backend :
+```typescript
+import { createClient } from '@supabase/supabase-js';
 
-### Résultat
-- Zéro redirection vers `/auth` depuis l'admin
-- Session restaurée correctement au refresh
-- Si session expire : formulaire de reconnexion sur place
-- Sécurité backend (RLS) inchangée
+const EXTERNAL_URL = 'https://xaccaoedtbwywjotqhih.supabase.co';
+const EXTERNAL_ANON_KEY = '<clé anon du projet PRO>';
+
+export const externalSupabase = createClient(EXTERNAL_URL, EXTERNAL_ANON_KEY);
+```
+
+**2. Mettre à jour `src/pages/HomePage.tsx`**
+
+Adopter la version GitHub : le chargement des POIs utilise `externalSupabase` au lieu du client interne. La génération de quête reste sur le client interne Lovable (`supabase.functions.invoke('generate-quest', ...)`).
+
+Changement principal :
+- Import `externalSupabase` au lieu de `supabase` pour la requête `medina_pois`
+- Le reste du fichier (quest, UI) reste identique
+
+### Note importante
+
+Il me faudra la **clé anon** du projet externe xaccaoedtbwywjotqhih pour créer le fichier `externalSupabase.ts`. Si cette clé était déjà dans le commit GitHub, je la reprendrai telle quelle. Sinon, je vous la demanderai.
 
