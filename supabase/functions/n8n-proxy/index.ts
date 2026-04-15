@@ -772,6 +772,15 @@ serve(async (req) => {
                       story_en: { type: "string", description: "English translation of story_fr" },
                       riddle_easy_en: { type: "string", description: "English translation of riddle_easy" },
                       wikipedia_summary_en: { type: "string", description: "English translation of wikipedia_summary" },
+                      must_see_details_en: { type: "string", description: "English translation of must_see_details" },
+                      must_try_en: { type: "string", description: "English translation of must_try" },
+                      must_visit_nearby_en: { type: "string", description: "English translation of must_visit_nearby" },
+                      photo_tip_en: { type: "string", description: "English translation of photo_tip" },
+                      tourist_tips_en: { type: "string", description: "English translation of tourist_tips" },
+                      price_info_en: { type: "string", description: "English translation of price_info" },
+                      accessibility_notes_en: { type: "string", description: "English translation of accessibility_notes" },
+                      best_time_visit_en: { type: "string", description: "English translation of best_time_visit" },
+                      street_food_details_en: { type: "string", description: "English translation of street_food_details" },
                     },
                     required: Object.keys(fieldsToTranslate).map(k => {
                       if (k === "history_context") return "history_context_en";
@@ -809,6 +818,15 @@ serve(async (req) => {
           if (t.history_context_en) updateData.history_context_en = t.history_context_en;
           if (t.riddle_easy_en) updateData.riddle_easy_en = t.riddle_easy_en;
           if (t.wikipedia_summary_en) updateData.wikipedia_summary_en = t.wikipedia_summary_en;
+          if (t.must_see_details_en) updateData.must_see_details_en = t.must_see_details_en;
+          if (t.must_try_en) updateData.must_try_en = t.must_try_en;
+          if (t.must_visit_nearby_en) updateData.must_visit_nearby_en = t.must_visit_nearby_en;
+          if (t.photo_tip_en) updateData.photo_tip_en = t.photo_tip_en;
+          if (t.tourist_tips_en) updateData.tourist_tips_en = t.tourist_tips_en;
+          if (t.price_info_en) updateData.price_info_en = t.price_info_en;
+          if (t.accessibility_notes_en) updateData.accessibility_notes_en = t.accessibility_notes_en;
+          if (t.best_time_visit_en) updateData.best_time_visit_en = t.best_time_visit_en;
+          if (t.street_food_details_en) updateData.street_food_details_en = t.street_food_details_en;
 
           const { error: updErr } = await supabase
             .from("medina_pois")
