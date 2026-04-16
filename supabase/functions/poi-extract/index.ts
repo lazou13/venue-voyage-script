@@ -128,7 +128,7 @@ serve(async (req) => {
     logs.push(`📦 Batch: types ${typeOffset + 1}–${typeOffset + typesSlice.length}/${TYPES.length} (${typesSlice.join(", ")}), points ${pointOffset + 1}–${pointOffset + pointsSlice.length}/${MEDINA_POINTS.length}`);
 
     for (const type of typesSlice) {
-      for (const point of MEDINA_POINTS) {
+      for (const point of pointsSlice) {
         let pageToken: string | undefined;
         let page = 0;
         let pointResults = 0;
