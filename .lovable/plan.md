@@ -1,60 +1,56 @@
 
 
-## Plan : Corriger les erreurs de build TypeScript
+# Plan : Synchronisation automatique HPP → QRP
 
-### Contexte
-HPP expose correctement les audio (22 POIs avec audio confirmé en DB, endpoint `public-project-data?mode=library` fonctionnel). Le problème audio est côté PRO (déjà corrigé par PRO). Les erreurs ci-dessous sont des problèmes TypeScript pré-existants à corriger.
+## Diagnostic
 
-### Erreurs à corriger
+QRP possède sa **propre copie** de la table `medina_pois` (alimentée initialement par `osm-extractor`). Cette copie n'est **jamais mise à jour** depuis HPP. Quand on fusionne Koutoubia, génère des audios, ou renomme un POI dans HPP, QRP ne le voit pas.
 
-#### 1. `src/hooks/usePOIs.ts` (lignes 311-317)
-**Problème** : L'insert dans la table `pois` référence des colonnes (`history_context`, `local_anecdote_fr`, etc.) qui n'existent pas dans le type généré de la table `pois`.
+QRP a deux sources de données POI :
+- `medina-library` → lit sa propre DB locale (données périmées)
+- `hunt-planer-proxy` → appelle HPP `public-project-data?mode=library` (données fraîches mais pas utilisées pour les tours locaux)
 
-**Correction** : Supprimer ces 7 lignes (311-317) de l'objet insert, car la table `pois` n'a pas ces colonnes. Les données enrichies viennent de `medina_pois`, pas de `pois`.
+## Solution
 
-#### 2. `supabase/functions/generate-quest/QuestEngine.ts` (lignes 591, 640-641)
-**Problème** : 
-- `name_fr`/`name_en` n'existent pas sur `ScoredPOI` (qui est `POI & { _score }`)
-- `crowd_level`/`accessibility_notes` n'existent pas sur `Stop`
+Créer une **Edge Function de sync** dans HPP qui expose un endpoint dédié, puis côté QRP, une Edge Function qui consomme cet endpoint et met à jour sa `medina_pois` locale.
 
-**Correction** :
-- Ligne 591 : `POI` a `name` mais pas `name_fr`/`name_en`. Remplacer par `poi.name || ''`
-- Lignes 640-641 : Ajouter `crowd_level?: string` et `accessibility_notes?: string` à l'interface `Stop`
+### Étape 1 — Enrichir l'API sync de HPP (ce projet)
 
-#### 3. `supabase/functions/generate-quest/index.ts` (lignes 230-231)
-**Problème** : Cast `EngineOutput as Record<string, unknown>` échoue car les types ne se chevauchent pas assez.
+L'API v2 (`api-v2?route=sync`) existe déjà. Vérifier qu'elle expose bien :
+- `audio_url_fr`, `audio_url_en`, `anecdote_audio_url_fr`, `anecdote_audio_url_en`
+- `name`, `name_fr`, `name_en`, `category`, `is_active`, `status`
+- `is_start_hub`, `hub_theme`
 
-**Correction** : Passer par `unknown` d'abord : `(result as unknown as Record<string, unknown>)`
+Si des champs audio manquent, les ajouter au SELECT de la route sync.
 
-#### 4. `supabase/functions/poi-auto-agent/index.ts` (ligne 493, 514)
-**Problème** : `curr`/`prev` potentiellement `undefined` dans des calculs de distance.
+### Étape 2 — Créer une Edge Function `sync-from-hpp` dans QRP
 
-**Correction** : Ajouter des vérifications `!` ou des guards `if (!curr || !prev) continue`
+Une Edge Function dans QRP qui :
+1. Appelle HPP `public-project-data?mode=library` (ou `api-v2?route=sync`)
+2. Pour chaque POI retourné, fait un `UPSERT` dans sa propre `medina_pois` sur la colonne `id` (même UUID)
+3. Désactive les POIs locaux qui n'apparaissent plus côté HPP (`is_active = false`)
+4. Log le résultat (nombre de POIs créés/mis à jour/désactivés)
 
-#### 5. `supabase/functions/promote-marker-to-library/index.ts` (ligne 196)
-**Problème** : `err` est de type `unknown` dans le catch.
+### Étape 3 — Faire tourner manuellement ou en cron
 
-**Correction** : `(err instanceof Error ? err.message : "Erreur interne")`
+Ajouter un bouton dans l'admin QRP ou un cron job pour déclencher la sync.
 
-#### 6. `supabase/functions/process-email-queue/index.ts` (multiples erreurs)
-**Problème** : Types incompatibles avec le schéma Supabase auto-généré (table `email_send_log` non reconnue, RPC `move_to_dlq` non typée, paramètres `any` implicites).
+### Action immédiate (sans attendre la sync automatique)
 
-**Correction** : Ajouter des casts `as any` ciblés et des annotations de type explicites pour les paramètres `msg` et `id`.
+En attendant l'implémentation complète dans QRP, on peut **corriger manuellement les 5 POIs** dans la DB de QRP via le `hunt-planer-proxy` existant ou en demandant directement à QRP de faire les corrections SQL.
 
-### Fichiers modifiés
-- `src/hooks/usePOIs.ts`
-- `supabase/functions/generate-quest/QuestEngine.ts`
-- `supabase/functions/generate-quest/index.ts`
-- `supabase/functions/poi-auto-agent/index.ts`
-- `supabase/functions/promote-marker-to-library/index.ts`
-- `supabase/functions/process-email-queue/index.ts`
+## Fichiers à modifier
 
-### Impact
-- Aucun changement fonctionnel
-- Résolution de toutes les erreurs de type bloquant le build
+| Projet | Fichier | Action |
+|--------|---------|--------|
+| HPP | `supabase/functions/api-v2/index.ts` | Vérifier que la route sync inclut les champs audio |
+| HPP | `supabase/functions/public-project-data/index.ts` | Vérifier que mode=library expose les audio_url |
+| QRP | Nouveau `supabase/functions/sync-from-hpp/index.ts` | Edge Function de sync |
+| QRP | `supabase/functions/medina-library/index.ts` | Ajouter les champs audio au SELECT |
 
-### Prompt pour QUEST RIDES PRO
-Pas de nouveau prompt nécessaire — les 3 corrections PRO sont déjà appliquées. Il reste à :
-1. Exécuter `sync-pois-import` côté PRO pour remplir les `audio_url_en` depuis HPP
-2. Générer une nouvelle visite EN pour vérifier l'audio
+## Détails techniques
+
+- Le `public-project-data?mode=library` expose déjà les champs `audio_url_fr/en` et `anecdote_audio_url_fr/en` (vérifié dans le code).
+- L'upsert dans QRP utilisera `ON CONFLICT (id)` pour mettre à jour les POIs existants.
+- Les champs à synchroniser : `name`, `name_fr`, `name_en`, `category`, `is_active`, `status`, `audio_url_fr`, `audio_url_en`, `anecdote_audio_url_fr`, `anecdote_audio_url_en`, `history_context`, `history_context_en`, `local_anecdote`, `local_anecdote_en`, `is_start_hub`.
 
