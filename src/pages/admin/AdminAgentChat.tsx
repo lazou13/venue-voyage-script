@@ -2,8 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Bot, Send, User, Loader2, Trash2, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -15,26 +14,49 @@ interface Message {
   ts: number;
 }
 
+const STORAGE_KEY = "hpp-agent-chat-v2";
+
+const INITIAL_MESSAGE: Message = {
+  role: "assistant",
+  content: "Bonjour ! Je suis l'agent IA de Hunt Planner Pro. Je surveille la base 24/7 et je peux répondre à vos questions, exécuter des requêtes SQL et lancer n'importe quelle étape du pipeline (extraction, classification, enrichissement, anecdotes, traduction, audio, nettoyage, etc.).",
+  ts: 0,
+};
+
 const QUICK_ACTIONS = [
-  "Combien de POIs ont un audio EN manquant ?",
   "Donne-moi les stats complètes",
-  "Quels sont les derniers logs de l'agent ?",
-  "Lance l'agent autonome",
-  "Combien de POIs validés sans audio FR ?",
+  "Trouve tous les doublons",
+  "Combien de POIs sans audio FR ?",
+  "Lance l'autopipeline",
+  "Lance l'étape anecdotes",
+  "Quels sont les derniers logs ?",
+  "Lance la traduction EN",
+  "Pull audio depuis Questride",
 ];
+
+function loadMessages(): Message[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {}
+  return [INITIAL_MESSAGE];
+}
 
 export default function AdminAgentChat() {
   const { toast } = useToast();
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content: "Bonjour ! Je suis l'assistant IA de Hunt Planner Pro. Je peux répondre à vos questions sur les POIs, les audios, les statistiques, et exécuter des actions comme lancer l'agent autonome.",
-      ts: Date.now(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>(loadMessages);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Persist messages to localStorage on every change
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    } catch {}
+  }, [messages]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -50,7 +72,11 @@ export default function AdminAgentChat() {
     setLoading(true);
 
     try {
-      const history = messages.map(m => ({ role: m.role, content: m.content }));
+      const history = messages
+        .filter(m => m.ts > 0)
+        .slice(-12)
+        .map(m => ({ role: m.role, content: m.content }));
+
       const { data, error } = await supabase.functions.invoke("agent-chat", {
         body: { message: msg, history },
       });
@@ -73,6 +99,12 @@ export default function AdminAgentChat() {
     }
   };
 
+  const clearChat = () => {
+    const fresh = [{ ...INITIAL_MESSAGE, ts: Date.now() }];
+    setMessages(fresh);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));
+  };
+
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
   };
@@ -84,9 +116,9 @@ export default function AdminAgentChat() {
           <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Bot className="w-6 h-6 text-primary" /> Agent Chat
           </h2>
-          <p className="text-muted-foreground text-sm">Posez des questions sur les POIs, l'agent ou déclenchez des actions</p>
+          <p className="text-muted-foreground text-sm">Surveillant 24/7 — SQL, pipeline, stats, doublons</p>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => setMessages(prev => [prev[0]])} className="gap-1 text-muted-foreground">
+        <Button variant="ghost" size="sm" onClick={clearChat} className="gap-1 text-muted-foreground">
           <Trash2 className="w-3 h-3" /> Effacer
         </Button>
       </div>
@@ -154,7 +186,7 @@ export default function AdminAgentChat() {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKey}
-          placeholder="Posez une question ou donnez une instruction..."
+          placeholder="Posez une question ou donnez une instruction au pipeline..."
           disabled={loading}
           className="flex-1"
         />
