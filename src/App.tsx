@@ -27,6 +27,7 @@ const AdminWatchdog = lazy(() => import("./pages/admin/AdminWatchdog"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const AdminClientFeedback = lazy(() => import("./pages/admin/AdminClientFeedback"));
 const AdminApiKeys = lazy(() => import("./pages/admin/AdminApiKeys"));
+const AdminAgentChat = lazy(() => import("./pages/admin/AdminAgentChat"));
 const Auth = lazy(() => import("./pages/Auth"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 
@@ -69,6 +70,7 @@ const App = () => (
                 <Route path="catalog" element={<AdminCatalog />} />
                 <Route path="health" element={<AdminHealth />} />
                 <Route path="experience-page" element={<AdminExperiencePage />} />
+                <Route path="agent-chat" element={<AdminAgentChat />} />
                 <Route path="api-keys" element={<AdminApiKeys />} />
                 <Route path="enums" element={<AdminEnums />} />
                 <Route path="docs" element={<AdminDocs />} />

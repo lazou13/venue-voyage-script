@@ -1,11 +1,12 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, BookOpen, MapPin, ShoppingCart, Store, HeartPulse, Sparkles, Database, Camera, Library, Shield, BarChart3, List, MessageSquare, Key } from 'lucide-react';
+import { LayoutDashboard, BookOpen, MapPin, ShoppingCart, Store, HeartPulse, Sparkles, Database, Camera, Library, Shield, BarChart3, List, MessageSquare, Key, Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { to: '/admin/dashboard', label: 'Tableau de bord', icon: BarChart3 },
   { to: '/admin/medina-pois', label: 'Bibliothèque POI', icon: MapPin },
   { to: '/admin/poi-pipeline', label: 'Pipeline POI', icon: Database },
+  { to: '/admin/agent-chat', label: 'Agent Chat', icon: Bot },
   { to: '/admin/watchdog', label: 'Watchdog Qualité', icon: Shield },
   { to: '/admin/media-library', label: 'Médiathèque', icon: Camera },
   { to: '/admin/quest-library', label: 'Visites', icon: Library },

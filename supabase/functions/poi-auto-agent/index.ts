@@ -24,11 +24,27 @@ const EXCLUDED_CATEGORIES = new Set([
 
 const AI_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
+// Haversine distance in meters
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6_371_000;
+  const φ1 = (lat1 * Math.PI) / 180, φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180, Δλ = ((lng2 - lng1) * Math.PI) / 180;
+  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 interface AgentResult {
   phase: string;
   action: string;
   count: number;
   logs: string[];
+}
+
+// Safe insert into agent_logs (table may not exist yet)
+async function logToAgentLogs(supabase: any, phase: string, action: string, result: any, errors?: string[]) {
+  try {
+    await supabase.from("agent_logs").insert({ phase, action, result, errors: errors ?? null });
+  } catch (_) { /* table not yet created, skip */ }
 }
 
 serve(async (req) => {
@@ -39,6 +55,11 @@ serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  // Clé anon publique TTT/QRP (zdzycbqwypriveenxnsh) — pas secrète, utilisée pour déclencher sync-pois-import
+  const QRP_SERVICE_KEY = Deno.env.get("QRP_SERVICE_ROLE_KEY")
+    ?? "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpkenljYnF3eXByaXZlZW54bnNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MTkzNzksImV4cCI6MjA4NTI5NTM3OX0.T7aZGKP7tWIeIfq09zvVwfxteHYLYePH7xyKtnrXbwM";
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const logs: string[] = [];
   const results: AgentResult[] = [];
@@ -68,9 +89,72 @@ serve(async (req) => {
       } else {
         logs.push(`🗺️ Phase -1: ${oobIds.length} POIs hors Marrakech filtrés (${outOfBounds.slice(0, 5).map((p: any) => p.name).join(', ')})`);
         results.push({ phase: "geo_filter", action: "filter_out_of_bounds", count: oobIds.length, logs: [] });
+        await logToAgentLogs(supabase, "Phase -1", "filter_out_of_bounds", { count: oobIds.length });
       }
     } else {
       logs.push("✅ Phase -1: Aucun POI hors zone détecté");
+    }
+
+    // ━━━━━━━━━━ PHASE -0.5: FUSION DOUBLONS ━━━━━━━━━━
+    const MERGE_FIELDS = [
+      "history_context", "local_anecdote", "local_anecdote_fr", "local_anecdote_en",
+      "fun_fact_fr", "fun_fact_en", "name_fr", "name_en", "name_ar",
+      "description_short", "riddle_easy", "audio_url_fr", "audio_url_en", "audio_url_ar",
+      "anecdote_audio_url_fr", "anecdote_audio_url_en", "anecdote_audio_url_ar",
+      "photo_url", "photo_tip", "must_see_details", "must_try", "must_visit_nearby",
+      "best_time_visit", "accessibility_notes", "enrichment_status",
+    ];
+
+    const { data: dupCandidates } = await supabase
+      .from("medina_pois")
+      .select(`id, name, lat, lng, poi_quality_score, ${MERGE_FIELDS.join(", ")}`)
+      .eq("is_active", true)
+      .not("status", "in", '("filtered","merged")')
+      .not("lat", "is", null)
+      .not("lng", "is", null)
+      .limit(500);
+
+    const pois = dupCandidates ?? [];
+    const mergedIds = new Set<string>();
+    let mergeCount = 0;
+    const MAX_MERGES = 50;
+    const mergeLog: string[] = [];
+
+    for (let i = 0; i < pois.length && mergeCount < MAX_MERGES; i++) {
+      if (mergedIds.has(pois[i].id)) continue;
+      for (let j = i + 1; j < pois.length && mergeCount < MAX_MERGES; j++) {
+        if (mergedIds.has(pois[j].id)) continue;
+        const dist = haversineM(pois[i].lat, pois[i].lng, pois[j].lat, pois[j].lng);
+        if (dist > 50) continue;
+
+        const p1 = pois[i], p2 = pois[j];
+        const keeper = (p1.poi_quality_score ?? 0) >= (p2.poi_quality_score ?? 0) ? p1 : p2;
+        const dup = keeper.id === p1.id ? p2 : p1;
+
+        // Copy non-null fields from dup → keeper if keeper has null
+        const patch: Record<string, any> = {};
+        for (const f of MERGE_FIELDS) {
+          if (!keeper[f] && dup[f] != null) patch[f] = dup[f];
+        }
+        if (Object.keys(patch).length > 0) {
+          await supabase.from("medina_pois").update(patch).eq("id", keeper.id);
+        }
+        await supabase.from("medina_pois")
+          .update({ status: "merged", is_active: false })
+          .eq("id", dup.id);
+
+        mergedIds.add(dup.id);
+        mergeCount++;
+        mergeLog.push(`"${dup.name}" → "${keeper.name}" (${Math.round(dist)}m)`);
+      }
+    }
+
+    if (mergeCount > 0) {
+      logs.push(`🔀 Phase -0.5: ${mergeCount} doublons fusionnés (${mergeLog.slice(0, 5).join(', ')})`);
+      results.push({ phase: "dedup", action: "merge_duplicates", count: mergeCount, logs: mergeLog });
+      await logToAgentLogs(supabase, "Phase -0.5", "merge_duplicates", { count: mergeCount, merged: mergeLog });
+    } else {
+      logs.push("✅ Phase -0.5: Aucun doublon détecté (<50m)");
     }
 
     // ━━━━━━━━━━ PHASE 0: AUTO-VALIDATION (enriched → validated) ━━━━━━━━━━
@@ -106,6 +190,7 @@ serve(async (req) => {
       } else {
         logs.push(`✅ Phase 0: ${ids.length} POIs promus en "validated"`);
         results.push({ phase: "auto_validation", action: "promote_validated", count: ids.length, logs: [] });
+        await logToAgentLogs(supabase, "Phase 0", "promote_validated", { count: ids.length });
       }
     } else {
       logs.push("✅ Phase 0: Aucun POI éligible à valider");
@@ -235,24 +320,6 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
     }
 
     // ━━━━━━━━━━ PHASE 2.5: EN COMPLETENESS (auto-translate missing EN) ━━━━━━━━━━
-    const enFields = [
-      { fr: 'history_context', en: 'history_context_en' },
-      { fr: 'local_anecdote_fr', en: 'local_anecdote_en' },
-      { fr: 'fun_fact_fr', en: 'fun_fact_en' },
-      { fr: 'riddle_easy', en: 'riddle_easy_en' },
-      { fr: 'wikipedia_summary', en: 'wikipedia_summary_en' },
-      { fr: 'must_see_details', en: 'must_see_details_en' },
-      { fr: 'must_try', en: 'must_try_en' },
-      { fr: 'must_visit_nearby', en: 'must_visit_nearby_en' },
-      { fr: 'photo_tip', en: 'photo_tip_en' },
-      { fr: 'tourist_tips', en: 'tourist_tips_en' },
-      { fr: 'price_info', en: 'price_info_en' },
-      { fr: 'accessibility_notes', en: 'accessibility_notes_en' },
-      { fr: 'best_time_visit', en: 'best_time_visit_en' },
-      { fr: 'street_food_details', en: 'street_food_details_en' },
-    ];
-
-    // Check how many POIs have FR content but missing EN (check multiple fields)
     const { data: missingEnPois, error: enCheckErr } = await supabase
       .from("medina_pois")
       .select("id")
@@ -267,13 +334,10 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
     } else if (missingEnCount > 0) {
       logs.push(`🌐 Phase 2.5: ${missingEnCount} POIs avec contenu FR sans traduction EN — lancement traduction...`);
 
-      const BASE_URL = Deno.env.get("SUPABASE_URL")!;
-      const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       let totalTranslated = 0;
-
       for (let batch = 0; batch < 20; batch++) {
         try {
-          const resp = await fetch(`${BASE_URL}/functions/v1/n8n-proxy`, {
+          const resp = await fetch(`${SUPABASE_URL}/functions/v1/n8n-proxy`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -300,6 +364,46 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
       logs.push("✅ Phase 2.5: Tous les POIs avec contenu FR ont leur traduction EN");
     }
 
+    // ━━━━━━━━━━ PHASE 2.7: DÉTECTION AUDIOS MANQUANTS ━━━━━━━━━━
+    const [{ data: missingFr }, { data: missingEn }] = await Promise.all([
+      supabase.from("medina_pois")
+        .select("id, name, poi_quality_score")
+        .eq("status", "validated")
+        .is("audio_url_fr", null)
+        .order("poi_quality_score", { ascending: false })
+        .limit(100),
+      supabase.from("medina_pois")
+        .select("id, name, poi_quality_score")
+        .eq("status", "validated")
+        .is("audio_url_en", null)
+        .order("poi_quality_score", { ascending: false })
+        .limit(100),
+    ]);
+
+    const countFr = missingFr?.length ?? 0;
+    const countEn = missingEn?.length ?? 0;
+    logs.push(`🔊 Phase 2.7: Audios manquants — FR: ${countFr}, EN: ${countEn}`);
+
+    await logToAgentLogs(supabase, "Phase 2.7", "detect_missing_audios", {
+      missing_fr: countFr,
+      missing_en: countEn,
+      top_10_fr: missingFr?.slice(0, 10).map((p: any) => ({ id: p.id, name: p.name, score: p.poi_quality_score })),
+      top_10_en: missingEn?.slice(0, 10).map((p: any) => ({ id: p.id, name: p.name, score: p.poi_quality_score })),
+    });
+
+    results.push({ phase: "audio_detection", action: "detect_missing_audios", count: countFr + countEn, logs: [] });
+
+    if (countFr > 100 || countEn > 100) {
+      try {
+        await fetch(`${SUPABASE_URL}/functions/v1/send-agent-notification`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SERVICE_KEY}` },
+          body: JSON.stringify({ type: 'missing_audios', missing_fr: countFr, missing_en: countEn, chat_url: 'https://hpp.questrides.com/admin/poi-pipeline' }),
+          signal: AbortSignal.timeout(5000),
+        });
+      } catch (_) { /* notification non critique */ }
+    }
+
     // ━━━━━━━━━━ PHASE 2: GENERATE LIBRARY VISITS (AI-driven POI selection) ━━━━━━━━━━
     const { data: existingVisits } = await supabase
       .from("quest_library")
@@ -309,7 +413,6 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
       (existingVisits || []).map((v: any) => `${v.start_hub}__${v.audience}__${v.mode}`)
     );
 
-    // Collect POI IDs already used per hub for diversity
     const usedPoisPerHub: Record<string, Set<string>> = {};
     for (const v of existingVisits || []) {
       if (!usedPoisPerHub[v.start_hub]) usedPoisPerHub[v.start_hub] = new Set();
@@ -318,7 +421,6 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
       }
     }
 
-    // Get ALL cultural POIs once
     const { data: allPois } = await supabase
       .from("medina_pois")
       .select("id, name, name_fr, lat, lng, category_ai, description_short, audience_tags, route_tags, instagram_score, street_food_spot, accessibility_notes, riddle_easy, history_context, local_anecdote, photo_tip, rating, poi_quality_score, ruelle_etroite, best_time_visit")
@@ -352,30 +454,20 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
 
           logs.push(`🗺️ Phase 2: Génération visite ${hub.name} / ${audience} / ${mode}...`);
 
-          // Mark already-used POIs for this hub
           const usedSet = usedPoisPerHub[hub.id] || new Set();
 
-          // Build POI list for AI with distance from hub
           const poisForAI = culturalPois.map((p: any, i: number) => {
             const dist = Math.sqrt(Math.pow((p.lat - hub.lat) * 111320, 2) + Math.pow((p.lng - hub.lng) * 111320 * Math.cos(hub.lat * Math.PI / 180), 2));
             return {
-              idx: i,
-              id: p.id,
-              name: p.name_fr || p.name,
-              category: p.category_ai,
-              lat: p.lat,
-              lng: p.lng,
-              dist_m: Math.round(dist),
-              score: p.poi_quality_score,
-              audience_tags: p.audience_tags || [],
-              route_tags: p.route_tags || [],
-              instagram_score: p.instagram_score || 0,
-              street_food: p.street_food_spot || false,
+              idx: i, id: p.id, name: p.name_fr || p.name, category: p.category_ai,
+              lat: p.lat, lng: p.lng, dist_m: Math.round(dist), score: p.poi_quality_score,
+              audience_tags: p.audience_tags || [], route_tags: p.route_tags || [],
+              instagram_score: p.instagram_score || 0, street_food: p.street_food_spot || false,
               accessible: !(p.accessibility_notes || "").toLowerCase().includes("escalier") && !(p.ruelle_etroite),
               already_used: usedSet.has(p.id),
               description: (p.description_short || "").slice(0, 80),
             };
-          }).filter((p: any) => p.dist_m <= 2500); // Max 2.5km from hub for 3h visits
+          }).filter((p: any) => p.dist_m <= 2500);
 
           const poisText = poisForAI.map((p: any) =>
             `[${p.idx}] "${p.name}" (${p.category}) — ${p.dist_m}m du départ, score: ${p.score}/10, ` +
@@ -424,10 +516,7 @@ Génère en une seule réponse :
 
           const visitResponse = await fetch(AI_GATEWAY, {
             method: "POST",
-            headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
-              "Content-Type": "application/json",
-            },
+            headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
               model: "google/gemini-2.5-pro",
               messages: [
@@ -443,13 +532,10 @@ Génère en une seule réponse :
                     type: "object",
                     properties: {
                       selected_poi_indices: { type: "array", items: { type: "integer" }, description: "Indices of selected POIs in visit order" },
-                      title_fr: { type: "string" },
-                      title_en: { type: "string" },
-                      description_fr: { type: "string" },
-                      description_en: { type: "string" },
+                      title_fr: { type: "string" }, title_en: { type: "string" },
+                      description_fr: { type: "string" }, description_en: { type: "string" },
                       highlights: { type: "array", items: { type: "string" } },
-                      best_time: { type: "string" },
-                      quality_score: { type: "number" },
+                      best_time: { type: "string" }, quality_score: { type: "number" },
                     },
                     required: ["selected_poi_indices", "title_fr", "title_en", "description_fr", "description_en", "highlights", "best_time", "quality_score"],
                   },
@@ -467,96 +553,46 @@ Génère en une seule réponse :
 
           const visitData = await visitResponse.json();
           const visitTool = visitData.choices?.[0]?.message?.tool_calls?.[0];
-          if (!visitTool?.function?.arguments) {
-            logs.push("❌ Pas de réponse structurée de l'IA");
-            continue;
-          }
+          if (!visitTool?.function?.arguments) { logs.push("❌ Pas de réponse structurée de l'IA"); continue; }
 
           const visit = JSON.parse(visitTool.function.arguments);
           const selectedIndices: number[] = visit.selected_poi_indices || [];
+          const selectedPois = selectedIndices.map((idx: number) => poisForAI.find((p: any) => p.idx === idx)).filter(Boolean);
 
-          // Map indices back to POIs
-          const selectedPois = selectedIndices
-            .map((idx: number) => poisForAI.find((p: any) => p.idx === idx))
-            .filter(Boolean);
+          if (selectedPois.length < 3) { logs.push("⚠️ L'IA a sélectionné moins de 3 POIs, skip"); continue; }
 
-          if (selectedPois.length < 3) {
-            logs.push("⚠️ L'IA a sélectionné moins de 3 POIs, skip");
-            continue;
-          }
-
-          // Calculate route stats
           let totalDist = 0;
           for (let i = 1; i < selectedPois.length; i++) {
-            const prev = selectedPois[i - 1];
-            const curr = selectedPois[i];
+            const prev = selectedPois[i - 1], curr = selectedPois[i];
             if (!curr || !prev) continue;
             totalDist += Math.sqrt(Math.pow((curr.lat - prev.lat) * 111320, 2) + Math.pow((curr.lng - prev.lng) * 111320 * Math.cos(curr.lat * Math.PI / 180), 2));
           }
           const walkTime = Math.round(totalDist / 50);
-
-          // Category-aware visit times (minutes)
-          const VISIT_TIMES: Record<string, number> = {
-            monument: 15, palace: 20, museum: 25, medersa: 18,
-            mosque: 10, tomb: 12, gate_bab: 8, fountain: 6,
-            fondouk: 12, souk: 15, market: 15,
-            craft_shop: 12, restaurant: 15, cafe: 12, hammam: 10,
-            garden: 15, plaza: 10, hotel: 8, riad: 8,
-            shrine_zaouia: 10, gallery: 15, boutique: 10, other: 10,
-          };
-
+          const VISIT_TIMES: Record<string, number> = { monument: 15, palace: 20, museum: 25, medersa: 18, mosque: 10, tomb: 12, gate_bab: 8, fountain: 6, fondouk: 12, souk: 15, market: 15, craft_shop: 12, restaurant: 15, cafe: 12, hammam: 10, garden: 15, plaza: 10, hotel: 8, riad: 8, shrine_zaouia: 10, gallery: 15, boutique: 10, other: 10 };
           const visitTime = selectedPois.reduce((sum: number, p: any) => sum + (VISIT_TIMES[p.category] || 12), 0);
           const totalTime = walkTime + visitTime;
 
-          // Build stops_data from original POI data
           const stopsData = selectedPois.map((p: any, i: number) => {
             const original = culturalPois[p.idx];
-            const prevPoi = i > 0 ? selectedPois[i-1] : null;
-            const prevDist = !prevPoi ? 0 : Math.round(
-              Math.sqrt(Math.pow((p.lat - prevPoi.lat) * 111320, 2) + Math.pow((p.lng - prevPoi.lng) * 111320 * Math.cos(p.lat * Math.PI / 180), 2))
-            );
+            const prevPoi = i > 0 ? selectedPois[i - 1] : null;
+            const prevDist = !prevPoi ? 0 : Math.round(Math.sqrt(Math.pow((p.lat - prevPoi.lat) * 111320, 2) + Math.pow((p.lng - prevPoi.lng) * 111320 * Math.cos(p.lat * Math.PI / 180), 2)));
             const cat = p.category || 'other';
-            return {
-              order: i + 1,
-              poi_id: p.id,
-              name: p.name,
-              lat: p.lat,
-              lng: p.lng,
-              category: cat,
-              distance_from_prev_m: prevDist,
-              walk_time_min: i === 0 ? 0 : Math.round(prevDist / 50),
-              visit_time_min: VISIT_TIMES[cat] || 12,
-              story: original?.history_context || original?.local_anecdote || undefined,
-              description: original?.description_short || undefined,
-              photo_tip: original?.photo_tip || undefined,
-            };
+            return { order: i + 1, poi_id: p.id, name: p.name, lat: p.lat, lng: p.lng, category: cat, distance_from_prev_m: prevDist, walk_time_min: i === 0 ? 0 : Math.round(prevDist / 50), visit_time_min: VISIT_TIMES[cat] || 12, story: original?.history_context || original?.local_anecdote || undefined, description: original?.description_short || undefined, photo_tip: original?.photo_tip || undefined };
           });
 
           const theme = { foodies: "food", instagrammers: "photography", family: "complete", accessible: "complete", young_adults: "hidden_gems" }[audience] || "complete";
 
-          const { error: insertErr } = await supabase
-            .from("quest_library")
-            .insert({
-              start_hub: hub.id,
-              start_lat: hub.lat,
-              start_lng: hub.lng,
-              audience,
-              mode,
-              theme,
-              difficulty: audience === "family" || audience === "accessible" ? "easy" : "medium",
-              title_fr: visit.title_fr,
-              title_en: visit.title_en,
-              description_fr: visit.description_fr,
-              description_en: visit.description_en,
-              duration_min: totalTime,
-              distance_m: Math.round(totalDist),
-              stops_count: selectedPois.length,
-              stops_data: stopsData,
-              highlights: visit.highlights || [],
-              best_time: visit.best_time,
-              quality_score: visit.quality_score,
-              agent_version: "v2.0",
-            });
+          const { error: insertErr } = await supabase.from("quest_library").insert({
+            start_hub: hub.id, start_lat: hub.lat, start_lng: hub.lng,
+            audience, mode, theme,
+            difficulty: audience === "family" || audience === "accessible" ? "easy" : "medium",
+            title_fr: visit.title_fr, title_en: visit.title_en,
+            description_fr: visit.description_fr, description_en: visit.description_en,
+            duration_min: totalTime, distance_m: Math.round(totalDist),
+            stops_count: selectedPois.length, stops_data: stopsData,
+            highlights: visit.highlights || [], best_time: visit.best_time,
+            quality_score: visit.quality_score, agent_version: "v3.0",
+          });
 
           if (insertErr) {
             logs.push(`❌ Erreur insertion: ${insertErr.message}`);
@@ -564,7 +600,6 @@ Génère en une seule réponse :
             logs.push(`✅ Visite créée: "${visit.title_fr}" — ${selectedPois.length} stops, ${selectedPois.map((p: any) => p.name).join(' → ')}`);
             results.push({ phase: "library", action: "visit_created", count: 1, logs: [] });
           }
-
           generated = true;
         }
       }
@@ -575,6 +610,67 @@ Génère en une seule réponse :
       if (existingKeys.size >= totalPossible) {
         logs.push("✅ Phase 2: Toutes les visites de la bibliothèque sont déjà générées");
       }
+    }
+
+    // ━━━━━━━━━━ PHASE 3: SYNCHRONISATION HPP → QRP (toutes les ~4 exécutions = ~1h) ━━━━━━━━━━
+    let shouldSync = false;
+    try {
+      const { data: lastSync } = await supabase
+        .from("agent_logs")
+        .select("created_at")
+        .eq("phase", "Phase 3")
+        .eq("action", "sync_hpp_to_qrp")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!lastSync) {
+        shouldSync = true; // Jamais synchronisé
+      } else {
+        const minSinceLastSync = (Date.now() - new Date(lastSync.created_at).getTime()) / 60000;
+        shouldSync = minSinceLastSync >= 55; // Sync si >55 min depuis dernière fois
+      }
+    } catch (_) {
+      shouldSync = true; // Table agent_logs inexistante → sync quand même
+    }
+
+    if (shouldSync && QRP_SERVICE_KEY) {
+      logs.push("🔄 Phase 3: Synchronisation HPP → QRP...");
+      try {
+        const syncRes = await fetch("https://zdzycbqwypriveenxnsh.supabase.co/functions/v1/sync-pois-import", {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${QRP_SERVICE_KEY}`, "Content-Type": "application/json" },
+          signal: AbortSignal.timeout(30000),
+        });
+        const syncData = await syncRes.json();
+        const { imported_count = 0, updated = 0, inserted = 0, errors_count = 0 } = syncData;
+
+        logs.push(`✅ Phase 3: Sync terminée — ${imported_count} POIs traités, ${updated} màj, ${inserted} insérés, ${errors_count} erreurs`);
+        results.push({ phase: "sync_hpp_qrp", action: "sync_hpp_to_qrp", count: updated + inserted, logs: [] });
+
+        await logToAgentLogs(supabase, "Phase 3", "sync_hpp_to_qrp", { imported_count, updated, inserted, errors_count });
+
+        if (errors_count > 10) {
+          try {
+            await fetch(`${SUPABASE_URL}/functions/v1/send-agent-notification`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SERVICE_KEY}` },
+              body: JSON.stringify({ type: 'sync_errors', error_count: errors_count, details: syncData }),
+              signal: AbortSignal.timeout(5000),
+            });
+          } catch (_) { /* notification non critique */ }
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "timeout";
+        logs.push(`❌ Phase 3: Erreur sync — ${msg}`);
+        await logToAgentLogs(supabase, "Phase 3", "sync_hpp_to_qrp", null, [msg]);
+      }
+    } else if (!QRP_SERVICE_KEY) {
+      logs.push("⚠️ Phase 3: clé QRP manquante — sync ignorée");
+    } else {
+      const { data: lastSync } = await supabase.from("agent_logs").select("created_at").eq("phase", "Phase 3").order("created_at", { ascending: false }).limit(1).single().catch(() => ({ data: null }));
+      const minAgo = lastSync ? Math.round((Date.now() - new Date(lastSync.created_at).getTime()) / 60000) : 0;
+      logs.push(`✅ Phase 3: Sync déjà effectuée il y a ${minAgo} min — prochaine dans ${55 - minAgo} min`);
     }
 
     return new Response(JSON.stringify({ ok: true, logs, results }), {
