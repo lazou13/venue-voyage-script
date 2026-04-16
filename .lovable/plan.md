@@ -1,29 +1,26 @@
 
 
-## Plan : Générer les audios FR et EN de Jemaa el-Fnaa via ElevenLabs TTS
+## Plan : Générer les audios Jemaa el-Fnaa (tentative 2)
 
 ### Contexte
-- POI : Jemaa el-Fnaa (`71e3f93d-601e-49cd-8388-edd86efd5b08`)
-- Textes FR et EN riches (~250 mots chacun, `history_context` + `local_anecdote`)
-- Voix demandée : `JdwJ7jL68CWmQZuo7KgG`
-- ElevenLabs connecté, `ELEVENLABS_API_KEY` disponible
+La clé ElevenLabs a été mise à jour (terminant par `b80b`). La connexion est active.
 
 ### Étapes
 
-1. **Créer un script `/tmp/generate-jemaa-audio.ts`** exécuté via `code--exec`
-   - Récupère les textes FR (`history_context` + `local_anecdote`) et EN (`history_context_en` + `local_anecdote_en`)
-   - Appelle l'API ElevenLabs TTS (`eleven_multilingual_v2`, voix `JdwJ7jL68CWmQZuo7KgG`) deux fois (FR, EN)
-   - Sauvegarde les MP3 dans `/mnt/documents/jemaa-el-fnaa_fr.mp3` et `/mnt/documents/jemaa-el-fnaa_en.mp3`
-
-2. **Livrer les 2 fichiers MP3** en téléchargement
+1. **Vérifier les secrets disponibles** via `fetch_secrets` pour confirmer que `ELEVENLABS_API_KEY` est bien injecté
+2. **Récupérer les secrets de la connexion** via `get_connection_secrets` pour obtenir le nom exact de la variable
+3. **Exécuter le script TTS** via `code--exec` :
+   - Texte FR : `history_context` + `local_anecdote` de Jemaa el-Fnaa
+   - Texte EN : `history_context_en` + `local_anecdote_en`
+   - Voix : `JdwJ7jL68CWmQZuo7KgG`
+   - Modèle : `eleven_multilingual_v2`
+   - Sortie : `/mnt/documents/jemaa-el-fnaa_fr.mp3` et `/mnt/documents/jemaa-el-fnaa_en.mp3`
 
 ### Détails techniques
-- Modèle : `eleven_multilingual_v2` (FR + EN natifs)
-- Format : MP3 44.1kHz 128kbps
-- Voix unique pour les deux langues (multilingue)
-- Pas de edge function — script one-shot direct via `fetch` + API key
+- Appel direct à `https://api.elevenlabs.io/v1/text-to-speech/{voiceId}?output_format=mp3_44100_128`
+- Header `xi-api-key` avec la clé depuis `Deno.env` / env vars sandbox
+- Script Python one-shot avec `requests`
 
 ### Livrable
-- `jemaa-el-fnaa_fr.mp3`
-- `jemaa-el-fnaa_en.mp3`
+- 2 MP3 téléchargeables
 
