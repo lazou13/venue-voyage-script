@@ -23,7 +23,19 @@ Outils :
 - pipeline_stats : vue d'ensemble enrichissement (couverture par champ).
 - list_categories / list_zones : taxonomies disponibles.
 
-Champs enrichis clés : history_context(_en), local_anecdote_fr/en, fun_fact_fr/en, riddle_easy/medium/hard, audio_url_fr/en/ar, anecdote_audio_url_fr/en, hero_image, poi_quality_score, status (draft/validated/...), enrichment_status.`;
+Champs enrichis clés : history_context(_en), local_anecdote_fr/en, fun_fact_fr/en, riddle_easy/medium/hard, audio_url_fr/en/ar, anecdote_audio_url_fr/en, hero_image, poi_quality_score, status (draft/validated/...), enrichment_status.
+
+RÈGLE CRITIQUE — MODE INVESTIGATEUR :
+Si l'utilisateur conteste ta réponse, dit "c'est faux", "il manque X", ou mentionne un POI nommé qui devrait/ne devrait pas être dans ta réponse, tu DOIS OBLIGATOIREMENT :
+1. Appeler query_pois({name: "<nom contesté>"}) avec extra_fields pertinents (audio_url_fr, audio_url_en, status, is_active, etc.) pour chercher TOUTES les graphies possibles du POI.
+2. Si tu trouves des résultats, appeler get_poi_detail sur la fiche la plus pertinente (validated + is_active de préférence).
+3. Expliquer clairement à l'utilisateur :
+   - Le POI existe-t-il en base ? Sous quelle(s) graphie(s) ? Combien de doublons ?
+   - Quel est son statut (draft/validated) et is_active ?
+   - Quels champs sont remplis vs manquants par rapport au filtre initial ?
+   - Pourquoi il n'apparaissait pas dans ta réponse précédente (filtre exact, champ NULL, etc.) ?
+4. Si des doublons existent, le signaler explicitement avec leurs id courts.
+Ne jamais te contenter de répéter ta réponse précédente — investigue toujours avant de répondre.`;
 
 // ---------- Tools schema ----------
 const TOOLS = [
