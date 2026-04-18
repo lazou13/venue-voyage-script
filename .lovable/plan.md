@@ -1,38 +1,36 @@
 
 
-L'utilisateur veut générer les audios FR et EN pour Jemaa el-Fna (fiche canonique `Djemaa el Fna`, id `11ad43a7-4776-4c2b-99b0-d7f99e7c5dce`).
+L'utilisateur soulève deux points critiques :
 
-## Plan : Générer audios FR + EN pour Djemaa el Fna
+1. **Réglages TTS** : oui, j'ai bien utilisé les mêmes réglages (voice `JdwJ7jL68CWmQZuo7KgG`, speed 0.75, stability 0.3, similarity 0.9, style 0.85, model `eleven_multilingual_v2`) — c'est codé en dur dans `generate-poi-audio/index.ts`. Donc cohérent avec la mémoire `tts-generation-settings`.
 
-### Contexte
-- POI canonique : `Djemaa el Fna` (`11ad43a7-4776-4c2b-99b0-d7f99e7c5dce`), `validated`, `is_active=true`.
-- Aucun audio FR/EN actuellement.
-- Edge function `generate-poi-audio` déjà en place (ElevenLabs voice `JdwJ7jL68CWmQZuo7KgG`, speed 0.75).
-- Mémoire `tts-generation-settings` : réécriture Gemini avant TTS pour narration élégante.
+2. **Source du texte** : c'est le vrai problème. J'ai réécrit le texte avec Gemini avant TTS, ce qui crée des versions divergentes du contenu officiel. L'utilisateur veut que les audios soient générés **directement à partir des champs déjà enrichis et validés** en base (`history_context` + `local_anecdote` pour FR, `history_context_en` + `local_anecdote_en` pour EN), sans réécriture, pour rester cohérent avec ce qui s'affiche partout ailleurs (road book, road guide, app player).
 
-### Étapes
+Or la mémoire `tts-generation-settings` mentionne "Gemini rewrite before TTS". Il faut que je clarifie : soit on garde la réécriture (mais alors elle doit être déterministe/cachée), soit on supprime la réécriture et on lit le texte brut.
 
-1. **Vérifier le contenu narratif source** du POI : récupérer `history_context` (FR), `history_context_en`, `local_anecdote_fr`, `anecdote_en` ou équivalents. S'ils sont vides → enrichir d'abord (mais visiblement Jemaa el-Fna est validated donc devrait avoir du contenu).
+L'utilisateur dit clairement : "c'est ceux là qu'il faut reprendre pas les refaire à chaque audio ça va tout embrouiller". Donc → **lecture directe du contenu existant**, pas de réécriture Gemini.
 
-2. **Réécriture Gemini "narration élégante"** (selon mémoire TTS) :
-   - Texte FR : combiner `history_context` + `local_anecdote_fr` → prompt Gemini pour narration guide expert ~150-200 mots, ton oral, transitions naturelles.
-   - Texte EN : même chose à partir de `history_context_en` + anecdote EN.
+## Plan : corriger les audios Djemaa el Fna + uniformiser la politique TTS
 
-3. **Appel `generate-poi-audio`** deux fois :
-   - `{ poi_id: "11ad43a7…", field: "audio_url_fr", text: <texte FR réécrit>, storage_path: "11ad43a7…/fr.mp3" }`
-   - `{ poi_id: "11ad43a7…", field: "audio_url_en", text: <texte EN réécrit>, storage_path: "11ad43a7…/en.mp3" }`
+### 1. Régénérer les 2 audios Djemaa el Fna à partir des textes officiels
+- Lire en base : `history_context` + `local_anecdote` (FR), `history_context_en` + `local_anecdote_en` (EN).
+- Concaténer simplement : `${history_context}\n\n${local_anecdote}` (idem EN), avec une légère normalisation (espaces, ponctuation finale).
+- Aucun appel Gemini. Envoi direct à `generate-poi-audio` avec les mêmes réglages ElevenLabs déjà en place (0.75 / 0.3 / 0.9 / 0.85, voice JdwJ7jL68CWmQZuo7KgG, model eleven_multilingual_v2).
+- Écraser `audio_url_fr` et `audio_url_en` (storage upsert true → même chemin `11ad43a7…/fr.mp3` et `/en.mp3`).
 
-4. **Vérification** : lecture des `audio_url_fr` / `audio_url_en` en base après génération + test que le fichier MP3 est lisible.
+### 2. Mettre à jour la mémoire `tts-generation-settings`
+Remplacer la règle "Gemini rewrite before TTS" par :
+> **Source du texte** : utiliser directement `history_context` + `local_anecdote` (FR) et `history_context_en` + `local_anecdote_en` (EN) tels qu'ils existent en base. **Ne jamais réécrire** avec un LLM avant TTS — cela crée des divergences entre l'audio et le contenu textuel affiché ailleurs (road book, app player, fiches POI).
 
-### Implémentation
-Action one-shot via Supabase tools en mode default :
-- `read_query` pour récupérer le contenu narratif source.
-- Appel Lovable AI Gateway (Gemini 2.5 Flash) pour réécriture FR + EN.
-- `curl_edge_functions` deux fois sur `/generate-poi-audio`.
-- `read_query` final pour confirmer les URLs.
-
-Si `history_context` ou anecdote vide → l'indiquer et proposer d'enrichir d'abord via `anecdote-enricher`.
+### 3. Vérification
+- Re-query `medina_pois` pour confirmer que `audio_url_fr` et `audio_url_en` pointent toujours vers les bons chemins.
+- Fournir les liens à l'utilisateur pour validation auditive.
 
 ### Fichiers
-Aucune modification de code. Pure exécution de scripts/edge functions existants.
+Aucune modification de code applicatif. Pure exécution :
+- 2 appels `generate-poi-audio` (en parallèle).
+- 1 update de `mem://technical/tts-generation-settings` + `mem://index.md`.
+
+### Note
+La voix, la vitesse 0.75 et tous les autres paramètres restent **strictement identiques** aux audios précédents (Koutoubia, Jardin Secret, etc.) — garantie de cohérence sonore dans toute la bibliothèque.
 
