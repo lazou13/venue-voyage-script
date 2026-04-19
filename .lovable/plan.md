@@ -1,42 +1,50 @@
 
 
-## Diagnostic
+User veut :
+1. Garder canonique = `b11998e9` "Médersa Ben Youssef" (et pas Madrasa) → fusionner `4a3a523a` dedans.
+2. Régénérer audios FR + EN.
+3. **Voir les textes avant** régénération.
+4. Config voix inchangée (ElevenLabs JdwJ7jL68CWmQZuo7KgG, speed 0.75, stability 0.3, similarity 0.9, style 0.85, model eleven_multilingual_v2) — déjà en mémoire.
 
-L'outil `merge_pois` n'est pas cassé techniquement. Le vrai problème est triple :
+Vérifié en base : `b11998e9` a `history_context` (FR) et `history_context_en` + `local_anecdote` / `local_anecdote_en`. C'est ce texte qui sera utilisé tel quel (politique TTS : pas de réécriture LLM).
 
-1. **L'agent hallucine les UUIDs.** Dans les logs : `f8b13926c04f4699ae7067823fb7966f` (sans tirets) et `3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e` (id bidon). Ces ids n'existent pas en base — vérification SQL faite : aucun POI Jemaa el-Fna ne porte ces ids.
-2. **Le vrai POI canonique** de Djemaa el Fna est `11ad43a7-4776-4c2b-99b0-d7f99e7c5dce` (celui où on a mis les 4 audios), pas `f8b13926...`.
-3. **`merge_pois` n'utilise pas `.maybeSingle()` ni ne valide les ids** : si Postgres rejette le format UUID ou si la liste est vide, l'erreur est avalée silencieusement et renvoyée comme texte → l'agent croit que "l'outil est cassé" et le dit à l'utilisateur.
+## Plan
 
-## Plan de correction
+### Étape 1 — Affichage des textes (avant tout)
+Je récupère et te présente, sans rien modifier :
+- `history_context` (FR) — base audio principale FR
+- `local_anecdote` (FR) — base audio anecdote FR
+- `history_context_en` — base audio principale EN
+- `local_anecdote_en` — base audio anecdote EN
 
-### 1. Renforcer `merge_pois` côté edge function
-- Valider chaque id avec une regex UUID stricte avant tout appel SQL.
-- Vérifier que `canonical_id` existe réellement (`select id from medina_pois where id = ...`). Sinon renvoyer une erreur claire `canonical_id introuvable`.
-- Vérifier que tous les `duplicate_ids` existent et sont **différents** de `canonical_id`. Sinon renvoyer la liste des manquants.
-- Renvoyer une erreur explicite si Postgres échoue (au lieu d'avaler).
-- Idem garde-fou UUID dans `update_poi`, `set_poi_status`, `delete_poi`, `generate_audio`, `enrich_poi`, `translate_poi_fields`, `fetch_photos`.
+Tu valides chaque texte (ou demandes une correction manuelle directe en base) avant régénération.
 
-### 2. Forcer l'agent à utiliser de vrais ids
-- Ajouter une règle au system prompt : *"Avant tout merge/delete/update, tu DOIS appeler `find_duplicates({name})` ou `query_pois({name})` pour récupérer les vrais UUIDs. Ne jamais inventer ni reconstruire un UUID. Toujours utiliser le format avec tirets renvoyé par les outils."*
-- Ajouter une règle : *"Quand tu présentes une fusion à confirmer, copie-colle les UUIDs exacts retournés par les outils."*
+### Étape 2 — Fusion du doublon
+Une fois textes validés :
+- `merge_pois({canonical_id: "b11998e9-0650-4bec-a7ee-77ef25564bfa", duplicate_ids: ["4a3a523a-f29c-4459-884f-1a585942d23b"], confirm: true})`
+- Cela rapatrie `poi_media`, recommandations, photos client vers le canonique.
 
-### 3. Lister les vrais doublons de Jemaa el-Fna
-Une fois la fonction renforcée, refaire `find_duplicates({name: "jemaa", radius_m: 50})` autour de `11ad43a7` (Djemaa el Fna canonique, lat 31.6259, lng -7.9890), et présenter la vraie liste avant fusion. À première vue, candidats légitimes :
-- `71e3f93d-601e-49cd-8388-edd86efd5b08` "Jemaa el-Fnaa" (même GPS exactement)
-- `660a0d82-2b90-4339-bcf0-717e99e46171` "Marrakesch: Jemaa El Fna" (10m)
-- `fb1b47a5-941c-4838-bf97-c417558065e3` "Stand Place Jemaa El Fna No.75" (à vérifier)
+### Étape 3 — Régénération des 4 audios sur le canonique `b11998e9`
+Via la fonction `generate-poi-audio` existante, avec chemins **versionnés** (politique cache CDN) :
+- `audio-guides/b11998e9-0650-4bec-a7ee-77ef25564bfa/fr_v{ts}.mp3` → champ `audio_url_fr` ← `history_context`
+- `audio-guides/b11998e9-0650-4bec-a7ee-77ef25564bfa/en_v{ts}.mp3` → champ `audio_url_en` ← `history_context_en`
+- `audio-guides/b11998e9-0650-4bec-a7ee-77ef25564bfa/anecdote_fr_v{ts}.mp3` → `anecdote_audio_url_fr` ← `local_anecdote`
+- `audio-guides/b11998e9-0650-4bec-a7ee-77ef25564bfa/anecdote_en_v{ts}.mp3` → `anecdote_audio_url_en` ← `local_anecdote_en`
 
-Les autres ("Hotel Cecil", "Calèches", "Centre Commercial", "Chez Lamine", "Riad jemaa") sont des établissements distincts à NE PAS fusionner.
+Config voix : strictement identique à ce qui est déjà codé dans `generate-poi-audio` (rien à changer).
 
-## Fichier impacté
+### Étape 4 — Vérification
+- Lecture de `b11998e9` après update : 4 URLs sur bucket interne `audio-guides`, taille KB > 0.
+- Confirmation que `4a3a523a` a été supprimé/désactivé par le merge.
 
-- `supabase/functions/agent-chat/index.ts` (validations UUID + system prompt durci).
+## Fichiers touchés
+Aucun changement de code. Uniquement :
+- Lectures SQL (`medina_pois`)
+- Appels d'edge functions existantes (`agent-chat` → `merge_pois`, puis `generate-poi-audio` x4)
 
-Aucun autre fichier touché.
-
-## Résultat attendu
-
-- Plus d'hallucination silencieuse : si l'agent envoie un mauvais id, il reçoit immédiatement une erreur explicite et corrige.
-- Les vrais doublons de Djemaa el Fna pourront être fusionnés dans `11ad43a7` après ta confirmation.
+## Question avant exécution
+Aucune — j'ai juste besoin de basculer en mode édition pour :
+1. te lire les 4 textes,
+2. attendre ton "OK régénère" (ou tes corrections),
+3. lancer la fusion + 4 régénérations.
 
