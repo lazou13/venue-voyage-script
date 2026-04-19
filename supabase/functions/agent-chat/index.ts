@@ -9,7 +9,6 @@ const corsHeaders = {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 
 const SYSTEM_PROMPT = `Tu es l'Agent IA full-power de Hunt Planner Pro, expert de la Médina de Marrakech et administrateur de la base medina_pois.
 
@@ -579,6 +578,46 @@ async function callGateway(apiKey: string, body: any) {
   });
 }
 
+async function resolveAdminFromAuthHeader(authHeader: string | null) {
+  if (!authHeader?.startsWith("Bearer ")) {
+    return { isAdmin: false, userId: null, reason: "missing_bearer" };
+  }
+
+  const token = authHeader.replace("Bearer ", "").trim();
+  if (!token) {
+    return { isAdmin: false, userId: null, reason: "empty_token" };
+  }
+
+  try {
+    const sbAdmin = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const { data: userData, error: userError } = await sbAdmin.auth.getUser(token);
+    if (userError || !userData?.user?.id) {
+      console.warn("[agent-chat] getUser failed", userError);
+      return { isAdmin: false, userId: null, reason: userError?.message ?? "user_not_found" };
+    }
+
+    const userId = userData.user.id;
+    const { data: roleCheck, error: roleError } = await sbAdmin.rpc("has_role", {
+      _user_id: userId,
+      _role: "admin",
+    });
+
+    if (roleError) {
+      console.warn("[agent-chat] has_role failed", roleError);
+      return { isAdmin: false, userId, reason: roleError.message };
+    }
+
+    return { isAdmin: roleCheck === true, userId, reason: roleCheck === true ? "ok" : "not_admin" };
+  } catch (e) {
+    console.warn("[agent-chat] auth resolution failed", e);
+    return {
+      isAdmin: false,
+      userId: null,
+      reason: e instanceof Error ? e.message : String(e),
+    };
+  }
+}
+
 function gatewayErrorResponse(status: number, fallback: string) {
   if (status === 429) return { status: 429, msg: "Limite de requêtes atteinte, réessayez dans un instant." };
   if (status === 402) return { status: 402, msg: "Crédits IA insuffisants." };
@@ -599,26 +638,9 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    // Check admin role from JWT
-    let isAdmin = false;
     const authHeader = req.headers.get("Authorization");
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.replace("Bearer ", "");
-      try {
-        const sbAuth = createClient(SUPABASE_URL, ANON_KEY, {
-          global: { headers: { Authorization: `Bearer ${token}` } },
-        });
-        const { data: claimsData } = await sbAuth.auth.getClaims(token);
-        const userId = claimsData?.claims?.sub;
-        if (userId) {
-          const sbAdmin = createClient(SUPABASE_URL, SERVICE_ROLE);
-          const { data: roleCheck } = await sbAdmin.rpc("has_role", { _user_id: userId, _role: "admin" });
-          isAdmin = roleCheck === true;
-        }
-      } catch (e) {
-        console.warn("[agent-chat] auth check failed:", e);
-      }
-    }
+    const { isAdmin, userId, reason: adminReason } = await resolveAdminFromAuthHeader(authHeader);
+    console.log("[agent-chat] auth", { isAdmin, userId, reason: adminReason });
 
     // Service role client for tools (bypasses RLS — admin guard is enforced in execTool)
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
