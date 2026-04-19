@@ -22,6 +22,13 @@ RÈGLES :
 - Pour ACTIONS DESTRUCTIVES (delete_poi, merge_pois, bulk_update) : tu DOIS d'abord présenter exactement ce que tu vas faire (ids concernés, champs modifiés) puis ATTENDRE une confirmation explicite de l'utilisateur ("ok", "oui", "vas-y", "confirme") avant de rappeler l'outil avec confirm: true.
 - Pour ENRICHISSEMENT/PHOTOS/QUALITY/WATCHDOG : exécute si la portée est claire (un POI nommé, ou mode dry-run), sinon demande clarification.
 
+RÈGLE UUID — CRITIQUE :
+- Tu ne dois JAMAIS inventer, deviner, reconstruire ou raccourcir un UUID.
+- Avant tout merge_pois / delete_poi / update_poi / set_poi_status / bulk_update / generate_audio / enrich_poi / fetch_photos / translate_poi_fields, tu DOIS d'abord appeler query_pois ou find_duplicates ou get_poi_detail pour récupérer les vrais UUIDs depuis la base.
+- Toujours utiliser le format COMPLET avec tirets : 8-4-4-4-12 (ex: 11ad43a7-4776-4c2b-99b0-d7f99e7c5dce). Jamais sans tirets, jamais tronqué, jamais répété (ex: 3e3e3e3e... est interdit).
+- Quand tu présentes une fusion à confirmer, copie-colle EXACTEMENT les UUIDs retournés par les outils.
+- Si un outil te répond "UUID invalide" ou "POI introuvable", rappelle find_duplicates / query_pois pour obtenir les vrais ids — ne réessaie jamais avec un id reconstruit de mémoire.
+
 MODE INVESTIGATEUR : si l'utilisateur conteste ("c'est faux", "il manque X"), appelle query_pois({name: "..."}) puis get_poi_detail, et explique pourquoi le POI n'apparaissait pas (statut, champ NULL, doublon, etc.).
 
 Champs clés : history_context(_en), local_anecdote_fr/en, fun_fact_fr/en, riddle_easy/medium/hard, audio_url_fr/en/ar, anecdote_audio_url_fr/en, hero_image, poi_quality_score, status, enrichment_status, is_active, is_start_hub, hub_theme.`;
@@ -286,6 +293,24 @@ const TOOLS = [
   },
 ];
 
+// ---------- UUID helpers ----------
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(v: unknown): v is string {
+  return typeof v === "string" && UUID_RE.test(v.trim());
+}
+function badUuids(ids: unknown[]): string[] {
+  return (ids ?? []).filter((v) => !isUuid(v)).map((v) => String(v));
+}
+async function assertPoisExist(sb: any, ids: string[]): Promise<{ found: string[]; missing: string[] }> {
+  if (ids.length === 0) return { found: [], missing: [] };
+  const { data, error } = await sb.from("medina_pois").select("id").in("id", ids);
+  if (error) throw error;
+  const found = (data ?? []).map((r: any) => r.id);
+  const foundSet = new Set(found);
+  const missing = ids.filter((id) => !foundSet.has(id));
+  return { found, missing };
+}
+
 // ---------- Filters helper ----------
 function applyFilters(q: any, args: any) {
   if (args.name) q = q.or(`name.ilike.%${args.name}%,name_fr.ilike.%${args.name}%,name_en.ilike.%${args.name}%`);
@@ -457,6 +482,13 @@ async function execTool(sb: any, name: string, args: any, isAdmin: boolean): Pro
       if (!args.id || !args.updates || typeof args.updates !== "object") {
         return { error: "id et updates requis" };
       }
+      if (!isUuid(args.id)) {
+        return { error: `UUID invalide: "${args.id}". Format attendu: 8-4-4-4-12 avec tirets. Rappelle query_pois pour récupérer le vrai id.` };
+      }
+      const { found, missing } = await assertPoisExist(sb, [args.id]);
+      if (missing.length > 0) {
+        return { error: `POI introuvable en base: ${args.id}. Rappelle query_pois({name:"..."}) pour récupérer le vrai id.` };
+      }
       const clean: Record<string, any> = {};
       const rejected: string[] = [];
       for (const [k, v] of Object.entries(args.updates)) {
@@ -465,28 +497,39 @@ async function execTool(sb: any, name: string, args: any, isAdmin: boolean): Pro
       }
       if (Object.keys(clean).length === 0) return { error: "Aucun champ valide à mettre à jour", rejected };
       const { data, error } = await sb.from("medina_pois").update(clean).eq("id", args.id).select("id, name").maybeSingle();
-      if (error) throw error;
+      if (error) return { error: `Postgres: ${error.message}` };
       console.log("[agent] update_poi", args.id, Object.keys(clean));
       return { ok: true, updated: clean, rejected, poi: data };
     }
 
     if (name === "set_poi_status") {
+      if (!isUuid(args.id)) {
+        return { error: `UUID invalide: "${args.id}". Format attendu: 8-4-4-4-12 avec tirets.` };
+      }
+      const { missing } = await assertPoisExist(sb, [args.id]);
+      if (missing.length > 0) return { error: `POI introuvable: ${args.id}` };
       const patch: any = {};
       if (args.status) patch.status = args.status;
       if (typeof args.is_active === "boolean") patch.is_active = args.is_active;
       if (args.status === "validated") patch.validated_at = new Date().toISOString();
       if (Object.keys(patch).length === 0) return { error: "status ou is_active requis" };
       const { data, error } = await sb.from("medina_pois").update(patch).eq("id", args.id).select("id, name, status, is_active").maybeSingle();
-      if (error) throw error;
+      if (error) return { error: `Postgres: ${error.message}` };
       console.log("[agent] set_poi_status", args.id, patch);
       return { ok: true, poi: data };
     }
 
     if (name === "delete_poi") {
+      if (!isUuid(args.id)) {
+        return { error: `UUID invalide: "${args.id}". Format attendu: 8-4-4-4-12 avec tirets.` };
+      }
+      const { missing } = await assertPoisExist(sb, [args.id]);
+      if (missing.length > 0) return { error: `POI introuvable: ${args.id}` };
       // Cascade: delete poi_media first
-      await sb.from("poi_media").delete().eq("medina_poi_id", args.id);
+      const { error: mediaErr } = await sb.from("poi_media").delete().eq("medina_poi_id", args.id);
+      if (mediaErr) return { error: `Postgres (poi_media): ${mediaErr.message}` };
       const { data, error } = await sb.from("medina_pois").delete().eq("id", args.id).select("id, name").maybeSingle();
-      if (error) throw error;
+      if (error) return { error: `Postgres: ${error.message}` };
       console.log("[agent] delete_poi", args.id);
       return { ok: true, deleted: data };
     }
@@ -496,13 +539,36 @@ async function execTool(sb: any, name: string, args: any, isAdmin: boolean): Pro
       if (!canonical_id || !Array.isArray(duplicate_ids) || duplicate_ids.length === 0) {
         return { error: "canonical_id et duplicate_ids requis" };
       }
-      // Move poi_media
-      await sb.from("poi_media").update({ medina_poi_id: canonical_id }).in("medina_poi_id", duplicate_ids);
-      // Delete duplicates
-      const { data, error } = await sb.from("medina_pois").delete().in("id", duplicate_ids).select("id, name");
-      if (error) throw error;
-      console.log("[agent] merge_pois", canonical_id, "<-", duplicate_ids);
-      return { ok: true, merged_into: canonical_id, removed: data };
+      // 1. UUID format validation
+      if (!isUuid(canonical_id)) {
+        return { error: `canonical_id UUID invalide: "${canonical_id}". Format attendu: 8-4-4-4-12 avec tirets.` };
+      }
+      const badDups = badUuids(duplicate_ids);
+      if (badDups.length > 0) {
+        return { error: `duplicate_ids invalides (UUID mal formé): ${JSON.stringify(badDups)}. Rappelle find_duplicates pour récupérer les vrais ids.` };
+      }
+      // 2. Self-merge check
+      const dups = (duplicate_ids as string[]).filter((id) => id !== canonical_id);
+      if (dups.length === 0) {
+        return { error: "duplicate_ids ne contient que le canonical_id — rien à fusionner." };
+      }
+      // 3. Existence check
+      const { missing: missCanon } = await assertPoisExist(sb, [canonical_id]);
+      if (missCanon.length > 0) {
+        return { error: `canonical_id introuvable en base: ${canonical_id}. Rappelle query_pois pour récupérer le vrai id.` };
+      }
+      const { missing: missDups } = await assertPoisExist(sb, dups);
+      if (missDups.length > 0) {
+        return { error: `duplicate_ids introuvables en base: ${JSON.stringify(missDups)}. Rappelle find_duplicates pour récupérer les vrais ids.` };
+      }
+      // 4. Move poi_media
+      const { error: mediaErr } = await sb.from("poi_media").update({ medina_poi_id: canonical_id }).in("medina_poi_id", dups);
+      if (mediaErr) return { error: `Postgres (poi_media move): ${mediaErr.message}` };
+      // 5. Delete duplicates
+      const { data, error } = await sb.from("medina_pois").delete().in("id", dups).select("id, name");
+      if (error) return { error: `Postgres (delete duplicates): ${error.message}` };
+      console.log("[agent] merge_pois", canonical_id, "<-", dups);
+      return { ok: true, merged_into: canonical_id, removed: data, removed_count: data?.length ?? 0 };
     }
 
     if (name === "bulk_update") {
@@ -516,17 +582,20 @@ async function execTool(sb: any, name: string, args: any, isAdmin: boolean): Pro
       let q = sb.from("medina_pois").select("id");
       q = applyFilters(q, args.filter ?? {});
       const { data: targets, error: e1 } = await q.limit(limit);
-      if (e1) throw e1;
+      if (e1) return { error: `Postgres (filter): ${e1.message}` };
       const ids = (targets ?? []).map((r: any) => r.id);
       if (ids.length === 0) return { ok: true, updated: 0, message: "Aucun POI ne correspond au filtre" };
       const { error: e2 } = await sb.from("medina_pois").update(clean).in("id", ids);
-      if (e2) throw e2;
+      if (e2) return { error: `Postgres (update): ${e2.message}` };
       console.log("[agent] bulk_update", ids.length, "rows", Object.keys(clean));
       return { ok: true, updated_count: ids.length, ids: ids.slice(0, 10), updates: clean, rejected };
     }
 
     // ---------- ACTIONS (edge function calls) ----------
     if (name === "generate_audio") {
+      if (!isUuid(args.poi_id)) return { error: `poi_id UUID invalide: "${args.poi_id}".` };
+      const { missing } = await assertPoisExist(sb, [args.poi_id]);
+      if (missing.length > 0) return { error: `POI introuvable: ${args.poi_id}` };
       const ts = Date.now();
       const kind = args.kind ?? "history";
       const filename = kind === "anecdote"
@@ -539,16 +608,19 @@ async function execTool(sb: any, name: string, args: any, isAdmin: boolean): Pro
     }
 
     if (name === "enrich_poi") {
+      if (!isUuid(args.poi_id)) return { error: `poi_id UUID invalide: "${args.poi_id}".` };
       const r = await invokeEdge(args.agent, { poi_id: args.poi_id, ids: [args.poi_id] });
       return { ok: r.ok, status: r.status, result: r.data };
     }
 
     if (name === "translate_poi_fields") {
+      if (!isUuid(args.poi_id)) return { error: `poi_id UUID invalide: "${args.poi_id}".` };
       const r = await invokeEdge("translate", { poi_id: args.poi_id });
       return { ok: r.ok, status: r.status, result: r.data };
     }
 
     if (name === "fetch_photos") {
+      if (!isUuid(args.poi_id)) return { error: `poi_id UUID invalide: "${args.poi_id}".` };
       const r = await invokeEdge("poi-fetch-photos", { poi_id: args.poi_id, ids: [args.poi_id] });
       return { ok: r.ok, status: r.status, result: r.data };
     }
