@@ -293,6 +293,24 @@ const TOOLS = [
   },
 ];
 
+// ---------- UUID helpers ----------
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function isUuid(v: unknown): v is string {
+  return typeof v === "string" && UUID_RE.test(v.trim());
+}
+function badUuids(ids: unknown[]): string[] {
+  return (ids ?? []).filter((v) => !isUuid(v)).map((v) => String(v));
+}
+async function assertPoisExist(sb: any, ids: string[]): Promise<{ found: string[]; missing: string[] }> {
+  if (ids.length === 0) return { found: [], missing: [] };
+  const { data, error } = await sb.from("medina_pois").select("id").in("id", ids);
+  if (error) throw error;
+  const found = (data ?? []).map((r: any) => r.id);
+  const foundSet = new Set(found);
+  const missing = ids.filter((id) => !foundSet.has(id));
+  return { found, missing };
+}
+
 // ---------- Filters helper ----------
 function applyFilters(q: any, args: any) {
   if (args.name) q = q.or(`name.ilike.%${args.name}%,name_fr.ilike.%${args.name}%,name_en.ilike.%${args.name}%`);
