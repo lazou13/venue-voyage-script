@@ -1,47 +1,72 @@
 
-Le plus probable est que vous entendez encore l’ancien audio à cause du cache, pas parce que les réglages sont faux.
 
 ## Constat
-- `generate-poi-audio` écrase bien le fichier existant avec `upsert: true`.
-- Mais il réutilise le même `storage_path` et donc la même URL publique.
-- Si on régénère `.../fr.mp3` sur la même URL, le navigateur ou le CDN peut continuer à servir l’ancienne version pendant un moment.
 
-## Plan
-1. Vérifier l’état réel du POI `Djemaa el Fna` en backend :
-   - contenu source FR/EN actuellement en base,
-   - `audio_url_fr` / `audio_url_en`,
-   - timestamps éventuels pour confirmer la dernière génération.
+L'agent chat actuel est **lecture seule** : il a 6 outils (`query_pois`, `count_pois`, `get_poi_detail`, `pipeline_stats`, `list_categories`, `list_zones`). Il ne peut donc pas modifier la base, générer des audios, lancer le pipeline, etc. C'est exactement la limite que tu rencontres.
 
-2. Régénérer les audios FR et EN à partir des champs officiels déjà validés :
-   - FR = `history_context` + `local_anecdote`
-   - EN = `history_context_en` + `local_anecdote_en`
-   - sans aucune réécriture LLM
-   - avec les mêmes réglages ElevenLabs (`speed 0.75`, `stability 0.3`, `similarity 0.9`, `style 0.85`).
+Tu veux qu'il devienne un véritable **agent autonome** capable de tout faire ce que tu fais à la main dans l'admin.
 
-3. Éviter le cache en changeant le chemin fichier :
-   - au lieu de réécrire `fr.mp3` / `en.mp3`,
-   - générer par exemple `fr_v2.mp3` et `en_v2.mp3` ou un nom versionné/timestampé,
-   - puis mettre à jour `audio_url_fr` et `audio_url_en` avec ces nouvelles URLs.
+## Plan : transformer l'agent en agent "full-power"
 
-4. Vérifier après génération :
-   - confirmer que les URLs en base ont bien changé,
-   - vous redonner le nouveau lien FR,
-   - vous faire tester en navigation privée pour confirmer que ce n’est plus l’ancien audio.
+### 1. Ajouter des outils d'écriture sur `medina_pois`
 
-## Ajustement recommandé pour éviter que ça se reproduise
-- Modifier la logique de génération pour ne plus réutiliser systématiquement le même nom de fichier quand on “corrige” un audio existant.
-- Garder des noms versionnés pour toute régénération manuelle.
+- `update_poi` : modifier n'importe quel champ texte/booléen/numérique d'un POI (whitelist large : history_context, local_anecdote_fr/en, fun_fact, riddle_*, name, name_fr/en, status, is_active, is_start_hub, hub_theme, category, zone, etc.).
+- `delete_poi` : supprimer un POI (avec id obligatoire).
+- `merge_pois` : fusionner des doublons (garder un id "canonique", déplacer les médias, supprimer les autres).
+- `set_poi_status` : raccourci pour passer draft → validated / archived.
 
-## Détail technique
-Le code actuel de `supabase/functions/generate-poi-audio/index.ts` :
-- upload dans le bucket `audio-guides`
-- avec `upsert: true`
-- puis retourne une URL publique construite à partir du même `storage_path`
+### 2. Ajouter des outils d'action sur le pipeline et les médias
 
-Donc si on régénère au même chemin, l’URL reste identique, ce qui explique exactement votre symptôme : “c’est le même audio qu’avant”.
+- `generate_audio` : appelle `generate-poi-audio` pour un POI + langue (fr/en) + type (history/anecdote), avec chemin versionné (timestamp) — conforme à la mémoire `tts-generation-settings`.
+- `enrich_poi` : appelle `anecdote-enricher` / `wiki-name-enricher` / `poi-enricher` sur un POI précis.
+- `translate_poi_fields` : appelle `translate` pour produire les champs `_en` manquants.
+- `fetch_photos` : appelle `poi-fetch-photos` pour récupérer la photo Google d'un POI.
+- `run_quality_agent` : lance `poi-quality-agent` (dry-run ou live).
+- `run_watchdog` : lance `poi-watchdog`.
 
-## Résultat attendu
-Après exécution :
-- nouveau MP3 FR réellement distinct,
-- nouvelle URL FR,
-- aucun doute possible entre ancienne et nouvelle version.
+### 3. Ajouter des outils SQL avancés (read + write contrôlés)
+
+- `find_duplicates` : détecte les POIs avec nom proche ou GPS < 15m (utile pour Jemaa el-Fna).
+- `bulk_update` : update sur N POIs sélectionnés par filtre (ex : "passe tous les POIs validated avec audio_fr en `is_active=true`"). Limite stricte : max 50 lignes par appel + confirmation requise.
+
+### 4. Garde-fous obligatoires
+
+- **Auth admin** : l'edge function vérifie que l'appelant est bien admin via JWT (`has_role(auth.uid(), 'admin')`) avant d'autoriser tout outil d'écriture. Les outils lecture restent comme aujourd'hui.
+- **Confirmation pour les actions destructrices** : `delete_poi`, `merge_pois`, `bulk_update` exigent un argument `confirm: true`. L'agent doit d'abord montrer ce qu'il va faire, puis attendre que tu valides en chat avant de rappeler l'outil avec `confirm: true`.
+- **Logging** : chaque action d'écriture est loggée (console.log + idéalement table `agent_action_log` — à voir si tu veux la créer).
+- **Pas de SQL libre** : on ne donne pas un outil "exécute n'importe quel SQL" — trop dangereux. Tout passe par des outils typés.
+
+### 5. Mise à jour du system prompt
+
+L'agent reçoit la liste de tous ses nouveaux pouvoirs et la règle :
+> "Tu peux modifier la base et lancer des actions. Avant toute action destructive (delete, merge, bulk_update, regénération coûteuse), tu DOIS d'abord présenter ce que tu vas faire et attendre une confirmation explicite de l'utilisateur en français ('ok', 'oui', 'vas-y', 'confirme'). Pour les actions simples (update d'un champ texte, génération d'un audio sur un POI précis), tu peux exécuter directement."
+
+### 6. Boucle d'agent étendue
+
+Passer `MAX_ITER` de 5 à 10 pour permettre des séquences plus longues (ex : trouver doublons → fusionner → régénérer audio → valider).
+
+## Fichier impacté
+
+- `supabase/functions/agent-chat/index.ts` (refonte des outils + auth admin + system prompt).
+
+Aucun autre fichier touché. L'UI `AdminAgentChat.tsx` reste inchangée — elle envoie déjà le JWT admin via `Authorization: Bearer ...`, il faut juste remplacer la clé publique par le token de session pour que l'edge function vérifie le rôle.
+
+### Petit ajustement client
+
+Dans `AdminAgentChat.tsx`, remplacer :
+```
+Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`
+```
+par le JWT de la session admin (`supabase.auth.getSession()`), pour que l'edge function puisse valider que l'appelant est admin avant d'autoriser les outils d'écriture.
+
+## Résultat
+
+Après ces changements, tu pourras dire en chat :
+- "supprime tous les doublons de Jemaa el-Fna sauf la fiche canonique"
+- "régénère les 4 audios de la Koutoubia avec chemins versionnés"
+- "passe tous les POIs validated qui ont les 4 audios en is_start_hub si ils sont à moins de 100m de Jemaa el-Fna"
+- "corrige le nom 'jem3 elfna' en 'Djemaa el Fna'"
+- "lance le quality agent en mode live"
+
+…et il le fera, en te demandant confirmation pour les actions risquées.
+
