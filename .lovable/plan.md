@@ -1,54 +1,134 @@
 
 
-## Compréhension
+## Diagnostic confirmé
 
-Tous les POIs doivent afficher leur nom en français par défaut dans l'admin (et partout où ils s'affichent), sans exception. Aujourd'hui, la colonne `name` contient un mélange (anglais OSM, transcriptions arabes, français…), et `name_fr` n'est rempli que pour une partie.
+Le problème n’est pas dans `AudioGuideBlock` : ce composant lit bien les bonnes colonnes (`audio_url_fr`, `audio_url_en`, `anecdote_audio_url_fr`, `anecdote_audio_url_en`).
 
-## Vérifications rapides
+Le vrai problème est double :
 
-Avant action :
-- `SELECT count(*) FROM medina_pois WHERE name_fr IS NULL OR name_fr = '';`
-- `SELECT count(*) FROM medina_pois WHERE name_fr IS NOT NULL AND name_fr <> name;` (combien diffèrent)
-- Échantillon de 30 noms `name` vs `name_fr` pour cibler les patterns à traduire (Mosque→Mosquée, Garden→Jardin, Tomb→Tombeau, Palace→Palais, Gate→Bab, Square→Place, Fountain→Fontaine, Madrasa/Medersa, Souk…).
+1. **Données dupliquées dans `medina_pois`**
+   - `Mosquée Koutoubia` existe en **14 lignes**, dont **7 encore actives**.
+   - La fiche canonique `eec26470-5202-4d52-a349-679843dae33b` a bien **4/4 audios**.
+   - D’autres doublons actifs du même nom n’ont aucun audio.
+   - Même problème sur d’autres lieux : `Place Jemaa el-Fna`, `Palais Bahia`, `Tombeaux Saadiens`, `Place des Épices`, `Le Jardin Secret`, `Mosquée Ben Salah`, `Foundouk Essarsar`, etc.
 
-## Plan
+2. **Panneau admin localement “stale”**
+   - Dans `AdminMedinaPOIs.tsx`, le `POIEditorPanel` fait `useEffect(() => setForm(poi), [poi.id])`.
+   - Donc si les données du même POI changent en base sans changer d’ID, le formulaire **ne se resynchronise pas**.
+   - Résultat : même quand l’audio existe ou vient d’être généré, l’UI peut continuer à afficher un état ancien.
 
-### 1. Backfill `name_fr` (INSERT tool — données)
-Stratégie en cascade, sans écraser ce qui est déjà bon :
+## Correction définitive
 
-**Étape A — Mappings déterministes** (couvre 80 % des cas) :
-Remplacements regex côté SQL sur `name` quand `name_fr` est vide :
-- `Mosque` → `Mosquée`, `Madrasa|Medersa` → `Médersa`, `Palace` → `Palais`, `Garden(s)?` → `Jardin(s)`, `Tomb(s)?` → `Tombeau(x)`, `Gate` → `Bab`, `Square` → `Place`, `Fountain` → `Fontaine`, `Museum` → `Musée`, `Market` → `Marché`, `Tannery|Tanneries` → `Tanneries`, `Hammam` → `Hammam`, `Fondouk|Funduq` → `Fondouk`, `Souk|Souq` → `Souk`, `of `→ `de `, `the `→ `` (en début), apostrophes ASCII normalisées.
-- Whitelist d'incontournables forcés : Koutoubia, Jemaa el-Fna, Médersa Ben Youssef, Palais Bahia, Palais El Badi, Tombeaux Saadiens, Jardin Majorelle, Le Jardin Secret, Dar Si Said, Maison de la Photographie, Musée de Marrakech, Bab Agnaou, Place des Épices (Rahba Kedima), Mosquée Ben Salah, Mosquée Mouassine, Koubba Almoravide, Tanneries, Menara, Agdal, Mellah, Souk Semmarine / Attarine / Smata / Cherratine / Sebbaghine / Haddadine / Chouari / Kimakhine / Zrabi / Kchachbia.
+### 1. Dédupliquer la bibliothèque avant toute IA
+Appliquer un nettoyage data ciblé sur les doublons actifs de `medina_pois`.
 
-**Étape B — Fallback** : pour les POIs qui restent sans `name_fr` après A, copier `name` dans `name_fr` (mieux qu'un vide), puis les marquer `metadata.fr_name_needs_review = true` pour traitement IA ultérieur.
+#### Règle de sélection du “gagnant”
+Pour chaque groupe de doublons (`lower(coalesce(name_fr, name))` + proximité GPS), garder la ligne la plus riche selon cet ordre :
+1. 4/4 audios présents
+2. longueur `history_context`
+3. longueur `local_anecdote_fr`
+4. `poi_quality_score`
+5. `status='validated'`
+6. `last_enriched_at` le plus récent
 
-**Étape C — `name` = `name_fr`** (la vraie demande) : `UPDATE medina_pois SET name = name_fr WHERE name_fr IS NOT NULL AND name_fr <> '';`
-Ainsi la colonne `name` (utilisée partout dans l'UI) est en FR par défaut, conformément à la demande.
+#### Actions par groupe
+- **Conserver** le POI gagnant
+- **Fusionner** vers lui les champs non nuls manquants des perdants
+- **Migrer** les `poi_media` vers le gagnant
+- **Désactiver** les doublons perdants :
+  - `is_active = false`
+  - `is_main_visit = false`
+  - `status = 'merged'`
+  - `metadata.merged_into = winner_id`
 
-### 2. Politique côté code (FR-first à l'affichage)
-Petit helper `getDisplayName(poi)` retournant `name_fr || name` — branché dans :
-- `AdminMedinaPOIs.tsx` (liste + entête de fiche)
-- `MedinaMap.tsx` (popups)
-- `BilingualNarrativeBlock.tsx` (titre)
-- `api-v2` route `main-visits` : exposer `display_name = name_fr || name` en plus de `name` et `name_en`.
+#### Cas prioritaire
+- `Mosquée Koutoubia` : conserver `eec26470-5202-4d52-a349-679843dae33b`
 
-### 3. Garde-fou nouveau POI
-Dans `useMedinaPOIs.create`, si `name_fr` n'est pas fourni → le remplir avec `name`. Et `name` devient `name_fr` en source.
+### 2. Corriger la resynchronisation du panneau admin
+Dans `src/pages/admin/AdminMedinaPOIs.tsx` :
+- remplacer la logique de sync locale du formulaire pour qu’elle se recalque sur **tout l’objet `poi`**, pas seulement `poi.id`
+- objectif : si l’audio, les textes ou les métadonnées changent en base, le panneau affiche immédiatement l’état réel
 
-### 4. Mémoire
-Mettre à jour `mem://features/poi-library/naming-policy-latin-only` avec : politique FR-first, ordre de fallback `name_fr → name → name_en`, helper `getDisplayName`.
+Correction attendue :
+- `AudioGuideBlock` reflète bien les URLs déjà présentes
+- après génération audio ou enrichissement, l’UI se met à jour sans rechargement manuel
 
-## Fichiers touchés
+### 3. Ajouter un garde-fou anti-régénération payante
+Dans `src/components/admin/medina/MainPOIEnrichmentBlock.tsx` :
+- afficher un **pré-audit de complétude** avant de lancer l’agent :
+  - textes FR remplis / vides
+  - traductions EN remplies / vides
+  - fun facts présents / absents
+  - vidéos présentes / absentes
+  - 4 slots audio présents / absents
+- distinguer clairement :
+  - **Compléter** = écrit uniquement les champs vides
+  - **Régénérer** = peut écraser l’existant
+- ajouter une confirmation explicite avant tout mode destructif
 
-- INSERT (data) : backfill `name_fr` + alignement `name = name_fr`
-- `src/lib/poiDisplay.ts` (nouveau, helper `getDisplayName`)
-- `src/pages/admin/AdminMedinaPOIs.tsx` — liste + titre fiche
-- `src/components/admin/MedinaMap.tsx` — popups
-- `src/components/admin/medina/BilingualNarrativeBlock.tsx` — titre
-- `src/hooks/useMedinaPOIs.ts` — defaut `name_fr` à la création
-- `supabase/functions/api-v2/index.ts` — `display_name` dans `main-visits`
+### 4. Bloquer côté edge function les appels inutiles
+Dans `supabase/functions/poi-enrich-single/index.ts` :
+- avant d’appeler Perplexity, calculer les champs réellement manquants selon `mode` + `include`
+- si `mode = fill_empty` et qu’il n’y a rien à remplir :
+  - retourner `{ skipped: true, reason: "nothing_to_fill" }`
+  - **ne pas appeler Perplexity**
+- ajouter dans la réponse une synthèse exploitable par l’UI :
+  - `missing_text_fields`
+  - `missing_en_fields`
+  - `has_fun_facts`
+  - `has_videos`
+  - `has_audio_slots`
+
+### 5. Empêcher le retour du problème sur les POIs principaux
+Ajouter un garde-fou structurel pour les **POIs principaux actifs** :
+- migration de schéma pour un index unique partiel sur le nom normalisé des principaux actifs
+- portée limitée aux POIs principaux pour éviter de casser les cas non critiques de la bibliothèque générale
+
+Exemple de règle :
+- un seul `is_main_visit = true AND is_active = true` par nom normalisé
+
+### 6. Rendre les doublons visibles dans l’admin
+Dans `AdminMedinaPOIs.tsx` :
+- badge d’alerte si un POI a des doublons actifs détectés
+- filtre rapide “Doublons”
+- sur la fiche, afficher :
+  - nombre de doublons détectés
+  - ID canonique si la ligne a été fusionnée
+- désactiver le bouton d’enrichissement si la fiche est marquée comme doublon non canonique
+
+## Fichiers et données à toucher
+
+### Données
+- `medina_pois` : fusion/désactivation des doublons actifs
+- `poi_media` : migration vers les POIs gagnants
+
+### Code
+- `src/pages/admin/AdminMedinaPOIs.tsx`
+  - resync du formulaire
+  - alertes doublons
+  - filtre doublons
+- `src/components/admin/medina/MainPOIEnrichmentBlock.tsx`
+  - pré-audit
+  - confirmation destructive
+  - blocage si doublon non canonique
+- `supabase/functions/poi-enrich-single/index.ts`
+  - early exit sans appel IA
+  - réponse enrichie de diagnostic
+
+### Mémoire
+- `mem://features/poi-library/main-visits-source-of-truth.md`
+  - règle canonique anti-doublon
+  - interdiction d’enrichir une fiche non canonique
 - `mem://features/poi-library/naming-policy-latin-only.md`
+  - préciser que le nom FR canonique doit pointer vers une seule fiche active principale
 
-Aucune migration de schéma. Aucun nouvel index. Pas de nouvelle dépendance.
+## Résultat attendu
+
+Après implémentation :
+- Koutoubia n’apparaît plus comme plusieurs fiches actives ambiguës
+- la fiche canonique affiche bien ses 4 audios existants
+- l’admin reflète l’état réel de la base sans faux “Aucun audio”
+- l’agent n’est plus lancé sur une mauvaise fiche
+- `fill_empty` n’appelle plus Perplexity quand rien ne manque
+- les doublons critiques des POIs principaux ne peuvent plus réapparaître
 
