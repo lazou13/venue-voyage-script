@@ -11,31 +11,51 @@ interface Props {
   onRefresh: () => void;
 }
 
+type SlotKey = 'history_fr' | 'history_en' | 'anecdote_fr' | 'anecdote_en';
+
+interface Slot {
+  key: SlotKey;
+  label: string;
+  field: 'audio_url_fr' | 'audio_url_en' | 'anecdote_audio_url_fr' | 'anecdote_audio_url_en';
+  sourceField: 'history_context' | 'history_context_en' | 'local_anecdote_fr' | 'local_anecdote_en';
+  lang: 'fr' | 'en';
+  category: 'history' | 'anecdote';
+}
+
+const SLOTS: Slot[] = [
+  { key: 'history_fr',  label: 'Histoire FR',  field: 'audio_url_fr',           sourceField: 'history_context',     lang: 'fr', category: 'history' },
+  { key: 'history_en',  label: 'Histoire EN',  field: 'audio_url_en',           sourceField: 'history_context_en',  lang: 'en', category: 'history' },
+  { key: 'anecdote_fr', label: 'Anecdote FR',  field: 'anecdote_audio_url_fr',  sourceField: 'local_anecdote_fr',   lang: 'fr', category: 'anecdote' },
+  { key: 'anecdote_en', label: 'Anecdote EN',  field: 'anecdote_audio_url_en',  sourceField: 'local_anecdote_en',   lang: 'en', category: 'anecdote' },
+];
+
 export function AudioGuideBlock({ poi, onRefresh }: Props) {
   const { toast } = useToast();
-  const [generating, setGenerating] = useState<'fr' | 'en' | null>(null);
+  const [generating, setGenerating] = useState<SlotKey | null>(null);
 
-  const generate = async (lang: 'fr' | 'en') => {
-    const sourceText = lang === 'fr'
-      ? [poi.history_context, poi.local_anecdote_fr].filter(Boolean).join('\n\n')
-      : [poi.history_context_en, poi.local_anecdote_en].filter(Boolean).join('\n\n');
-
-    if (!sourceText.trim()) {
+  const generate = async (slot: Slot) => {
+    const text = ((poi as any)[slot.sourceField] as string | null | undefined)?.trim();
+    if (!text) {
       toast({
-        title: lang === 'en' ? 'Texte EN manquant' : 'Texte FR manquant',
-        description: lang === 'en' ? "Traduisez d'abord en anglais." : 'Renseignez le contexte historique ou l\'anecdote.',
+        title: `Texte source manquant (${slot.label})`,
+        description: slot.lang === 'en'
+          ? "Traduisez d'abord en anglais le champ correspondant."
+          : `Renseignez d'abord le champ "${slot.category === 'history' ? 'Contexte historique' : 'Anecdote locale'}".`,
         variant: 'destructive',
       });
       return;
     }
 
-    setGenerating(lang);
+    const ts = Date.now();
+    const storage_path = `medina/${poi.id}/${slot.key}_v${ts}.mp3`;
+
+    setGenerating(slot.key);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-poi-audio', {
-        body: { poi_id: poi.id, language: lang, text: sourceText },
+      const { error } = await supabase.functions.invoke('generate-poi-audio', {
+        body: { poi_id: poi.id, field: slot.field, text, storage_path, language: slot.lang },
       });
       if (error) throw error;
-      toast({ title: `Audio ${lang.toUpperCase()} généré` });
+      toast({ title: `Audio "${slot.label}" généré ✓` });
       onRefresh();
     } catch (err) {
       toast({ title: 'Erreur génération audio', description: (err as Error).message, variant: 'destructive' });
@@ -44,16 +64,15 @@ export function AudioGuideBlock({ poi, onRefresh }: Props) {
     }
   };
 
-  const renderLang = (lang: 'fr' | 'en') => {
-    const url = lang === 'fr' ? poi.audio_url_fr : poi.audio_url_en;
-    const isGen = generating === lang;
-    const label = lang === 'fr' ? 'Français' : 'English';
+  const renderSlot = (slot: Slot) => {
+    const url = (poi as any)[slot.field] as string | null | undefined;
+    const isGen = generating === slot.key;
     return (
-      <div className="space-y-2 p-3 rounded-md border border-border bg-background">
+      <div key={slot.key} className="space-y-2 p-3 rounded-md border border-border bg-background">
         <div className="flex items-center justify-between">
-          <Label className="text-xs font-semibold">{label}</Label>
+          <Label className="text-xs font-semibold">{slot.label}</Label>
           {url ? (
-            <a href={url} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+            <a href={url} target="_blank" rel="noreferrer" className="text-[10px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
               <ExternalLink className="w-3 h-3" /> Ouvrir
             </a>
           ) : null}
@@ -61,21 +80,21 @@ export function AudioGuideBlock({ poi, onRefresh }: Props) {
         {url ? (
           <audio controls src={url} className="w-full h-8" />
         ) : (
-          <p className="text-xs text-muted-foreground italic">Aucun audio</p>
+          <p className="text-[11px] text-muted-foreground italic">Aucun audio</p>
         )}
         <Button
           size="sm"
           variant={url ? 'outline' : 'default'}
           className="w-full h-7 text-xs"
           disabled={isGen}
-          onClick={() => generate(lang)}
+          onClick={() => generate(slot)}
         >
           {isGen ? (
             <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Génération… (~30s)</>
           ) : url ? (
-            <><RotateCw className="w-3 h-3 mr-1" /> Régénérer {label}</>
+            <><RotateCw className="w-3 h-3 mr-1" /> Régénérer</>
           ) : (
-            <><Mic className="w-3 h-3 mr-1" /> Générer {label}</>
+            <><Mic className="w-3 h-3 mr-1" /> Générer</>
           )}
         </Button>
       </div>
@@ -85,11 +104,13 @@ export function AudioGuideBlock({ poi, onRefresh }: Props) {
   return (
     <div className="space-y-3 rounded-lg border border-border p-4 bg-card">
       <h3 className="text-sm font-semibold flex items-center gap-2">
-        <Mic className="w-4 h-4" /> Guides audio
+        <Mic className="w-4 h-4" /> Guides audio (4 pistes)
       </h3>
+      <p className="text-[11px] text-muted-foreground -mt-1">
+        Pistes séparées par type narratif. Source TTS = texte brut du champ correspondant.
+      </p>
       <div className="grid grid-cols-2 gap-3">
-        {renderLang('fr')}
-        {renderLang('en')}
+        {SLOTS.map(renderSlot)}
       </div>
     </div>
   );
