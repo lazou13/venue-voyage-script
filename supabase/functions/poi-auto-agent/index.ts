@@ -45,7 +45,38 @@ serve(async (req) => {
 
   try {
 
-    // ━━━━━━━━━━ PHASE -1: FILTER OUT-OF-BOUNDS POIs ━━━━━━━━━━
+    // ━━━━━━━━━━ PHASE -2: HYGIENE (clean low quality + merge duplicates) ━━━━━━━━━━
+    try {
+      const { data: cleanData, error: cleanErr } = await supabase.rpc("clean_low_quality_pois");
+      if (cleanErr) {
+        logs.push(`⚠️ Phase -2 clean: ${cleanErr.message}`);
+      } else {
+        const filtered = (cleanData as any)?.filtered ?? 0;
+        logs.push(`🧹 Phase -2a: ${filtered} POIs faible qualité filtrés`);
+        if (filtered > 0) {
+          results.push({ phase: "hygiene", action: "clean_low_quality", count: filtered, logs: [] });
+        }
+      }
+    } catch (e) {
+      logs.push(`⚠️ Phase -2 clean exception: ${e instanceof Error ? e.message : 'unknown'}`);
+    }
+
+    try {
+      const { data: mergeData, error: mergeErr } = await supabase.rpc("merge_duplicate_pois");
+      if (mergeErr) {
+        logs.push(`⚠️ Phase -2 merge: ${mergeErr.message}`);
+      } else {
+        const merged = (mergeData as any)?.merged ?? 0;
+        const mediaR = (mergeData as any)?.media_reassigned ?? 0;
+        logs.push(`🔀 Phase -2b: ${merged} doublons fusionnés (${mediaR} médias réassignés)`);
+        if (merged > 0) {
+          results.push({ phase: "hygiene", action: "merge_duplicates", count: merged, logs: [] });
+        }
+      }
+    } catch (e) {
+      logs.push(`⚠️ Phase -2 merge exception: ${e instanceof Error ? e.message : 'unknown'}`);
+    }
+
     const { data: outOfBounds, error: oobErr } = await supabase
       .from("medina_pois")
       .select("id, name, lat, lng")
