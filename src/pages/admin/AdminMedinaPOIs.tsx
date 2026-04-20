@@ -22,6 +22,7 @@ import {
 import POIFeaturesSection, { type POIFeatures, emptyFeatures } from '@/components/admin/POIFeaturesSection';
 import { BilingualNarrativeBlock } from '@/components/admin/medina/BilingualNarrativeBlock';
 import { AudioGuideBlock } from '@/components/admin/medina/AudioGuideBlock';
+import { VisitSettingsBlock } from '@/components/admin/medina/VisitSettingsBlock';
 import { SaveStatusBadge } from '@/components/admin/medina/SaveStatusBadge';
 
 // ─── Validation eligibility check ───────────────────────────
@@ -456,9 +457,10 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
 
       <Separator />
 
-      {/* Bilingual narrative + audio (visible for ALL POIs but highlighted for main visits) */}
+      {/* Bilingual narrative + audio + visit settings (POIs principaux uniquement) */}
       {form.is_main_visit && (
         <>
+          <VisitSettingsBlock poi={form} onSave={(patch) => onUpdate(poi.id, patch)} />
           <BilingualNarrativeBlock poi={form} onSave={(patch) => onUpdate(poi.id, patch)} />
           <AudioGuideBlock poi={form} onRefresh={() => onUpdate(poi.id, {})} />
           <Separator />
