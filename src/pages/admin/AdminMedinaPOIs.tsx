@@ -23,6 +23,8 @@ import POIFeaturesSection, { type POIFeatures, emptyFeatures } from '@/component
 import { BilingualNarrativeBlock } from '@/components/admin/medina/BilingualNarrativeBlock';
 import { AudioGuideBlock } from '@/components/admin/medina/AudioGuideBlock';
 import { VisitSettingsBlock } from '@/components/admin/medina/VisitSettingsBlock';
+import { MainPOIEnrichmentBlock } from '@/components/admin/medina/MainPOIEnrichmentBlock';
+import { VideosBlock } from '@/components/admin/medina/VideosBlock';
 import { SaveStatusBadge } from '@/components/admin/medina/SaveStatusBadge';
 
 // ─── Validation eligibility check ───────────────────────────
@@ -460,6 +462,7 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
       {/* Bilingual narrative + audio + visit settings (POIs principaux uniquement) */}
       {form.is_main_visit && (
         <>
+          <MainPOIEnrichmentBlock poi={form} onRefresh={() => onUpdate(poi.id, {})} />
           <VisitSettingsBlock poi={form} onSave={(patch) => onUpdate(poi.id, patch)} />
           <BilingualNarrativeBlock poi={form} onSave={(patch) => onUpdate(poi.id, patch)} />
           <AudioGuideBlock poi={form} onRefresh={() => onUpdate(poi.id, {})} />
@@ -475,6 +478,9 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
             <TabsTrigger value="photo" className="gap-1"><Image className="w-3.5 h-3.5" /> Photos</TabsTrigger>
             <TabsTrigger value="audio" className="gap-1"><Mic className="w-3.5 h-3.5" /> Audio</TabsTrigger>
             <TabsTrigger value="video" className="gap-1"><Video className="w-3.5 h-3.5" /> Vidéo</TabsTrigger>
+            {form.is_main_visit && (
+              <TabsTrigger value="youtube" className="gap-1"><Video className="w-3.5 h-3.5" /> YouTube</TabsTrigger>
+            )}
           </TabsList>
           <TabsContent value="photo">
             <MediaSection medinaPoiId={poi.id} mediaType="photo" icon={Image} />
@@ -485,6 +491,11 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
           <TabsContent value="video">
             <MediaSection medinaPoiId={poi.id} mediaType="video" icon={Video} />
           </TabsContent>
+          {form.is_main_visit && (
+            <TabsContent value="youtube">
+              <VideosBlock poi={form} onSave={(patch) => onUpdate(poi.id, patch)} />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
