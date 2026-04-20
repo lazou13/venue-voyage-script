@@ -740,6 +740,7 @@ export default function AdminPOIPipeline() {
               </Button>
             </div>
           </div>
+          {showRunLogs && latestRun.logs && (
             <AlertDescription className="mt-2">
               <div className="bg-muted rounded-md p-3 max-h-48 overflow-y-auto font-mono text-xs space-y-0.5">
                 {(latestRun.logs as string[]).map((line: string, i: number) => (
