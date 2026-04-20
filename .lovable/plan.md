@@ -2,67 +2,56 @@
 
 ## Compréhension
 
-Tu veux créer une **section dédiée "POIs Principaux"** (ou "POIs Visite") séparée de la liste générale dans `/admin/medina-pois`. Cette section regroupe les lieux clés visitables (Jemaa el-Fna, Koutoubia, musées, jardins, médersas, palais, etc.) et devient **la seule source de vérité** consommée par Quest Rides PRO pour générer les visites.
+Trois demandes :
+1. **Audios catégorisés** : pas un seul "audio FR / EN" globalisé, mais des audios distincts par type narratif (Histoire FR, Anecdote FR, Histoire EN, Anecdote EN…) — la table a déjà `audio_url_fr`, `audio_url_en`, `anecdote_audio_url_fr`, `anecdote_audio_url_en`.
+2. **Type d'interaction et thème éditables** sur la fiche POI principal (audio guide, jeu, énigme, photo… + thème : histoire, gastronomie, artisanat, etc.).
+3. **Pourquoi seulement 4 POIs principaux** ? Koutoubia, Jemaa el-Fna, Medersa Ben Youssef, Place des Épices, Bahia, Badi, Saadiens, Majorelle, Secret Garden, Dar Si Said… doivent y figurer. → backfill insuffisant.
+
+## Vérifications rapides à faire
+
+- `SELECT count(*), array_agg(name) FROM medina_pois WHERE is_main_visit = true;` pour voir l'état réel.
+- Lister les candidats manquants : POIs avec `category IN (monument, museum, mosque, medersa, palace, historic_site, garden, fountain, gate_bab, square)` OU `is_start_hub = true` OU `name ILIKE` (Koutoubia, Jemaa, Medersa, Bahia, Badi, Saadien, Majorelle, Secret Garden, Dar Si Said, Maison de la Photo, Mellah, Souk des épices/Rahba Kedima, Bab Agnaou, Menara, Ménara, Agdal…), peu importe le score.
 
 ## Plan
 
-### 1. Marquer les POIs "principaux" en base
-Ajouter une colonne `is_main_visit boolean default false` sur `medina_pois`.
-Backfill : tous les POIs avec `is_start_hub = true` + catégories `monument, museum, mosque, medersa, palace, historic_site, garden, fountain, gate_bab` et `poi_quality_score >= 6` → `is_main_visit = true`.
+### 1. Backfill élargi `is_main_visit`
+Migration de données (INSERT tool) :
+- Promouvoir tous les POIs `is_start_hub = true`.
+- Promouvoir toutes les catégories visitables (`monument, historic_site, museum, mosque, medersa, palace, garden, fountain, gate_bab, square, hammam` si patrimonial) avec `is_active = true` et coordonnées valides — **sans** filtre `poi_quality_score >= 6` (c'est ce filtre qui exclut les évidents comme Place des Épices).
+- Whitelist nommée pour forcer les incontournables même hors taxonomie : Koutoubia, Jemaa el-Fna, Place des Épices / Rahba Kedima, Medersa Ben Youssef, Bahia, El Badi, Tombeaux Saadiens, Jardin Majorelle, Jardin Secret, Dar Si Said, Maison de la Photographie, Musée de Marrakech, Mellah, Bab Agnaou, Ben Salah, Mouassine, Koubba Almoravide, Fondouk el-Amir, Tanneries, Menara, Agdal.
+- Affichage : trier les principaux par catégorie pour rendre la liste lisible.
 
-### 2. UI — Onglets dans `/admin/medina-pois`
-Réorganiser la page avec deux onglets :
-- **Tous les POIs** (vue actuelle inchangée)
-- **POIs Principaux** ⭐ (filtrés `is_main_visit = true`, mis en avant visuellement)
+### 2. Audios catégorisés (4 slots)
+Refondre `AudioGuideBlock` en grille 2×2 :
+| | FR | EN |
+|---|---|---|
+| **Histoire** | `audio_url_fr` (source : `history_context`) | `audio_url_en` (source : `history_context_en`) |
+| **Anecdote** | `anecdote_audio_url_fr` (source : `local_anecdote_fr`) | `anecdote_audio_url_en` (source : `local_anecdote_en`) |
 
-Dans chaque ligne de la liste générale, ajouter un toggle "⭐ Principal" pour promouvoir/dépromouvoir.
+Chaque cellule = lecteur + bouton Générer/Régénérer + état loader. Texte source strictement brut (pas de concaténation, conformément à la règle TTS mémorisée).
+`generate-poi-audio` accepte déjà `field` + `storage_path` → 4 chemins versionnés : `history_fr_v{ts}.mp3`, `history_en_v{ts}.mp3`, `anecdote_fr_v{ts}.mp3`, `anecdote_en_v{ts}.mp3`.
 
-### 3. Fiche POI Principal — éditeur enrichi
-Pour les POIs principaux, l'éditeur affiche les sections existantes **+** un bloc dédié **"Contenu narratif bilingue"** avec, pour chaque champ narratif (`history_context`, `local_anecdote_fr`, `fun_fact_fr`, `must_see_details`, `must_try`, `must_visit_nearby`, `photo_tip`, `price_info`, `best_time_visit`, `accessibility_notes`, `wikipedia_summary`) :
+### 3. Thème + Type d'interaction éditables
+Ajouter dans la fiche POI principal un bloc **"Visite — paramètres"** :
+- **Thème** (`hub_theme` — colonne déjà existante) : combobox avec valeurs canoniques (histoire, architecture, artisanat, gastronomie, spiritualité, jardins, vie locale, photographie, panorama) + ajout libre.
+- **Type d'interaction par défaut** (stocké dans `step_config.interaction_type` JSONB) : select avec `audio_guide`, `quiz`, `riddle`, `photo_check`, `free_visit` (taxonomie canonique mémorisée).
+- **Tags audience** (`audience_tags[]`) et **route_tags** (`route_tags[]`) en multi-input chips.
+- Autosave onBlur, badge SaveStatus partagé.
 
-```
-[Label]
-┌─────────────── FR ───────────────┐  ┌──── EN ────┐
-│ Texte français (textarea)        │  │ (vide)     │  [Traduire →]
-└──────────────────────────────────┘  └────────────┘
-```
+### 4. API v2 — exposer les 4 audios
+Mettre à jour `route=main-visits` pour renvoyer aussi `anecdote_audio_url_fr/en`, `hub_theme`, `step_config.interaction_type`, `audience_tags`, `route_tags`.
 
-- Bouton **"Traduire en anglais"** par champ → appelle l'edge function `translate` existante → remplit le champ `_en` correspondant → sauvegarde auto.
-- Bouton global **"Tout traduire"** en haut de la section → boucle sur tous les champs FR remplis dont `_en` est vide.
-
-### 4. Audios FR + EN
-Sous chaque POI principal, bloc **"Guides audio"** :
-- **FR** : si `audio_url_fr` existe → lecteur `<audio>` + lien + bouton "Régénérer". Sinon → bouton **"Générer FR"** (appel `generate-poi-audio` avec `text = history_context + local_anecdote_fr`, chemin versionné `fr_v{ts}.mp3`).
-- **EN** : idem avec `audio_url_en` (texte source = `history_context_en + local_anecdote_en`, blocage si EN vide → toast "Traduisez d'abord en anglais").
-- Indicateur de génération en cours (loader, ~30s).
-
-### 5. Source de vérité pour Quest Rides PRO
-Exposer ces POIs principaux via l'API v2 existante :
-- Nouvelle route `api-v2?route=main-visits` qui renvoie uniquement `is_main_visit = true AND status = 'validated'`, avec **tous les champs FR/EN, audios FR/EN, médias, opening_hours, must_see/try/nearby**.
-- Mémoire à enregistrer : "Quest Rides PRO doit piocher exclusivement dans `main-visits` pour générer les visites guidées (KJTOUR, etc.)".
-
-### 6. Sauvegarde + feedback
-- Autosave `onBlur` sur tous les champs (déjà en place).
-- Indicateur "✓ Enregistré il y a Xs" en haut de la fiche.
-- Toast d'erreur uniquement si échec.
+### 5. Mémoire
+Mettre à jour `mem://features/poi-library/main-visits-source-of-truth` pour préciser : 4 slots audio (history/anecdote × FR/EN), thème + interaction éditables, taxonomie de promotion élargie.
 
 ## Fichiers touchés
 
-**Frontend :**
-- `src/pages/admin/AdminMedinaPOIs.tsx` — onglets + éditeur enrichi avec sections collapsibles
-- `src/hooks/useMedinaPOIs.ts` — élargir le `select(*)` pour récupérer toutes les colonnes
-- Nouveaux composants :
-  - `src/components/admin/medina/BilingualNarrativeBlock.tsx` (FR + EN + bouton Traduire par champ)
-  - `src/components/admin/medina/AudioGuideBlock.tsx` (lecteur + Générer/Régénérer FR/EN)
-  - `src/components/admin/medina/SaveStatusBadge.tsx`
+- `src/components/admin/medina/AudioGuideBlock.tsx` — grille 2×2, 4 slots
+- `src/pages/admin/AdminMedinaPOIs.tsx` — nouveau bloc "Visite — paramètres" dans le panneau "Principal"
+- Nouveaux composants : `VisitSettingsBlock.tsx` (thème + interaction + tags)
+- `supabase/functions/api-v2/index.ts` — élargir le payload `main-visits`
+- Migration de données (INSERT tool) : backfill élargi `is_main_visit`
+- `mem://features/poi-library/main-visits-source-of-truth.md`
 
-**Backend :**
-- Migration SQL : ajout `is_main_visit` + index + backfill
-- `supabase/functions/api-v2/index.ts` — ajout du handler `route=main-visits`
-- Réutilise sans modification : `translate`, `generate-poi-audio`
-
-**Mémoire :**
-- Nouvelle entrée `mem://features/poi-library/main-visits-source-of-truth` documentant que `is_main_visit = true` est la seule source pour PRO.
-
-Aucune modification côté projet PRO dans cette étape — il consommera la nouvelle route quand il sera prêt.
+Aucune nouvelle colonne nécessaire (toutes existent : `hub_theme`, `audience_tags`, `route_tags`, `step_config`, les 4 colonnes audio).
 
