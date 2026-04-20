@@ -920,6 +920,18 @@ export default function AdminPOIPipeline() {
                 {running === "autopipeline" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
                 Autopipeline
               </Button>
+              {running === "autopipeline" && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1"
+                  onClick={requestStop}
+                  disabled={stopRequested}
+                >
+                  <StopCircle className="w-3 h-3" />
+                  {stopRequested ? "Arrêt en cours…" : "Stop"}
+                </Button>
+              )}
               <span className="text-sm text-muted-foreground flex-1">Lance toutes les étapes automatiquement dans l'ordre</span>
             </div>
             <div className="flex items-center gap-3">
