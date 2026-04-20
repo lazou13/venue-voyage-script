@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useMedinaPOIs, type MedinaPOI } from '@/hooks/useMedinaPOIs';
 import { usePOIMedia, type POIMedia } from '@/hooks/usePOIMedia';
 import { useToast } from '@/hooks/use-toast';
@@ -283,6 +284,11 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
   onUpdate: (id: string, data: Partial<MedinaPOI>) => void;
   onDelete: (id: string) => void;
 }) {
+  const qc = useQueryClient();
+  // Re-fetch ciblé (sans déclencher un UPDATE vide qui faisait crasher .single()).
+  const refetchPOIs = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ['medina_pois'] });
+  }, [qc]);
   const [form, setForm] = useState(poi);
   const [geoLoading, setGeoLoading] = useState(false);
   const { toast } = useToast();
@@ -476,10 +482,10 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
       {/* Bilingual narrative + audio + visit settings (POIs principaux uniquement) */}
       {form.is_main_visit && (
         <>
-          <MainPOIEnrichmentBlock poi={form} onRefresh={() => onUpdate(poi.id, {})} />
+          <MainPOIEnrichmentBlock poi={form} onRefresh={refetchPOIs} />
           <VisitSettingsBlock poi={form} onSave={(patch) => onUpdate(poi.id, patch)} />
           <BilingualNarrativeBlock poi={form} onSave={(patch) => onUpdate(poi.id, patch)} />
-          <AudioGuideBlock poi={form} onRefresh={() => onUpdate(poi.id, {})} />
+          <AudioGuideBlock poi={form} onRefresh={refetchPOIs} />
           <Separator />
         </>
       )}
