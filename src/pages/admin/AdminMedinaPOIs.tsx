@@ -647,6 +647,20 @@ export default function AdminMedinaPOIs() {
       {/* Top bar */}
       <div className="flex items-center gap-3 flex-wrap">
         <h2 className="font-semibold text-sm shrink-0">Bibliothèque Médina</h2>
+        <div className="inline-flex rounded-md border border-border bg-muted p-0.5">
+          <button
+            onClick={() => setScope('all')}
+            className={`px-3 h-7 text-xs rounded ${scope === 'all' ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            Tous
+          </button>
+          <button
+            onClick={() => setScope('main')}
+            className={`px-3 h-7 text-xs rounded inline-flex items-center gap-1 ${scope === 'main' ? 'bg-background shadow-sm font-medium text-amber-600' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <Sparkles className="w-3 h-3" /> Principaux ({pois.filter(p => p.is_main_visit).length})
+          </button>
+        </div>
         <Input
           placeholder="Rechercher POI, zone, catégorie..."
           className="h-8 text-sm max-w-xs"
@@ -753,11 +767,19 @@ export default function AdminMedinaPOIs() {
         {/* Right: Editor */}
         {selectedPOI && (
           <Card className="flex-1 min-h-0 overflow-auto">
-            <div className="p-4 space-y-1 border-b border-border flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-sm truncate">{selectedPOI.name}</h3>
+            <div className="p-4 space-y-1 border-b border-border flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm truncate flex items-center gap-2">
+                  {selectedPOI.is_main_visit && <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                  {selectedPOI.name}
+                </h3>
                 <p className="text-xs text-muted-foreground">{selectedPOI.category} · {selectedPOI.zone}</p>
               </div>
+              <SaveStatusBadge
+                isPending={update.isPending}
+                isError={update.isError}
+                lastSavedAt={update.isSuccess ? (update.submittedAt ?? null) : null}
+              />
               {viewMode === 'map' && (
                 <Button
                   size="sm"
