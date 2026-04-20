@@ -63,24 +63,40 @@ export default function AgentMonitoringCard() {
     },
   });
 
+  const [hygieneSummary, setHygieneSummary] = useState<{ filtered: number; merged: number; translated: number } | null>(null);
+
   const runAgent = async () => {
     setRunning(true);
     setAgentLogs(["▶ Lancement de l'agent autonome (3 cycles)..."]);
+    setHygieneSummary(null);
 
     try {
+      let totalFiltered = 0;
+      let totalMerged = 0;
+      let totalTranslated = 0;
+
       for (let i = 0; i < 3; i++) {
         setAgentLogs(prev => [...prev, `\n🔄 Cycle ${i + 1}/3...`]);
         const { data, error } = await supabase.functions.invoke("poi-auto-agent");
         if (error) throw error;
         if (data?.logs) setAgentLogs(prev => [...prev, ...data.logs]);
-        // If no work was done, stop early
-        if (!data?.results || data.results.length === 0) {
+
+        const cycleResults = (data?.results ?? []) as Array<{ phase: string; action: string; count: number }>;
+        for (const r of cycleResults) {
+          if (r.action === "clean_low_quality") totalFiltered += r.count;
+          else if (r.action === "merge_duplicates") totalMerged += r.count;
+          else if (r.action === "translate_pois") totalTranslated += r.count;
+        }
+
+        if (cycleResults.length === 0) {
           setAgentLogs(prev => [...prev, "ℹ️ Rien à faire, arrêt anticipé"]);
           break;
         }
       }
-      setAgentLogs(prev => [...prev, "✅ Agent terminé"]);
-      toast({ title: "Agent exécuté", description: "L'agent a terminé ses cycles." });
+
+      setHygieneSummary({ filtered: totalFiltered, merged: totalMerged, translated: totalTranslated });
+      setAgentLogs(prev => [...prev, `✅ Agent terminé — ${totalFiltered} filtrés, ${totalMerged} fusionnés, ${totalTranslated} traduits`]);
+      toast({ title: "Agent exécuté", description: `${totalFiltered} filtrés, ${totalMerged} fusionnés, ${totalTranslated} traduits.` });
       refetchVisits();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erreur inconnue";
