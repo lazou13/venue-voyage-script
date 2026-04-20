@@ -49,6 +49,14 @@ export interface MedinaPOI {
   audio_url_ar?: string | null;
   // Quality
   poi_quality_score?: number | null;
+  // Enrichment
+  last_enriched_at?: string | null;
+  enrichment_quality?: string | null;
+  data_sources?: string[] | null;
+  crowd_level?: string | null;
+  // Bilingual extras
+  fun_facts_bilingual?: Array<{ fr: string; en: string }> | null;
+  video_urls?: Array<{ youtube_id: string; title?: string; source?: string }> | null;
   // Allow extra fields
   [key: string]: unknown;
 }
