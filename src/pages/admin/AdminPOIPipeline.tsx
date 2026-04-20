@@ -724,7 +724,7 @@ export default function AdminPOIPipeline() {
               </AlertTitle>
             </div>
             <div className="flex items-center gap-2">
-              {(latestRun.status === 'running' || latestRun.status === 'cancel_requested') && running === 'autopipeline' && (
+              {(latestRun.status === 'running' || latestRun.status === 'cancel_requested') && (
                 <Button
                   variant="destructive"
                   size="sm"
