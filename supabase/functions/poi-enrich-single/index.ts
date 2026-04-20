@@ -118,17 +118,51 @@ async function translateToEn(text: string): Promise<string | null> {
   }
 }
 
+function buildAudit(poi: any) {
+  const missing_text_fields = TEXT_FIELDS_FR.filter((f) => !((poi as any)[f] && String((poi as any)[f]).trim()));
+  const missing_en_fields = Object.values(FR_TO_EN).filter((f) => !((poi as any)[f] && String((poi as any)[f]).trim()));
+  const has_fun_facts = Array.isArray(poi.fun_facts_bilingual) && poi.fun_facts_bilingual.length > 0;
+  const has_videos = Array.isArray(poi.video_urls) && poi.video_urls.length > 0;
+  const audio_slots = {
+    audio_url_fr: !!poi.audio_url_fr,
+    audio_url_en: !!poi.audio_url_en,
+    anecdote_audio_url_fr: !!poi.anecdote_audio_url_fr,
+    anecdote_audio_url_en: !!poi.anecdote_audio_url_en,
+  };
+  const audio_slots_filled = Object.values(audio_slots).filter(Boolean).length;
+  return { missing_text_fields, missing_en_fields, has_fun_facts, has_videos, audio_slots, audio_slots_filled };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const body = (await req.json()) as EnrichBody;
+    const body = (await req.json()) as EnrichBody & { audit_only?: boolean };
     if (!body?.poi_id) return json({ error: "poi_id requis" }, 400);
     const mode = body.mode ?? "fill_empty";
     const include = { text: true, photos: true, videos: true, fun_facts: true, ...(body.include ?? {}) };
 
     const { data: poi, error: pErr } = await supabase.from("medina_pois").select("*").eq("id", body.poi_id).single();
     if (pErr || !poi) return json({ error: "POI introuvable" }, 404);
+
+    const audit = buildAudit(poi);
+
+    // Audit-only mode: return state without calling Perplexity
+    if (body.audit_only) {
+      return json({ ok: true, poi_id: poi.id, audit, skipped: true, reason: "audit_only" });
+    }
+
+    // Early-exit: in fill_empty mode, skip Perplexity entirely if nothing requested would be filled
+    if (mode === "fill_empty") {
+      const wantText = include.text && audit.missing_text_fields.length > 0;
+      const wantEn = include.text && audit.missing_en_fields.length > 0;
+      const wantFun = include.fun_facts && !audit.has_fun_facts;
+      const wantVideos = include.videos && !audit.has_videos;
+      const wantPhotos = include.photos; // photos are always additive
+      if (!wantText && !wantEn && !wantFun && !wantVideos && !wantPhotos) {
+        return json({ ok: true, poi_id: poi.id, skipped: true, reason: "nothing_to_fill", audit });
+      }
+    }
 
     const { parsed, citations } = await callPerplexity(poi);
 
