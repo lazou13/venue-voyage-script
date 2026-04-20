@@ -272,6 +272,9 @@ Deno.serve(async (req) => {
     const { error: uErr } = await supabase.from("medina_pois").update(patch).eq("id", poi.id);
     if (uErr) throw uErr;
 
+    const merged = { ...poi, ...patch };
+    const auditAfter = buildAudit(merged);
+
     return json({
       ok: true,
       poi_id: poi.id,
@@ -282,6 +285,8 @@ Deno.serve(async (req) => {
       videos_added: Array.isArray(patch.video_urls) ? patch.video_urls.length : 0,
       photos_suggested: photosInserted,
       citations: citations.slice(0, 8),
+      audit_before: audit,
+      audit_after: auditAfter,
     });
   } catch (e) {
     console.error("poi-enrich-single error:", e);
