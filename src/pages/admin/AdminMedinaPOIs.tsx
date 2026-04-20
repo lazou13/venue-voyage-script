@@ -424,6 +424,19 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
         )}
       </div>
 
+      {/* Main visit toggle (source de vérité PRO) */}
+      <div className="flex items-center gap-3 rounded-lg border-2 border-amber-400/50 bg-amber-50/50 dark:bg-amber-950/20 p-3">
+        <Sparkles className="w-5 h-5 text-amber-500 shrink-0" />
+        <div className="flex-1">
+          <Label className="font-semibold">POI Principal de visite ⭐</Label>
+          <p className="text-xs text-muted-foreground">Source de vérité utilisée par Quest Rides PRO pour générer les visites guidées.</p>
+        </div>
+        <Switch
+          checked={!!form.is_main_visit}
+          onCheckedChange={(v) => { set('is_main_visit', v); setTimeout(save, 0); }}
+        />
+      </div>
+
       {/* Note / memo */}
       <div>
         <Label className="flex items-center gap-1 mb-1">
