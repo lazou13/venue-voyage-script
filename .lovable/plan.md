@@ -1,31 +1,68 @@
 
 
-## Problème
-Le bouton Stop n'apparaît que si `running === 'autopipeline'` dans l'état React local. Si la page est rechargée ou ouverte dans un autre onglet pendant qu'un run tourne, l'utilisateur voit la bannière "Autopipeline en cours" mais **aucun moyen de l'arrêter**.
+## Compréhension
 
-## Correctif
+Tu veux créer une **section dédiée "POIs Principaux"** (ou "POIs Visite") séparée de la liste générale dans `/admin/medina-pois`. Cette section regroupe les lieux clés visitables (Jemaa el-Fna, Koutoubia, musées, jardins, médersas, palais, etc.) et devient **la seule source de vérité** consommée par Quest Rides PRO pour générer les visites.
 
-Rendre le bouton Stop visible **dès qu'un run actif existe en base**, indépendamment de l'état React local.
+## Plan
 
-### Changement minimal — bannière (ligne 726)
+### 1. Marquer les POIs "principaux" en base
+Ajouter une colonne `is_main_visit boolean default false` sur `medina_pois`.
+Backfill : tous les POIs avec `is_start_hub = true` + catégories `monument, museum, mosque, medersa, palace, historic_site, garden, fountain, gate_bab` et `poi_quality_score >= 6` → `is_main_visit = true`.
 
-Remplacer la condition :
-```ts
-(latestRun.status === 'running' || latestRun.status === 'cancel_requested') && running === 'autopipeline'
+### 2. UI — Onglets dans `/admin/medina-pois`
+Réorganiser la page avec deux onglets :
+- **Tous les POIs** (vue actuelle inchangée)
+- **POIs Principaux** ⭐ (filtrés `is_main_visit = true`, mis en avant visuellement)
+
+Dans chaque ligne de la liste générale, ajouter un toggle "⭐ Principal" pour promouvoir/dépromouvoir.
+
+### 3. Fiche POI Principal — éditeur enrichi
+Pour les POIs principaux, l'éditeur affiche les sections existantes **+** un bloc dédié **"Contenu narratif bilingue"** avec, pour chaque champ narratif (`history_context`, `local_anecdote_fr`, `fun_fact_fr`, `must_see_details`, `must_try`, `must_visit_nearby`, `photo_tip`, `price_info`, `best_time_visit`, `accessibility_notes`, `wikipedia_summary`) :
+
 ```
-par :
-```ts
-latestRun && (latestRun.status === 'running' || latestRun.status === 'cancel_requested')
+[Label]
+┌─────────────── FR ───────────────┐  ┌──── EN ────┐
+│ Texte français (textarea)        │  │ (vide)     │  [Traduire →]
+└──────────────────────────────────┘  └────────────┘
 ```
 
-Et adapter `requestStop` pour qu'il fonctionne même si `activeRunId` n'est pas en mémoire : utiliser `latestRun.id` en fallback.
+- Bouton **"Traduire en anglais"** par champ → appelle l'edge function `translate` existante → remplit le champ `_en` correspondant → sauvegarde auto.
+- Bouton global **"Tout traduire"** en haut de la section → boucle sur tous les champs FR remplis dont `_en` est vide.
 
-### Bonus UX
-- Toujours afficher le Stop sur la bannière bleue (priorité visuelle).
-- Garder le second bouton Stop (à côté du bouton Autopipeline) tel quel — il sert quand on lance depuis la même session.
+### 4. Audios FR + EN
+Sous chaque POI principal, bloc **"Guides audio"** :
+- **FR** : si `audio_url_fr` existe → lecteur `<audio>` + lien + bouton "Régénérer". Sinon → bouton **"Générer FR"** (appel `generate-poi-audio` avec `text = history_context + local_anecdote_fr`, chemin versionné `fr_v{ts}.mp3`).
+- **EN** : idem avec `audio_url_en` (texte source = `history_context_en + local_anecdote_en`, blocage si EN vide → toast "Traduisez d'abord en anglais").
+- Indicateur de génération en cours (loader, ~30s).
 
-## Fichier touché
-- `src/pages/admin/AdminPOIPipeline.tsx` (≈3 lignes modifiées)
+### 5. Source de vérité pour Quest Rides PRO
+Exposer ces POIs principaux via l'API v2 existante :
+- Nouvelle route `api-v2?route=main-visits` qui renvoie uniquement `is_main_visit = true AND status = 'validated'`, avec **tous les champs FR/EN, audios FR/EN, médias, opening_hours, must_see/try/nearby**.
+- Mémoire à enregistrer : "Quest Rides PRO doit piocher exclusivement dans `main-visits` pour générer les visites guidées (KJTOUR, etc.)".
 
-Aucun changement DB ni edge function.
+### 6. Sauvegarde + feedback
+- Autosave `onBlur` sur tous les champs (déjà en place).
+- Indicateur "✓ Enregistré il y a Xs" en haut de la fiche.
+- Toast d'erreur uniquement si échec.
+
+## Fichiers touchés
+
+**Frontend :**
+- `src/pages/admin/AdminMedinaPOIs.tsx` — onglets + éditeur enrichi avec sections collapsibles
+- `src/hooks/useMedinaPOIs.ts` — élargir le `select(*)` pour récupérer toutes les colonnes
+- Nouveaux composants :
+  - `src/components/admin/medina/BilingualNarrativeBlock.tsx` (FR + EN + bouton Traduire par champ)
+  - `src/components/admin/medina/AudioGuideBlock.tsx` (lecteur + Générer/Régénérer FR/EN)
+  - `src/components/admin/medina/SaveStatusBadge.tsx`
+
+**Backend :**
+- Migration SQL : ajout `is_main_visit` + index + backfill
+- `supabase/functions/api-v2/index.ts` — ajout du handler `route=main-visits`
+- Réutilise sans modification : `translate`, `generate-poi-audio`
+
+**Mémoire :**
+- Nouvelle entrée `mem://features/poi-library/main-visits-source-of-truth` documentant que `is_main_visit = true` est la seule source pour PRO.
+
+Aucune modification côté projet PRO dans cette étape — il consommera la nouvelle route quand il sera prêt.
 
