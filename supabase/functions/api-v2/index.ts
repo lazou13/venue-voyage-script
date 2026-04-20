@@ -286,7 +286,7 @@ async function handleMainVisits(url: URL) {
 
   const { data: pois, count, error } = await supabaseAdmin
     .from("medina_pois")
-    .select(SYNC_COLS + ", history_context_en, fun_fact_fr, fun_fact_en, must_see_details, must_see_details_en, must_try, must_try_en, must_visit_nearby, must_visit_nearby_en, photo_tip, photo_tip_en, accessibility_notes, accessibility_notes_en, wikipedia_summary, wikipedia_summary_en, is_main_visit", { count: "exact" })
+    .select(SYNC_COLS + ", history_context_en, fun_fact_fr, fun_fact_en, must_see_details, must_see_details_en, must_try, must_try_en, must_visit_nearby, must_visit_nearby_en, photo_tip, photo_tip_en, accessibility_notes, accessibility_notes_en, wikipedia_summary, wikipedia_summary_en, is_main_visit, hub_theme, audience_tags, route_tags, step_config, audio_url_fr, audio_url_en, anecdote_audio_url_fr, anecdote_audio_url_en", { count: "exact" })
     .eq("is_main_visit", true)
     .eq("is_active", true)
     .eq("status", "validated")
