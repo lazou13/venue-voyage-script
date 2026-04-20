@@ -286,7 +286,20 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
   const [form, setForm] = useState(poi);
   const [geoLoading, setGeoLoading] = useState(false);
   const { toast } = useToast();
-  useEffect(() => setForm(poi), [poi.id]);
+  // Resync the form whenever the underlying POI object changes (id OR updated_at OR audio fields).
+  // Critical: prevents stale UI showing "Aucun audio" when audios were just generated/imported.
+  useEffect(() => {
+    setForm(poi);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    poi.id,
+    poi.updated_at,
+    poi.audio_url_fr,
+    poi.audio_url_en,
+    (poi as any).anecdote_audio_url_fr,
+    (poi as any).anecdote_audio_url_en,
+    poi.last_enriched_at,
+  ]);
 
   const set = (field: keyof MedinaPOI, value: unknown) =>
     setForm((prev) => ({ ...prev, [field]: value }));
