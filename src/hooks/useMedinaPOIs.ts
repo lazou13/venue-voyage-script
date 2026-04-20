@@ -75,8 +75,8 @@ export function useMedinaPOIs() {
 
   const create = useMutation({
     mutationFn: async (poi: Partial<MedinaPOIInsert>) => {
-      const { data, error } = await supabase
-        .from('medina_pois')
+      const { data, error } = await (supabase
+        .from('medina_pois') as any)
         .insert({
           name: poi.name ?? 'Nouveau POI',
           zone: poi.zone ?? '',
