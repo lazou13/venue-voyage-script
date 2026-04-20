@@ -722,10 +722,23 @@ export default function AdminPOIPipeline() {
                 }
               </AlertTitle>
             </div>
-            <Button variant="ghost" size="sm" className="gap-1" onClick={() => setShowRunLogs(!showRunLogs)}>
-              <Eye className="w-3 h-3" /> {showRunLogs ? 'Masquer' : 'Voir les logs'}
-            </Button>
-          </div>
+            <div className="flex items-center gap-2">
+              {(latestRun.status === 'running' || latestRun.status === 'cancel_requested') && running === 'autopipeline' && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1"
+                  onClick={requestStop}
+                  disabled={stopRequested || latestRun.status === 'cancel_requested'}
+                >
+                  <StopCircle className="w-3 h-3" />
+                  {stopRequested || latestRun.status === 'cancel_requested' ? 'Arrêt en cours…' : 'Stop'}
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" className="gap-1" onClick={() => setShowRunLogs(!showRunLogs)}>
+                <Eye className="w-3 h-3" /> {showRunLogs ? 'Masquer' : 'Voir les logs'}
+              </Button>
+            </div>
           {showRunLogs && latestRun.logs && (
             <AlertDescription className="mt-2">
               <div className="bg-muted rounded-md p-3 max-h-48 overflow-y-auto font-mono text-xs space-y-0.5">
