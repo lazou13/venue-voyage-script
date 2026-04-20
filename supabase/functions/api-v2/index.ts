@@ -381,5 +381,11 @@ Deno.serve(async (req) => {
     return jsonResponse(result, 200, allHeaders);
   }
 
-  return jsonResponse({ error: "Unknown route. Use ?route=pois or ?route=poi&id=... or ?route=sync" }, 400, allHeaders);
+  if (route === "main-visits") {
+    const result = await handleMainVisits(url);
+    if (result.error) return jsonResponse({ error: result.error }, 500, allHeaders);
+    return jsonResponse(result, 200, allHeaders);
+  }
+
+  return jsonResponse({ error: "Unknown route. Use ?route=pois | poi&id=... | sync | main-visits" }, 400, allHeaders);
 });
