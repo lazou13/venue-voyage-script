@@ -404,7 +404,7 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
           <Input type="number" value={form.radius_m} onChange={(e) => set('radius_m', parseInt(e.target.value) || 30)} onBlur={() => save()} />
         </div>
         <div className="flex items-center gap-2 pt-5">
-          <Switch checked={form.is_active} onCheckedChange={(v) => { set('is_active', v); setTimeout(save, 0); }} />
+          <Switch checked={form.is_active} onCheckedChange={(v) => { set('is_active', v); save({ is_active: v }); }} />
           <Label>Actif</Label>
         </div>
       </div>
@@ -418,7 +418,7 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
             onCheckedChange={(v) => {
               set('is_start_hub', v);
               if (!v) set('hub_theme', null);
-              setTimeout(save, 0);
+              save(v ? { is_start_hub: v } : { is_start_hub: v, hub_theme: null });
             }}
           />
           <Label className="flex items-center gap-1">
@@ -433,7 +433,7 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
             <Label>Thème associé</Label>
             <Select
               value={form.hub_theme ?? ''}
-              onValueChange={(v) => { set('hub_theme', v); setTimeout(save, 0); }}
+              onValueChange={(v) => { set('hub_theme', v); save({ hub_theme: v }); }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Choisir un thème…" />
@@ -460,7 +460,7 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
         </div>
         <Switch
           checked={!!form.is_main_visit}
-          onCheckedChange={(v) => { set('is_main_visit', v); setTimeout(save, 0); }}
+          onCheckedChange={(v) => { set('is_main_visit', v); save({ is_main_visit: v }); }}
         />
       </div>
 
