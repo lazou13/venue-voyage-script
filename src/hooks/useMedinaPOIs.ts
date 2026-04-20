@@ -18,6 +18,39 @@ export interface MedinaPOI {
   is_start_hub: boolean;
   hub_theme: string | null;
   status: string;
+  is_main_visit?: boolean;
+  // Narrative FR
+  history_context?: string | null;
+  local_anecdote_fr?: string | null;
+  fun_fact_fr?: string | null;
+  must_see_details?: string | null;
+  must_try?: string | null;
+  must_visit_nearby?: string | null;
+  photo_tip?: string | null;
+  price_info?: string | null;
+  best_time_visit?: string | null;
+  accessibility_notes?: string | null;
+  wikipedia_summary?: string | null;
+  // Narrative EN
+  history_context_en?: string | null;
+  local_anecdote_en?: string | null;
+  fun_fact_en?: string | null;
+  must_see_details_en?: string | null;
+  must_try_en?: string | null;
+  must_visit_nearby_en?: string | null;
+  photo_tip_en?: string | null;
+  price_info_en?: string | null;
+  best_time_visit_en?: string | null;
+  accessibility_notes_en?: string | null;
+  wikipedia_summary_en?: string | null;
+  // Audio
+  audio_url_fr?: string | null;
+  audio_url_en?: string | null;
+  audio_url_ar?: string | null;
+  // Quality
+  poi_quality_score?: number | null;
+  // Allow extra fields
+  [key: string]: unknown;
 }
 
 export type MedinaPOIInsert = Omit<MedinaPOI, 'id' | 'created_at' | 'updated_at'>;
@@ -32,11 +65,11 @@ export function useMedinaPOIs() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('medina_pois')
-        .select('id, created_at, updated_at, name, zone, category, lat, lng, radius_m, step_config, metadata, is_active, is_start_hub, hub_theme, status')
+        .select('*')
         .order('status')
         .order('name');
       if (error) throw error;
-      return (data ?? []) as MedinaPOI[];
+      return (data ?? []) as unknown as MedinaPOI[];
     },
   });
 
@@ -58,7 +91,7 @@ export function useMedinaPOIs() {
         .select()
         .single();
       if (error) throw error;
-      return data as MedinaPOI;
+      return data as unknown as MedinaPOI;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
   });
@@ -70,12 +103,12 @@ export function useMedinaPOIs() {
       if (updates.metadata) payload.metadata = updates.metadata as Json;
       const { data, error } = await supabase
         .from('medina_pois')
-        .update(payload)
+        .update(payload as any)
         .eq('id', id)
         .select()
         .single();
       if (error) throw error;
-      return data as MedinaPOI;
+      return data as unknown as MedinaPOI;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: QUERY_KEY }),
   });
