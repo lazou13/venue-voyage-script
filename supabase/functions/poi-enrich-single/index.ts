@@ -231,7 +231,7 @@ Deno.serve(async (req) => {
     meta.last_enrich_citations = citations.slice(0, 8);
     patch.metadata = meta;
     patch.last_enriched_at = new Date().toISOString();
-    patch.enrichment_quality = "perplexity_single";
+    patch.enrichment_quality = "excellent";
     const ds = Array.isArray(poi.data_sources) ? poi.data_sources : [];
     if (!ds.includes("perplexity_single_v1")) patch.data_sources = [...ds, "perplexity_single_v1"];
 
