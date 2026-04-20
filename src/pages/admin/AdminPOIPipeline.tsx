@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2, Camera, Sparkles, Languages, Eye, Clock } from "lucide-react";
+import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2, Camera, Sparkles, Languages, Eye, Clock, StopCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import EnrichmentPipelineCard from "@/components/admin/EnrichmentPipelineCard";
 import AgentMonitoringCard from "@/components/admin/AgentMonitoringCard";
@@ -36,6 +36,36 @@ export default function AdminPOIPipeline() {
   const [stepResult, setStepResult] = useState<Record<string, { processed: number; done: boolean }>>({});
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [showRunLogs, setShowRunLogs] = useState(false);
+  const [stopRequested, setStopRequested] = useState(false);
+
+  // Returns true if cancellation has been requested (local flag OR DB flag).
+  const shouldStop = useCallback(async (runId: string | null) => {
+    if (stopRequested) return true;
+    if (!runId) return false;
+    try {
+      const { data } = await supabase
+        .from("pipeline_runs")
+        .select("status")
+        .eq("id", runId)
+        .maybeSingle();
+      return (data as any)?.status === "cancel_requested";
+    } catch {
+      return false;
+    }
+  }, [stopRequested]);
+
+  const requestStop = async () => {
+    setStopRequested(true);
+    if (activeRunId) {
+      try {
+        await supabase
+          .from("pipeline_runs")
+          .update({ status: "cancel_requested" } as any)
+          .eq("id", activeRunId);
+      } catch (_) { /* best effort */ }
+    }
+    toast({ title: "Arrêt demandé", description: "Fin du batch en cours puis interruption." });
+  };
 
   // Poll for active pipeline run
   const { data: latestRun, refetch: refetchRun } = useQuery({
