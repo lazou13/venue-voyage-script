@@ -10,10 +10,9 @@ import type { MedinaPOI } from '@/hooks/useMedinaPOIs';
 const FIELDS: { fr: keyof MedinaPOI; en: keyof MedinaPOI; label: string; rows?: number }[] = [
   { fr: 'history_context', en: 'history_context_en', label: 'Contexte historique', rows: 4 },
   { fr: 'local_anecdote_fr', en: 'local_anecdote_en', label: 'Anecdote locale', rows: 3 },
-  { fr: 'fun_fact_fr', en: 'fun_fact_en', label: 'Fait amusant', rows: 2 },
-  { fr: 'must_see_details', en: 'must_see_details_en', label: 'À ne pas manquer', rows: 3 },
-  { fr: 'must_try', en: 'must_try_en', label: 'À essayer', rows: 2 },
-  { fr: 'must_visit_nearby', en: 'must_visit_nearby_en', label: 'À visiter à proximité', rows: 2 },
+  { fr: 'must_see_details', en: 'must_see_details_en', label: 'À voir (détails)', rows: 3 },
+  { fr: 'must_try', en: 'must_try_en', label: 'À tester / goûter', rows: 2 },
+  { fr: 'must_visit_nearby', en: 'must_visit_nearby_en', label: 'À voir à proximité', rows: 2 },
   { fr: 'photo_tip', en: 'photo_tip_en', label: 'Conseil photo', rows: 2 },
   { fr: 'price_info', en: 'price_info_en', label: 'Tarifs', rows: 1 },
   { fr: 'best_time_visit', en: 'best_time_visit_en', label: 'Meilleur moment', rows: 1 },
