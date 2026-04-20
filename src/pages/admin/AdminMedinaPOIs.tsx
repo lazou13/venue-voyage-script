@@ -26,6 +26,7 @@ import { VisitSettingsBlock } from '@/components/admin/medina/VisitSettingsBlock
 import { MainPOIEnrichmentBlock } from '@/components/admin/medina/MainPOIEnrichmentBlock';
 import { VideosBlock } from '@/components/admin/medina/VideosBlock';
 import { SaveStatusBadge } from '@/components/admin/medina/SaveStatusBadge';
+import { getDisplayName } from '@/lib/poiDisplay';
 
 // ─── Validation eligibility check ───────────────────────────
 function isEligibleForValidation(poi: MedinaPOI): { eligible: boolean; reasons: string[] } {
@@ -96,7 +97,7 @@ function POIListItem({
           : 'hover:bg-muted text-foreground'
       }`}
     >
-      <div className="font-medium truncate">{poi.name}</div>
+      <div className="font-medium truncate">{getDisplayName(poi)}</div>
       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
         <span className="text-xs opacity-70">{poi.category}</span>
         {poi.zone && <span className="text-xs opacity-70">· {poi.zone}</span>}
@@ -582,7 +583,9 @@ export default function AdminMedinaPOIs() {
     if (statusFilter !== 'all' && p.status !== statusFilter) return false;
     if (!search) return true;
     const s = search.toLowerCase();
-    return p.name.toLowerCase().includes(s) ||
+    const dn = getDisplayName(p).toLowerCase();
+    return dn.includes(s) ||
+      p.name.toLowerCase().includes(s) ||
       (p.zone && p.zone.toLowerCase().includes(s)) ||
       (p.category && p.category.toLowerCase().includes(s));
   });
@@ -784,7 +787,7 @@ export default function AdminMedinaPOIs() {
               <div className="min-w-0">
                 <h3 className="font-semibold text-sm truncate flex items-center gap-2">
                   {selectedPOI.is_main_visit && <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
-                  {selectedPOI.name}
+                  {getDisplayName(selectedPOI)}
                 </h3>
                 <p className="text-xs text-muted-foreground">{selectedPOI.category} · {selectedPOI.zone}</p>
               </div>
