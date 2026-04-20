@@ -565,6 +565,7 @@ export default function AdminPOIPipeline() {
       "anecdotes", "fun-facts", "translate-en",
     ];
     setRunning("autopipeline");
+    setStopRequested(false);
     setLogs(["🚀 Autopipeline démarré..."]);
     setStepResult(prev => ({ ...prev, autopipeline: { processed: 0, done: false } }));
     let completedSteps = 0;
@@ -599,8 +600,11 @@ export default function AdminPOIPipeline() {
     };
 
     const completedList: string[] = [];
+    let cancelled = false;
 
     for (const step of pipelineSteps) {
+      if (await shouldStop(runId)) { cancelled = true; break; }
+
       const logLine = `\n🔄 Autopipeline — étape: ${step}...`;
       setLogs(prev => [...prev, logLine]);
       runLogs.push(logLine);
@@ -608,6 +612,13 @@ export default function AdminPOIPipeline() {
 
       try {
         await runStepInner(step);
+        if (await shouldStop(runId)) {
+          const cLog = `🛑 ${step} terminé mais arrêt demandé — interruption`;
+          setLogs(prev => [...prev, cLog]);
+          runLogs.push(cLog);
+          cancelled = true;
+          break;
+        }
         completedSteps++;
         completedList.push(step);
         setStepResult(prev => ({ ...prev, autopipeline: { processed: completedSteps, done: false } }));
@@ -623,8 +634,14 @@ export default function AdminPOIPipeline() {
       }
     }
 
+    if (cancelled) {
+      const cLog = `🛑 Autopipeline annulé après ${completedSteps}/${pipelineSteps.length} étapes`;
+      setLogs(prev => [...prev, cLog]);
+      runLogs.push(cLog);
+    }
+
     await updateRun({
-      status: "completed",
+      status: cancelled ? "cancelled" : "completed",
       completed_at: new Date().toISOString(),
       completed_steps: completedList,
       logs: runLogs,
@@ -632,9 +649,13 @@ export default function AdminPOIPipeline() {
 
     setRunning(null);
     setActiveRunId(null);
+    setStopRequested(false);
     setExtractionProgress(null);
-    setStepResult(prev => ({ ...prev, autopipeline: { processed: completedSteps, done: true } }));
-    toast({ title: "Autopipeline terminé", description: `${completedSteps}/${pipelineSteps.length} étapes réussies.` });
+    setStepResult(prev => ({ ...prev, autopipeline: { processed: completedSteps, done: !cancelled } }));
+    toast({
+      title: cancelled ? "Autopipeline annulé" : "Autopipeline terminé",
+      description: `${completedSteps}/${pipelineSteps.length} étapes ${cancelled ? "réalisées avant arrêt" : "réussies"}.`,
+    });
     refetchStats();
     refetchRun();
   };
