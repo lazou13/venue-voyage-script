@@ -56,12 +56,13 @@ export default function AdminPOIPipeline() {
 
   const requestStop = async () => {
     setStopRequested(true);
-    if (activeRunId) {
+    const targetId = activeRunId || (latestRun as any)?.id;
+    if (targetId) {
       try {
         await supabase
           .from("pipeline_runs")
           .update({ status: "cancel_requested" } as any)
-          .eq("id", activeRunId);
+          .eq("id", targetId);
       } catch (_) { /* best effort */ }
     }
     toast({ title: "Arrêt demandé", description: "Fin du batch en cours puis interruption." });
@@ -723,7 +724,7 @@ export default function AdminPOIPipeline() {
               </AlertTitle>
             </div>
             <div className="flex items-center gap-2">
-              {(latestRun.status === 'running' || latestRun.status === 'cancel_requested') && running === 'autopipeline' && (
+              {(latestRun.status === 'running' || latestRun.status === 'cancel_requested') && (
                 <Button
                   variant="destructive"
                   size="sm"
