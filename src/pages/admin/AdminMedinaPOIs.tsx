@@ -321,9 +321,13 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
   const features: POIFeatures = { ...emptyFeatures, ...(meta?.features as Partial<POIFeatures> ?? {}) };
   const setFeatures = (f: POIFeatures) => setMeta('features', f);
 
-  const save = () => {
-    if (form.is_start_hub && !form.hub_theme) return; // block save without theme
-    const { id, created_at, updated_at, ...rest } = form;
+  // `overrides` lets callers pass the freshly-toggled value without depending on
+  // the (not-yet-committed) `form` state. Critical for boolean switches whose
+  // onCheckedChange would otherwise persist the previous value via stale closure.
+  const save = (overrides?: Partial<MedinaPOI>) => {
+    const next = { ...form, ...(overrides ?? {}) };
+    if (next.is_start_hub && !next.hub_theme) return; // block save without theme
+    const { id, created_at, updated_at, ...rest } = next;
     onUpdate(poi.id, rest);
   };
 
