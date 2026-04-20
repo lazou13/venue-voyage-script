@@ -456,7 +456,16 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
 
       <Separator />
 
-      {/* Media tabs */}
+      {/* Bilingual narrative + audio (visible for ALL POIs but highlighted for main visits) */}
+      {form.is_main_visit && (
+        <>
+          <BilingualNarrativeBlock poi={form} onSave={(patch) => onUpdate(poi.id, patch)} />
+          <AudioGuideBlock poi={form} onRefresh={() => onUpdate(poi.id, {})} />
+          <Separator />
+        </>
+      )}
+
+
       <div>
         <h3 className="text-sm font-semibold mb-3">Médiathèque</h3>
         <Tabs defaultValue="photo">
