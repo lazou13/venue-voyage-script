@@ -7,7 +7,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2, Camera, Sparkles, Languages, Eye, Clock } from "lucide-react";
+import { Loader2, MapPin, Brain, Route, Rocket, RefreshCw, Trash2, GitMerge, Tags, Zap, CheckCircle2, Camera, Sparkles, Languages, Eye, Clock, StopCircle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import EnrichmentPipelineCard from "@/components/admin/EnrichmentPipelineCard";
 import AgentMonitoringCard from "@/components/admin/AgentMonitoringCard";
@@ -36,6 +36,36 @@ export default function AdminPOIPipeline() {
   const [stepResult, setStepResult] = useState<Record<string, { processed: number; done: boolean }>>({});
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [showRunLogs, setShowRunLogs] = useState(false);
+  const [stopRequested, setStopRequested] = useState(false);
+
+  // Returns true if cancellation has been requested (local flag OR DB flag).
+  const shouldStop = useCallback(async (runId: string | null) => {
+    if (stopRequested) return true;
+    if (!runId) return false;
+    try {
+      const { data } = await supabase
+        .from("pipeline_runs")
+        .select("status")
+        .eq("id", runId)
+        .maybeSingle();
+      return (data as any)?.status === "cancel_requested";
+    } catch {
+      return false;
+    }
+  }, [stopRequested]);
+
+  const requestStop = async () => {
+    setStopRequested(true);
+    if (activeRunId) {
+      try {
+        await supabase
+          .from("pipeline_runs")
+          .update({ status: "cancel_requested" } as any)
+          .eq("id", activeRunId);
+      } catch (_) { /* best effort */ }
+    }
+    toast({ title: "Arrêt demandé", description: "Fin du batch en cours puis interruption." });
+  };
 
   // Poll for active pipeline run
   const { data: latestRun, refetch: refetchRun } = useQuery({
@@ -535,6 +565,7 @@ export default function AdminPOIPipeline() {
       "anecdotes", "fun-facts", "translate-en",
     ];
     setRunning("autopipeline");
+    setStopRequested(false);
     setLogs(["🚀 Autopipeline démarré..."]);
     setStepResult(prev => ({ ...prev, autopipeline: { processed: 0, done: false } }));
     let completedSteps = 0;
@@ -569,8 +600,11 @@ export default function AdminPOIPipeline() {
     };
 
     const completedList: string[] = [];
+    let cancelled = false;
 
     for (const step of pipelineSteps) {
+      if (await shouldStop(runId)) { cancelled = true; break; }
+
       const logLine = `\n🔄 Autopipeline — étape: ${step}...`;
       setLogs(prev => [...prev, logLine]);
       runLogs.push(logLine);
@@ -578,6 +612,13 @@ export default function AdminPOIPipeline() {
 
       try {
         await runStepInner(step);
+        if (await shouldStop(runId)) {
+          const cLog = `🛑 ${step} terminé mais arrêt demandé — interruption`;
+          setLogs(prev => [...prev, cLog]);
+          runLogs.push(cLog);
+          cancelled = true;
+          break;
+        }
         completedSteps++;
         completedList.push(step);
         setStepResult(prev => ({ ...prev, autopipeline: { processed: completedSteps, done: false } }));
@@ -593,8 +634,14 @@ export default function AdminPOIPipeline() {
       }
     }
 
+    if (cancelled) {
+      const cLog = `🛑 Autopipeline annulé après ${completedSteps}/${pipelineSteps.length} étapes`;
+      setLogs(prev => [...prev, cLog]);
+      runLogs.push(cLog);
+    }
+
     await updateRun({
-      status: "completed",
+      status: cancelled ? "cancelled" : "completed",
       completed_at: new Date().toISOString(),
       completed_steps: completedList,
       logs: runLogs,
@@ -602,9 +649,13 @@ export default function AdminPOIPipeline() {
 
     setRunning(null);
     setActiveRunId(null);
+    setStopRequested(false);
     setExtractionProgress(null);
-    setStepResult(prev => ({ ...prev, autopipeline: { processed: completedSteps, done: true } }));
-    toast({ title: "Autopipeline terminé", description: `${completedSteps}/${pipelineSteps.length} étapes réussies.` });
+    setStepResult(prev => ({ ...prev, autopipeline: { processed: completedSteps, done: !cancelled } }));
+    toast({
+      title: cancelled ? "Autopipeline annulé" : "Autopipeline terminé",
+      description: `${completedSteps}/${pipelineSteps.length} étapes ${cancelled ? "réalisées avant arrêt" : "réussies"}.`,
+    });
     refetchStats();
     refetchRun();
   };
@@ -671,9 +722,23 @@ export default function AdminPOIPipeline() {
                 }
               </AlertTitle>
             </div>
-            <Button variant="ghost" size="sm" className="gap-1" onClick={() => setShowRunLogs(!showRunLogs)}>
-              <Eye className="w-3 h-3" /> {showRunLogs ? 'Masquer' : 'Voir les logs'}
-            </Button>
+            <div className="flex items-center gap-2">
+              {(latestRun.status === 'running' || latestRun.status === 'cancel_requested') && running === 'autopipeline' && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1"
+                  onClick={requestStop}
+                  disabled={stopRequested || latestRun.status === 'cancel_requested'}
+                >
+                  <StopCircle className="w-3 h-3" />
+                  {stopRequested || latestRun.status === 'cancel_requested' ? 'Arrêt en cours…' : 'Stop'}
+                </Button>
+              )}
+              <Button variant="ghost" size="sm" className="gap-1" onClick={() => setShowRunLogs(!showRunLogs)}>
+                <Eye className="w-3 h-3" /> {showRunLogs ? 'Masquer' : 'Voir les logs'}
+              </Button>
+            </div>
           </div>
           {showRunLogs && latestRun.logs && (
             <AlertDescription className="mt-2">
@@ -855,6 +920,18 @@ export default function AdminPOIPipeline() {
                 {running === "autopipeline" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
                 Autopipeline
               </Button>
+              {running === "autopipeline" && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1"
+                  onClick={requestStop}
+                  disabled={stopRequested}
+                >
+                  <StopCircle className="w-3 h-3" />
+                  {stopRequested ? "Arrêt en cours…" : "Stop"}
+                </Button>
+              )}
               <span className="text-sm text-muted-foreground flex-1">Lance toutes les étapes automatiquement dans l'ordre</span>
             </div>
             <div className="flex items-center gap-3">
