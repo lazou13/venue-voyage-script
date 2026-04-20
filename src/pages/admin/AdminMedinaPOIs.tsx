@@ -17,9 +17,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink, MapPin, StickyNote, Navigation, CheckCircle, RotateCcw, Map as MapIcon, List, ShieldCheck, AlertTriangle,
+  Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink, MapPin, StickyNote, Navigation, CheckCircle, RotateCcw, Map as MapIcon, List, ShieldCheck, AlertTriangle, Sparkles,
 } from 'lucide-react';
 import POIFeaturesSection, { type POIFeatures, emptyFeatures } from '@/components/admin/POIFeaturesSection';
+import { BilingualNarrativeBlock } from '@/components/admin/medina/BilingualNarrativeBlock';
+import { AudioGuideBlock } from '@/components/admin/medina/AudioGuideBlock';
+import { SaveStatusBadge } from '@/components/admin/medina/SaveStatusBadge';
 
 // ─── Validation eligibility check ───────────────────────────
 function isEligibleForValidation(poi: MedinaPOI): { eligible: boolean; reasons: string[] } {
