@@ -321,9 +321,13 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
   const features: POIFeatures = { ...emptyFeatures, ...(meta?.features as Partial<POIFeatures> ?? {}) };
   const setFeatures = (f: POIFeatures) => setMeta('features', f);
 
-  const save = () => {
-    if (form.is_start_hub && !form.hub_theme) return; // block save without theme
-    const { id, created_at, updated_at, ...rest } = form;
+  // `overrides` lets callers pass the freshly-toggled value without depending on
+  // the (not-yet-committed) `form` state. Critical for boolean switches whose
+  // onCheckedChange would otherwise persist the previous value via stale closure.
+  const save = (overrides?: Partial<MedinaPOI>) => {
+    const next = { ...form, ...(overrides ?? {}) };
+    if (next.is_start_hub && !next.hub_theme) return; // block save without theme
+    const { id, created_at, updated_at, ...rest } = next;
     onUpdate(poi.id, rest);
   };
 
@@ -366,23 +370,23 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <Label>Nom</Label>
-          <Input value={form.name} onChange={(e) => set('name', e.target.value)} onBlur={save} />
+          <Input value={form.name} onChange={(e) => set('name', e.target.value)} onBlur={() => save()} />
         </div>
         <div>
           <Label>Zone</Label>
-          <Input value={form.zone} onChange={(e) => set('zone', e.target.value)} onBlur={save} />
+          <Input value={form.zone} onChange={(e) => set('zone', e.target.value)} onBlur={() => save()} />
         </div>
         <div>
           <Label>Catégorie</Label>
-          <Input value={form.category} onChange={(e) => set('category', e.target.value)} onBlur={save} />
+          <Input value={form.category} onChange={(e) => set('category', e.target.value)} onBlur={() => save()} />
         </div>
         <div>
           <Label>Latitude</Label>
-          <Input type="number" step="any" value={form.lat ?? ''} onChange={(e) => set('lat', e.target.value ? parseFloat(e.target.value) : null)} onBlur={save} />
+          <Input type="number" step="any" value={form.lat ?? ''} onChange={(e) => set('lat', e.target.value ? parseFloat(e.target.value) : null)} onBlur={() => save()} />
         </div>
         <div>
           <Label>Longitude</Label>
-          <Input type="number" step="any" value={form.lng ?? ''} onChange={(e) => set('lng', e.target.value ? parseFloat(e.target.value) : null)} onBlur={save} />
+          <Input type="number" step="any" value={form.lng ?? ''} onChange={(e) => set('lng', e.target.value ? parseFloat(e.target.value) : null)} onBlur={() => save()} />
         </div>
         <div className="col-span-2">
           <Button
@@ -397,10 +401,10 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
         </div>
         <div>
           <Label>Rayon (m)</Label>
-          <Input type="number" value={form.radius_m} onChange={(e) => set('radius_m', parseInt(e.target.value) || 30)} onBlur={save} />
+          <Input type="number" value={form.radius_m} onChange={(e) => set('radius_m', parseInt(e.target.value) || 30)} onBlur={() => save()} />
         </div>
         <div className="flex items-center gap-2 pt-5">
-          <Switch checked={form.is_active} onCheckedChange={(v) => { set('is_active', v); setTimeout(save, 0); }} />
+          <Switch checked={form.is_active} onCheckedChange={(v) => { set('is_active', v); save({ is_active: v }); }} />
           <Label>Actif</Label>
         </div>
       </div>
@@ -414,7 +418,7 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
             onCheckedChange={(v) => {
               set('is_start_hub', v);
               if (!v) set('hub_theme', null);
-              setTimeout(save, 0);
+              save(v ? { is_start_hub: v } : { is_start_hub: v, hub_theme: null });
             }}
           />
           <Label className="flex items-center gap-1">
@@ -429,7 +433,7 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
             <Label>Thème associé</Label>
             <Select
               value={form.hub_theme ?? ''}
-              onValueChange={(v) => { set('hub_theme', v); setTimeout(save, 0); }}
+              onValueChange={(v) => { set('hub_theme', v); save({ hub_theme: v }); }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Choisir un thème…" />
@@ -456,7 +460,7 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
         </div>
         <Switch
           checked={!!form.is_main_visit}
-          onCheckedChange={(v) => { set('is_main_visit', v); setTimeout(save, 0); }}
+          onCheckedChange={(v) => { set('is_main_visit', v); save({ is_main_visit: v }); }}
         />
       </div>
 
@@ -470,12 +474,12 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
           placeholder="Mémo rapide sur ce POI..."
           rows={2}
           onChange={(e) => setMeta('note', e.target.value)}
-          onBlur={save}
+          onBlur={() => save()}
         />
       </div>
 
       {/* Features */}
-      <POIFeaturesSection features={features} onChange={setFeatures} onBlur={save} />
+      <POIFeaturesSection features={features} onChange={setFeatures} onBlur={() => save()} />
 
       <Separator />
 
