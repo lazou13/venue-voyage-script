@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import type { MedinaPOI } from '@/hooks/useMedinaPOIs';
+import { getDisplayName } from '@/lib/poiDisplay';
 
 // Lazy-load Leaflet to avoid SSR issues
 let L: typeof import('leaflet') | null = null;
@@ -156,7 +157,7 @@ export default function MedinaMap({
         const marker = makeCircleMarker(poi);
         if (!marker) continue;
         marker.addTo(map);
-        marker.bindTooltip(poi.name, { direction: 'top', offset: [0, -6] });
+        marker.bindTooltip(getDisplayName(poi), { direction: 'top', offset: [0, -6] });
         marker.on('click', () => onSelectPOI(poi.id));
         existing.set(poi.id, marker);
       }

@@ -314,7 +314,11 @@ async function handleMainVisits(url: URL) {
     }
   }
 
-  const enriched = (pois ?? []).map((p: any) => ({ ...p, images: mediaByPoi[p.id] ?? [] }));
+  const enriched = (pois ?? []).map((p: any) => ({
+    ...p,
+    display_name: p.name_fr || p.name || p.name_en || '',
+    images: mediaByPoi[p.id] ?? [],
+  }));
 
   const total = count || 0;
   return { pois: enriched, total, limit, offset, has_more: offset + limit < total };

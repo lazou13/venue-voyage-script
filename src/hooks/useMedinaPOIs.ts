@@ -83,10 +83,14 @@ export function useMedinaPOIs() {
 
   const create = useMutation({
     mutationFn: async (poi: Partial<MedinaPOIInsert>) => {
+      const baseName = poi.name ?? 'Nouveau POI';
+      // FR-first policy: name and name_fr are kept in sync at creation.
+      const nameFr = (poi as any).name_fr ?? baseName;
       const { data, error } = await (supabase
         .from('medina_pois') as any)
         .insert({
-          name: poi.name ?? 'Nouveau POI',
+          name: nameFr,
+          name_fr: nameFr,
           zone: poi.zone ?? '',
           category: poi.category ?? 'generic',
           lat: poi.lat,
