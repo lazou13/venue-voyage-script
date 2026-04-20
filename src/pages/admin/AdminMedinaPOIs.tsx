@@ -108,6 +108,11 @@ function POIListItem({
         ) : (
           <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-muted text-muted-foreground border-border">Draft</Badge>
         )}
+        {poi.is_main_visit && (
+          <Badge className="text-[10px] px-1.5 py-0 bg-amber-400 text-amber-950 border-amber-400">
+            ⭐ Principal
+          </Badge>
+        )}
         {poi.is_start_hub && (
           <Badge className="text-[10px] px-1.5 py-0 bg-amber-500 text-white border-amber-500">
             <Navigation className="w-2.5 h-2.5 mr-0.5" /> HUB
