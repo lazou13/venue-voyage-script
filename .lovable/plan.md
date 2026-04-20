@@ -2,56 +2,108 @@
 
 ## Compréhension
 
-Trois demandes :
-1. **Audios catégorisés** : pas un seul "audio FR / EN" globalisé, mais des audios distincts par type narratif (Histoire FR, Anecdote FR, Histoire EN, Anecdote EN…) — la table a déjà `audio_url_fr`, `audio_url_en`, `anecdote_audio_url_fr`, `anecdote_audio_url_en`.
-2. **Type d'interaction et thème éditables** sur la fiche POI principal (audio guide, jeu, énigme, photo… + thème : histoire, gastronomie, artisanat, etc.).
-3. **Pourquoi seulement 4 POIs principaux** ? Koutoubia, Jemaa el-Fna, Medersa Ben Youssef, Place des Épices, Bahia, Badi, Saadiens, Majorelle, Secret Garden, Dar Si Said… doivent y figurer. → backfill insuffisant.
-
-## Vérifications rapides à faire
-
-- `SELECT count(*), array_agg(name) FROM medina_pois WHERE is_main_visit = true;` pour voir l'état réel.
-- Lister les candidats manquants : POIs avec `category IN (monument, museum, mosque, medersa, palace, historic_site, garden, fountain, gate_bab, square)` OU `is_start_hub = true` OU `name ILIKE` (Koutoubia, Jemaa, Medersa, Bahia, Badi, Saadien, Majorelle, Secret Garden, Dar Si Said, Maison de la Photo, Mellah, Souk des épices/Rahba Kedima, Bab Agnaou, Menara, Ménara, Agdal…), peu importe le score.
+Sur la fiche POI Principal, il faut :
+1. **FR comme langue de base** : tous les champs narratifs en français en base, EN généré uniquement par traduction.
+2. **Compléter les "POIs Principaux"** avec les souks majeurs manquants (Souk Semmarine, Souk des Teinturiers/Sebbaghine, Souk des Babouches/Smata, Souk Haddadine/forgerons, Souk Cherratine/cuir, Souk Attarine/épices…).
+3. **Champs supplémentaires bilingues** : `fun_facts` (liste), `must_see` (à voir), `must_try` (à tester), `visitor_tips` — déjà en partie en colonnes, à exposer dans l'éditeur en FR + EN avec bouton Traduire.
+4. **Agent d'enrichissement par fiche** : un bouton "Enrichir avec l'IA" sur chaque POI principal qui appelle Perplexity (`sonar-pro` avec citations) pour compléter en une passe : history_context, local_anecdote, fun_fact, must_see, must_try, photo_tip, best_time, accessibility, crowd_level, photos suggérées (URLs Wikimedia/Commons).
+5. **Médias enrichis** : photos + vidéos. Photos déjà gérées via `poi-fetch-photos`. Pour les vidéos : ajouter un champ `video_urls[]` (YouTube embeds) que l'agent propose et que l'admin valide.
 
 ## Plan
 
-### 1. Backfill élargi `is_main_visit`
-Migration de données (INSERT tool) :
-- Promouvoir tous les POIs `is_start_hub = true`.
-- Promouvoir toutes les catégories visitables (`monument, historic_site, museum, mosque, medersa, palace, garden, fountain, gate_bab, square, hammam` si patrimonial) avec `is_active = true` et coordonnées valides — **sans** filtre `poi_quality_score >= 6` (c'est ce filtre qui exclut les évidents comme Place des Épices).
-- Whitelist nommée pour forcer les incontournables même hors taxonomie : Koutoubia, Jemaa el-Fna, Place des Épices / Rahba Kedima, Medersa Ben Youssef, Bahia, El Badi, Tombeaux Saadiens, Jardin Majorelle, Jardin Secret, Dar Si Said, Maison de la Photographie, Musée de Marrakech, Mellah, Bab Agnaou, Ben Salah, Mouassine, Koubba Almoravide, Fondouk el-Amir, Tanneries, Menara, Agdal.
-- Affichage : trier les principaux par catégorie pour rendre la liste lisible.
+### 1. Backfill — souks et lieux manquants
+INSERT tool : `UPDATE medina_pois SET is_main_visit = true` pour :
+- Tous les POIs `category IN ('souk', 'fondouk')` avec `is_active = true` ET coordonnées valides ET `poi_quality_score >= 4`.
+- Whitelist nommée souks : Semmarine, Attarine, Smata/Babouches, Cherratine, Sebbaghine/Teinturiers, Haddadine/Forgerons, Chouari/Menuisiers, Kimakhine, Zrabi/Tapis, Kchachbia.
+- Vérification : `SELECT count(*) FROM medina_pois WHERE is_main_visit = true GROUP BY category;` pour confirmer 40-60 POIs principaux répartis.
 
-### 2. Audios catégorisés (4 slots)
-Refondre `AudioGuideBlock` en grille 2×2 :
-| | FR | EN |
-|---|---|---|
-| **Histoire** | `audio_url_fr` (source : `history_context`) | `audio_url_en` (source : `history_context_en`) |
-| **Anecdote** | `anecdote_audio_url_fr` (source : `local_anecdote_fr`) | `anecdote_audio_url_en` (source : `local_anecdote_en`) |
+### 2. Politique linguistique FR-first
+Règle : tous les champs narratifs sont écrits en FR par l'admin (ou l'agent). EN est strictement une traduction du FR via le bouton "Traduire". Aucun champ EN n'est édité en source.
+- Si `local_anecdote_fr` est vide → champ EN désactivé.
+- Bouton "Tout retraduire en EN" : régénère tous les `_en` à partir des `_fr` (utile après refonte d'un POI).
 
-Chaque cellule = lecteur + bouton Générer/Régénérer + état loader. Texte source strictement brut (pas de concaténation, conformément à la règle TTS mémorisée).
-`generate-poi-audio` accepte déjà `field` + `storage_path` → 4 chemins versionnés : `history_fr_v{ts}.mp3`, `history_en_v{ts}.mp3`, `anecdote_fr_v{ts}.mp3`, `anecdote_en_v{ts}.mp3`.
+### 3. Nouveau bloc éditeur — `MainPOIEnrichmentBlock`
+Au-dessus de `BilingualNarrativeBlock`, ajouter un panneau dédié :
 
-### 3. Thème + Type d'interaction éditables
-Ajouter dans la fiche POI principal un bloc **"Visite — paramètres"** :
-- **Thème** (`hub_theme` — colonne déjà existante) : combobox avec valeurs canoniques (histoire, architecture, artisanat, gastronomie, spiritualité, jardins, vie locale, photographie, panorama) + ajout libre.
-- **Type d'interaction par défaut** (stocké dans `step_config.interaction_type` JSONB) : select avec `audio_guide`, `quiz`, `riddle`, `photo_check`, `free_visit` (taxonomie canonique mémorisée).
-- **Tags audience** (`audience_tags[]`) et **route_tags** (`route_tags[]`) en multi-input chips.
-- Autosave onBlur, badge SaveStatus partagé.
+```
+┌───────────────────────────────────────────────────┐
+│ 🤖 Agent d'enrichissement (Perplexity)            │
+│                                                   │
+│ Cible : ce POI uniquement                         │
+│ Mode  : ◉ Compléter (champs vides)               │
+│         ○ Régénérer tout                          │
+│ Inclure : ☑ Texte  ☑ Photos suggestions          │
+│           ☑ Vidéos YouTube  ☑ Fun facts (3-5)    │
+│                                                   │
+│ [ Lancer l'enrichissement ] (≈30s)                │
+│                                                   │
+│ Dernière exécution : il y a 2h                    │
+│ Sources : 4 citations Wikipedia + Commons         │
+└───────────────────────────────────────────────────┘
+```
 
-### 4. API v2 — exposer les 4 audios
-Mettre à jour `route=main-visits` pour renvoyer aussi `anecdote_audio_url_fr/en`, `hub_theme`, `step_config.interaction_type`, `audience_tags`, `route_tags`.
+Étendre les champs visibles dans `BilingualNarrativeBlock` avec :
+- **Fun facts** (liste de 3-5 puces FR + EN, stockés JSONB `fun_facts: [{fr, en}]`).
+- **À voir** (`must_see_details` + `_en`).
+- **À tester / goûter** (`must_try` + `_en`).
+- **À voir à proximité** (`must_visit_nearby` + `_en`).
 
-### 5. Mémoire
-Mettre à jour `mem://features/poi-library/main-visits-source-of-truth` pour préciser : 4 slots audio (history/anecdote × FR/EN), thème + interaction éditables, taxonomie de promotion élargie.
+### 4. Nouvel edge function — `poi-enrich-single`
+Spécifique aux POIs principaux. Reçoit `{ poi_id, mode: 'fill_empty'|'regenerate', include: {text, photos, videos, fun_facts} }`.
+
+Logique :
+1. Charge le POI (name, name_fr, category, zone, address, contexte existant).
+2. Construit un prompt Perplexity `sonar-pro` exigeant un JSON strict avec :
+   - `history_context` (200-250 mots, FR, dates précises, anti-cliché — réutilise les règles mémorisées de `anecdote-enricher`)
+   - `local_anecdote_fr` (80-100 mots, 1 fait surprenant vérifiable)
+   - `fun_facts` : 3-5 items courts, chaque item = un chiffre/fait ponctuel
+   - `must_see_details` (3-4 phrases)
+   - `must_try` (1-2 phrases, spécifique souk/marché si applicable)
+   - `photo_tip`, `best_time_visit`, `accessibility_notes`, `crowd_level`
+   - `suggested_photo_urls` : 3-5 URLs Wikimedia Commons / Unsplash vérifiées
+   - `suggested_youtube_videos` : 1-3 IDs YouTube de vidéos pertinentes (recherche via Perplexity)
+3. Si `mode = fill_empty` : n'écrit que les colonnes vides. Si `regenerate` : écrase + versionne (sauvegarde précédent dans `metadata.previous_versions[]`).
+4. Appelle `translate` en chaîne pour générer tous les `_en` correspondants automatiquement.
+5. Pour les photos suggérées : insère dans `poi_media` avec `role_tags=['ai_suggested']` et `is_cover=false` — l'admin valide manuellement avant publication.
+6. Pour les vidéos : nouvelle colonne `video_urls JSONB[]` (à créer en migration), chaque entrée = `{youtube_id, title, source}`.
+7. Met à jour `last_enriched_at`, `enrichment_quality`, `data_sources += ['perplexity_single_v1']`.
+
+### 5. Migration légère
+- Nouvelle colonne `medina_pois.video_urls JSONB DEFAULT '[]'`.
+- Nouvelle colonne `medina_pois.fun_facts_bilingual JSONB DEFAULT '[]'` (structure `[{fr, en}]`) — distinct de l'ancienne `fun_facts` libre, ou réutilise `fun_facts` en standardisant le format.
+
+### 6. Bloc média enrichi
+Étendre la section Médias :
+- Onglet **Photos** (existant) + indicateur "X suggestions IA en attente de validation".
+- Onglet **Vidéos** : liste des `video_urls`, prévisualisation iframe YouTube, suppression, ajout manuel d'une URL YouTube.
+
+### 7. API v2 — exposer fun_facts + vidéos
+Mettre à jour `route=main-visits` pour inclure `fun_facts_bilingual`, `video_urls`, `must_see_details_en`, `must_try_en`, `must_visit_nearby_en`.
+
+### 8. Mémoire
+Mettre à jour `mem://features/poi-library/main-visits-source-of-truth` avec :
+- Politique FR-first stricte
+- Souks inclus dans le périmètre principal
+- Champs additionnels : fun_facts bilingues, must_see/try/nearby bilingues, vidéos
+- Existence de l'agent `poi-enrich-single` (Perplexity sonar-pro) déclenché par fiche
 
 ## Fichiers touchés
 
-- `src/components/admin/medina/AudioGuideBlock.tsx` — grille 2×2, 4 slots
-- `src/pages/admin/AdminMedinaPOIs.tsx` — nouveau bloc "Visite — paramètres" dans le panneau "Principal"
-- Nouveaux composants : `VisitSettingsBlock.tsx` (thème + interaction + tags)
-- `supabase/functions/api-v2/index.ts` — élargir le payload `main-visits`
-- Migration de données (INSERT tool) : backfill élargi `is_main_visit`
+**Backend :**
+- Migration : ajout `video_urls`, `fun_facts_bilingual`
+- INSERT (data) : backfill souks `is_main_visit`
+- Nouveau : `supabase/functions/poi-enrich-single/index.ts`
+- `supabase/functions/api-v2/index.ts` : payload élargi
+
+**Frontend :**
+- Nouveau : `src/components/admin/medina/MainPOIEnrichmentBlock.tsx` (panneau agent + bouton)
+- Nouveau : `src/components/admin/medina/VideosBlock.tsx` (onglet vidéos)
+- `src/components/admin/medina/BilingualNarrativeBlock.tsx` : ajouter fun_facts liste, must_see, must_try, must_visit_nearby
+- `src/pages/admin/AdminMedinaPOIs.tsx` : intégrer les nouveaux blocs dans le panneau "Principal"
+- `src/hooks/useMedinaPOIs.ts` : ajouter `video_urls`, `fun_facts_bilingual` à l'interface
+
+**Mémoire :**
 - `mem://features/poi-library/main-visits-source-of-truth.md`
 
-Aucune nouvelle colonne nécessaire (toutes existent : `hub_theme`, `audience_tags`, `route_tags`, `step_config`, les 4 colonnes audio).
+**Secret requis :** `PERPLEXITY_API_KEY` (déjà configurée — utilisée par `anecdote-enricher`).
 
