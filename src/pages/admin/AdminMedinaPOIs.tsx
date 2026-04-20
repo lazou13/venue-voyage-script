@@ -370,23 +370,23 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <Label>Nom</Label>
-          <Input value={form.name} onChange={(e) => set('name', e.target.value)} onBlur={save} />
+          <Input value={form.name} onChange={(e) => set('name', e.target.value)} onBlur={() => save()} />
         </div>
         <div>
           <Label>Zone</Label>
-          <Input value={form.zone} onChange={(e) => set('zone', e.target.value)} onBlur={save} />
+          <Input value={form.zone} onChange={(e) => set('zone', e.target.value)} onBlur={() => save()} />
         </div>
         <div>
           <Label>Catégorie</Label>
-          <Input value={form.category} onChange={(e) => set('category', e.target.value)} onBlur={save} />
+          <Input value={form.category} onChange={(e) => set('category', e.target.value)} onBlur={() => save()} />
         </div>
         <div>
           <Label>Latitude</Label>
-          <Input type="number" step="any" value={form.lat ?? ''} onChange={(e) => set('lat', e.target.value ? parseFloat(e.target.value) : null)} onBlur={save} />
+          <Input type="number" step="any" value={form.lat ?? ''} onChange={(e) => set('lat', e.target.value ? parseFloat(e.target.value) : null)} onBlur={() => save()} />
         </div>
         <div>
           <Label>Longitude</Label>
-          <Input type="number" step="any" value={form.lng ?? ''} onChange={(e) => set('lng', e.target.value ? parseFloat(e.target.value) : null)} onBlur={save} />
+          <Input type="number" step="any" value={form.lng ?? ''} onChange={(e) => set('lng', e.target.value ? parseFloat(e.target.value) : null)} onBlur={() => save()} />
         </div>
         <div className="col-span-2">
           <Button
@@ -401,7 +401,7 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
         </div>
         <div>
           <Label>Rayon (m)</Label>
-          <Input type="number" value={form.radius_m} onChange={(e) => set('radius_m', parseInt(e.target.value) || 30)} onBlur={save} />
+          <Input type="number" value={form.radius_m} onChange={(e) => set('radius_m', parseInt(e.target.value) || 30)} onBlur={() => save()} />
         </div>
         <div className="flex items-center gap-2 pt-5">
           <Switch checked={form.is_active} onCheckedChange={(v) => { set('is_active', v); setTimeout(save, 0); }} />
@@ -474,12 +474,12 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
           placeholder="Mémo rapide sur ce POI..."
           rows={2}
           onChange={(e) => setMeta('note', e.target.value)}
-          onBlur={save}
+          onBlur={() => save()}
         />
       </div>
 
       {/* Features */}
-      <POIFeaturesSection features={features} onChange={setFeatures} onBlur={save} />
+      <POIFeaturesSection features={features} onChange={setFeatures} onBlur={() => save()} />
 
       <Separator />
 
