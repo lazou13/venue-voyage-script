@@ -143,7 +143,8 @@ export function BilingualNarrativeBlock({ poi, onSave }: Props) {
                 <Textarea
                   value={enVal}
                   rows={f.rows ?? 2}
-                  placeholder="English…"
+                  placeholder={frVal.trim() ? 'English (traduction)…' : "Renseignez d'abord le FR"}
+                  disabled={!frVal.trim()}
                   onChange={(e) => setField(f.en, e.target.value)}
                   onBlur={() => flushField(f.en)}
                   className="text-sm"
@@ -166,6 +167,93 @@ export function BilingualNarrativeBlock({ poi, onSave }: Props) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ─── Fun Facts bilingues ───────────────────────────────────
+interface FFItem { fr: string; en: string }
+
+function FunFactsBilingualEditor({ poi, onSave }: { poi: MedinaPOI; onSave: (patch: Partial<MedinaPOI>) => void }) {
+  const { toast } = useToast();
+  const initial: FFItem[] = Array.isArray((poi as any).fun_facts_bilingual)
+    ? ((poi as any).fun_facts_bilingual as FFItem[])
+    : [];
+  const [items, setItems] = useState<FFItem[]>(initial);
+  const [translatingIdx, setTranslatingIdx] = useState<number | null>(null);
+
+  const flush = (next: FFItem[]) => {
+    setItems(next);
+    onSave({ fun_facts_bilingual: next } as any);
+  };
+  const update = (i: number, patch: Partial<FFItem>) =>
+    setItems(items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+  const flushIdx = () => onSave({ fun_facts_bilingual: items } as any);
+  const add = () => flush([...items, { fr: '', en: '' }]);
+  const remove = (i: number) => flush(items.filter((_, idx) => idx !== i));
+
+  const translate = async (i: number) => {
+    const fr = items[i]?.fr?.trim();
+    if (!fr) return;
+    setTranslatingIdx(i);
+    try {
+      const { data, error } = await supabase.functions.invoke('translate', { body: { text: fr, from: 'fr', to: 'en' } });
+      if (error) throw error;
+      const t = (data as any)?.translated || (data as any)?.translation || (data as any)?.text;
+      if (!t) throw new Error('Aucune traduction');
+      flush(items.map((it, idx) => (idx === i ? { ...it, en: t } : it)));
+    } catch (err) {
+      toast({ title: 'Erreur traduction', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setTranslatingIdx(null);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded-md border border-dashed border-border p-3 bg-background/50">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs font-semibold">Fun facts (3-5 puces, FR + EN)</Label>
+        <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={add} disabled={items.length >= 5}>
+          <Plus className="w-3 h-3 mr-1" /> Ajouter
+        </Button>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground italic">Aucun fun fact. Cliquez "Ajouter" ou utilisez l'agent IA.</p>
+      ) : (
+        items.map((it, i) => (
+          <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-start">
+            <Input
+              value={it.fr}
+              onChange={(e) => update(i, { fr: e.target.value })}
+              onBlur={flushIdx}
+              placeholder="Fait FR (chiffre, date, détail précis)"
+              className="h-8 text-xs"
+            />
+            <div className="space-y-1">
+              <Input
+                value={it.en}
+                onChange={(e) => update(i, { en: e.target.value })}
+                onBlur={flushIdx}
+                disabled={!it.fr.trim()}
+                placeholder={it.fr.trim() ? 'English' : "FR d'abord"}
+                className="h-8 text-xs"
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-5 text-[10px] w-full"
+                disabled={!it.fr.trim() || translatingIdx === i}
+                onClick={() => translate(i)}
+              >
+                {translatingIdx === i ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Languages className="w-3 h-3 mr-1" /> Traduire</>}
+              </Button>
+            </div>
+            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => remove(i)}>
+              <Trash2 className="w-3 h-3" />
+            </Button>
+          </div>
+        ))
+      )}
     </div>
   );
 }
