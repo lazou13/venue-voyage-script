@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Languages, Loader2, Wand2 } from 'lucide-react';
+import { Languages, Loader2, Wand2, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { MedinaPOI } from '@/hooks/useMedinaPOIs';
@@ -112,9 +113,15 @@ export function BilingualNarrativeBlock({ poi, onSave }: Props) {
         </h3>
         <Button size="sm" variant="outline" onClick={translateAll} disabled={translatingAll}>
           {translatingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Wand2 className="w-3.5 h-3.5 mr-1" />}
-          Tout traduire
+          Tout retraduire FR → EN
         </Button>
       </div>
+      <p className="text-[11px] text-muted-foreground -mt-2">
+        Politique : écrire en français. L'anglais est généré par traduction du français.
+      </p>
+
+      <FunFactsBilingualEditor poi={poi} onSave={onSave} />
+
 
       {FIELDS.map((f) => {
         const frVal = get(f.fr);
