@@ -539,6 +539,7 @@ function StatsBar({ pois }: { pois: MedinaPOI[] }) {
   return (
     <div className="flex gap-4 text-xs text-muted-foreground px-1 pb-2 flex-wrap">
       <span><strong className="text-foreground">{pois.length}</strong> total</span>
+      <span><strong className="text-amber-500">{pois.filter(p => p.is_main_visit).length}</strong> ⭐ principaux</span>
       <span><strong className="text-emerald-600">{validated}</strong> validés</span>
       <span><strong className="text-blue-600">{enriched}</strong> enrichis</span>
       <span><strong className="text-violet-600">{classified}</strong> classifiés</span>
