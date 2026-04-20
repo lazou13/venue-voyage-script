@@ -559,11 +559,13 @@ export default function AdminMedinaPOIs() {
   const [placeMode, setPlaceMode] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [scope, setScope] = useState<'all' | 'main'>('all');
   const [bulkValidating, setBulkValidating] = useState(false);
 
   const selectedPOI = pois.find((p) => p.id === selectedId) ?? null;
 
   const filteredPois = pois.filter(p => {
+    if (scope === 'main' && !p.is_main_visit) return false;
     if (statusFilter !== 'all' && p.status !== statusFilter) return false;
     if (!search) return true;
     const s = search.toLowerCase();
