@@ -1,37 +1,59 @@
 
 
-User veut générer **uniquement l'audio "anecdote" de la Koutoubia en EN** (`anecdote_audio_url_en`), avec les réglages voix habituels (déjà en mémoire : ElevenLabs JdwJ7jL68CWmQZuo7KgG, eleven_multilingual_v2, stability 0.3, similarity 0.9, style 0.85, speed 0.75). Politique TTS : feed `local_anecdote_en` brut, pas de réécriture.
+User confirme : les sections Must See/Must Try/Visit Nearby s'affichent en FR alors que le tour est EN. PRO a déjà fait le diagnostic et propose un plan. Je dois le valider/affiner côté HPP (source de vérité).
 
-Avant régénération → afficher le texte source pour validation.
+## Diagnostic vérifié
+
+Côté HPP (`medina_pois`), je dois confirmer pour les 5 POIs du KJTOUR :
+- Koutoubia (`eec26470-...`)
+- Madrasa Ben Youssef
+- Souk Semmarine
+- Jardin Secret
+- Jemaa el-Fna
+
+Champs à vérifier : `must_see_details_en`, `must_try_en`, `must_visit_nearby_en`, `photo_tip_en`, `price_info_en`, `opening_hours` (JSON avec text_en ?).
+
+Politique mémoire : EN obligatoire pour tous les POIs validés (`english-enrichment-strategy`). HPP = source de vérité, Production = consommateur via sync.
 
 ## Plan
 
-### Étape 1 — Identifier le POI canonique Koutoubia
-Requête SQL :
-```sql
-SELECT id, name, status, local_anecdote_en, local_anecdote, anecdote_audio_url_en
-FROM medina_pois
-WHERE (name ILIKE '%koutoubia%' OR name_fr ILIKE '%koutoubia%')
-  AND status = 'validated'
-ORDER BY poi_quality_score DESC NULLS LAST;
-```
-S'il y a plusieurs POIs Koutoubia, prendre celui avec le score le plus haut (probablement le canonique mosquée/minaret) ou demander confirmation.
+### Étape 1 — Audit HPP (lecture SQL)
+Vérifier exactement quels champs `_en` manquent sur les 5 POIs du KJTOUR. Affichage tableau : POI × champ → ✅/❌.
 
-### Étape 2 — Afficher le texte EN à valider
-Présenter `local_anecdote_en` tel quel + nettoyer marqueurs `[1][2]` éventuels (comme fait pour Médersa Ben Youssef). Tu valides → A (OK), B (corrige X), C (réécris).
+### Étape 2 — Compléter les traductions manquantes côté HPP
+Pour chaque champ `_en` manquant, deux options :
+- **A)** Génération auto via edge function `translate` (Lovable AI Gateway, cf. `supabase/functions/translate/index.ts`) en feed des `_fr` existants
+- **B)** Lancer `poi-auto-agent` (cron qui traduit 20×10 par batch — `autonomous-enrichment-agent`)
 
-### Étape 3 — Régénération (après ton OK)
-Appel `generate-poi-audio` avec :
-- `poi_id` = id Koutoubia
-- `field` = `anecdote_audio_url_en`
-- `text` = `local_anecdote_en` (nettoyé)
-- `storage_path` = `audio-guides/{koutoubia_id}/anecdote_en_v{timestamp}.mp3` (versionné, policy CDN)
+Recommandation : **A** ciblé sur les 5 POIs × 5 champs (≤25 appels), instantané. Validation visuelle rapide.
 
-Config voix = inchangée, déjà codée en dur dans `generate-poi-audio`.
+Migration SQL UPDATE pour persister les traductions générées.
 
-### Étape 4 — Vérification
-Lecture du POI : `anecdote_audio_url_en` pointe vers bucket interne `audio-guides`, taille KB > 0.
+### Étape 3 — Sync vers Production
+Deux voies :
+- **API v2 sync route** (`api-v2?route=sync`) — méthode officielle, déjà mappée (`poi-sync-schema-mapping`)
+- **Edge function ad hoc** comme proposé par PRO (`admin-patch-kjtour-en-sections`) — patche directement le JSONB `medina_tours.route`
+
+Recommandation : **API v2 sync** d'abord (propre, réutilisable). Si PRO stocke effectivement les sections gelées dans `medina_tours.route` JSONB et ne re-lit pas la table `medina_pois` au runtime, alors ajouter le patch JSONB ciblé pour KJTOUR_EN.
+
+→ **Question à clarifier** : PRO lit-il `medina_pois` au runtime (sync suffit) ou le JSONB `medina_tours.route` (patch obligatoire) ? Le diagnostic PRO dit clairement "vit sur Production dans medina_tours.route (JSONB)" → il faut **les deux** : sync HPP→PROD + patch JSONB.
+
+### Étape 4 — Vérification end-to-end
+Rejouer KJTOUR_EN sur l'app PRO → 5/5 stops avec sections EN remplies.
 
 ## Fichiers touchés
-Aucun changement de code. Pure orchestration : 1 SELECT + 1 UPDATE optionnel (clean markers) + 1 invoke edge function.
+
+- 1 migration SQL (UPDATE `medina_pois` côté HPP avec traductions EN)
+- Aucun changement UI HPP
+- Côté PRO (cross-project) : 1 edge function temporaire `admin-patch-kjtour-en-sections` ou appel à leur sync existant
+
+## Question avant exécution
+
+Avant de lancer, je propose :
+1. **Étape 1 d'abord** : audit SQL pour voir exactement les trous → te montrer le tableau
+2. Tu valides la liste des champs à traduire
+3. Je génère via `translate` + te montre les traductions EN avant de les persister (politique habituelle "voir le texte avant")
+4. Push DB + sync PRO
+
+OK pour cet ordre ?
 
