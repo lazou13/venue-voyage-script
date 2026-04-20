@@ -1,59 +1,100 @@
 
 
-User confirme : les sections Must See/Must Try/Visit Nearby s'affichent en FR alors que le tour est EN. PRO a déjà fait le diagnostic et propose un plan. Je dois le valider/affiner côté HPP (source de vérité).
+Objectif : rendre le pipeline HPP pilotable, stoppable et réellement utile pour nettoyer la base (doublons, traductions, qualité), au lieu de laisser tourner des boucles opaques qui n’assainissent pas `medina_pois`.
 
-## Diagnostic vérifié
+Constats vérifiés dans le code :
+- `Autopipeline` n’a aucun vrai mécanisme d’arrêt : il enchaîne les étapes sans vérifier de signal d’annulation.
+- `EnrichmentPipelineCard` a un `abortRef`, mais aucun bouton Stop et l’arrêt n’est pas propagé proprement aux statuts.
+- Le bouton `clean/merge` de `/admin/poi-pipeline` appelle `admin-run-cleanup`, mais cette edge function exécute `cleanup_expired_data()` (instances/orders), pas le nettoyage POI.
+- `poi-auto-agent` gère surtout : filtre géo, auto-validation, enrichissement audience, traduction EN, génération bibliothèque. Il ne traite pas les doublons ni le nettoyage qualité.
+- Les sélections batchs ne sont pas toujours ordonnées de façon stable (`poi_quality_score` sans `id ASC` partout), ce qui peut donner une impression de blocage.
+- La page a aussi un warning React sur `Badge` (pas prioritaire, mais facile à corriger pendant l’intervention).
 
-Côté HPP (`medina_pois`), je dois confirmer pour les 5 POIs du KJTOUR :
-- Koutoubia (`eec26470-...`)
-- Madrasa Ben Youssef
-- Souk Semmarine
-- Jardin Secret
-- Jemaa el-Fna
+Plan proposé
 
-Champs à vérifier : `must_see_details_en`, `must_try_en`, `must_visit_nearby_en`, `photo_tip_en`, `price_info_en`, `opening_hours` (JSON avec text_en ?).
+1. Rendre l’autopipeline stoppable côté UI
+- Ajouter un bouton `Stop` sur la bannière de run actif et sur le bouton `Autopipeline`.
+- Utiliser `pipeline_runs.status` existant pour gérer : `running` → `cancel_requested` → `cancelled` ou `completed` (pas besoin de nouveau schéma).
+- Afficher un message clair : “arrêt demandé, fin du batch en cours puis interruption”.
 
-Politique mémoire : EN obligatoire pour tous les POIs validés (`english-enrichment-strategy`). HPP = source de vérité, Production = consommateur via sync.
+2. Refactorer les boucles pour écouter l’arrêt
+- Ajouter une fonction partagée du style `shouldStop(runId)` dans `AdminPOIPipeline`.
+- Vérifier ce flag :
+  - avant chaque étape,
+  - entre chaque batch,
+  - après chaque attente (`setTimeout`),
+  - avant de marquer une étape comme réussie.
+- Si arrêt demandé :
+  - stopper proprement,
+  - mettre à jour `pipeline_runs` avec `status = 'cancelled'`,
+  - conserver les logs et les étapes déjà terminées,
+  - ne pas afficher “succès” trompeur.
 
-## Plan
+3. Corriger le faux nettoyage `clean/merge`
+- Réécrire `admin-run-cleanup` pour qu’il route réellement selon `action` :
+  - `clean` → `clean_low_quality_pois()`
+  - `merge` → `merge_duplicate_pois()`
+- Conserver la vérification admin existante.
+- Retourner des logs/counters exploitables dans l’UI.
 
-### Étape 1 — Audit HPP (lecture SQL)
-Vérifier exactement quels champs `_en` manquent sur les 5 POIs du KJTOUR. Affichage tableau : POI × champ → ✅/❌.
+4. Renforcer la logique de fusion des doublons
+- Faire évoluer `merge_duplicate_pois()` pour une vraie fusion HPP :
+  - choisir un canonical POI,
+  - réassigner les références liées avant fusion (`poi_media`, et toutes les tables qui pointent vers un POI de bibliothèque),
+  - marquer les doublons `merged` et `is_active = false` au minimum.
+- Améliorer la détection :
+  - nom normalisé,
+  - distance,
+  - priorité au meilleur POI (score/avis/contenu),
+  - éviter les faux positifs.
+- Résultat attendu : la base visible côté HPP ne garde qu’un canonique exploitable.
 
-### Étape 2 — Compléter les traductions manquantes côté HPP
-Pour chaque champ `_en` manquant, deux options :
-- **A)** Génération auto via edge function `translate` (Lovable AI Gateway, cf. `supabase/functions/translate/index.ts`) en feed des `_fr` existants
-- **B)** Lancer `poi-auto-agent` (cron qui traduit 20×10 par batch — `autonomous-enrichment-agent`)
+5. Étendre l’agent autonome en “agent de propreté HPP”
+- Ajouter un cycle explicite :
+  1. filtre géographique,
+  2. nettoyage qualité,
+  3. fusion doublons,
+  4. enrichissement,
+  5. complétude EN,
+  6. backfill infos pratiques si manquantes,
+  7. validation/visites.
+- L’agent doit travailler “jusqu’à extinction du backlog” avec limites de sécurité par batch, et retourner un résumé par phase.
+- L’écran `AgentMonitoringCard` affichera les compteurs utiles : doublons fusionnés, POIs filtrés, traductions ajoutées, POIs encore incomplets.
 
-Recommandation : **A** ciblé sur les 5 POIs × 5 champs (≤25 appels), instantané. Validation visuelle rapide.
+6. Fiabiliser les traductions pour HPP
+- Étendre/fiabiliser la complétude EN sur tous les champs enrichis réellement utilisés par le player.
+- Ajouter une gestion explicite de `opening_hours` quand le JSON doit contenir une version EN (`text_en`) au lieu de laisser uniquement du FR.
+- Uniformiser les filtres “FR présent / EN manquant” entre agent et action manuelle `translate-en`.
 
-Migration SQL UPDATE pour persister les traductions générées.
+7. Éviter les faux blocages
+- Ajouter un tri stable sur tous les batchs sensibles : `order("poi_quality_score", { ascending: false }).order("id", { ascending: true })`.
+- Harmoniser les réponses edge functions pour toujours renvoyer des compteurs cohérents (`processed`, `remaining`, `updated`, `logs`).
+- Empêcher l’UI de marquer une étape “terminée” quand elle a été annulée.
 
-### Étape 3 — Sync vers Production
-Deux voies :
-- **API v2 sync route** (`api-v2?route=sync`) — méthode officielle, déjà mappée (`poi-sync-schema-mapping`)
-- **Edge function ad hoc** comme proposé par PRO (`admin-patch-kjtour-en-sections`) — patche directement le JSONB `medina_tours.route`
+8. Correctif annexe sur la page admin
+- Corriger `Badge` avec `React.forwardRef` pour supprimer le warning console sur `/admin/poi-pipeline`.
+- Ce n’est pas la cause métier, mais ça nettoie le debug de la page.
 
-Recommandation : **API v2 sync** d'abord (propre, réutilisable). Si PRO stocke effectivement les sections gelées dans `medina_tours.route` JSONB et ne re-lit pas la table `medina_pois` au runtime, alors ajouter le patch JSONB ciblé pour KJTOUR_EN.
+Détails techniques
+- Fichiers front :
+  - `src/pages/admin/AdminPOIPipeline.tsx`
+  - `src/components/admin/EnrichmentPipelineCard.tsx`
+  - `src/components/admin/AgentMonitoringCard.tsx`
+  - `src/components/ui/badge.tsx`
+- Fichiers backend :
+  - `supabase/functions/admin-run-cleanup/index.ts`
+  - `supabase/functions/poi-auto-agent/index.ts`
+- SQL à revoir :
+  - fonction `clean_low_quality_pois()`
+  - fonction `merge_duplicate_pois()`
+- Pas de nouveau rôle ni changement auth.
+- Pas forcément besoin de nouveau schéma : on peut réutiliser `pipeline_runs.status`, sauf si on veut garder un historique plus fin des demandes d’arrêt.
 
-→ **Question à clarifier** : PRO lit-il `medina_pois` au runtime (sync suffit) ou le JSONB `medina_tours.route` (patch obligatoire) ? Le diagnostic PRO dit clairement "vit sur Production dans medina_tours.route (JSONB)" → il faut **les deux** : sync HPP→PROD + patch JSONB.
-
-### Étape 4 — Vérification end-to-end
-Rejouer KJTOUR_EN sur l'app PRO → 5/5 stops avec sections EN remplies.
-
-## Fichiers touchés
-
-- 1 migration SQL (UPDATE `medina_pois` côté HPP avec traductions EN)
-- Aucun changement UI HPP
-- Côté PRO (cross-project) : 1 edge function temporaire `admin-patch-kjtour-en-sections` ou appel à leur sync existant
-
-## Question avant exécution
-
-Avant de lancer, je propose :
-1. **Étape 1 d'abord** : audit SQL pour voir exactement les trous → te montrer le tableau
-2. Tu valides la liste des champs à traduire
-3. Je génère via `translate` + te montre les traductions EN avant de les persister (politique habituelle "voir le texte avant")
-4. Push DB + sync PRO
-
-OK pour cet ordre ?
+Résultat attendu après implémentation
+- Un run autopipeline peut être stoppé proprement depuis l’admin.
+- Le bouton `clean/merge` agit enfin sur les POIs.
+- L’agent autonome devient un vrai agent d’assainissement HPP.
+- Les doublons diminuent réellement.
+- Les traductions EN manquantes sont comblées de façon systématique.
+- La base HPP devient cohérente, propre et exploitable comme source de vérité.
 
