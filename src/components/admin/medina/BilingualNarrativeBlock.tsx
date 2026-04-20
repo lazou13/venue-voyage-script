@@ -60,10 +60,10 @@ export function BilingualNarrativeBlock({ poi, onSave }: Props) {
     setTranslating(String(enKey));
     try {
       const { data, error } = await supabase.functions.invoke('translate', {
-        body: { text, source_lang: 'fr', target_lang: 'en' },
+        body: { text, from: 'fr', to: 'en' },
       });
       if (error) throw error;
-      const translated = (data as any)?.translated_text || (data as any)?.translation || (data as any)?.text;
+      const translated = (data as any)?.translated;
       if (!translated) throw new Error('Aucune traduction reçue');
       setField(enKey, translated);
       onSave({ [enKey]: translated } as Partial<MedinaPOI>);
@@ -86,10 +86,10 @@ export function BilingualNarrativeBlock({ poi, onSave }: Props) {
       if (fr.trim() && !en.trim()) {
         try {
           const { data, error } = await supabase.functions.invoke('translate', {
-            body: { text: fr, source_lang: 'fr', target_lang: 'en' },
+            body: { text: fr, from: 'fr', to: 'en' },
           });
           if (error) throw error;
-          const t = (data as any)?.translated_text || (data as any)?.translation || (data as any)?.text;
+          const t = (data as any)?.translated;
           if (t) {
             patch[f.en] = t as any;
             setField(f.en, t);
