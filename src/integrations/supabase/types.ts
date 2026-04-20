@@ -593,6 +593,7 @@ export type Database = {
           instagram_spot: boolean | null
           instagram_tips: string | null
           is_active: boolean
+          is_main_visit: boolean
           is_photo_spot: boolean | null
           is_start_hub: boolean
           last_enriched_at: string | null
@@ -722,6 +723,7 @@ export type Database = {
           instagram_spot?: boolean | null
           instagram_tips?: string | null
           is_active?: boolean
+          is_main_visit?: boolean
           is_photo_spot?: boolean | null
           is_start_hub?: boolean
           last_enriched_at?: string | null
@@ -851,6 +853,7 @@ export type Database = {
           instagram_spot?: boolean | null
           instagram_tips?: string | null
           is_active?: boolean
+          is_main_visit?: boolean
           is_photo_spot?: boolean | null
           is_start_hub?: boolean
           last_enriched_at?: string | null

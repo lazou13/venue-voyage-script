@@ -17,9 +17,12 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink, MapPin, StickyNote, Navigation, CheckCircle, RotateCcw, Map as MapIcon, List, ShieldCheck, AlertTriangle,
+  Plus, Trash2, Image, Mic, Video, Star, Loader2, Upload, ExternalLink, MapPin, StickyNote, Navigation, CheckCircle, RotateCcw, Map as MapIcon, List, ShieldCheck, AlertTriangle, Sparkles,
 } from 'lucide-react';
 import POIFeaturesSection, { type POIFeatures, emptyFeatures } from '@/components/admin/POIFeaturesSection';
+import { BilingualNarrativeBlock } from '@/components/admin/medina/BilingualNarrativeBlock';
+import { AudioGuideBlock } from '@/components/admin/medina/AudioGuideBlock';
+import { SaveStatusBadge } from '@/components/admin/medina/SaveStatusBadge';
 
 // ─── Validation eligibility check ───────────────────────────
 function isEligibleForValidation(poi: MedinaPOI): { eligible: boolean; reasons: string[] } {
@@ -104,6 +107,11 @@ function POIListItem({
           <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">Filtré</Badge>
         ) : (
           <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-muted text-muted-foreground border-border">Draft</Badge>
+        )}
+        {poi.is_main_visit && (
+          <Badge className="text-[10px] px-1.5 py-0 bg-amber-400 text-amber-950 border-amber-400">
+            ⭐ Principal
+          </Badge>
         )}
         {poi.is_start_hub && (
           <Badge className="text-[10px] px-1.5 py-0 bg-amber-500 text-white border-amber-500">
@@ -416,6 +424,19 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
         )}
       </div>
 
+      {/* Main visit toggle (source de vérité PRO) */}
+      <div className="flex items-center gap-3 rounded-lg border-2 border-amber-400/50 bg-amber-50/50 dark:bg-amber-950/20 p-3">
+        <Sparkles className="w-5 h-5 text-amber-500 shrink-0" />
+        <div className="flex-1">
+          <Label className="font-semibold">POI Principal de visite ⭐</Label>
+          <p className="text-xs text-muted-foreground">Source de vérité utilisée par Quest Rides PRO pour générer les visites guidées.</p>
+        </div>
+        <Switch
+          checked={!!form.is_main_visit}
+          onCheckedChange={(v) => { set('is_main_visit', v); setTimeout(save, 0); }}
+        />
+      </div>
+
       {/* Note / memo */}
       <div>
         <Label className="flex items-center gap-1 mb-1">
@@ -435,7 +456,16 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
 
       <Separator />
 
-      {/* Media tabs */}
+      {/* Bilingual narrative + audio (visible for ALL POIs but highlighted for main visits) */}
+      {form.is_main_visit && (
+        <>
+          <BilingualNarrativeBlock poi={form} onSave={(patch) => onUpdate(poi.id, patch)} />
+          <AudioGuideBlock poi={form} onRefresh={() => onUpdate(poi.id, {})} />
+          <Separator />
+        </>
+      )}
+
+
       <div>
         <h3 className="text-sm font-semibold mb-3">Médiathèque</h3>
         <Tabs defaultValue="photo">
@@ -509,6 +539,7 @@ function StatsBar({ pois }: { pois: MedinaPOI[] }) {
   return (
     <div className="flex gap-4 text-xs text-muted-foreground px-1 pb-2 flex-wrap">
       <span><strong className="text-foreground">{pois.length}</strong> total</span>
+      <span><strong className="text-amber-500">{pois.filter(p => p.is_main_visit).length}</strong> ⭐ principaux</span>
       <span><strong className="text-emerald-600">{validated}</strong> validés</span>
       <span><strong className="text-blue-600">{enriched}</strong> enrichis</span>
       <span><strong className="text-violet-600">{classified}</strong> classifiés</span>
@@ -528,11 +559,13 @@ export default function AdminMedinaPOIs() {
   const [placeMode, setPlaceMode] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [scope, setScope] = useState<'all' | 'main'>('all');
   const [bulkValidating, setBulkValidating] = useState(false);
 
   const selectedPOI = pois.find((p) => p.id === selectedId) ?? null;
 
   const filteredPois = pois.filter(p => {
+    if (scope === 'main' && !p.is_main_visit) return false;
     if (statusFilter !== 'all' && p.status !== statusFilter) return false;
     if (!search) return true;
     const s = search.toLowerCase();
@@ -614,6 +647,20 @@ export default function AdminMedinaPOIs() {
       {/* Top bar */}
       <div className="flex items-center gap-3 flex-wrap">
         <h2 className="font-semibold text-sm shrink-0">Bibliothèque Médina</h2>
+        <div className="inline-flex rounded-md border border-border bg-muted p-0.5">
+          <button
+            onClick={() => setScope('all')}
+            className={`px-3 h-7 text-xs rounded ${scope === 'all' ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            Tous
+          </button>
+          <button
+            onClick={() => setScope('main')}
+            className={`px-3 h-7 text-xs rounded inline-flex items-center gap-1 ${scope === 'main' ? 'bg-background shadow-sm font-medium text-amber-600' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <Sparkles className="w-3 h-3" /> Principaux ({pois.filter(p => p.is_main_visit).length})
+          </button>
+        </div>
         <Input
           placeholder="Rechercher POI, zone, catégorie..."
           className="h-8 text-sm max-w-xs"
@@ -720,11 +767,19 @@ export default function AdminMedinaPOIs() {
         {/* Right: Editor */}
         {selectedPOI && (
           <Card className="flex-1 min-h-0 overflow-auto">
-            <div className="p-4 space-y-1 border-b border-border flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-sm truncate">{selectedPOI.name}</h3>
+            <div className="p-4 space-y-1 border-b border-border flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="font-semibold text-sm truncate flex items-center gap-2">
+                  {selectedPOI.is_main_visit && <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
+                  {selectedPOI.name}
+                </h3>
                 <p className="text-xs text-muted-foreground">{selectedPOI.category} · {selectedPOI.zone}</p>
               </div>
+              <SaveStatusBadge
+                isPending={update.isPending}
+                isError={update.isError}
+                lastSavedAt={update.isSuccess ? (update.submittedAt ?? null) : null}
+              />
               {viewMode === 'map' && (
                 <Button
                   size="sm"
