@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Languages, Loader2, Wand2 } from 'lucide-react';
+import { Languages, Loader2, Wand2, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { MedinaPOI } from '@/hooks/useMedinaPOIs';
@@ -10,10 +11,9 @@ import type { MedinaPOI } from '@/hooks/useMedinaPOIs';
 const FIELDS: { fr: keyof MedinaPOI; en: keyof MedinaPOI; label: string; rows?: number }[] = [
   { fr: 'history_context', en: 'history_context_en', label: 'Contexte historique', rows: 4 },
   { fr: 'local_anecdote_fr', en: 'local_anecdote_en', label: 'Anecdote locale', rows: 3 },
-  { fr: 'fun_fact_fr', en: 'fun_fact_en', label: 'Fait amusant', rows: 2 },
-  { fr: 'must_see_details', en: 'must_see_details_en', label: 'À ne pas manquer', rows: 3 },
-  { fr: 'must_try', en: 'must_try_en', label: 'À essayer', rows: 2 },
-  { fr: 'must_visit_nearby', en: 'must_visit_nearby_en', label: 'À visiter à proximité', rows: 2 },
+  { fr: 'must_see_details', en: 'must_see_details_en', label: 'À voir (détails)', rows: 3 },
+  { fr: 'must_try', en: 'must_try_en', label: 'À tester / goûter', rows: 2 },
+  { fr: 'must_visit_nearby', en: 'must_visit_nearby_en', label: 'À voir à proximité', rows: 2 },
   { fr: 'photo_tip', en: 'photo_tip_en', label: 'Conseil photo', rows: 2 },
   { fr: 'price_info', en: 'price_info_en', label: 'Tarifs', rows: 1 },
   { fr: 'best_time_visit', en: 'best_time_visit_en', label: 'Meilleur moment', rows: 1 },
@@ -113,9 +113,15 @@ export function BilingualNarrativeBlock({ poi, onSave }: Props) {
         </h3>
         <Button size="sm" variant="outline" onClick={translateAll} disabled={translatingAll}>
           {translatingAll ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Wand2 className="w-3.5 h-3.5 mr-1" />}
-          Tout traduire
+          Tout retraduire FR → EN
         </Button>
       </div>
+      <p className="text-[11px] text-muted-foreground -mt-2">
+        Politique : écrire en français. L'anglais est généré par traduction du français.
+      </p>
+
+      <FunFactsBilingualEditor poi={poi} onSave={onSave} />
+
 
       {FIELDS.map((f) => {
         const frVal = get(f.fr);
@@ -137,7 +143,8 @@ export function BilingualNarrativeBlock({ poi, onSave }: Props) {
                 <Textarea
                   value={enVal}
                   rows={f.rows ?? 2}
-                  placeholder="English…"
+                  placeholder={frVal.trim() ? 'English (traduction)…' : "Renseignez d'abord le FR"}
+                  disabled={!frVal.trim()}
                   onChange={(e) => setField(f.en, e.target.value)}
                   onBlur={() => flushField(f.en)}
                   className="text-sm"
@@ -160,6 +167,93 @@ export function BilingualNarrativeBlock({ poi, onSave }: Props) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ─── Fun Facts bilingues ───────────────────────────────────
+interface FFItem { fr: string; en: string }
+
+function FunFactsBilingualEditor({ poi, onSave }: { poi: MedinaPOI; onSave: (patch: Partial<MedinaPOI>) => void }) {
+  const { toast } = useToast();
+  const initial: FFItem[] = Array.isArray((poi as any).fun_facts_bilingual)
+    ? ((poi as any).fun_facts_bilingual as FFItem[])
+    : [];
+  const [items, setItems] = useState<FFItem[]>(initial);
+  const [translatingIdx, setTranslatingIdx] = useState<number | null>(null);
+
+  const flush = (next: FFItem[]) => {
+    setItems(next);
+    onSave({ fun_facts_bilingual: next } as any);
+  };
+  const update = (i: number, patch: Partial<FFItem>) =>
+    setItems(items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)));
+  const flushIdx = () => onSave({ fun_facts_bilingual: items } as any);
+  const add = () => flush([...items, { fr: '', en: '' }]);
+  const remove = (i: number) => flush(items.filter((_, idx) => idx !== i));
+
+  const translate = async (i: number) => {
+    const fr = items[i]?.fr?.trim();
+    if (!fr) return;
+    setTranslatingIdx(i);
+    try {
+      const { data, error } = await supabase.functions.invoke('translate', { body: { text: fr, from: 'fr', to: 'en' } });
+      if (error) throw error;
+      const t = (data as any)?.translated || (data as any)?.translation || (data as any)?.text;
+      if (!t) throw new Error('Aucune traduction');
+      flush(items.map((it, idx) => (idx === i ? { ...it, en: t } : it)));
+    } catch (err) {
+      toast({ title: 'Erreur traduction', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setTranslatingIdx(null);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded-md border border-dashed border-border p-3 bg-background/50">
+      <div className="flex items-center justify-between">
+        <Label className="text-xs font-semibold">Fun facts (3-5 puces, FR + EN)</Label>
+        <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={add} disabled={items.length >= 5}>
+          <Plus className="w-3 h-3 mr-1" /> Ajouter
+        </Button>
+      </div>
+      {items.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground italic">Aucun fun fact. Cliquez "Ajouter" ou utilisez l'agent IA.</p>
+      ) : (
+        items.map((it, i) => (
+          <div key={i} className="grid grid-cols-[1fr_1fr_auto] gap-2 items-start">
+            <Input
+              value={it.fr}
+              onChange={(e) => update(i, { fr: e.target.value })}
+              onBlur={flushIdx}
+              placeholder="Fait FR (chiffre, date, détail précis)"
+              className="h-8 text-xs"
+            />
+            <div className="space-y-1">
+              <Input
+                value={it.en}
+                onChange={(e) => update(i, { en: e.target.value })}
+                onBlur={flushIdx}
+                disabled={!it.fr.trim()}
+                placeholder={it.fr.trim() ? 'English' : "FR d'abord"}
+                className="h-8 text-xs"
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-5 text-[10px] w-full"
+                disabled={!it.fr.trim() || translatingIdx === i}
+                onClick={() => translate(i)}
+              >
+                {translatingIdx === i ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Languages className="w-3 h-3 mr-1" /> Traduire</>}
+              </Button>
+            </div>
+            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => remove(i)}>
+              <Trash2 className="w-3 h-3" />
+            </Button>
+          </div>
+        ))
+      )}
     </div>
   );
 }
