@@ -126,9 +126,25 @@ export default function AgentMonitoringCard() {
               Forcer une exécution
             </Button>
           </div>
-          <CardDescription>Enrichit les POIs et génère la bibliothèque de visites automatiquement (cron horaire)</CardDescription>
+          <CardDescription>Nettoie, fusionne, enrichit et traduit la base. 1 cycle = hygiène + enrichissement + traduction EN + génération bibliothèque.</CardDescription>
         </CardHeader>
         <CardContent>
+          {hygieneSummary && (
+            <div className="grid grid-cols-3 gap-3 mb-3 text-sm">
+              <div className="text-center p-2 bg-destructive/10 rounded-md">
+                <p className="text-xl font-bold text-foreground">{hygieneSummary.filtered}</p>
+                <p className="text-muted-foreground text-xs">POIs filtrés (qualité)</p>
+              </div>
+              <div className="text-center p-2 bg-primary/10 rounded-md">
+                <p className="text-xl font-bold text-foreground">{hygieneSummary.merged}</p>
+                <p className="text-muted-foreground text-xs">Doublons fusionnés</p>
+              </div>
+              <div className="text-center p-2 bg-accent/30 rounded-md">
+                <p className="text-xl font-bold text-foreground">{hygieneSummary.translated}</p>
+                <p className="text-muted-foreground text-xs">Traduits EN</p>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
             <div className="text-center p-2 bg-muted rounded-md">
               <p className="text-xl font-bold text-foreground">{pctEnrichedAgent}%</p>
