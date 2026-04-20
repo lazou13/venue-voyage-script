@@ -106,14 +106,18 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
 
   try {
-    // Read pagination params
     const body = await req.json().catch(() => ({}));
     const typeOffset = Number(body.type_offset ?? 0);
-    const typesPerBatch = Number(body.types_per_batch ?? 3);
+    const typesPerBatch = Number(body.types_per_batch ?? 1);
+    const pointOffset = Number(body.point_offset ?? 0);
+    const pointsPerBatch = Number(body.points_per_batch ?? 10);
 
     const typesSlice = TYPES.slice(typeOffset, typeOffset + typesPerBatch);
-    const hasMore = typeOffset + typesPerBatch < TYPES.length;
-    const nextOffset = hasMore ? typeOffset + typesPerBatch : null;
+    const pointsSlice = MEDINA_POINTS.slice(pointOffset, pointOffset + pointsPerBatch);
+    const hasMorePoints = pointOffset + pointsPerBatch < MEDINA_POINTS.length;
+    const hasMoreTypes = typeOffset + typesPerBatch < TYPES.length;
+    const nextPointOffset = hasMorePoints ? pointOffset + pointsPerBatch : null;
+    const nextTypeOffset = hasMorePoints ? typeOffset : (hasMoreTypes ? typeOffset + typesPerBatch : null);
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
     const logs: string[] = [];
@@ -121,10 +125,10 @@ serve(async (req) => {
     let totalInserted = 0;
     let totalDuplicates = 0;
 
-    logs.push(`📦 Batch: types ${typeOffset + 1}–${typeOffset + typesSlice.length}/${TYPES.length} (${typesSlice.join(", ")})`);
+    logs.push(`📦 Batch: types ${typeOffset + 1}–${typeOffset + typesSlice.length}/${TYPES.length} (${typesSlice.join(", ")}), points ${pointOffset + 1}–${pointOffset + pointsSlice.length}/${MEDINA_POINTS.length}`);
 
     for (const type of typesSlice) {
-      for (const point of MEDINA_POINTS) {
+      for (const point of pointsSlice) {
         let pageToken: string | undefined;
         let page = 0;
         let pointResults = 0;
@@ -193,9 +197,13 @@ serve(async (req) => {
         success: true,
         types_processed: typesSlice.length,
         type_offset: typeOffset,
-        next_offset: nextOffset,
+        point_offset: pointOffset,
+        next_type_offset: nextTypeOffset,
+        next_point_offset: nextPointOffset,
+        has_more: hasMorePoints || hasMoreTypes,
         total_types: TYPES.length,
-        points_processed: MEDINA_POINTS.length,
+        total_points: MEDINA_POINTS.length,
+        points_processed: pointsSlice.length,
         total_inserted: totalInserted,
         total_skipped: totalDuplicates,
         unique_places: seenPlaceIds.size,

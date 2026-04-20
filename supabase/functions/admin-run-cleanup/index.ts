@@ -13,20 +13,12 @@ const json = (body: unknown, status: number) =>
   });
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-
-  if (req.method !== "POST") {
-    return json({ error: "Method not allowed" }, 405);
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    // Verify admin role via Authorization header
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return json({ error: "Unauthorized" }, 401);
-    }
+    if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -34,7 +26,6 @@ Deno.serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
 
-    // Verify user via anon client with their token
     const supabaseUser = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
@@ -43,33 +34,50 @@ Deno.serve(async (req) => {
 
     const token = authHeader.replace("Bearer ", "");
     const { data: claimsData, error: claimsErr } = await supabaseUser.auth.getClaims(token);
-    if (claimsErr || !claimsData?.claims) {
-      return json({ error: "Unauthorized" }, 401);
-    }
+    if (claimsErr || !claimsData?.claims) return json({ error: "Unauthorized" }, 401);
 
     const userId = claimsData.claims.sub;
-
-    // Check admin role
     const { data: isAdmin } = await supabaseAdmin.rpc("has_role", {
       _user_id: userId,
       _role: "admin",
     });
+    if (!isAdmin) return json({ error: "Forbidden: admin role required" }, 403);
 
-    if (!isAdmin) {
-      return json({ error: "Forbidden: admin role required" }, 403);
+    const body = await req.json().catch(() => ({} as Record<string, unknown>));
+    const action = (body.action as string) ?? "all";
+    const logs: string[] = [];
+    const results: Record<string, unknown> = {};
+
+    const runOne = async (rpcName: string, label: string) => {
+      logs.push(`▶ ${label}…`);
+      const { data, error } = await supabaseAdmin.rpc(rpcName as any);
+      if (error) {
+        logs.push(`❌ ${label}: ${error.message}`);
+        results[rpcName] = { error: error.message };
+        return;
+      }
+      results[rpcName] = data;
+      logs.push(`✅ ${label}: ${JSON.stringify(data)}`);
+    };
+
+    if (action === "clean" || action === "all") {
+      await runOne("clean_low_quality_pois", "Nettoyage POIs faible qualité");
+    }
+    if (action === "merge" || action === "all") {
+      await runOne("merge_duplicate_pois", "Fusion doublons POIs");
+    }
+    if (action === "expired") {
+      await runOne("cleanup_expired_data", "Suppression données expirées");
     }
 
-    // Run cleanup via RPC
-    const { data: result, error: rpcErr } = await supabaseAdmin.rpc("cleanup_expired_data");
-
-    if (rpcErr) {
-      console.error("Cleanup RPC error:", rpcErr);
-      return json({ error: "Cleanup failed" }, 500);
+    if (Object.keys(results).length === 0) {
+      return json({ error: `Unknown action: ${action}. Use clean, merge, all, expired.` }, 400);
     }
 
-    return json({ ok: true, result }, 200);
-  } catch (e: any) {
+    return json({ ok: true, action, logs, results }, 200);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Internal error";
     console.error("admin-run-cleanup error:", e);
-    return json({ error: "Internal error" }, 500);
+    return json({ error: msg }, 500);
   }
 });

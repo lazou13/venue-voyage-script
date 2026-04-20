@@ -579,6 +579,7 @@ export type Database = {
           fun_fact_en: string | null
           fun_fact_fr: string | null
           fun_facts: Json | null
+          fun_facts_bilingual: Json
           geom: unknown
           google_raw: Json | null
           guided_tour_score: number | null
@@ -593,6 +594,7 @@ export type Database = {
           instagram_spot: boolean | null
           instagram_tips: string | null
           is_active: boolean
+          is_main_visit: boolean
           is_photo_spot: boolean | null
           is_start_hub: boolean
           last_enriched_at: string | null
@@ -661,6 +663,7 @@ export type Database = {
           unesco_status: boolean | null
           updated_at: string
           validated_at: string | null
+          video_urls: Json
           visit_count: number | null
           visit_route: Json | null
           visitor_tips: Json | null
@@ -708,6 +711,7 @@ export type Database = {
           fun_fact_en?: string | null
           fun_fact_fr?: string | null
           fun_facts?: Json | null
+          fun_facts_bilingual?: Json
           geom?: unknown
           google_raw?: Json | null
           guided_tour_score?: number | null
@@ -722,6 +726,7 @@ export type Database = {
           instagram_spot?: boolean | null
           instagram_tips?: string | null
           is_active?: boolean
+          is_main_visit?: boolean
           is_photo_spot?: boolean | null
           is_start_hub?: boolean
           last_enriched_at?: string | null
@@ -790,6 +795,7 @@ export type Database = {
           unesco_status?: boolean | null
           updated_at?: string
           validated_at?: string | null
+          video_urls?: Json
           visit_count?: number | null
           visit_route?: Json | null
           visitor_tips?: Json | null
@@ -837,6 +843,7 @@ export type Database = {
           fun_fact_en?: string | null
           fun_fact_fr?: string | null
           fun_facts?: Json | null
+          fun_facts_bilingual?: Json
           geom?: unknown
           google_raw?: Json | null
           guided_tour_score?: number | null
@@ -851,6 +858,7 @@ export type Database = {
           instagram_spot?: boolean | null
           instagram_tips?: string | null
           is_active?: boolean
+          is_main_visit?: boolean
           is_photo_spot?: boolean | null
           is_start_hub?: boolean
           last_enriched_at?: string | null
@@ -919,6 +927,7 @@ export type Database = {
           unesco_status?: boolean | null
           updated_at?: string
           validated_at?: string | null
+          video_urls?: Json
           visit_count?: number | null
           visit_route?: Json | null
           visitor_tips?: Json | null

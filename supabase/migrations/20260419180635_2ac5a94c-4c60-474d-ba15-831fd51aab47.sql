@@ -1,0 +1,2 @@
+UPDATE poi_media SET medina_poi_id = 'b11998e9-0650-4bec-a7ee-77ef25564bfa' WHERE medina_poi_id = '4a3a523a-f29c-4459-884f-1a585942d23b';
+DELETE FROM medina_pois WHERE id = '4a3a523a-f29c-4459-884f-1a585942d23b';

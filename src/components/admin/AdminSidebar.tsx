@@ -16,6 +16,7 @@ const navItems = [
   { to: '/admin/health', label: 'Santé', icon: HeartPulse },
   { to: '/admin/experience-page', label: 'Page Expérience', icon: Sparkles },
   { to: '/admin/api-keys', label: 'Clés API', icon: Key },
+  { to: '/admin/agent-chat', label: 'Agent Chat', icon: Bot },
   { to: '/admin/enums', label: 'Enums', icon: List },
   { to: '/admin/docs', label: 'Documentation', icon: BookOpen },
 ];

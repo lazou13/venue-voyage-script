@@ -279,6 +279,51 @@ async function handleSyncPois(url: URL) {
   return { pois: pois || [], total, limit, offset, has_more: offset + limit < total };
 }
 
+// ── Route: main-visits (POIs principaux validés, source de vérité PRO) ──
+async function handleMainVisits(url: URL) {
+  const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "100"), 1), 200);
+  const offset = Math.max(parseInt(url.searchParams.get("offset") || "0"), 0);
+
+  const { data: pois, count, error } = await supabaseAdmin
+    .from("medina_pois")
+    .select(SYNC_COLS + ", history_context_en, fun_fact_fr, fun_fact_en, must_see_details, must_see_details_en, must_try, must_try_en, must_visit_nearby, must_visit_nearby_en, photo_tip, photo_tip_en, accessibility_notes, accessibility_notes_en, wikipedia_summary, wikipedia_summary_en, is_main_visit, hub_theme, audience_tags, route_tags, step_config, audio_url_fr, audio_url_en, anecdote_audio_url_fr, anecdote_audio_url_en", { count: "exact" })
+    .eq("is_main_visit", true)
+    .eq("is_active", true)
+    .eq("status", "validated")
+    .not("lat", "is", null)
+    .not("lng", "is", null)
+    .order("name")
+    .range(offset, offset + limit - 1);
+
+  if (error) return { error: error.message, pois: [], total: 0 };
+
+  // Attach photos
+  const ids = (pois ?? []).map((p: any) => p.id);
+  let mediaByPoi: Record<string, any[]> = {};
+  if (ids.length) {
+    const { data: media } = await supabaseAdmin
+      .from("poi_media")
+      .select("medina_poi_id, storage_path, storage_bucket, media_type, caption, is_cover, sort_order")
+      .in("medina_poi_id", ids)
+      .eq("media_type", "photo")
+      .order("sort_order");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    for (const m of media ?? []) {
+      const url = `${supabaseUrl}/storage/v1/object/public/${m.storage_bucket}/${m.storage_path}`;
+      (mediaByPoi[m.medina_poi_id] ||= []).push({ url, caption: m.caption, is_cover: m.is_cover });
+    }
+  }
+
+  const enriched = (pois ?? []).map((p: any) => ({
+    ...p,
+    display_name: p.name_fr || p.name || p.name_en || '',
+    images: mediaByPoi[p.id] ?? [],
+  }));
+
+  const total = count || 0;
+  return { pois: enriched, total, limit, offset, has_more: offset + limit < total };
+}
+
 // ── Haversine ────────────────────────────────────────────────────
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
@@ -340,5 +385,11 @@ Deno.serve(async (req) => {
     return jsonResponse(result, 200, allHeaders);
   }
 
-  return jsonResponse({ error: "Unknown route. Use ?route=pois or ?route=poi&id=... or ?route=sync" }, 400, allHeaders);
+  if (route === "main-visits") {
+    const result = await handleMainVisits(url);
+    if (result.error) return jsonResponse({ error: result.error }, 500, allHeaders);
+    return jsonResponse(result, 200, allHeaders);
+  }
+
+  return jsonResponse({ error: "Unknown route. Use ?route=pois | poi&id=... | sync | main-visits" }, 400, allHeaders);
 });

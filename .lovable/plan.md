@@ -1,56 +1,54 @@
 
 
-# Plan : Synchronisation automatique HPP → QRP
+## Compréhension
 
-## Diagnostic
+Tous les POIs doivent afficher leur nom en français par défaut dans l'admin (et partout où ils s'affichent), sans exception. Aujourd'hui, la colonne `name` contient un mélange (anglais OSM, transcriptions arabes, français…), et `name_fr` n'est rempli que pour une partie.
 
-QRP possède sa **propre copie** de la table `medina_pois` (alimentée initialement par `osm-extractor`). Cette copie n'est **jamais mise à jour** depuis HPP. Quand on fusionne Koutoubia, génère des audios, ou renomme un POI dans HPP, QRP ne le voit pas.
+## Vérifications rapides
 
-QRP a deux sources de données POI :
-- `medina-library` → lit sa propre DB locale (données périmées)
-- `hunt-planer-proxy` → appelle HPP `public-project-data?mode=library` (données fraîches mais pas utilisées pour les tours locaux)
+Avant action :
+- `SELECT count(*) FROM medina_pois WHERE name_fr IS NULL OR name_fr = '';`
+- `SELECT count(*) FROM medina_pois WHERE name_fr IS NOT NULL AND name_fr <> name;` (combien diffèrent)
+- Échantillon de 30 noms `name` vs `name_fr` pour cibler les patterns à traduire (Mosque→Mosquée, Garden→Jardin, Tomb→Tombeau, Palace→Palais, Gate→Bab, Square→Place, Fountain→Fontaine, Madrasa/Medersa, Souk…).
 
-## Solution
+## Plan
 
-Créer une **Edge Function de sync** dans HPP qui expose un endpoint dédié, puis côté QRP, une Edge Function qui consomme cet endpoint et met à jour sa `medina_pois` locale.
+### 1. Backfill `name_fr` (INSERT tool — données)
+Stratégie en cascade, sans écraser ce qui est déjà bon :
 
-### Étape 1 — Enrichir l'API sync de HPP (ce projet)
+**Étape A — Mappings déterministes** (couvre 80 % des cas) :
+Remplacements regex côté SQL sur `name` quand `name_fr` est vide :
+- `Mosque` → `Mosquée`, `Madrasa|Medersa` → `Médersa`, `Palace` → `Palais`, `Garden(s)?` → `Jardin(s)`, `Tomb(s)?` → `Tombeau(x)`, `Gate` → `Bab`, `Square` → `Place`, `Fountain` → `Fontaine`, `Museum` → `Musée`, `Market` → `Marché`, `Tannery|Tanneries` → `Tanneries`, `Hammam` → `Hammam`, `Fondouk|Funduq` → `Fondouk`, `Souk|Souq` → `Souk`, `of `→ `de `, `the `→ `` (en début), apostrophes ASCII normalisées.
+- Whitelist d'incontournables forcés : Koutoubia, Jemaa el-Fna, Médersa Ben Youssef, Palais Bahia, Palais El Badi, Tombeaux Saadiens, Jardin Majorelle, Le Jardin Secret, Dar Si Said, Maison de la Photographie, Musée de Marrakech, Bab Agnaou, Place des Épices (Rahba Kedima), Mosquée Ben Salah, Mosquée Mouassine, Koubba Almoravide, Tanneries, Menara, Agdal, Mellah, Souk Semmarine / Attarine / Smata / Cherratine / Sebbaghine / Haddadine / Chouari / Kimakhine / Zrabi / Kchachbia.
 
-L'API v2 (`api-v2?route=sync`) existe déjà. Vérifier qu'elle expose bien :
-- `audio_url_fr`, `audio_url_en`, `anecdote_audio_url_fr`, `anecdote_audio_url_en`
-- `name`, `name_fr`, `name_en`, `category`, `is_active`, `status`
-- `is_start_hub`, `hub_theme`
+**Étape B — Fallback** : pour les POIs qui restent sans `name_fr` après A, copier `name` dans `name_fr` (mieux qu'un vide), puis les marquer `metadata.fr_name_needs_review = true` pour traitement IA ultérieur.
 
-Si des champs audio manquent, les ajouter au SELECT de la route sync.
+**Étape C — `name` = `name_fr`** (la vraie demande) : `UPDATE medina_pois SET name = name_fr WHERE name_fr IS NOT NULL AND name_fr <> '';`
+Ainsi la colonne `name` (utilisée partout dans l'UI) est en FR par défaut, conformément à la demande.
 
-### Étape 2 — Créer une Edge Function `sync-from-hpp` dans QRP
+### 2. Politique côté code (FR-first à l'affichage)
+Petit helper `getDisplayName(poi)` retournant `name_fr || name` — branché dans :
+- `AdminMedinaPOIs.tsx` (liste + entête de fiche)
+- `MedinaMap.tsx` (popups)
+- `BilingualNarrativeBlock.tsx` (titre)
+- `api-v2` route `main-visits` : exposer `display_name = name_fr || name` en plus de `name` et `name_en`.
 
-Une Edge Function dans QRP qui :
-1. Appelle HPP `public-project-data?mode=library` (ou `api-v2?route=sync`)
-2. Pour chaque POI retourné, fait un `UPSERT` dans sa propre `medina_pois` sur la colonne `id` (même UUID)
-3. Désactive les POIs locaux qui n'apparaissent plus côté HPP (`is_active = false`)
-4. Log le résultat (nombre de POIs créés/mis à jour/désactivés)
+### 3. Garde-fou nouveau POI
+Dans `useMedinaPOIs.create`, si `name_fr` n'est pas fourni → le remplir avec `name`. Et `name` devient `name_fr` en source.
 
-### Étape 3 — Faire tourner manuellement ou en cron
+### 4. Mémoire
+Mettre à jour `mem://features/poi-library/naming-policy-latin-only` avec : politique FR-first, ordre de fallback `name_fr → name → name_en`, helper `getDisplayName`.
 
-Ajouter un bouton dans l'admin QRP ou un cron job pour déclencher la sync.
+## Fichiers touchés
 
-### Action immédiate (sans attendre la sync automatique)
+- INSERT (data) : backfill `name_fr` + alignement `name = name_fr`
+- `src/lib/poiDisplay.ts` (nouveau, helper `getDisplayName`)
+- `src/pages/admin/AdminMedinaPOIs.tsx` — liste + titre fiche
+- `src/components/admin/MedinaMap.tsx` — popups
+- `src/components/admin/medina/BilingualNarrativeBlock.tsx` — titre
+- `src/hooks/useMedinaPOIs.ts` — defaut `name_fr` à la création
+- `supabase/functions/api-v2/index.ts` — `display_name` dans `main-visits`
+- `mem://features/poi-library/naming-policy-latin-only.md`
 
-En attendant l'implémentation complète dans QRP, on peut **corriger manuellement les 5 POIs** dans la DB de QRP via le `hunt-planer-proxy` existant ou en demandant directement à QRP de faire les corrections SQL.
-
-## Fichiers à modifier
-
-| Projet | Fichier | Action |
-|--------|---------|--------|
-| HPP | `supabase/functions/api-v2/index.ts` | Vérifier que la route sync inclut les champs audio |
-| HPP | `supabase/functions/public-project-data/index.ts` | Vérifier que mode=library expose les audio_url |
-| QRP | Nouveau `supabase/functions/sync-from-hpp/index.ts` | Edge Function de sync |
-| QRP | `supabase/functions/medina-library/index.ts` | Ajouter les champs audio au SELECT |
-
-## Détails techniques
-
-- Le `public-project-data?mode=library` expose déjà les champs `audio_url_fr/en` et `anecdote_audio_url_fr/en` (vérifié dans le code).
-- L'upsert dans QRP utilisera `ON CONFLICT (id)` pour mettre à jour les POIs existants.
-- Les champs à synchroniser : `name`, `name_fr`, `name_en`, `category`, `is_active`, `status`, `audio_url_fr`, `audio_url_en`, `anecdote_audio_url_fr`, `anecdote_audio_url_en`, `history_context`, `history_context_en`, `local_anecdote`, `local_anecdote_en`, `is_start_hub`.
+Aucune migration de schéma. Aucun nouvel index. Pas de nouvelle dépendance.
 
