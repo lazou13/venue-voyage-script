@@ -6,6 +6,7 @@ const navItems = [
   { to: '/admin/dashboard', label: 'Tableau de bord', icon: BarChart3 },
   { to: '/admin/medina-pois', label: 'Bibliothèque POI', icon: MapPin },
   { to: '/admin/poi-pipeline', label: 'Pipeline POI', icon: Database },
+  { to: '/admin/agent-chat', label: 'Agent Chat', icon: Bot },
   { to: '/admin/watchdog', label: 'Watchdog Qualité', icon: Shield },
   { to: '/admin/media-library', label: 'Médiathèque', icon: Camera },
   { to: '/admin/quest-library', label: 'Visites', icon: Library },

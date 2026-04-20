@@ -70,6 +70,7 @@ const App = () => (
                 <Route path="catalog" element={<AdminCatalog />} />
                 <Route path="health" element={<AdminHealth />} />
                 <Route path="experience-page" element={<AdminExperiencePage />} />
+                <Route path="agent-chat" element={<AdminAgentChat />} />
                 <Route path="api-keys" element={<AdminApiKeys />} />
                 <Route path="agent-chat" element={<AdminAgentChat />} />
                 <Route path="enums" element={<AdminEnums />} />
