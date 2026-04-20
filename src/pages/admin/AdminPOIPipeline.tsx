@@ -739,7 +739,7 @@ export default function AdminPOIPipeline() {
                 <Eye className="w-3 h-3" /> {showRunLogs ? 'Masquer' : 'Voir les logs'}
               </Button>
             </div>
-          {showRunLogs && latestRun.logs && (
+          </div>
             <AlertDescription className="mt-2">
               <div className="bg-muted rounded-md p-3 max-h-48 overflow-y-auto font-mono text-xs space-y-0.5">
                 {(latestRun.logs as string[]).map((line: string, i: number) => (
