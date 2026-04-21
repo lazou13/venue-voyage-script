@@ -68,8 +68,9 @@ export default function AdminWatchdog() {
   const resolved = reports.filter(r => r.resolved);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8">
+      <RecatPilotPanel />
+      <div className="border-t pt-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Shield className="w-5 h-5 text-primary" />
           <h2 className="font-semibold text-lg">Watchdog Qualité</h2>
