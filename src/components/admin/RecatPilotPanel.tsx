@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles, Download, CheckCircle2, XCircle, Pencil, Shield } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, Sparkles, Download, CheckCircle2, XCircle, Pencil, Shield, Lock } from "lucide-react";
 
 const TAXONOMY = [
   "monument", "historic_site", "museum", "mosque", "palace", "garden",
