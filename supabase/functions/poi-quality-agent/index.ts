@@ -526,10 +526,12 @@ async function runRecatPropose(supabase: any, body: any) {
     .single();
 
   if (insErr || !inserted?.id) {
+    console.error("recat_propose INSERT failed", { lotLabel, error: insErr?.message });
     return { error: insErr?.message ?? "insert_failed" };
   }
 
   const reportId = inserted.id as string;
+  console.log("recat_propose REPORT inserted", { reportId, lotLabel, pool_size: pool.length, ms: Date.now() - t0 });
 
   const work = (async () => {
     const proposals: any[] = [];
