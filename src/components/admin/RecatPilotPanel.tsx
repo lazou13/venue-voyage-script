@@ -281,13 +281,20 @@ export default function RecatPilotPanel() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-primary" />
-          <h2 className="font-semibold text-lg">Recatégorisation — Pilote LOT 1A</h2>
-          {activeReport && <Badge variant="outline" className="text-xs">{proposals.length} POIs</Badge>}
+          <h2 className="font-semibold text-lg">Recatégorisation — Pilote LOT 1A / LOT 1B</h2>
+          {activeReport && <Badge variant="outline" className="text-xs">{proposals.length} POIs · {activeReport.issues_detail?.batch}</Badge>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center flex-wrap">
+          <Select value={lotMode} onValueChange={(v) => setLotMode(v as "lot1a_pilot" | "lot1b")}>
+            <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="lot1b">LOT 1B (batch 50, priorisé)</SelectItem>
+              <SelectItem value="lot1a_pilot">LOT 1A (pilote 30, legacy)</SelectItem>
+            </SelectContent>
+          </Select>
           <Button onClick={generatePilot} disabled={generating} className="gap-2">
             {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            Générer pilote (30)
+            {lotMode === "lot1b" ? "Générer batch (50)" : "Générer pilote (30)"}
           </Button>
           <Button variant="outline" onClick={exportCsv} disabled={!activeReport} className="gap-2">
             <Download className="w-4 h-4" /> Export CSV preview
