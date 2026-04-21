@@ -480,10 +480,12 @@ async function runRecatPropose(supabase: any, body: any) {
   const defaultTarget = isLot1b ? 50 : 30;
   const target = Math.max(1, Math.min(50, Number(body.pilot_size ?? defaultTarget)));
   const startedAt = new Date().toISOString();
+  console.log("recat_propose start", { lotLabel, target, isLot1b });
 
   const pool = isLot1b
     ? await selectLot1bPool(supabase, target)
     : await selectPilotPool(supabase, target);
+  console.log("recat_propose pool selected", { lotLabel, pool_size: pool.length });
 
   const { data: inserted, error: insErr } = await supabase
     .from("poi_quality_reports")
