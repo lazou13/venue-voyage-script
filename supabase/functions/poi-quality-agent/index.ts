@@ -17,6 +17,17 @@ serve(async (req) => {
   try {
     const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
     const dryRun = body.dry_run !== false;
+    const mode = body.mode ?? "audit"; // 'audit' (default) | 'recat_propose'
+
+    // ──────────────────────────────────────────────────────────────────────
+    // MODE: recat_propose (LOT 1A) — DRY-RUN STRICT, never writes medina_pois
+    // ──────────────────────────────────────────────────────────────────────
+    if (mode === "recat_propose") {
+      const result = await runRecatPropose(supabase, body);
+      return new Response(JSON.stringify(result), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Count total active POIs
     const { count: totalPois } = await supabase
