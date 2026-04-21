@@ -346,7 +346,8 @@ export default function RecatPilotPanel() {
                 <th className="p-2">proposed</th>
                 <th className="p-2">conf.</th>
                 <th className="p-2">reasoning</th>
-                <th className="p-2 w-[260px]">décision</th>
+                <th className="p-2 w-[300px]">décision</th>
+                <th className="p-2 w-[200px]">note</th>
               </tr>
             </thead>
             <tbody>
@@ -386,7 +387,23 @@ export default function RecatPilotPanel() {
                               {TAXONOMY.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                             </SelectContent>
                           </Select>
+                          {p.current_category === "generic" && (
+                            <Button size="sm" variant={decision === "conservé_generic" ? "default" : "outline"} className="h-6 px-2 gap-1" onClick={() => setDecision(idx, "conservé_generic")}>
+                              <Lock className="w-3 h-3" /> Conservé
+                            </Button>
+                          )}
                         </div>
+                      )}
+                    </td>
+                    <td className="p-2 align-top">
+                      {!blocked && (
+                        <Input
+                          value={notes[p.poi_id] ?? ""}
+                          onChange={(e) => setNote(p.poi_id, e.target.value)}
+                          placeholder={decision === "conservé_generic" ? "Raison (recommandée)" : "optionnel"}
+                          className="h-7 text-xs"
+                          maxLength={200}
+                        />
                       )}
                     </td>
                   </tr>
@@ -400,7 +417,7 @@ export default function RecatPilotPanel() {
       {activeReport && (
         <div className="flex justify-end items-center gap-3">
           <span className="text-xs text-muted-foreground">
-            {proposals.filter((p) => p.human_decision !== null).length} / {proposals.length} décidés
+            {decidableProposals.filter((p) => p.human_decision !== null).length} / {decidableProposals.length} décidés
           </span>
           <Button onClick={applyDecisions} disabled={applying || !allDecided} className="gap-2">
             {applying ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
