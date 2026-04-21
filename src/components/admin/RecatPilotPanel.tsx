@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles, Download, CheckCircle2, XCircle, Pencil, Shield } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, Sparkles, Download, CheckCircle2, XCircle, Pencil, Shield, Lock } from "lucide-react";
 
 const TAXONOMY = [
   "monument", "historic_site", "museum", "mosque", "palace", "garden",
@@ -42,11 +43,13 @@ export default function RecatPilotPanel() {
   const [reports, setReports] = useState<RecatReport[]>([]);
   const [activeReport, setActiveReport] = useState<RecatReport | null>(null);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [notes, setNotes] = useState<Record<string, string>>({}); // poi_id -> recat_note (LOT 1B)
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [applying, setApplying] = useState(false);
   const [hubFlags, setHubFlags] = useState<Record<string, { is_start_hub: boolean; is_main_visit: boolean }>>({});
   const [pendingReportId, setPendingReportId] = useState<string | null>(null);
+  const [lotMode, setLotMode] = useState<"lot1a_pilot" | "lot1b">("lot1b");
   const pollTimerRef = useRef<number | null>(null);
   const pollDeadlineRef = useRef<number>(0);
 
@@ -131,20 +134,39 @@ export default function RecatPilotPanel() {
     }, 3000);
   };
 
+  const computeNextLot1bLabel = async (): Promise<string> => {
+    const { data } = await supabase
+      .from("poi_quality_reports")
+      .select("issues_detail")
+      .order("run_at", { ascending: false })
+      .limit(100);
+    const used = new Set<number>();
+    (data ?? []).forEach((r: any) => {
+      const b = r?.issues_detail?.batch;
+      const m = typeof b === "string" ? b.match(/^lot1b_batch(\d+)$/) : null;
+      if (m) used.add(parseInt(m[1], 10));
+    });
+    let n = 1;
+    while (used.has(n)) n++;
+    return `lot1b_batch${String(n).padStart(2, "0")}`;
+  };
+
   const generatePilot = async () => {
     setGenerating(true);
     try {
+      const lotLabel = lotMode === "lot1b" ? await computeNextLot1bLabel() : "lot1a_pilot";
+      const pilotSize = lotMode === "lot1b" ? 50 : 30;
       const { data, error } = await supabase.functions.invoke("poi-quality-agent", {
-        body: { mode: "recat_propose", pilot_size: 30 },
+        body: { mode: "recat_propose", pilot_size: pilotSize, lot_label: lotLabel },
       });
       if (error) throw error;
       const reportId = (data as any)?.report_id;
       if (!reportId) throw new Error("report_id manquant dans la réponse");
-      toast({ title: "Génération lancée", description: `Traitement IA en arrière-plan (~90–120s)…` });
+      toast({ title: `Génération lancée (${lotLabel})`, description: `Traitement IA en arrière-plan (~120–180s)…` });
       startPolling(reportId);
     } catch (e: any) {
       setGenerating(false);
-      toast({ title: "Erreur génération pilote", description: e.message, variant: "destructive" });
+      toast({ title: "Erreur génération", description: e.message, variant: "destructive" });
     }
   };
 
@@ -156,11 +178,16 @@ export default function RecatPilotPanel() {
     setDecision(idx, `modified_to:${cat}` as any);
   };
 
+  const setNote = (poiId: string, value: string) => {
+    setNotes((prev) => ({ ...prev, [poiId]: value }));
+  };
+
   const exportCsv = () => {
     if (!activeReport) return;
-    const header = ["poi_id", "name_fr", "current_category", "proposed_category", "confidence", "human_decision", "reasoning"];
+    const batchLabel = activeReport.issues_detail?.batch ?? "lot";
+    const header = ["poi_id", "name_fr", "current_category", "proposed_category", "confidence", "human_decision", "recat_note", "reasoning"];
     const rows = proposals.map((p) =>
-      [p.poi_id, p.name_fr, p.current_category, p.proposed_category, p.confidence, p.human_decision ?? "pending", (p.reasoning ?? "").replace(/[\n\r,;]/g, " ")]
+      [p.poi_id, p.name_fr, p.current_category, p.proposed_category, p.confidence, p.human_decision ?? "pending", (notes[p.poi_id] ?? "").replace(/[\n\r,;]/g, " "), (p.reasoning ?? "").replace(/[\n\r,;]/g, " ")]
         .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")
     );
     const csv = [header.join(","), ...rows].join("\n");
@@ -168,54 +195,78 @@ export default function RecatPilotPanel() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `lot1a-pilot-preview-${activeReport.id.slice(0, 8)}.csv`;
+    a.download = `${batchLabel}-preview-${activeReport.id.slice(0, 8)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  const allDecided = proposals.length > 0 && proposals.every((p) => p.human_decision !== null);
+  // Bloqués structurels exclus du compteur "tout décidé"
+  const decidableProposals = proposals.filter(
+    (p) => !(hubFlags[p.poi_id]?.is_start_hub || hubFlags[p.poi_id]?.is_main_visit)
+  );
+  const allDecided = decidableProposals.length > 0 && decidableProposals.every((p) => p.human_decision !== null);
+
+  // Mappage human_decision -> recat_decision (canonical persisté en base)
+  const toCanonicalDecision = (hd: string | null): "ok" | "modifier" | "rejected" | "conservé_generic" | null => {
+    if (!hd) return null;
+    if (hd === "accepted") return "ok";
+    if (hd === "rejected") return "rejected";
+    if (hd === "conservé_generic") return "conservé_generic";
+    if (hd.startsWith("modified_to:")) return "modifier";
+    return null;
+  };
 
   const applyDecisions = async () => {
     if (!activeReport) return;
     if (!allDecided) {
-      toast({ title: "Décision manquante", description: "Toutes les lignes doivent avoir une décision (accepté/rejeté/modifié).", variant: "destructive" });
+      toast({ title: "Décision manquante", description: "Toutes les lignes décidables doivent avoir une décision.", variant: "destructive" });
       return;
     }
+    const batchLabel = activeReport.issues_detail?.batch ?? "lot1a_pilot";
     setApplying(true);
     try {
-      let applied = 0, skipped = 0;
+      let applied = 0, skipped = 0, traced = 0;
       for (const p of proposals) {
-        if (!p.human_decision || p.human_decision === "rejected") { skipped++; continue; }
-        // Garde-fou structurel: jamais sur hub / main_visit (bloqué par UI)
         if (hubFlags[p.poi_id]?.is_start_hub || hubFlags[p.poi_id]?.is_main_visit) { skipped++; continue; }
-        const targetCat = p.human_decision === "accepted"
-          ? p.proposed_category
-          : p.human_decision.startsWith("modified_to:")
-            ? p.human_decision.slice("modified_to:".length)
-            : null;
+        const decision = toCanonicalDecision(p.human_decision);
+        if (!decision || decision === "rejected") { skipped++; continue; }
+
+        let targetCat: string | null = null;
+        if (decision === "ok") targetCat = p.proposed_category;
+        else if (decision === "modifier" && typeof p.human_decision === "string" && p.human_decision.startsWith("modified_to:")) {
+          targetCat = p.human_decision.slice("modified_to:".length);
+        } else if (decision === "conservé_generic") {
+          targetCat = p.current_category;
+        }
         if (!targetCat || !TAXONOMY.includes(targetCat)) { skipped++; continue; }
 
-        // Snapshot + update
         const { data: cur } = await supabase
           .from("medina_pois")
           .select("metadata, category")
           .eq("id", p.poi_id)
           .single();
-        const newMeta = {
-          ...(cur?.metadata as object ?? {}),
+        const note = (notes[p.poi_id] ?? "").trim();
+        const newMeta: Record<string, unknown> = {
+          ...((cur?.metadata as object) ?? {}),
           recat_applied_at: new Date().toISOString(),
           recat_from: cur?.category ?? p.current_category,
           recat_decision_id: activeReport.id,
           recat_confidence: p.confidence,
-          recat_batch: "lot1a_pilot",
+          recat_batch: batchLabel,
+          recat_decision: decision, // 'ok' | 'modifier' | 'conservé_generic'  → persisté en base
         };
+        if (note.length > 0) newMeta.recat_note = note; // persisté en base si renseigné
+
         const { error: upErr } = await supabase
           .from("medina_pois")
-          .update({ category: targetCat, metadata: newMeta })
+          .update({ category: targetCat, metadata: newMeta as any })
           .eq("id", p.poi_id);
-        if (!upErr) applied++; else skipped++;
+        if (!upErr) {
+          applied++;
+          if (decision === "conservé_generic") traced++;
+        } else skipped++;
       }
-      toast({ title: `Application terminée`, description: `${applied} appliqués · ${skipped} ignorés` });
+      toast({ title: `Application terminée`, description: `${applied} appliqués · ${traced} conservés · ${skipped} ignorés` });
       await fetchReports();
     } catch (e: any) {
       toast({ title: "Erreur application", description: e.message, variant: "destructive" });
@@ -231,13 +282,20 @@ export default function RecatPilotPanel() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-primary" />
-          <h2 className="font-semibold text-lg">Recatégorisation — Pilote LOT 1A</h2>
-          {activeReport && <Badge variant="outline" className="text-xs">{proposals.length} POIs</Badge>}
+          <h2 className="font-semibold text-lg">Recatégorisation — Pilote LOT 1A / LOT 1B</h2>
+          {activeReport && <Badge variant="outline" className="text-xs">{proposals.length} POIs · {activeReport.issues_detail?.batch}</Badge>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center flex-wrap">
+          <Select value={lotMode} onValueChange={(v) => setLotMode(v as "lot1a_pilot" | "lot1b")}>
+            <SelectTrigger className="w-[200px] h-9 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="lot1b">LOT 1B (batch 50, priorisé)</SelectItem>
+              <SelectItem value="lot1a_pilot">LOT 1A (pilote 30, legacy)</SelectItem>
+            </SelectContent>
+          </Select>
           <Button onClick={generatePilot} disabled={generating} className="gap-2">
             {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            Générer pilote (30)
+            {lotMode === "lot1b" ? "Générer batch (50)" : "Générer pilote (30)"}
           </Button>
           <Button variant="outline" onClick={exportCsv} disabled={!activeReport} className="gap-2">
             <Download className="w-4 h-4" /> Export CSV preview
@@ -288,7 +346,8 @@ export default function RecatPilotPanel() {
                 <th className="p-2">proposed</th>
                 <th className="p-2">conf.</th>
                 <th className="p-2">reasoning</th>
-                <th className="p-2 w-[260px]">décision</th>
+                <th className="p-2 w-[300px]">décision</th>
+                <th className="p-2 w-[200px]">note</th>
               </tr>
             </thead>
             <tbody>
@@ -328,7 +387,23 @@ export default function RecatPilotPanel() {
                               {TAXONOMY.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                             </SelectContent>
                           </Select>
+                          {p.current_category === "generic" && (
+                            <Button size="sm" variant={decision === "conservé_generic" ? "default" : "outline"} className="h-6 px-2 gap-1" onClick={() => setDecision(idx, "conservé_generic")}>
+                              <Lock className="w-3 h-3" /> Conservé
+                            </Button>
+                          )}
                         </div>
+                      )}
+                    </td>
+                    <td className="p-2 align-top">
+                      {!blocked && (
+                        <Input
+                          value={notes[p.poi_id] ?? ""}
+                          onChange={(e) => setNote(p.poi_id, e.target.value)}
+                          placeholder={decision === "conservé_generic" ? "Raison (recommandée)" : "optionnel"}
+                          className="h-7 text-xs"
+                          maxLength={200}
+                        />
                       )}
                     </td>
                   </tr>
@@ -342,7 +417,7 @@ export default function RecatPilotPanel() {
       {activeReport && (
         <div className="flex justify-end items-center gap-3">
           <span className="text-xs text-muted-foreground">
-            {proposals.filter((p) => p.human_decision !== null).length} / {proposals.length} décidés
+            {decidableProposals.filter((p) => p.human_decision !== null).length} / {decidableProposals.length} décidés
           </span>
           <Button onClick={applyDecisions} disabled={applying || !allDecided} className="gap-2">
             {applying ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
