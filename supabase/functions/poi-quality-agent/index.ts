@@ -257,6 +257,12 @@ const TAXONOMY = [
 const KEYWORD_REGEX = /(mosqu|medersa|palais|riad|fondouk|souk|place|bab |koubba|dar )/i;
 const RESTAURANT_MISLABEL_REGEX = /(café|cafe|pâtisserie|patisserie|salon de thé|boulangerie)/i;
 
+// Bbox médina Marrakech (mémoire technical/poi-pipeline/geographic-integrity)
+const MEDINA_BBOX = { latMin: 31.60, latMax: 31.67, lngMin: -8.02, lngMax: -7.97 };
+
+const SELECT_COLS = "id, name_fr, name, category, category_google, subcategory, address, wikidata_id, wikipedia_summary, historical_significance, rating, reviews_count, metadata";
+
+// LOT 1A — pool pilote 30 (legacy, conservé pour rétro-compat)
 async function selectPilotPool(supabase: any, target = 30) {
   const baseFilter = (q: any) => q
     .eq("is_active", true)
@@ -267,17 +273,15 @@ async function selectPilotPool(supabase: any, target = 30) {
     .eq("is_start_hub", false)
     .eq("is_main_visit", false);
 
-  // bucket A — generic with high signal (wikidata or wikipedia or historical_significance>=3)
   const { data: highSignal } = await baseFilter(
-    supabase.from("medina_pois").select("id, name_fr, name, category, category_google, subcategory, address, wikidata_id, wikipedia_summary, historical_significance, rating, reviews_count")
+    supabase.from("medina_pois").select(SELECT_COLS)
       .eq("category", "generic")
       .or("wikidata_id.not.is.null,wikipedia_summary.not.is.null,historical_significance.gte.3")
       .limit(50)
   );
 
-  // bucket B — generic with patrimonial keyword
   const { data: keywordPool } = await baseFilter(
-    supabase.from("medina_pois").select("id, name_fr, name, category, category_google, subcategory, address, wikidata_id, wikipedia_summary, historical_significance, rating, reviews_count")
+    supabase.from("medina_pois").select(SELECT_COLS)
       .eq("category", "generic")
       .is("wikidata_id", null)
       .is("wikipedia_summary", null)
@@ -285,22 +289,19 @@ async function selectPilotPool(supabase: any, target = 30) {
   );
   const bucketB = (keywordPool ?? []).filter((p: any) => KEYWORD_REGEX.test(p.name_fr ?? p.name ?? ""));
 
-  // bucket C — restaurant mislabeled (cafe/patisserie/etc.)
   const { data: restPool } = await baseFilter(
-    supabase.from("medina_pois").select("id, name_fr, name, category, category_google, subcategory, address, wikidata_id, wikipedia_summary, historical_significance, rating, reviews_count")
+    supabase.from("medina_pois").select(SELECT_COLS)
       .eq("category", "restaurant")
       .limit(300)
   );
   const bucketC = (restPool ?? []).filter((p: any) => RESTAURANT_MISLABEL_REGEX.test(p.name_fr ?? p.name ?? ""));
 
-  // Adaptive composition: prefer 15/10/5; fall back if buckets short
   const wantA = 15, wantB = 10, wantC = 5;
   const picked: any[] = [];
   picked.push(...(highSignal ?? []).slice(0, wantA));
   picked.push(...bucketB.slice(0, wantB));
   picked.push(...bucketC.slice(0, wantC));
 
-  // Backfill from bucketB then bucketC if total < target
   let i = wantB;
   while (picked.length < target && i < bucketB.length) { picked.push(bucketB[i++]); }
   let j = wantC;
@@ -308,10 +309,83 @@ async function selectPilotPool(supabase: any, target = 30) {
   let k = wantA;
   while (picked.length < target && k < (highSignal?.length ?? 0)) { picked.push((highSignal as any)[k++]); }
 
-  // Dedup by id
   const seen = new Set<string>();
   const unique = picked.filter((p) => !seen.has(p.id) && seen.add(p.id));
   return unique.slice(0, target);
+}
+
+// LOT 1B — pool large priorisé P1→P4, exclut POIs déjà recat lot1b_*
+async function selectLot1bPool(supabase: any, target = 50) {
+  const baseFilter = (q: any) => q
+    .eq("is_active", true)
+    .in("status", ["validated", "enriched"])
+    .gte("lat", MEDINA_BBOX.latMin).lte("lat", MEDINA_BBOX.latMax)
+    .gte("lng", MEDINA_BBOX.lngMin).lte("lng", MEDINA_BBOX.lngMax)
+    .not("name_fr", "is", null)
+    .eq("is_start_hub", false)
+    .eq("is_main_visit", false);
+
+  // Pool brut, on filtre côté serveur sur status/bbox/hubs, puis client sur idempotence + priorisation
+  const { data: restAll } = await baseFilter(
+    supabase.from("medina_pois").select(SELECT_COLS)
+      .eq("category", "restaurant")
+      .order("reviews_count", { ascending: false, nullsFirst: false })
+      .limit(800)
+  );
+  const { data: genAll } = await baseFilter(
+    supabase.from("medina_pois").select(SELECT_COLS)
+      .eq("category", "generic")
+      .order("reviews_count", { ascending: false, nullsFirst: false })
+      .limit(800)
+  );
+
+  // Idempotence: exclure POIs déjà porteurs de metadata.recat_batch LIKE 'lot1b_%'
+  const notDone = (rows: any[]) => (rows ?? []).filter((p: any) => {
+    const b = p?.metadata?.recat_batch;
+    return !(typeof b === "string" && b.startsWith("lot1b_"));
+  });
+  const restaurants = notDone(restAll);
+  const generics = notDone(genAll);
+
+  const HERITAGE_GOOGLE = new Set([
+    "mosque", "museum", "tourist_attraction", "place_of_worship",
+    "historical_landmark", "park", "art_gallery",
+  ]);
+  const HERITAGE_REGEX = /(mosqu|medersa|palais|riad|fondouk|souk|bab |koubba|dar |jardin|mus[ée]e|fontaine|porte )/i;
+
+  // P1 — restaurant à fort signal "mauvaise catégorie"
+  const p1 = restaurants.filter((p: any) => {
+    const n = (p.name_fr ?? p.name ?? "");
+    return HERITAGE_REGEX.test(n)
+      || HERITAGE_GOOGLE.has(p.category_google ?? "")
+      || !!p.wikidata_id;
+  });
+  const p1Ids = new Set(p1.map((p: any) => p.id));
+
+  // P2 — generic à fort signal patrimonial
+  const p2 = generics.filter((p: any) => {
+    return !!p.wikidata_id
+      || !!p.wikipedia_summary
+      || (Number(p.historical_significance ?? 0) >= 3)
+      || HERITAGE_REGEX.test(p.name_fr ?? p.name ?? "");
+  });
+  const p2Ids = new Set(p2.map((p: any) => p.id));
+
+  // P3 — restaurant restant
+  const p3 = restaurants.filter((p: any) => !p1Ids.has(p.id));
+  // P4 — generic restant
+  const p4 = generics.filter((p: any) => !p2Ids.has(p.id));
+
+  const picked: any[] = [];
+  for (const arr of [p1, p2, p3, p4]) {
+    for (const p of arr) {
+      if (picked.length >= target) break;
+      picked.push(p);
+    }
+    if (picked.length >= target) break;
+  }
+  const seen = new Set<string>();
+  return picked.filter((p) => !seen.has(p.id) && seen.add(p.id)).slice(0, target);
 }
 
 async function classifyPoiViaAi(poi: any): Promise<{ proposed_category: string; confidence: number; reasoning: string }> {
