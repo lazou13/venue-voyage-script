@@ -42,11 +42,13 @@ export default function RecatPilotPanel() {
   const [reports, setReports] = useState<RecatReport[]>([]);
   const [activeReport, setActiveReport] = useState<RecatReport | null>(null);
   const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [notes, setNotes] = useState<Record<string, string>>({}); // poi_id -> recat_note (LOT 1B)
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [applying, setApplying] = useState(false);
   const [hubFlags, setHubFlags] = useState<Record<string, { is_start_hub: boolean; is_main_visit: boolean }>>({});
   const [pendingReportId, setPendingReportId] = useState<string | null>(null);
+  const [lotMode, setLotMode] = useState<"lot1a_pilot" | "lot1b">("lot1b");
   const pollTimerRef = useRef<number | null>(null);
   const pollDeadlineRef = useRef<number>(0);
 
