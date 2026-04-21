@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,8 @@ interface RecatReport {
   issues_detail: {
     report_kind?: string;
     batch?: string;
+    status?: "pending" | "completed" | "failed" | string;
+    error?: string;
     confidence_distribution?: { high: number; mid: number; low: number };
     proposals?: Proposal[];
   };
@@ -44,6 +46,19 @@ export default function RecatPilotPanel() {
   const [generating, setGenerating] = useState(false);
   const [applying, setApplying] = useState(false);
   const [hubFlags, setHubFlags] = useState<Record<string, { is_start_hub: boolean; is_main_visit: boolean }>>({});
+  const [pendingReportId, setPendingReportId] = useState<string | null>(null);
+  const pollTimerRef = useRef<number | null>(null);
+  const pollDeadlineRef = useRef<number>(0);
+
+  const stopPolling = () => {
+    if (pollTimerRef.current !== null) {
+      window.clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    setPendingReportId(null);
+  };
+
+  useEffect(() => () => stopPolling(), []);
 
   const fetchReports = async () => {
     setLoading(true);
@@ -81,6 +96,41 @@ export default function RecatPilotPanel() {
 
   useEffect(() => { fetchReports(); }, []);
 
+  const startPolling = (reportId: string) => {
+    stopPolling();
+    setPendingReportId(reportId);
+    pollDeadlineRef.current = Date.now() + 5 * 60 * 1000; // 5 min max
+    pollTimerRef.current = window.setInterval(async () => {
+      if (Date.now() > pollDeadlineRef.current) {
+        stopPolling();
+        setGenerating(false);
+        toast({ title: "Timeout polling", description: "Le rapport n'a pas terminé en 5 min.", variant: "destructive" });
+        return;
+      }
+      const { data } = await supabase
+        .from("poi_quality_reports")
+        .select("*")
+        .eq("id", reportId)
+        .maybeSingle();
+      const status = (data as any)?.issues_detail?.status;
+      if (status === "completed") {
+        stopPolling();
+        setGenerating(false);
+        const count = (data as any)?.issues_detail?.proposals?.length ?? 0;
+        toast({ title: `Pilote généré: ${count} propositions` });
+        await fetchReports();
+        if (data) await selectReport(data as RecatReport);
+      } else if (status === "failed") {
+        stopPolling();
+        setGenerating(false);
+        const err = (data as any)?.issues_detail?.error ?? "erreur inconnue";
+        toast({ title: "Échec génération pilote", description: err, variant: "destructive" });
+        await fetchReports();
+      }
+      // sinon: pending, on continue
+    }, 3000);
+  };
+
   const generatePilot = async () => {
     setGenerating(true);
     try {
@@ -88,12 +138,13 @@ export default function RecatPilotPanel() {
         body: { mode: "recat_propose", pilot_size: 30 },
       });
       if (error) throw error;
-      toast({ title: `Pilote généré: ${data?.pilot_size ?? 0} propositions` });
-      await fetchReports();
+      const reportId = (data as any)?.report_id;
+      if (!reportId) throw new Error("report_id manquant dans la réponse");
+      toast({ title: "Génération lancée", description: `Traitement IA en arrière-plan (~90–120s)…` });
+      startPolling(reportId);
     } catch (e: any) {
-      toast({ title: "Erreur génération pilote", description: e.message, variant: "destructive" });
-    } finally {
       setGenerating(false);
+      toast({ title: "Erreur génération pilote", description: e.message, variant: "destructive" });
     }
   };
 
