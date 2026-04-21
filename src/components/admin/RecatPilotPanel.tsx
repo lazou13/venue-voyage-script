@@ -159,7 +159,25 @@ export default function RecatPilotPanel() {
       const { data, error } = await supabase.functions.invoke("poi-quality-agent", {
         body: { mode: "recat_propose", pilot_size: pilotSize, lot_label: lotLabel },
       });
-      if (error) throw error;
+      if (error) {
+        const msg = String(error.message ?? error);
+        if (msg.includes("Failed to send") || msg.includes("Failed to fetch")) {
+          throw new Error("Backend injoignable. Réessayez dans 30s (l'instance Cloud peut être en cours de démarrage).");
+        }
+        throw error;
+      }
+      // Erreur métier renvoyée 200 OK avec { error: ... }
+      if (data && typeof data === "object" && (data as any).error) {
+        const err = (data as any).error as string;
+        const m = (data as any).message as string | undefined;
+        if (err === "pool_empty") {
+          throw new Error(m ?? `Pool ${lotLabel} épuisé. Tous les POIs éligibles ont déjà été traités.`);
+        }
+        if (err === "pool_selection_failed") {
+          throw new Error(`Sélection du pool échouée: ${m ?? "erreur inconnue"}`);
+        }
+        throw new Error(m ?? err);
+      }
       const reportId = (data as any)?.report_id;
       if (!reportId) throw new Error("report_id manquant dans la réponse");
       toast({ title: `Génération lancée (${lotLabel})`, description: `Traitement IA en arrière-plan (~120–180s)…` });
