@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Shield, Loader2, RefreshCw, AlertTriangle, Info, AlertCircle, CheckCircle } from 'lucide-react';
+import RecatPilotPanel from '@/components/admin/RecatPilotPanel';
 
 interface WatchdogReport {
   id: string;
