@@ -258,7 +258,7 @@ export default function RecatPilotPanel() {
 
         const { error: upErr } = await supabase
           .from("medina_pois")
-          .update({ category: targetCat, metadata: newMeta })
+          .update({ category: targetCat, metadata: newMeta as any })
           .eq("id", p.poi_id);
         if (!upErr) {
           applied++;
