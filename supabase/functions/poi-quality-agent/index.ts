@@ -480,12 +480,29 @@ async function runRecatPropose(supabase: any, body: any) {
   const defaultTarget = isLot1b ? 50 : 30;
   const target = Math.max(1, Math.min(50, Number(body.pilot_size ?? defaultTarget)));
   const startedAt = new Date().toISOString();
-  console.log("recat_propose start", { lotLabel, target, isLot1b });
+  const t0 = Date.now();
+  console.log("recat_propose ENTRY", { lotLabel, target, isLot1b, startedAt });
 
-  const pool = isLot1b
-    ? await selectLot1bPool(supabase, target)
-    : await selectPilotPool(supabase, target);
-  console.log("recat_propose pool selected", { lotLabel, pool_size: pool.length });
+  let pool: any[] = [];
+  try {
+    pool = isLot1b
+      ? await selectLot1bPool(supabase, target)
+      : await selectPilotPool(supabase, target);
+  } catch (e: any) {
+    console.error("recat_propose pool selection FAILED", { lotLabel, error: e?.message ?? String(e) });
+    return { error: "pool_selection_failed", message: e?.message ?? String(e) };
+  }
+  console.log("recat_propose pool selected", { lotLabel, pool_size: pool.length, ms: Date.now() - t0 });
+
+  // Garde-fou: pool vide → ne pas insérer de rapport, retour explicite
+  if (!pool || pool.length === 0) {
+    console.warn("recat_propose POOL EMPTY", { lotLabel });
+    return {
+      error: "pool_empty",
+      message: `Aucun POI éligible pour ${lotLabel}. Tous déjà traités (metadata.recat_batch) ou filtres trop stricts.`,
+      lot_label: lotLabel,
+    };
+  }
 
   const { data: inserted, error: insErr } = await supabase
     .from("poi_quality_reports")
