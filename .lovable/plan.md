@@ -1,75 +1,53 @@
 
 
-# Fix erreur génération pilote LOT 1A
+# Fix invocation `poi-quality-agent` LOT 1B
 
-## Cause racine
+## Constat
 
-L'appel `supabase.functions.invoke("poi-quality-agent", { body: { mode: "recat_propose", pilot_size: 30 } })` échoue côté navigateur avec **« Failed to send a request to the Edge Function »**.
+- Clic « Générer batch (50) » → toast `Failed to send a request to the Edge Function`
+- Aucune ligne `POST .../poi-quality-agent` dans les logs edge au moment des clics (alors que d'autres fonctions sont bien loggées)
+- Workers `booted` à 16:52:59 + 16:53:09 (cold-start déclenché par chaque clic) → la fonction démarre puis meurt avant d'envoyer la réponse HTTP
+- Pool LOT 1B éligible bien présent en base : 533 restos + 211 generics
+- Donc problème infra-invocation localisé dans le code ajouté pour LOT 1B (`selectLot1bPool`), pas dans le métier
 
-Les logs HTTP edge ne montrent qu'un `OPTIONS 200` (preflight CORS) — **aucun POST** n'arrive jamais à la fonction. Le preflight prend 737 ms (cold start anormal sur OPTIONS) et le navigateur abandonne ensuite la requête POST.
+## Cause probable
 
-Cause technique : les `corsHeaders` de `poi-quality-agent` ne déclarent pas `Access-Control-Allow-Methods`, et le handler `OPTIONS` traverse l'init du client Supabase avant de répondre, ce qui rend le preflight lent et fragile.
+Dans `selectLot1bPool`, l'option `order("reviews_count", { ascending: false, nullsFirst: false })` n'est **pas une option valide** pour `supabase-js` v2 — la propriété attendue est `nullsFirst` (boolean) seul, et associée à un parsing PostgREST qui retourne 400 si la combinaison `ascending: false, nullsFirst: false` n'est pas correctement sérialisée par cette version chargée via `esm.sh`. La promesse rejetée non-catchée tue le worker → le SDK client voit `Failed to send a request`.
 
-## Périmètre strict
+S'ajoute un facteur aggravant : aucun `try/catch` global autour de `runRecatPropose` dans le `serve()` n'existe pour ce mode (le `try/catch` global est là, mais l'erreur survient sur l'`await selectLot1bPool` qui peut renvoyer une promesse rejetée silencieuse côté `data` destructuré).
 
-- Aucun nouveau lot
-- Aucune modification du moteur de recatégorisation
-- Aucune modification de l'UI `RecatPilotPanel`
-- Aucune mutation `medina_pois`
-- Une seule fonction touchée : `supabase/functions/poi-quality-agent/index.ts`
+## Correctif (1 fichier)
 
-## Correctif
+**`supabase/functions/poi-quality-agent/index.ts`** — modifications minimes, périmètre strict LOT 1B :
 
-Dans `supabase/functions/poi-quality-agent/index.ts` :
+1. **Retirer `nullsFirst`** dans `selectLot1bPool` :
+   ```ts
+   .order("reviews_count", { ascending: false })
+   ```
+   `null` partira en fin naturellement (comportement PostgreSQL par défaut sur `DESC` = NULLS FIRST, on le compense côté JS en filtrant après).
 
-1. Ajouter `Access-Control-Allow-Methods: "POST, OPTIONS"` dans `corsHeaders`.
-2. Court-circuiter le `OPTIONS` **avant** la création du client Supabase, pour qu'il réponde instantanément sans cold init.
-3. Garder le handler `POST` strictement identique (mode `recat_propose`, dry-run).
+2. **Durcir `selectLot1bPool`** : envelopper chaque appel Supabase dans son propre try/catch et logger l'erreur Postgrest (`error.message`, `error.details`) pour qu'un éventuel échec futur soit visible dans les logs edge au lieu de tuer le worker.
 
-Diff conceptuel :
+3. **Logger l'entrée** de `runRecatPropose` (`console.log("recat_propose start", { lotLabel, target })`) pour confirmer en logs que la requête arrive.
 
-```ts
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+4. **Préserver totalement** : pas de changement de signature, pas de changement de pool sélection (P1→P4), pas de changement de batch size 50, pas de changement DRY-RUN, pas de changement UI, pas de changement RecatPilotPanel.
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
-  const supabase = createClient(...);
-  // ... reste inchangé
-});
-```
+## Vérification post-déploiement
 
-Le `OPTIONS` est déjà court-circuité ligne 10 — mais l'absence de `Allow-Methods` peut suffire à faire échouer le preflight côté navigateur dans certains cas. Le fix principal est donc l'ajout de cet en-tête.
+1. Re-déployer `poi-quality-agent`
+2. Clic « Générer batch (50) »
+3. Vérifier logs edge : doit apparaître `POST | 200 | …/poi-quality-agent`
+4. Vérifier `console.log("recat_propose start", …)` présent
+5. UI doit recevoir `{ report_id, status: "pending", pilot_size: 50, lot_label: "lot1b_batch01" }` et démarrer le polling
 
-## Déploiement
+## Périmètre strict respecté
 
-Déployer uniquement `poi-quality-agent` après modification.
-
-## Vérification post-fix
-
-L'utilisateur reclique **« Générer pilote (30) »** dans `/admin/watchdog`. Résultat attendu :
-
-- toast `Pilote généré: 30 propositions`
-- panneau passe de l'état vide à la liste des 30 lignes
-- bouton **Export CSV preview** devient actif
-
-Si l'erreur persiste, je consulterai à nouveau les logs HTTP edge pour voir si le POST arrive cette fois ou s'il y a une autre cause (timeout côté gateway AI, etc.).
-
-## Livrables
-
-- 1 fichier modifié : `supabase/functions/poi-quality-agent/index.ts`
-- 1 redéploiement de fonction edge
-- Aucune migration DB
+- 1 seul fichier touché
+- Aucun changement métier
 - Aucun changement UI
-
-## Suite LOT 1A
-
-Une fois le pilote généré, la procédure de clôture déjà validée reste inchangée :
-
-- Export CSV preview → décider 30/30 → Appliquer → Export CSV final → noter `<lot1a_pilot_apply_ts>` → exécuter C1–C4.
+- Aucun changement schéma
+- Aucun changement priorisation P1→P4
+- Aucun changement batch size 50
+- Aucun changement DRY-RUN
+- Aucun changement persistance `recat_decision`/`recat_note`
 
