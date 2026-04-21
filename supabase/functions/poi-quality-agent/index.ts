@@ -451,13 +451,18 @@ Règles strictes:
 }
 
 async function runRecatPropose(supabase: any, body: any) {
-  const target = Math.max(1, Math.min(50, Number(body.pilot_size ?? 30)));
+  const lotLabel: string = typeof body.lot_label === "string" && body.lot_label.length > 0
+    ? body.lot_label
+    : "lot1a_pilot";
+  const isLot1b = lotLabel.startsWith("lot1b_");
+  const defaultTarget = isLot1b ? 50 : 30;
+  const target = Math.max(1, Math.min(50, Number(body.pilot_size ?? defaultTarget)));
   const startedAt = new Date().toISOString();
 
-  // 1) Sélection du pool synchrone (rapide, lecture DB seulement)
-  const pool = await selectPilotPool(supabase, target);
+  const pool = isLot1b
+    ? await selectLot1bPool(supabase, target)
+    : await selectPilotPool(supabase, target);
 
-  // 2) Insert immédiat d'une ligne `pending` dans poi_quality_reports
   const { data: inserted, error: insErr } = await supabase
     .from("poi_quality_reports")
     .insert({
@@ -469,7 +474,7 @@ async function runRecatPropose(supabase: any, body: any) {
       pois_to_review: pool.map((p: any) => p.id),
       issues_detail: {
         report_kind: "recat_proposal",
-        batch: "lot1a_pilot",
+        batch: lotLabel,
         status: "pending",
         started_at: startedAt,
         confidence_distribution: { high: 0, mid: 0, low: 0 },
@@ -485,8 +490,6 @@ async function runRecatPropose(supabase: any, body: any) {
 
   const reportId = inserted.id as string;
 
-  // 3) Lancer le traitement IA en arrière-plan (background task)
-  //    La réponse HTTP retourne immédiatement, le worker s'exécute après.
   const work = (async () => {
     const proposals: any[] = [];
     let confHigh = 0, confMid = 0, confLow = 0;
@@ -514,7 +517,7 @@ async function runRecatPropose(supabase: any, body: any) {
         .update({
           issues_detail: {
             report_kind: "recat_proposal",
-            batch: "lot1a_pilot",
+            batch: lotLabel,
             status: "completed",
             started_at: startedAt,
             finished_at: new Date().toISOString(),
@@ -530,13 +533,13 @@ async function runRecatPropose(supabase: any, body: any) {
         .update({
           issues_detail: {
             report_kind: "recat_proposal",
-            batch: "lot1a_pilot",
+            batch: lotLabel,
             status: "failed",
             started_at: startedAt,
             finished_at: new Date().toISOString(),
             error: e instanceof Error ? e.message : String(e),
             confidence_distribution: { high: confHigh, mid: confMid, low: confLow },
-            proposals, // partial
+            proposals,
           },
         })
         .eq("id", reportId);
@@ -548,7 +551,6 @@ async function runRecatPropose(supabase: any, body: any) {
     // @ts-ignore
     EdgeRuntime.waitUntil(work);
   } else {
-    // Fallback (tests locaux) — laisse la promesse vivre
     work.catch((e) => console.error("background error", e));
   }
 
@@ -556,6 +558,7 @@ async function runRecatPropose(supabase: any, body: any) {
     report_id: reportId,
     status: "pending",
     pilot_size: pool.length,
+    lot_label: lotLabel,
     note: "DRY-RUN. Traitement IA en arrière-plan. Poll poi_quality_reports.id=report_id jusqu'à status=completed|failed.",
   };
 }
