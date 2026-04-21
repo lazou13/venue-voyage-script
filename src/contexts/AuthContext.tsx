@@ -31,15 +31,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     setIsAdminLoading(true);
 
+    // Garde-fou : si la RPC ne répond pas en 5s, on débloque l'UI
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) {
+        console.warn('[AuthContext] has_role RPC timeout (5s) — backend possibly unavailable');
+        setIsAdmin(false);
+        setIsAdminLoading(false);
+      }
+    }, 5000);
+
     supabase.rpc('has_role', { _user_id: user.id, _role: 'admin' })
       .then(({ data, error }) => {
         if (!cancelled) {
+          clearTimeout(timeoutId);
           setIsAdmin(!error && data === true);
           setIsAdminLoading(false);
         }
       });
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(timeoutId); };
   }, [user?.id]);
 
   useEffect(() => {
