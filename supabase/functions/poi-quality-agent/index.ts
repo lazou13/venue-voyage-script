@@ -326,18 +326,40 @@ async function selectLot1bPool(supabase: any, target = 50) {
     .eq("is_main_visit", false);
 
   // Pool brut, on filtre côté serveur sur status/bbox/hubs, puis client sur idempotence + priorisation
-  const { data: restAll } = await baseFilter(
-    supabase.from("medina_pois").select(SELECT_COLS)
-      .eq("category", "restaurant")
-      .order("reviews_count", { ascending: false, nullsFirst: false })
-      .limit(800)
-  );
-  const { data: genAll } = await baseFilter(
-    supabase.from("medina_pois").select(SELECT_COLS)
-      .eq("category", "generic")
-      .order("reviews_count", { ascending: false, nullsFirst: false })
-      .limit(800)
-  );
+  let restAll: any[] = [];
+  let genAll: any[] = [];
+  try {
+    const { data, error } = await baseFilter(
+      supabase.from("medina_pois").select(SELECT_COLS)
+        .eq("category", "restaurant")
+        .order("reviews_count", { ascending: false })
+        .limit(800)
+    );
+    if (error) {
+      console.error("selectLot1bPool restaurant query error", error.message, (error as any).details);
+      throw error;
+    }
+    restAll = data ?? [];
+  } catch (e: any) {
+    console.error("selectLot1bPool restaurant exception", e?.message ?? String(e));
+    throw e;
+  }
+  try {
+    const { data, error } = await baseFilter(
+      supabase.from("medina_pois").select(SELECT_COLS)
+        .eq("category", "generic")
+        .order("reviews_count", { ascending: false })
+        .limit(800)
+    );
+    if (error) {
+      console.error("selectLot1bPool generic query error", error.message, (error as any).details);
+      throw error;
+    }
+    genAll = data ?? [];
+  } catch (e: any) {
+    console.error("selectLot1bPool generic exception", e?.message ?? String(e));
+    throw e;
+  }
 
   // Idempotence: exclure POIs déjà porteurs de metadata.recat_batch LIKE 'lot1b_%'
   const notDone = (rows: any[]) => (rows ?? []).filter((p: any) => {
