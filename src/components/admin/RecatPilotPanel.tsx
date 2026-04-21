@@ -1,0 +1,304 @@
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Sparkles, Download, CheckCircle2, XCircle, Pencil, Shield } from "lucide-react";
+
+const TAXONOMY = [
+  "monument", "historic_site", "museum", "mosque", "palace", "garden",
+  "fountain", "gate_bab", "riad", "souk", "fondouk", "artisan",
+  "food_drink", "photo_spot", "viewpoint", "cafe", "restaurant", "place", "generic",
+];
+
+interface Proposal {
+  poi_id: string;
+  name_fr: string;
+  current_category: string;
+  proposed_category: string;
+  confidence: number;
+  reasoning?: string;
+  human_decision: "accepted" | "rejected" | string | null; // 'modified_to:<cat>' allowed
+}
+
+interface RecatReport {
+  id: string;
+  run_at: string;
+  total_pois: number;
+  issues_detail: {
+    report_kind?: string;
+    batch?: string;
+    confidence_distribution?: { high: number; mid: number; low: number };
+    proposals?: Proposal[];
+  };
+}
+
+export default function RecatPilotPanel() {
+  const { toast } = useToast();
+  const [reports, setReports] = useState<RecatReport[]>([]);
+  const [activeReport, setActiveReport] = useState<RecatReport | null>(null);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [hubFlags, setHubFlags] = useState<Record<string, { is_start_hub: boolean; is_main_visit: boolean }>>({});
+
+  const fetchReports = async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("poi_quality_reports")
+      .select("*")
+      .order("run_at", { ascending: false })
+      .limit(20);
+    const recat = (data ?? []).filter(
+      (r: any) => r.issues_detail?.report_kind === "recat_proposal"
+    ) as RecatReport[];
+    setReports(recat);
+    if (recat.length > 0 && !activeReport) selectReport(recat[0]);
+    setLoading(false);
+  };
+
+  const selectReport = async (r: RecatReport) => {
+    setActiveReport(r);
+    const props = (r.issues_detail?.proposals ?? []) as Proposal[];
+    setProposals(props);
+    // Garde-fou: charger flags hub/main_visit pour chaque POI
+    const ids = props.map((p) => p.poi_id);
+    if (ids.length > 0) {
+      const { data: pois } = await supabase
+        .from("medina_pois")
+        .select("id, is_start_hub, is_main_visit")
+        .in("id", ids);
+      const map: Record<string, { is_start_hub: boolean; is_main_visit: boolean }> = {};
+      (pois ?? []).forEach((p: any) => {
+        map[p.id] = { is_start_hub: !!p.is_start_hub, is_main_visit: !!p.is_main_visit };
+      });
+      setHubFlags(map);
+    }
+  };
+
+  useEffect(() => { fetchReports(); }, []);
+
+  const generatePilot = async () => {
+    setGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("poi-quality-agent", {
+        body: { mode: "recat_propose", pilot_size: 30 },
+      });
+      if (error) throw error;
+      toast({ title: `Pilote généré: ${data?.pilot_size ?? 0} propositions` });
+      await fetchReports();
+    } catch (e: any) {
+      toast({ title: "Erreur génération pilote", description: e.message, variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const setDecision = (idx: number, decision: Proposal["human_decision"]) => {
+    setProposals((prev) => prev.map((p, i) => (i === idx ? { ...p, human_decision: decision } : p)));
+  };
+
+  const setModifiedTo = (idx: number, cat: string) => {
+    setDecision(idx, `modified_to:${cat}` as any);
+  };
+
+  const exportCsv = () => {
+    if (!activeReport) return;
+    const header = ["poi_id", "name_fr", "current_category", "proposed_category", "confidence", "human_decision", "reasoning"];
+    const rows = proposals.map((p) =>
+      [p.poi_id, p.name_fr, p.current_category, p.proposed_category, p.confidence, p.human_decision ?? "pending", (p.reasoning ?? "").replace(/[\n\r,;]/g, " ")]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")
+    );
+    const csv = [header.join(","), ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `lot1a-pilot-preview-${activeReport.id.slice(0, 8)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const allDecided = proposals.length > 0 && proposals.every((p) => p.human_decision !== null);
+
+  const applyDecisions = async () => {
+    if (!activeReport) return;
+    if (!allDecided) {
+      toast({ title: "Décision manquante", description: "Toutes les lignes doivent avoir une décision (accepté/rejeté/modifié).", variant: "destructive" });
+      return;
+    }
+    setApplying(true);
+    try {
+      let applied = 0, skipped = 0;
+      for (const p of proposals) {
+        if (!p.human_decision || p.human_decision === "rejected") { skipped++; continue; }
+        // Garde-fou structurel: jamais sur hub / main_visit (bloqué par UI)
+        if (hubFlags[p.poi_id]?.is_start_hub || hubFlags[p.poi_id]?.is_main_visit) { skipped++; continue; }
+        const targetCat = p.human_decision === "accepted"
+          ? p.proposed_category
+          : p.human_decision.startsWith("modified_to:")
+            ? p.human_decision.slice("modified_to:".length)
+            : null;
+        if (!targetCat || !TAXONOMY.includes(targetCat)) { skipped++; continue; }
+
+        // Snapshot + update
+        const { data: cur } = await supabase
+          .from("medina_pois")
+          .select("metadata, category")
+          .eq("id", p.poi_id)
+          .single();
+        const newMeta = {
+          ...(cur?.metadata as object ?? {}),
+          recat_applied_at: new Date().toISOString(),
+          recat_from: cur?.category ?? p.current_category,
+          recat_decision_id: activeReport.id,
+          recat_confidence: p.confidence,
+          recat_batch: "lot1a_pilot",
+        };
+        const { error: upErr } = await supabase
+          .from("medina_pois")
+          .update({ category: targetCat, metadata: newMeta })
+          .eq("id", p.poi_id);
+        if (!upErr) applied++; else skipped++;
+      }
+      toast({ title: `Application terminée`, description: `${applied} appliqués · ${skipped} ignorés` });
+      await fetchReports();
+    } catch (e: any) {
+      toast({ title: "Erreur application", description: e.message, variant: "destructive" });
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const conf = activeReport?.issues_detail?.confidence_distribution;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-5 h-5 text-primary" />
+          <h2 className="font-semibold text-lg">Recatégorisation — Pilote LOT 1A</h2>
+          {activeReport && <Badge variant="outline" className="text-xs">{proposals.length} POIs</Badge>}
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={generatePilot} disabled={generating} className="gap-2">
+            {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            Générer pilote (30)
+          </Button>
+          <Button variant="outline" onClick={exportCsv} disabled={!activeReport} className="gap-2">
+            <Download className="w-4 h-4" /> Export CSV preview
+          </Button>
+        </div>
+      </div>
+
+      {reports.length > 1 && (
+        <div className="flex gap-2 items-center text-sm">
+          <span className="text-muted-foreground">Rapport :</span>
+          <Select value={activeReport?.id ?? ""} onValueChange={(id) => {
+            const r = reports.find((x) => x.id === id);
+            if (r) selectReport(r);
+          }}>
+            <SelectTrigger className="w-[320px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {reports.map((r) => (
+                <SelectItem key={r.id} value={r.id}>
+                  {new Date(r.run_at).toLocaleString("fr")} · {r.total_pois} POIs
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {conf && (
+        <Card className="p-3 flex gap-4 text-sm">
+          <div><span className="text-muted-foreground">Conf. ≥ 0.9 :</span> <strong>{conf.high}</strong></div>
+          <div><span className="text-muted-foreground">0.7 – 0.9 :</span> <strong>{conf.mid}</strong></div>
+          <div><span className="text-muted-foreground">&lt; 0.7 :</span> <strong>{conf.low}</strong></div>
+        </Card>
+      )}
+
+      {loading ? (
+        <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin" /></div>
+      ) : !activeReport ? (
+        <Card className="p-6 text-center text-sm text-muted-foreground">
+          Aucun pilote généré. Cliquez « Générer pilote » pour produire les propositions.
+        </Card>
+      ) : (
+        <Card className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/50 sticky top-0">
+              <tr className="text-left">
+                <th className="p-2">name_fr</th>
+                <th className="p-2">category</th>
+                <th className="p-2">proposed</th>
+                <th className="p-2">conf.</th>
+                <th className="p-2">reasoning</th>
+                <th className="p-2 w-[260px]">décision</th>
+              </tr>
+            </thead>
+            <tbody>
+              {proposals.map((p, idx) => {
+                const blocked = !!(hubFlags[p.poi_id]?.is_start_hub || hubFlags[p.poi_id]?.is_main_visit);
+                const decision = p.human_decision;
+                return (
+                  <tr key={p.poi_id} className="border-t">
+                    <td className="p-2 align-top">
+                      {blocked && <Shield className="w-3 h-3 inline mr-1 text-amber-500" aria-label="hub/main_visit" />}
+                      <span className="font-medium">{p.name_fr}</span>
+                    </td>
+                    <td className="p-2 align-top text-muted-foreground">{p.current_category}</td>
+                    <td className="p-2 align-top"><Badge variant="secondary">{p.proposed_category}</Badge></td>
+                    <td className="p-2 align-top">
+                      <span className={
+                        p.confidence >= 0.9 ? "text-emerald-600 font-bold"
+                          : p.confidence >= 0.7 ? "text-blue-600"
+                          : "text-amber-600"
+                      }>{p.confidence.toFixed(2)}</span>
+                    </td>
+                    <td className="p-2 align-top text-muted-foreground max-w-[280px]">{p.reasoning}</td>
+                    <td className="p-2 align-top">
+                      {blocked ? (
+                        <span className="text-xs text-amber-600">Bloqué (hub/main_visit)</span>
+                      ) : (
+                        <div className="flex gap-1 items-center flex-wrap">
+                          <Button size="sm" variant={decision === "accepted" ? "default" : "outline"} className="h-6 px-2 gap-1" onClick={() => setDecision(idx, "accepted")}>
+                            <CheckCircle2 className="w-3 h-3" /> OK
+                          </Button>
+                          <Button size="sm" variant={decision === "rejected" ? "destructive" : "outline"} className="h-6 px-2 gap-1" onClick={() => setDecision(idx, "rejected")}>
+                            <XCircle className="w-3 h-3" /> Non
+                          </Button>
+                          <Select value={typeof decision === "string" && decision.startsWith("modified_to:") ? decision.slice(12) : ""} onValueChange={(v) => setModifiedTo(idx, v)}>
+                            <SelectTrigger className="h-6 px-2 text-xs w-[130px]"><Pencil className="w-3 h-3 mr-1" /><SelectValue placeholder="Modifier…" /></SelectTrigger>
+                            <SelectContent>
+                              {TAXONOMY.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card>
+      )}
+
+      {activeReport && (
+        <div className="flex justify-end items-center gap-3">
+          <span className="text-xs text-muted-foreground">
+            {proposals.filter((p) => p.human_decision !== null).length} / {proposals.length} décidés
+          </span>
+          <Button onClick={applyDecisions} disabled={applying || !allDecided} className="gap-2">
+            {applying ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            Appliquer les décisions
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
