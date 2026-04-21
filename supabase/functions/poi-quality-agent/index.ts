@@ -380,30 +380,10 @@ async function runRecatPropose(supabase: any, body: any) {
   const target = Math.max(1, Math.min(50, Number(body.pilot_size ?? 30)));
   const startedAt = new Date().toISOString();
 
+  // 1) Sélection du pool synchrone (rapide, lecture DB seulement)
   const pool = await selectPilotPool(supabase, target);
-  const proposals: any[] = [];
-  let confHigh = 0, confMid = 0, confLow = 0;
 
-  for (const poi of pool) {
-    const ai = await classifyPoiViaAi(poi);
-    if (ai.confidence >= 0.9) confHigh++;
-    else if (ai.confidence >= 0.7) confMid++;
-    else confLow++;
-
-    proposals.push({
-      poi_id: poi.id,
-      name_fr: poi.name_fr,
-      current_category: poi.category,
-      proposed_category: ai.proposed_category,
-      confidence: ai.confidence,
-      reasoning: ai.reasoning,
-      human_decision: null, // pending
-    });
-    // Light delay to avoid rate limits
-    await new Promise((r) => setTimeout(r, 250));
-  }
-
-  // Persist as a single report row (issues_detail holds proposals)
+  // 2) Insert immédiat d'une ligne `pending` dans poi_quality_reports
   const { data: inserted, error: insErr } = await supabase
     .from("poi_quality_reports")
     .insert({
@@ -416,24 +396,92 @@ async function runRecatPropose(supabase: any, body: any) {
       issues_detail: {
         report_kind: "recat_proposal",
         batch: "lot1a_pilot",
+        status: "pending",
         started_at: startedAt,
-        finished_at: new Date().toISOString(),
-        confidence_distribution: { high: confHigh, mid: confMid, low: confLow },
-        proposals,
+        confidence_distribution: { high: 0, mid: 0, low: 0 },
+        proposals: [],
       },
     })
     .select("id")
     .single();
 
-  if (insErr) {
-    return { error: insErr.message, proposals_count: proposals.length };
+  if (insErr || !inserted?.id) {
+    return { error: insErr?.message ?? "insert_failed" };
+  }
+
+  const reportId = inserted.id as string;
+
+  // 3) Lancer le traitement IA en arrière-plan (background task)
+  //    La réponse HTTP retourne immédiatement, le worker s'exécute après.
+  const work = (async () => {
+    const proposals: any[] = [];
+    let confHigh = 0, confMid = 0, confLow = 0;
+    try {
+      for (const poi of pool) {
+        const ai = await classifyPoiViaAi(poi);
+        if (ai.confidence >= 0.9) confHigh++;
+        else if (ai.confidence >= 0.7) confMid++;
+        else confLow++;
+
+        proposals.push({
+          poi_id: poi.id,
+          name_fr: poi.name_fr,
+          current_category: poi.category,
+          proposed_category: ai.proposed_category,
+          confidence: ai.confidence,
+          reasoning: ai.reasoning,
+          human_decision: null,
+        });
+        await new Promise((r) => setTimeout(r, 250));
+      }
+
+      await supabase
+        .from("poi_quality_reports")
+        .update({
+          issues_detail: {
+            report_kind: "recat_proposal",
+            batch: "lot1a_pilot",
+            status: "completed",
+            started_at: startedAt,
+            finished_at: new Date().toISOString(),
+            confidence_distribution: { high: confHigh, mid: confMid, low: confLow },
+            proposals,
+          },
+        })
+        .eq("id", reportId);
+    } catch (e) {
+      console.error("recat_propose background failure", e);
+      await supabase
+        .from("poi_quality_reports")
+        .update({
+          issues_detail: {
+            report_kind: "recat_proposal",
+            batch: "lot1a_pilot",
+            status: "failed",
+            started_at: startedAt,
+            finished_at: new Date().toISOString(),
+            error: e instanceof Error ? e.message : String(e),
+            confidence_distribution: { high: confHigh, mid: confMid, low: confLow },
+            proposals, // partial
+          },
+        })
+        .eq("id", reportId);
+    }
+  })();
+
+  // @ts-ignore — EdgeRuntime existe dans Supabase Edge Runtime
+  if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+    // @ts-ignore
+    EdgeRuntime.waitUntil(work);
+  } else {
+    // Fallback (tests locaux) — laisse la promesse vivre
+    work.catch((e) => console.error("background error", e));
   }
 
   return {
-    report_id: inserted?.id,
+    report_id: reportId,
+    status: "pending",
     pilot_size: pool.length,
-    confidence_distribution: { high: confHigh, mid: confMid, low: confLow },
-    proposals_preview: proposals.slice(0, 5),
-    note: "DRY-RUN. Aucune mutation sur medina_pois. Validation humaine requise via UI AdminWatchdog.",
+    note: "DRY-RUN. Traitement IA en arrière-plan. Poll poi_quality_reports.id=report_id jusqu'à status=completed|failed.",
   };
 }
