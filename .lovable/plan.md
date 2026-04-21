@@ -1,53 +1,51 @@
 
 
-# Fix invocation `poi-quality-agent` LOT 1B
-
-## Constat
-
-- Clic « Générer batch (50) » → toast `Failed to send a request to the Edge Function`
-- Aucune ligne `POST .../poi-quality-agent` dans les logs edge au moment des clics (alors que d'autres fonctions sont bien loggées)
-- Workers `booted` à 16:52:59 + 16:53:09 (cold-start déclenché par chaque clic) → la fonction démarre puis meurt avant d'envoyer la réponse HTTP
-- Pool LOT 1B éligible bien présent en base : 533 restos + 211 generics
-- Donc problème infra-invocation localisé dans le code ajouté pour LOT 1B (`selectLot1bPool`), pas dans le métier
+# Diagnostic — /admin ne se charge pas
 
 ## Cause probable
 
-Dans `selectLot1bPool`, l'option `order("reviews_count", { ascending: false, nullsFirst: false })` n'est **pas une option valide** pour `supabase-js` v2 — la propriété attendue est `nullsFirst` (boolean) seul, et associée à un parsing PostgREST qui retourne 400 si la combinaison `ascending: false, nullsFirst: false` n'est pas correctement sérialisée par cette version chargée via `esm.sh`. La promesse rejetée non-catchée tue le worker → le SDK client voit `Failed to send a request`.
+**Backend Lovable Cloud temporairement indisponible.** La récupération metadata a échoué côté plateforme avec :
+> `request failed with status 544: Connection terminated due to connection timeout`
 
-S'ajoute un facteur aggravant : aucun `try/catch` global autour de `runRecatPropose` dans le `serve()` n'existe pour ce mode (le `try/catch` global est là, mais l'erreur survient sur l'`await selectLot1bPool` qui peut renvoyer une promesse rejetée silencieuse côté `data` destructuré).
+Conséquence côté UI :
+- `AuthContext` appelle `supabase.rpc('has_role', ...)` au montage.
+- L'appel **n'aboutit jamais** (timeout réseau / instance backend qui ne répond pas).
+- `isAdminLoading` reste `true` indéfiniment.
+- `ProtectedRoute` affiche le spinner en boucle → **page admin jamais rendue**.
 
-## Correctif (1 fichier)
+Confirmation indirecte :
+- Console : aucune erreur applicative bloquante (juste warnings React Router + forwardRef).
+- Session replay : navigation `/` → `/admin` → spinner visible, aucune interaction possible.
+- Edge functions (api-v2, n8n-proxy, poi-auto-agent) : uniquement des cycles boot/shutdown normaux, pas d'erreur d'exécution récente.
 
-**`supabase/functions/poi-quality-agent/index.ts`** — modifications minimes, périmètre strict LOT 1B :
+## Action immédiate (sans patch)
 
-1. **Retirer `nullsFirst`** dans `selectLot1bPool` :
-   ```ts
-   .order("reviews_count", { ascending: false })
-   ```
-   `null` partira en fin naturellement (comportement PostgreSQL par défaut sur `DESC` = NULLS FIRST, on le compense côté JS en filtrant après).
+1. **Vérifier l'état du backend Cloud** via `cloud_status` pour confirmer si l'instance est en `COMING_UP`, `RESTARTING`, `ACTIVE_UNHEALTHY` ou autre état non-`ACTIVE_HEALTHY`.
+2. **Si non-healthy** : attendre le retour à `ACTIVE_HEALTHY` (quelques minutes typiquement). Recharger la page `/admin` ensuite. Aucun changement de code requis.
+3. **Si `ACTIVE_HEALTHY`** : le timeout est ponctuel. Hard-refresh navigateur (Cmd+Shift+R) pour relancer `has_role`.
 
-2. **Durcir `selectLot1bPool`** : envelopper chaque appel Supabase dans son propre try/catch et logger l'erreur Postgrest (`error.message`, `error.details`) pour qu'un éventuel échec futur soit visible dans les logs edge au lieu de tuer le worker.
+## Robustesse à ajouter (patch léger, optionnel)
 
-3. **Logger l'entrée** de `runRecatPropose` (`console.log("recat_propose start", { lotLabel, target })`) pour confirmer en logs que la requête arrive.
+Pour éviter qu'un timeout backend bloque toute la page admin à l'avenir :
 
-4. **Préserver totalement** : pas de changement de signature, pas de changement de pool sélection (P1→P4), pas de changement de batch size 50, pas de changement DRY-RUN, pas de changement UI, pas de changement RecatPilotPanel.
+**Fichier** : `src/contexts/AuthContext.tsx`
 
-## Vérification post-déploiement
+Ajouter un **timeout de garde** sur l'appel `has_role` (5s) :
+- Si la RPC ne répond pas en 5s → `setIsAdmin(false)` + `setIsAdminLoading(false)` + log console.
+- L'utilisateur voit alors la page « Accès refusé » au lieu d'un spinner infini, ce qui rend le problème diagnosticable et permet de retenter manuellement.
 
-1. Re-déployer `poi-quality-agent`
-2. Clic « Générer batch (50) »
-3. Vérifier logs edge : doit apparaître `POST | 200 | …/poi-quality-agent`
-4. Vérifier `console.log("recat_propose start", …)` présent
-5. UI doit recevoir `{ report_id, status: "pending", pilot_size: 50, lot_label: "lot1b_batch01" }` et démarrer le polling
+Optionnellement : ajouter un bouton « Réessayer » dans `ProtectedRoute` quand `isAdminLoading` dure plus de 5s, pour relancer la vérification sans recharger toute la page.
 
-## Périmètre strict respecté
+## Périmètre
 
-- 1 seul fichier touché
-- Aucun changement métier
-- Aucun changement UI
-- Aucun changement schéma
-- Aucun changement priorisation P1→P4
-- Aucun changement batch size 50
-- Aucun changement DRY-RUN
-- Aucun changement persistance `recat_decision`/`recat_note`
+- **N'affecte pas LOT 1B / batch 1** en cours.
+- **N'affecte pas LOT 1C** en préparation.
+- Patch optionnel : ~10 lignes dans `AuthContext.tsx` + `ProtectedRoute.tsx`. À approuver explicitement si vous voulez le filet de sécurité.
+
+## Prochaine étape
+
+Confirmer si vous voulez :
+- **A** : juste attendre le retour à la normale du backend (rien à faire côté code) ;
+- **B** : appliquer le patch timeout pour éviter le spinner infini à l'avenir ;
+- **C** : les deux (attendre + appliquer le patch dès que /admin redevient accessible).
 
