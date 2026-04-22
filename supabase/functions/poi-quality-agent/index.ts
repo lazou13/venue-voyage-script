@@ -423,10 +423,20 @@ Règles strictes:
 - "reasoning" est une seule phrase courte (max 20 mots).
 - "confidence" est entre 0 et 1.
 - Si données insuffisantes, retourne {"proposed_category":"generic","confidence":<0.3,"reasoning":"..."}.
-- Aucune invention: ne déduis pas un statut historique sans signal explicite (wikidata, wikipedia, mot-clé fort).`;
+- Aucune invention: ne déduis pas un statut historique sans signal explicite (wikidata, wikipedia, mot-clé fort).
+
+Règles additives (premium_main / garde-fous anti-pattern v2):
+- Si is_main_visit=true dans l'entrée, les catégories cafe, food_drink, restaurant, artisan sont INTERDITES. Si aucun meilleur choix culturel/patrimonial n'est défendable, retourner generic avec confidence faible (<0.5).
+- souk = marché collectif structurel uniquement (rue couverte, bazar historique, structure caravansérail collective). Une boutique privée nommée vendant épices, cosmétiques ou artisanat n'est JAMAIS un souk.
+- Si la taxonomie ne supporte pas "boutique", ne jamais produire "boutique" ; utiliser generic à la place.
+- La présence des mots "souk", "spices", "épices" ou équivalents dans le nom n'est PAS suffisante pour classer en souk.
+- museum exige un statut muséal crédible et explicite (institution publique, fondation, collection officielle référencée, wikidata muséal). Les micro-musées privés thématiques douteux (téléphones anciens, "museum 24", etc.) ne doivent PAS être promus automatiquement en museum.
+- Si patrimoine bâti identifiable sans statut muséal clair → préférer historic_site. Sinon fallback generic.
+- Pour les lieux éducatifs/religieux historiques majeurs (médersa, zaouïa, fondouk patrimonial) sans catégorie plus précise dans la taxonomie, préférer historic_site avec reasoning explicite plutôt que museum ou generic par défaut.`;
 
   const user = JSON.stringify({
     name_fr: poi.name_fr,
+    is_main_visit: poi.is_main_visit ?? false,
     current_category: poi.category,
     category_google: poi.category_google,
     subcategory: poi.subcategory,
