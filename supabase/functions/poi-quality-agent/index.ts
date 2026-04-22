@@ -608,3 +608,34 @@ async function runRecatPropose(supabase: any, body: any) {
     note: "DRY-RUN. Traitement IA en arrière-plan. Poll poi_quality_reports.id=report_id jusqu'à status=completed|failed.",
   };
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// LOT Premium Main — pool dédié (additif, n'affecte pas LOT 1A/1B)
+// Périmètre: is_active=true, is_main_visit=true, category='generic',
+// bbox Médina, name_fr non null. Idempotence via metadata.recat_batch
+// préfixé 'premium_main_'.
+// ──────────────────────────────────────────────────────────────────────────
+async function selectPremiumMainPool(supabase: any, target = 50) {
+  const { data, error } = await supabase
+    .from("medina_pois")
+    .select(SELECT_COLS + ", is_main_visit")
+    .eq("is_active", true)
+    .eq("is_main_visit", true)
+    .eq("category", "generic")
+    .gte("lat", MEDINA_BBOX.latMin).lte("lat", MEDINA_BBOX.latMax)
+    .gte("lng", MEDINA_BBOX.lngMin).lte("lng", MEDINA_BBOX.lngMax)
+    .not("name_fr", "is", null)
+    .order("poi_quality_score", { ascending: false, nullsFirst: false })
+    .limit(Math.max(target * 2, 100));
+
+  if (error) {
+    console.error("selectPremiumMainPool query error", error.message, (error as any).details);
+    throw error;
+  }
+
+  const notDone = (data ?? []).filter((p: any) => {
+    const b = p?.metadata?.recat_batch;
+    return !(typeof b === "string" && b.startsWith("premium_main_"));
+  });
+  return notDone.slice(0, target);
+}
