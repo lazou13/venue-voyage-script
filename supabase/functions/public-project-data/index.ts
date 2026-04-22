@@ -147,7 +147,8 @@ Deno.serve(async (req) => {
       let query = sb.from("medina_pois").select(`
         id, name, name_fr, name_en, name_ar,
         lat, lng, zone, category, category_ai,
-        category_google, status, is_active, is_start_hub,
+        category_google, real_category,
+        status, is_active, is_start_hub,
         rating, reviews_count, poi_quality_score,
         address, description_short, history_context,
         local_anecdote, local_anecdote_fr, local_anecdote_en,
@@ -180,6 +181,7 @@ Deno.serve(async (req) => {
 
       const poiIds = (pois ?? []).map((p: any) => p.id);
       let media: any[] = [];
+      let readinessRows: any[] = [];
       if (poiIds.length > 0) {
         const BATCH = 50;
         for (let i = 0; i < poiIds.length; i += BATCH) {
@@ -187,6 +189,15 @@ Deno.serve(async (req) => {
           const { data: mData, error: mErr } = await sb.from("poi_media").select("*").in("medina_poi_id", batch).order("sort_order");
           if (mErr) { console.error("poi_media batch error:", JSON.stringify(mErr)); throw mErr; }
           media = media.concat(mData ?? []);
+        }
+        // Fetch QRP readiness from view (calculated fields)
+        for (let i = 0; i < poiIds.length; i += BATCH) {
+          const batch = poiIds.slice(i, i + BATCH);
+          const { data: rData, error: rErr } = await (sb.from("v_poi_qrp_readiness" as any) as any)
+            .select("poi_id, real_category, visit_families, tier_by_family, ready_by_family, enrichment_gaps_by_family")
+            .in("poi_id", batch);
+          if (rErr) { console.error("v_poi_qrp_readiness batch error:", JSON.stringify(rErr)); throw rErr; }
+          readinessRows = readinessRows.concat(rData ?? []);
         }
       }
 
@@ -197,7 +208,25 @@ Deno.serve(async (req) => {
         mediaByPoi.set(m.medina_poi_id, arr);
       }
 
-      const result = (pois ?? []).map((p: any) => ({ ...p, media: mediaByPoi.get(p.id) || [] }));
+      const readinessByPoi = new Map<string, any>();
+      for (const r of readinessRows) {
+        readinessByPoi.set(r.poi_id, r);
+      }
+
+      const result = (pois ?? []).map((p: any) => {
+        const r = readinessByPoi.get(p.id);
+        const meta = (p.metadata ?? {}) as Record<string, unknown>;
+        return {
+          ...p,
+          media: mediaByPoi.get(p.id) || [],
+          // QRP contract fields (LOT-A)
+          real_category: p.real_category ?? r?.real_category ?? null,
+          visit_families: r?.visit_families ?? (Array.isArray((meta as any).visit_families) ? (meta as any).visit_families : []),
+          tier_by_family: r?.tier_by_family ?? ((meta as any).tier_by_family ?? {}),
+          ready_by_family: r?.ready_by_family ?? {},
+          enrichment_gaps_by_family: r?.enrichment_gaps_by_family ?? {},
+        };
+      });
       return json({ pois: result }, 200, cors);
     }
 
