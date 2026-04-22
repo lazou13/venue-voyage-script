@@ -98,10 +98,12 @@ serve(async (req) => {
       logs.push(`⚠️ Phase -2 merge exception: ${e instanceof Error ? e.message : 'unknown'}`);
     }
 
+    // 🔒 GEL Premium Main: exclure is_main_visit=true (cleanup pipeline avant lot Premium Main)
     const { data: outOfBounds, error: oobErr } = await supabase
       .from("medina_pois")
       .select("id, name, lat, lng")
       .eq("is_active", true)
+      .eq("is_main_visit", false)
       .not("lat", "is", null)
       .not("lng", "is", null)
       .or("lat.lt.31.60,lat.gt.31.67,lng.lt.-8.02,lng.gt.-7.97");
@@ -136,10 +138,12 @@ serve(async (req) => {
       "best_time_visit", "accessibility_notes", "enrichment_status",
     ];
 
+    // 🔒 GEL Premium Main: pas de merge auto sur is_main_visit=true
     const { data: dupCandidates } = await supabase
       .from("medina_pois")
       .select(`id, name, lat, lng, poi_quality_score, ${MERGE_FIELDS.join(", ")}`)
       .eq("is_active", true)
+      .eq("is_main_visit", false)
       .not("status", "in", '("filtered","merged")')
       .not("lat", "is", null)
       .not("lng", "is", null)
@@ -189,11 +193,13 @@ serve(async (req) => {
     }
 
     // ━━━━━━━━━━ PHASE 0: AUTO-VALIDATION (enriched → validated) ━━━━━━━━━━
+    // 🔒 GEL Premium Main: auto-validation interdite sur is_main_visit=true (revue humaine obligatoire)
     const { data: eligiblePois, error: eligibleErr } = await supabase
       .from("medina_pois")
       .select("id")
       .eq("status", "enriched")
       .eq("is_active", true)
+      .eq("is_main_visit", false)
       .gte("poi_quality_score", 3)
       .not("category_ai", "is", null)
       .not("lat", "is", null)
@@ -228,10 +234,12 @@ serve(async (req) => {
     }
 
     // ━━━━━━━━━━ PHASE 1: POI ENRICHMENT (audience/accessibility/food/instagram) ━━━━━━━━━━
+    // 🔒 GEL Premium Main: pas d'enrichissement IA auto sur is_main_visit=true
     const { data: unenrichedPois, error: fetchErr } = await supabase
       .from("medina_pois")
       .select("id, name, name_fr, category_ai, category_google, description_short, address, district, rating, reviews_count, ruelle_etroite, photo_tip, lat, lng")
       .not("status", "in", '("filtered","merged")')
+      .eq("is_main_visit", false)
       .is("agent_enriched_at", null)
       .not("category_ai", "is", null)
       .limit(50);

@@ -22,10 +22,12 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
     // Find POIs with google_raw but no photo in poi_media
+    // 🔒 GEL Premium Main: pas de fetch photo auto sur is_main_visit=true
     const { data: allPois, error: poisErr } = await supabase
       .from("medina_pois")
       .select("id, google_raw")
       .not("google_raw", "is", null)
+      .eq("is_main_visit", false)
       .neq("status", "filtered")
       .neq("status", "merged");
     if (poisErr) throw poisErr;
