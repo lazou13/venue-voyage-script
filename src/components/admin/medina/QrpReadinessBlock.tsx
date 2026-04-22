@@ -142,12 +142,12 @@ export function QrpReadinessBlock({ poi, realCategory, setRealCategory, saveReal
                       </SelectContent>
                     </Select>
                     {ready === true && (
-                      <Badge variant="outline" className="gap-1 border-green-500/50 text-green-600">
+                      <Badge variant="secondary" className="gap-1">
                         <CheckCircle2 className="w-3 h-3" /> ready
                       </Badge>
                     )}
                     {ready === false && (
-                      <Badge variant="outline" className="gap-1 border-amber-500/50 text-amber-600" title={gaps.join(', ')}>
+                      <Badge variant="outline" className="gap-1" title={gaps.join(', ')}>
                         <AlertCircle className="w-3 h-3" /> {gaps.length} gap{gaps.length > 1 ? 's' : ''}
                       </Badge>
                     )}
