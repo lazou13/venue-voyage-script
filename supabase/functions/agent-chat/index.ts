@@ -35,7 +35,6 @@ const PIPELINE_STEPS: Record<string, { fn: string; body: any; label: string }> =
   anecdotes:     { fn: "anecdote-enricher",   body: { batch_size: 5 },                      label: "Anecdotes Perplexity" },
   fun_facts:     { fn: "n8n-proxy",           body: { action: "generate_fun_facts", batch_size: 5 }, label: "Fun facts" },
   translate_en:  { fn: "n8n-proxy",           body: { action: "translate_pois", batch_size: 5 },     label: "Traduction EN" },
-  pull_audio:    { fn: "n8n-proxy",           body: { action: "pull_audio" },               label: "Pull Audio" },
   autopipeline:  { fn: "poi-auto-agent",      body: {},                                     label: "Autopipeline" },
 };
 
