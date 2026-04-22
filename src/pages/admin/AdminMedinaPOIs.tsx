@@ -410,6 +410,16 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
         </div>
       </div>
 
+      {/* QRP Readiness — real_category, visit_families, tier_by_family */}
+      <QrpReadinessBlock
+        poi={form}
+        realCategory={(form as any).real_category ?? null}
+        setRealCategory={(v) => set('real_category' as any, v)}
+        saveRealCategory={() => save()}
+        setMeta={setMeta}
+        save={save}
+      />
+
       {/* Start Hub */}
       <div className="space-y-3 rounded-lg border border-border p-4">
         <div className="flex items-center gap-2">
