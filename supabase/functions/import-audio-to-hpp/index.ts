@@ -8,7 +8,7 @@
 //  - upload dans bucket HPP `audio-guides`
 //  - réécrit le champ audio du POI vers la nouvelle URL HPP
 //  - NE supprime rien d'externe
-//  - NE désactive PAS pull-audio-from-questride
+//  - LOT-AUD-5: pull-audio-from-questride est désormais legacy/disabled
 //  - NE génère AUCUN audio
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
