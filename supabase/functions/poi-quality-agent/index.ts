@@ -473,21 +473,24 @@ Règles strictes:
 }
 
 async function runRecatPropose(supabase: any, body: any) {
+  const isPremiumMain = body.target === "premium_main";
   const lotLabel: string = typeof body.lot_label === "string" && body.lot_label.length > 0
     ? body.lot_label
-    : "lot1a_pilot";
-  const isLot1b = lotLabel.startsWith("lot1b_");
-  const defaultTarget = isLot1b ? 50 : 30;
+    : (isPremiumMain ? "premium_main_recat_v1" : "lot1a_pilot");
+  const isLot1b = !isPremiumMain && lotLabel.startsWith("lot1b_");
+  const defaultTarget = isPremiumMain ? 50 : (isLot1b ? 50 : 30);
   const target = Math.max(1, Math.min(50, Number(body.pilot_size ?? defaultTarget)));
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
-  console.log("recat_propose ENTRY", { lotLabel, target, isLot1b, startedAt });
+  console.log("recat_propose ENTRY", { lotLabel, target, isPremiumMain, isLot1b, startedAt });
 
   let pool: any[] = [];
   try {
-    pool = isLot1b
-      ? await selectLot1bPool(supabase, target)
-      : await selectPilotPool(supabase, target);
+    pool = isPremiumMain
+      ? await selectPremiumMainPool(supabase, target)
+      : isLot1b
+        ? await selectLot1bPool(supabase, target)
+        : await selectPilotPool(supabase, target);
   } catch (e: any) {
     console.error("recat_propose pool selection FAILED", { lotLabel, error: e?.message ?? String(e) });
     return { error: "pool_selection_failed", message: e?.message ?? String(e) };
