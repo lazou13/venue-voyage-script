@@ -25,6 +25,7 @@ import { BilingualNarrativeBlock } from '@/components/admin/medina/BilingualNarr
 import { AudioGuideBlock } from '@/components/admin/medina/AudioGuideBlock';
 import { VisitSettingsBlock } from '@/components/admin/medina/VisitSettingsBlock';
 import { MainPOIEnrichmentBlock } from '@/components/admin/medina/MainPOIEnrichmentBlock';
+import { QrpReadinessBlock } from '@/components/admin/medina/QrpReadinessBlock';
 import { VideosBlock } from '@/components/admin/medina/VideosBlock';
 import { SaveStatusBadge } from '@/components/admin/medina/SaveStatusBadge';
 import { getDisplayName } from '@/lib/poiDisplay';
@@ -408,6 +409,16 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
           <Label>Actif</Label>
         </div>
       </div>
+
+      {/* QRP Readiness — real_category, visit_families, tier_by_family */}
+      <QrpReadinessBlock
+        poi={form}
+        realCategory={(form as any).real_category ?? null}
+        setRealCategory={(v) => set('real_category' as any, v)}
+        saveRealCategory={() => save()}
+        setMeta={setMeta}
+        save={save}
+      />
 
       {/* Start Hub */}
       <div className="space-y-3 rounded-lg border border-border p-4">
