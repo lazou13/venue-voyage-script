@@ -218,10 +218,19 @@ export default function RecatPilotPanel() {
     URL.revokeObjectURL(url);
   };
 
+  // Premium Main: cible par construction des POIs is_main_visit=true → débloquer is_main_visit
+  // mais conserver is_start_hub bloquant dans tous les cas (hubs canoniques protégés).
+  const isPremiumMainBatch = (activeReport?.issues_detail?.batch ?? "").startsWith("premium_main_");
+  const isBlocked = (poiId: string) => {
+    const flags = hubFlags[poiId];
+    if (!flags) return false;
+    return isPremiumMainBatch
+      ? !!flags.is_start_hub
+      : !!(flags.is_start_hub || flags.is_main_visit);
+  };
+
   // Bloqués structurels exclus du compteur "tout décidé"
-  const decidableProposals = proposals.filter(
-    (p) => !(hubFlags[p.poi_id]?.is_start_hub || hubFlags[p.poi_id]?.is_main_visit)
-  );
+  const decidableProposals = proposals.filter((p) => !isBlocked(p.poi_id));
   const allDecided = decidableProposals.length > 0 && decidableProposals.every((p) => p.human_decision !== null);
 
   // Mappage human_decision -> recat_decision (canonical persisté en base)
@@ -245,7 +254,7 @@ export default function RecatPilotPanel() {
     try {
       let applied = 0, skipped = 0, traced = 0;
       for (const p of proposals) {
-        if (hubFlags[p.poi_id]?.is_start_hub || hubFlags[p.poi_id]?.is_main_visit) { skipped++; continue; }
+        if (isBlocked(p.poi_id)) { skipped++; continue; }
         const decision = toCanonicalDecision(p.human_decision);
         if (!decision || decision === "rejected") { skipped++; continue; }
 
@@ -370,7 +379,7 @@ export default function RecatPilotPanel() {
             </thead>
             <tbody>
               {proposals.map((p, idx) => {
-                const blocked = !!(hubFlags[p.poi_id]?.is_start_hub || hubFlags[p.poi_id]?.is_main_visit);
+                const blocked = isBlocked(p.poi_id);
                 const decision = p.human_decision;
                 return (
                   <tr key={p.poi_id} className="border-t">
