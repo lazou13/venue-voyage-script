@@ -129,6 +129,12 @@ export function AudioGuideBlock({ poi, onRefresh }: Props) {
       <p className="text-[11px] text-muted-foreground -mt-1">
         Pistes séparées par type narratif. Source TTS = texte brut du champ correspondant.
       </p>
+      {ttsLocked && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-300">
+          🔒 <strong>Verrou Premium Main actif.</strong> La génération TTS est désactivée tant que la revue
+          humaine n'a pas posé <code>metadata.premium_main_text_validated_at</code> sur ce POI.
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         {SLOTS.map(renderSlot)}
       </div>
