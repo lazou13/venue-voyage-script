@@ -29,7 +29,9 @@ const STATUS_OPACITY: Record<string, number> = {
 };
 
 function getCategoryColor(poi: MedinaPOI): string {
-  const cat = (poi as unknown as Record<string, string>).category_ai ?? poi.category ?? 'generic';
+  // Business reference: real_category. Fallback chain on legacy/AI fields if absent.
+  const p = poi as unknown as Record<string, string | undefined>;
+  const cat = p.real_category ?? p.category_ai ?? poi.category ?? 'generic';
   return CATEGORY_COLORS[cat] ?? CATEGORY_COLORS.generic;
 }
 
