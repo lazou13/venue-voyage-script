@@ -204,6 +204,13 @@ export type Database = {
             referencedRelation: "medina_pois"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "client_photos_poi_id_fkey"
+            columns: ["poi_id"]
+            isOneToOne: false
+            referencedRelation: "v_poi_qrp_readiness"
+            referencedColumns: ["poi_id"]
+          },
         ]
       }
       client_poi_recommendations: {
@@ -259,6 +266,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "medina_pois"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_poi_recommendations_medina_poi_id_fkey"
+            columns: ["medina_poi_id"]
+            isOneToOne: false
+            referencedRelation: "v_poi_qrp_readiness"
+            referencedColumns: ["poi_id"]
           },
           {
             foreignKeyName: "client_poi_recommendations_source_instance_id_fkey"
@@ -325,6 +339,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "medina_pois"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_recommendations_poi_id_fkey"
+            columns: ["poi_id"]
+            isOneToOne: false
+            referencedRelation: "v_poi_qrp_readiness"
+            referencedColumns: ["poi_id"]
           },
         ]
       }
@@ -633,6 +654,7 @@ export type Database = {
           price_info_en: string | null
           radius_m: number
           rating: number | null
+          real_category: string | null
           recommendations_count: number | null
           reviews_count: number | null
           riddle_easy: string | null
@@ -765,6 +787,7 @@ export type Database = {
           price_info_en?: string | null
           radius_m?: number
           rating?: number | null
+          real_category?: string | null
           recommendations_count?: number | null
           reviews_count?: number | null
           riddle_easy?: string | null
@@ -897,6 +920,7 @@ export type Database = {
           price_info_en?: string | null
           radius_m?: number
           rating?: number | null
+          real_category?: string | null
           recommendations_count?: number | null
           reviews_count?: number | null
           riddle_easy?: string | null
@@ -1097,6 +1121,13 @@ export type Database = {
             referencedRelation: "medina_pois"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "poi_media_medina_poi_id_fkey"
+            columns: ["medina_poi_id"]
+            isOneToOne: false
+            referencedRelation: "v_poi_qrp_readiness"
+            referencedColumns: ["poi_id"]
+          },
         ]
       }
       poi_quality_reports: {
@@ -1260,6 +1291,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "medina_pois"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pois_library_poi_id_fkey"
+            columns: ["library_poi_id"]
+            isOneToOne: false
+            referencedRelation: "v_poi_qrp_readiness"
+            referencedColumns: ["poi_id"]
           },
           {
             foreignKeyName: "pois_project_id_fkey"
@@ -1610,6 +1648,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "medina_pois"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quest_photos_medina_poi_id_fkey"
+            columns: ["medina_poi_id"]
+            isOneToOne: false
+            referencedRelation: "v_poi_qrp_readiness"
+            referencedColumns: ["poi_id"]
           },
           {
             foreignKeyName: "quest_photos_quest_instance_id_fkey"
@@ -2080,6 +2125,18 @@ export type Database = {
           instance_ids: string[] | null
           last_seen: string | null
           total_accesses: number | null
+        }
+        Relationships: []
+      }
+      v_poi_qrp_readiness: {
+        Row: {
+          enrichment_gaps_by_family: Json | null
+          name: string | null
+          poi_id: string | null
+          ready_by_family: Json | null
+          real_category: string | null
+          tier_by_family: Json | null
+          visit_families: string[] | null
         }
         Relationships: []
       }
