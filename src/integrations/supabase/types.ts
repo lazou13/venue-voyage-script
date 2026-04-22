@@ -163,6 +163,48 @@ export type Database = {
         }
         Relationships: []
       }
+      audio_irrecoverable: {
+        Row: {
+          detected_at: string
+          field_name: string
+          host: string | null
+          http_status: number | null
+          id: string
+          needs_regeneration: boolean
+          notes: string | null
+          original_url: string
+          poi_id: string
+          reason: string
+          regenerated_at: string | null
+        }
+        Insert: {
+          detected_at?: string
+          field_name: string
+          host?: string | null
+          http_status?: number | null
+          id?: string
+          needs_regeneration?: boolean
+          notes?: string | null
+          original_url: string
+          poi_id: string
+          reason: string
+          regenerated_at?: string | null
+        }
+        Update: {
+          detected_at?: string
+          field_name?: string
+          host?: string | null
+          http_status?: number | null
+          id?: string
+          needs_regeneration?: boolean
+          notes?: string | null
+          original_url?: string
+          poi_id?: string
+          reason?: string
+          regenerated_at?: string | null
+        }
+        Relationships: []
+      }
       avatars: {
         Row: {
           age: string

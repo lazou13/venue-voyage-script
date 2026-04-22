@@ -113,3 +113,6 @@ verify_jwt = false
 
 [functions.audio-inventory-scan]
 verify_jwt = false
+
+[functions.import-audio-to-hpp]
+verify_jwt = false
