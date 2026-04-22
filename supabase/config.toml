@@ -99,6 +99,8 @@ verify_jwt = false
 [functions.poi-quality-agent]
 verify_jwt = false
 
+# LOT-AUD-5: legacy / disabled. La fonction reste déployée mais répond 410 Gone.
+# HPP est autonome sur l'audio. Aucun cron/trigger ne l'invoque.
 [functions.pull-audio-from-questride]
 verify_jwt = false
 
