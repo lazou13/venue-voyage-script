@@ -112,6 +112,57 @@ export type Database = {
         }
         Relationships: []
       }
+      audio_inventory_snapshot: {
+        Row: {
+          content_length: number | null
+          content_type: string | null
+          error: string | null
+          field_name: string
+          host: string | null
+          http_status: number | null
+          id: string
+          last_modified: string | null
+          name: string | null
+          poi_id: string
+          probed_at: string
+          run_id: string
+          storage_owner_guess: string | null
+          url: string
+        }
+        Insert: {
+          content_length?: number | null
+          content_type?: string | null
+          error?: string | null
+          field_name: string
+          host?: string | null
+          http_status?: number | null
+          id?: string
+          last_modified?: string | null
+          name?: string | null
+          poi_id: string
+          probed_at?: string
+          run_id: string
+          storage_owner_guess?: string | null
+          url: string
+        }
+        Update: {
+          content_length?: number | null
+          content_type?: string | null
+          error?: string | null
+          field_name?: string
+          host?: string | null
+          http_status?: number | null
+          id?: string
+          last_modified?: string | null
+          name?: string | null
+          poi_id?: string
+          probed_at?: string
+          run_id?: string
+          storage_owner_guess?: string | null
+          url?: string
+        }
+        Relationships: []
+      }
       avatars: {
         Row: {
           age: string
