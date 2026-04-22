@@ -275,8 +275,19 @@ async function handleSyncPois(url: URL) {
     return { error: error.message, pois: [], total: 0 };
   }
 
+  // Map metadata.visit_families & metadata.tier_by_family to top-level fields
+  const mapped = (pois || []).map((p: any) => {
+    const meta = (p.metadata && typeof p.metadata === "object") ? p.metadata : {};
+    const visit_families = Array.isArray(meta.visit_families) ? meta.visit_families : [];
+    const tier_by_family = (meta.tier_by_family && typeof meta.tier_by_family === "object" && !Array.isArray(meta.tier_by_family))
+      ? meta.tier_by_family
+      : {};
+    const { metadata: _drop, ...rest } = p;
+    return { ...rest, visit_families, tier_by_family };
+  });
+
   const total = count || 0;
-  return { pois: pois || [], total, limit, offset, has_more: offset + limit < total };
+  return { pois: mapped, total, limit, offset, has_more: offset + limit < total };
 }
 
 // ── Route: main-visits (POIs principaux validés, source de vérité PRO) ──
