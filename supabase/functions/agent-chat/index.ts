@@ -69,7 +69,6 @@ const TOOLS = [
 - anecdotes : Génère anecdotes via Perplexity
 - fun_facts : Génère un fun fact court par POI
 - translate_en : Traduit nom/description/histoire en anglais
-- pull_audio : Récupère URLs audio FR/EN depuis Questride
 - reclassify : Réinitialise toutes les classifications et relance
 - rescore_riads : Réinitialise et reclassifie uniquement les riads
 - autopipeline : Lance toutes les étapes automatiquement`,
@@ -78,7 +77,7 @@ const TOOLS = [
         properties: {
           step: {
             type: "string",
-            enum: ["extract","classify","enrich","clean","merge","proximity","backfill","photos","anecdotes","fun_facts","translate_en","pull_audio","reclassify","rescore_riads","autopipeline"],
+            enum: ["extract","classify","enrich","clean","merge","proximity","backfill","photos","anecdotes","fun_facts","translate_en","reclassify","rescore_riads","autopipeline"],
             description: "Étape pipeline à exécuter",
           },
         },
@@ -148,7 +147,7 @@ Tu surveilles la base 24/7. Tu peux :
 2. EXÉCUTER des requêtes SQL SELECT via l'outil execute_sql
 3. LANCER n'importe quelle étape du pipeline via l'outil invoke_pipeline_step
 
-Pipeline disponible : extract, classify, enrich, clean, merge, proximity, backfill, photos, anecdotes, fun_facts, translate_en, pull_audio, reclassify, rescore_riads, autopipeline.
+Pipeline disponible : extract, classify, enrich, clean, merge, proximity, backfill, photos, anecdotes, fun_facts, translate_en, reclassify, rescore_riads, autopipeline.
 
 Quand l'utilisateur te demande de lancer une étape, utilise TOUJOURS invoke_pipeline_step — ne te contente pas de dire "je vais lancer". Lance-le vraiment.
 Quand l'utilisateur te demande des données précises (doublons, listes, stats), utilise execute_sql.
