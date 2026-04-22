@@ -116,3 +116,6 @@ verify_jwt = false
 
 [functions.import-audio-to-hpp]
 verify_jwt = false
+
+[functions.regen-irrecoverable-audios]
+verify_jwt = false
