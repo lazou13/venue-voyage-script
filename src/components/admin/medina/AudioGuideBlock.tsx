@@ -33,7 +33,24 @@ export function AudioGuideBlock({ poi, onRefresh }: Props) {
   const { toast } = useToast();
   const [generating, setGenerating] = useState<SlotKey | null>(null);
 
+  // 🔒 GEL Premium Main: TTS bloqué tant que la revue humaine n'a pas posé le flag de validation texte
+  const isPremiumMain = !!(poi as any).is_main_visit;
+  const textValidatedAt =
+    ((poi as any).metadata as Record<string, unknown> | null | undefined)?.[
+      'premium_main_text_validated_at'
+    ] as string | null | undefined;
+  const ttsLocked = isPremiumMain && !textValidatedAt;
+
   const generate = async (slot: Slot) => {
+    if (ttsLocked) {
+      toast({
+        title: 'TTS verrouillé (Premium Main)',
+        description:
+          "Validez d'abord le texte (history_context FR + local_anecdote_fr) puis posez metadata.premium_main_text_validated_at.",
+        variant: 'destructive',
+      });
+      return;
+    }
     const text = ((poi as any)[slot.sourceField] as string | null | undefined)?.trim();
     if (!text) {
       toast({
@@ -86,11 +103,14 @@ export function AudioGuideBlock({ poi, onRefresh }: Props) {
           size="sm"
           variant={url ? 'outline' : 'default'}
           className="w-full h-7 text-xs"
-          disabled={isGen}
+          disabled={isGen || ttsLocked}
           onClick={() => generate(slot)}
+          title={ttsLocked ? 'Verrouillé : validez le texte Premium Main avant TTS' : undefined}
         >
           {isGen ? (
             <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Génération… (~30s)</>
+          ) : ttsLocked ? (
+            <><Mic className="w-3 h-3 mr-1" /> Verrouillé (Premium Main)</>
           ) : url ? (
             <><RotateCw className="w-3 h-3 mr-1" /> Régénérer</>
           ) : (
