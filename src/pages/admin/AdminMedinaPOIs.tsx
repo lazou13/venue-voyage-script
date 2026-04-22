@@ -836,7 +836,7 @@ export default function AdminMedinaPOIs() {
                   {selectedPOI.is_main_visit && <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />}
                   {getDisplayName(selectedPOI)}
                 </h3>
-                <p className="text-xs text-muted-foreground">{selectedPOI.category} · {selectedPOI.zone}</p>
+                <p className="text-xs text-muted-foreground">{(selectedPOI as any).real_category ?? selectedPOI.category} · {selectedPOI.zone}</p>
               </div>
               <SaveStatusBadge
                 isPending={update.isPending}
