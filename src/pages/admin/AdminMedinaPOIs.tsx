@@ -34,7 +34,11 @@ import { getDisplayName } from '@/lib/poiDisplay';
 function isEligibleForValidation(poi: MedinaPOI): { eligible: boolean; reasons: string[] } {
   const reasons: string[] = [];
   if (!poi.name?.trim()) reasons.push('Nom manquant');
-  if (!poi.category?.trim()) reasons.push('Catégorie manquante');
+  // FR-first cleanup: real_category is the business reference. Fallback to legacy `category`
+  // only if real_category is null (transitional, no inverse copy).
+  const effectiveCategory =
+    ((poi as any).real_category as string | null | undefined)?.trim() || poi.category?.trim();
+  if (!effectiveCategory) reasons.push('Catégorie manquante (real_category)');
   if (poi.lat == null || poi.lng == null) reasons.push('GPS manquant');
   const meta = poi.metadata as Record<string, unknown>;
   const sc = poi.step_config as Record<string, unknown>;
@@ -101,7 +105,10 @@ function POIListItem({
     >
       <div className="font-medium truncate">{getDisplayName(poi)}</div>
       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-        <span className="text-xs opacity-70">{poi.category}</span>
+        {/* Business reference: real_category. Fallback display only on legacy `category`. */}
+        <span className="text-xs opacity-70">
+          {((poi as any).real_category as string | null) ?? poi.category}
+        </span>
         {poi.zone && <span className="text-xs opacity-70">· {poi.zone}</span>}
         {poi.status === 'validated' ? (
           <Badge className="text-[10px] px-1.5 py-0 bg-emerald-600 text-white border-emerald-600">✓ Validé</Badge>
@@ -378,8 +385,14 @@ function POIEditorPanel({ poi, onUpdate, onDelete }: {
           <Input value={form.zone} onChange={(e) => set('zone', e.target.value)} onBlur={() => save()} />
         </div>
         <div>
-          <Label>Catégorie</Label>
+          <Label className="flex items-center gap-2">
+            Catégorie
+            <Badge variant="outline" className="text-[9px] px-1 py-0 font-normal">legacy</Badge>
+          </Label>
           <Input value={form.category} onChange={(e) => set('category', e.target.value)} onBlur={() => save()} />
+          <p className="text-[10px] text-muted-foreground mt-1">
+            Champ legacy conservé pour compatibilité. Référence métier : <code>real_category</code> (bloc QRP Readiness).
+          </p>
         </div>
         <div>
           <Label>Latitude</Label>
