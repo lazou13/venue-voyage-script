@@ -25,6 +25,7 @@ import { BilingualNarrativeBlock } from '@/components/admin/medina/BilingualNarr
 import { AudioGuideBlock } from '@/components/admin/medina/AudioGuideBlock';
 import { VisitSettingsBlock } from '@/components/admin/medina/VisitSettingsBlock';
 import { MainPOIEnrichmentBlock } from '@/components/admin/medina/MainPOIEnrichmentBlock';
+import { QrpReadinessBlock } from '@/components/admin/medina/QrpReadinessBlock';
 import { VideosBlock } from '@/components/admin/medina/VideosBlock';
 import { SaveStatusBadge } from '@/components/admin/medina/SaveStatusBadge';
 import { getDisplayName } from '@/lib/poiDisplay';
