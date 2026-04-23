@@ -313,11 +313,16 @@ function selectPOIs(candidates: ScoredPOI[], input: EngineInput): ScoredPOI[] {
   const themeCats = THEME_CATEGORIES[input.theme] ?? [];
 
   // Phase 0: prioritize main visits (is_main_visit=true) — max 3, skip food theme
-  // Main POIs (Jemaa el-Fna, Koutoubia, Bahia, etc.) must have a guaranteed slot
-  // before category-based scoring takes over.
+  // Main POIs (Jemaa el-Fna, Koutoubia, Bahia, etc.) get a guaranteed slot.
+  // Iconic POI rule: sort main visits by *proximity to start* (not by score)
+  // so a landmark like Jemaa el-Fna is systematically selected when nearby,
+  // even if its native category (e.g. "place") is absent from THEME_CATEGORIES.
   const MAIN_VISIT_CAP = 3;
   if (input.theme !== "food") {
-    const mainVisits = sorted.filter((p) => p.is_main_visit === true);
+    const mainVisits = sorted
+      .filter((p) => p.is_main_visit === true)
+      .slice()
+      .sort((a, b) => a.distance_from_start - b.distance_from_start);
     const cap = Math.min(MAIN_VISIT_CAP, input.max_stops, mainVisits.length);
     for (let i = 0; i < cap; i++) {
       const mv = mainVisits[i];
@@ -704,16 +709,30 @@ function generateTeaser(
 
 const EXCLUDED_CATEGORIES = ["hotel", "riad", "lodging", "hostel", "restaurant"];
 
+// Distance threshold (meters) under which a start_hub POI is considered "the departure itself"
+// and thus excluded from candidates to avoid a duplicate first stop.
+const START_HUB_SELF_DISTANCE_M = 80;
+
 export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput {
   // Step 1: Filter candidates
   const excludeSet = new Set(input.exclude_place_ids ?? []);
   const candidates = allPOIs.filter((p) => {
     if (!p.is_active) return false;
-    if (p.is_start_hub) return false;
     if (excludeSet.has(p.id)) return false;
     if (EXCLUDED_CATEGORIES.includes((p.category_ai || "").toLowerCase())) return false;
     const dist = haversineM(input.start_lat, input.start_lng, p.lat, p.lng);
-    return dist <= input.radius_m;
+    if (dist > input.radius_m) return false;
+
+    // Iconic POI override: a POI flagged is_start_hub is normally excluded
+    // (it represents a departure point), BUT if it is also is_main_visit=true
+    // (Jemaa el-Fna, Koutoubia, Bahia...), it remains a legitimate visit
+    // candidate — UNLESS the tour actually starts from it (within ~80m).
+    if (p.is_start_hub) {
+      if (!p.is_main_visit) return false;
+      if (dist < START_HUB_SELF_DISTANCE_M) return false;
+    }
+
+    return true;
   });
 
   if (candidates.length < 3) {
