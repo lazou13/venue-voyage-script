@@ -1059,6 +1059,24 @@ export type Database = {
         }
         Relationships: []
       }
+      medina_pois_metadata_backup_qrp_v1: {
+        Row: {
+          id: string | null
+          metadata: Json | null
+          snapshot_at: string | null
+        }
+        Insert: {
+          id?: string | null
+          metadata?: Json | null
+          snapshot_at?: string | null
+        }
+        Update: {
+          id?: string | null
+          metadata?: Json | null
+          snapshot_at?: string | null
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           amount_total: number | null
