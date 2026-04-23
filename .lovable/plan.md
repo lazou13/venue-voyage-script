@@ -1,73 +1,88 @@
 
 
-# Diagnostic — « Failed to send a request to the Edge Function »
+# Exécution génération audios FR+EN — 11 POIs principaux
 
-## Symptôme
-Toast rouge **« Erreur génération · Failed to send a request to the Edge Function »** à chaque clic sur **Générer batch (50)**.
+## Périmètre figé (validé)
+- 11 POIs autorisés (liste exacte fournie)
+- 2 POIs exclus : Souk MARKET, The Moroccan Doors
+- Bypass programmatique du verrou UI (aucune écriture de `premium_main_text_validated_at`)
+- Strip regex `/\[\d+\](\[\d+\])*/g` avant envoi TTS
+- Aucune génération AR
 
-## Causes possibles (à vérifier dans l'ordre)
+## Charge attendue
+- 10 audios FR (Palais Bahia déjà OK en FR)
+- 11 audios EN
+- **Total : 21 fichiers** × ~30s ElevenLabs ≈ **10–12 min séquentiel**
 
-1. **Pool LOT 1B épuisé** — Le rapport visible « 1 POIs · lot1b_debug_readonly » suggère que la quasi-totalité des restaurants/generics éligibles ont déjà `metadata.recat_batch` commençant par `lot1b_` et sont exclus par l'idempotence (lignes 364-368 de `poi-quality-agent/index.ts`). Si le pool tombe à 0, la fonction insère quand même un rapport vide mais le toast peut quand même apparaître.
+## Plan d'exécution (mode EDIT)
 
-2. **Timeout réseau invocation** — `supabase.functions.invoke()` renvoie cette erreur générique quand l'edge function ne répond pas dans le délai client (~150s). La fonction insère le rapport puis lance `EdgeRuntime.waitUntil` ; l'insert doit donc revenir vite. Si l'insert traîne (DB lente vue précédemment) → timeout.
+### 1. Script one-shot (sans modification de code applicatif)
+Créer `/tmp/gen-main-audios.mjs` (fichier temporaire, hors repo) :
+- Whitelist en dur des 11 IDs autorisés
+- Blacklist en dur des 2 IDs exclus (double garde-fou)
+- Pour chaque POI :
+  - Re-SELECT live `audio_url_fr, audio_url_en, history_context, history_context_en` juste avant action
+  - Skip si champ déjà rempli (anti-écrasement)
+  - Strip regex sur le texte source
+  - Invoke `generate-poi-audio` avec `storage_path = medina/<id>/history_<lang>_v<ts>.mp3`
+  - FR puis EN, séquentiel
+- Logs structurés par POI (succès / skip / échec)
 
-3. **Crash/boot lent intermittent** — Les logs montrent uniquement des cycles boot/shutdown récents, aucune trace de l'invocation utilisateur. Soit l'invocation n'est jamais arrivée (DNS/réseau côté preview), soit elle a coupé avant d'atteindre `console.log`.
+### 2. Invocation
+- `node /tmp/gen-main-audios.mjs` via `code--exec` avec `SUPABASE_SERVICE_ROLE_KEY` (récupérée via secrets)
+- Edge function `generate-poi-audio` déjà déployée → aucun deploy
 
-## Plan de correction (Build mode)
+### 3. Preuves post-exécution
+Requêtes DB pour produire le rapport obligatoire :
 
-### Étape 1 — Instrumentation immédiate
-Ajouter des logs au tout début de `runRecatPropose` (avant la sélection du pool) pour distinguer les 3 causes :
-- log d'entrée avec `lotLabel`, `target`, timestamp
-- log juste après `selectLot1bPool` avec `pool.length`
-- log juste après l'insert initial avec `reportId`
+```sql
+-- FINAL_POIS_TARGETED + état audio après
+SELECT id, name, audio_url_fr IS NOT NULL AS fr, audio_url_en IS NOT NULL AS en, updated_at
+FROM medina_pois WHERE id IN (<11 IDs>);
 
-### Étape 2 — Garde-fou pool vide
-Si `pool.length === 0` :
-- ne **pas** insérer de rapport
-- renvoyer immédiatement `{ error: "pool_empty", message: "Tous les POIs éligibles LOT 1B ont déjà été traités. Vérifier metadata.recat_batch." }`
-- côté UI : afficher ce message dans le toast au lieu de l'erreur générique
+-- PROOF_NO_NON_MAIN_POI_TOUCHED
+SELECT count(*) FROM medina_pois
+WHERE is_main_visit = false AND updated_at > '<run_start_iso>';
+-- attendu : 0
 
-### Étape 3 — Diagnostic état actuel du pool
-Exécuter une requête SQL de comptage pour mesurer combien de POIs sont encore éligibles :
+-- PROOF_NO_EXCLUDED_POI_TOUCHED
+SELECT id, updated_at FROM medina_pois
+WHERE id IN ('bd449e2e-...','5e0549bd-...') AND updated_at > '<run_start_iso>';
+-- attendu : 0 ligne
+
+-- PROOF_NO_ALREADY_COMPLETE_AUDIO_REPROCESSED
+SELECT id, updated_at FROM medina_pois
+WHERE id IN (<6 POIs déjà complets>) AND updated_at > '<run_start_iso>';
+-- attendu : 0 ligne
+
+-- PROOF_NO_FLAG_PREMIUM_MAIN_TEXT_VALIDATED_AT_WRITTEN
+SELECT id, metadata->>'premium_main_text_validated_at' AS flag
+FROM medina_pois WHERE id IN (<11 IDs>);
+-- attendu : tous NULL
 ```
-SELECT
-  category,
-  COUNT(*) FILTER (WHERE metadata->>'recat_batch' LIKE 'lot1b_%') AS deja_traites,
-  COUNT(*) FILTER (WHERE metadata->>'recat_batch' IS NULL OR metadata->>'recat_batch' NOT LIKE 'lot1b_%') AS restant_eligible
-FROM medina_pois
-WHERE is_active = true
-  AND status IN ('validated','enriched')
-  AND lat BETWEEN 31.60 AND 31.67
-  AND lng BETWEEN -8.02 AND -7.97
-  AND name_fr IS NOT NULL
-  AND is_start_hub = false
-  AND is_main_visit = false
-  AND category IN ('restaurant','generic')
-GROUP BY category;
-```
-Résultat attendu :
-- si `restant_eligible` ≈ 0 → confirmé : pool épuisé, batch impossible jusqu'à reset
-- si `restant_eligible` > 0 → la cause est ailleurs (timeout/crash), passer aux logs
 
-### Étape 4 — Côté client : message d'erreur exploitable
-Dans `RecatPilotPanel.tsx` (handler `generatePilot`), distinguer :
-- `error.message` contient `Failed to send` → afficher « Backend injoignable, réessayer dans 30s »
-- `data.error === "pool_empty"` → afficher « Pool LOT 1B épuisé · X POIs déjà traités »
-- autres erreurs → message brut
+### 4. Rapport final livré
+Tous les champs obligatoires :
+- EXECUTION_PATH_USED (script `/tmp/gen-main-audios.mjs` → `supabase.functions.invoke('generate-poi-audio')`)
+- FINAL_POIS_TARGETED (11 IDs)
+- FR_AUDIO_GENERATED_COUNT / EN_AUDIO_GENERATED_COUNT
+- POIS_PROCESSED_IDS (avec succès/skip/échec par POI)
+- FAILURES_IF_ANY (avec message ElevenLabs si applicable)
+- PROOF_NO_NON_MAIN_POI_TOUCHED (résultat SQL)
+- PROOF_NO_EXCLUDED_POI_TOUCHED (résultat SQL)
+- PROOF_NO_ALREADY_COMPLETE_AUDIO_REPROCESSED (résultat SQL)
+- PROOF_NO_FLAG_PREMIUM_MAIN_TEXT_VALIDATED_AT_WRITTEN (résultat SQL)
+- FILES_CHANGED_IF_ANY → **aucun fichier projet modifié** (script en `/tmp/`, hors repo)
+- EXACT_DB_PROOF (snapshot avant/après des 11 POIs)
+- CONFIRMATION_NO_OUT_OF_SCOPE_ACTION
 
-### Étape 5 — Reset éventuel (si pool épuisé confirmé)
-Si étape 3 confirme pool vide, proposer un bouton admin **Reset metadata.recat_batch** ciblé sur les POIs marqués `lot1b_debug_readonly` (test, à exclure des vrais batches). Migration SQL au cas par cas, jamais automatique.
+## Hors scope strict (jamais touché)
+- Code app (`AudioGuideBlock.tsx`, hooks, edge function)
+- Verrou UI (laissé en l'état)
+- Métadonnée `premium_main_text_validated_at`
+- Audio AR
+- Toute table autre que `medina_pois` (et seulement les 11 lignes ciblées)
+- Les 2 POIs exclus + les 6 POIs déjà complets + tous POIs `is_main_visit=false`
 
-## Périmètre
-- 1 fichier edge : `supabase/functions/poi-quality-agent/index.ts` (logs + garde-fou pool vide)
-- 1 fichier UI : `src/components/admin/RecatPilotPanel.tsx` (messages d'erreur)
-- 0 changement de schéma
-- 0 impact sur LOT 1A déjà validé
-- Aucun reset de données sans confirmation explicite
-
-## Prochaine étape
-Approuver pour passer en Build mode :
-- **A** : juste étape 1 (instrumentation) + étape 3 (diagnostic SQL) en lecture, puis on tranche
-- **B** : tout d'un coup (instrumentation + garde-fou + messages UI)
-- **C** : juste étape 3 (SQL count) d'abord, sans toucher au code
+**Approuvez ce plan pour basculer en mode EDIT et lancer l'exécution.**
 
