@@ -304,13 +304,29 @@ function scorePOI(poi: POI, input: EngineInput, distanceFromStart: number): numb
 
 // ━━━━━━━━━━━━━━ SELECTION ━━━━━━━━━━━━━━
 
-function selectPOIs(candidates: ScoredPOI[], input: EngineInput): ScoredPOI[] {
+function selectPOIs(
+  candidates: ScoredPOI[],
+  input: EngineInput,
+  mandatoryIconicPoiId?: string,
+): ScoredPOI[] {
   const sorted = [...candidates].sort((a, b) => b.score - a.score);
   const selected: ScoredPOI[] = [];
   const usedIds = new Set<string>();
   const catCount: Record<string, number> = {};
 
   const themeCats = THEME_CATEGORIES[input.theme] ?? [];
+
+  // Phase -1: force a mandatory iconic POI for explicit business contexts.
+  // This is not a score bonus: the POI is injected into the tour before
+  // the generic main-visits and category phases run.
+  if (mandatoryIconicPoiId) {
+    const mandatoryIconicPoi = sorted.find((p) => p.id === mandatoryIconicPoiId);
+    if (mandatoryIconicPoi) {
+      selected.push(mandatoryIconicPoi);
+      usedIds.add(mandatoryIconicPoi.id);
+      catCount[mandatoryIconicPoi.category_ai] = (catCount[mandatoryIconicPoi.category_ai] ?? 0) + 1;
+    }
+  }
 
   // Phase 0: prioritize main visits (is_main_visit=true) — max 3, skip food theme
   // Main POIs (Jemaa el-Fna, Koutoubia, Bahia, etc.) get a guaranteed slot.
@@ -320,7 +336,7 @@ function selectPOIs(candidates: ScoredPOI[], input: EngineInput): ScoredPOI[] {
   const MAIN_VISIT_CAP = 3;
   if (input.theme !== "food") {
     const mainVisits = sorted
-      .filter((p) => p.is_main_visit === true)
+      .filter((p) => p.is_main_visit === true && p.id !== mandatoryIconicPoiId)
       .slice()
       .sort((a, b) => a.distance_from_start - b.distance_from_start);
     const cap = Math.min(MAIN_VISIT_CAP, input.max_stops, mainVisits.length);
@@ -523,7 +539,8 @@ function trimToFitDuration(
   maxDurationMin: number,
   circular: boolean,
   mode: EngineMode,
-  maxStops: number
+  maxStops: number,
+  protectedPoiIds: Set<string> = new Set(),
 ): ScoredPOI[] {
   let current = [...pois];
   const removed: ScoredPOI[] = [];
@@ -534,14 +551,16 @@ function trimToFitDuration(
     if (totalMin <= maxDurationMin - 5) break;
 
     // Remove lowest-scoring POI
-    let minIdx = 0;
-    let minScore = current[0].score;
+    let minIdx = -1;
+    let minScore = Infinity;
     for (let i = 1; i < current.length; i++) {
+      if (protectedPoiIds.has(current[i].id)) continue;
       if (current[i].score < minScore) {
         minScore = current[i].score;
         minIdx = i;
       }
     }
+    if (minIdx === -1) break;
     removed.push(current.splice(minIdx, 1)[0]);
     current = twoOptImprove(startLat, startLng, current, circular);
   }
