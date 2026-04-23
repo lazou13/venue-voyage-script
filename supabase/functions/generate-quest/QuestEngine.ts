@@ -313,11 +313,17 @@ function selectPOIs(candidates: ScoredPOI[], input: EngineInput): ScoredPOI[] {
   const themeCats = THEME_CATEGORIES[input.theme] ?? [];
 
   // Phase 0: prioritize main visits (is_main_visit=true) — max 3, skip food theme
-  // Main POIs (Jemaa el-Fna, Koutoubia, Bahia, etc.) must have a guaranteed slot
-  // before category-based scoring takes over.
+  // Main POIs (Jemaa el-Fna, Koutoubia, Bahia, etc.) get a guaranteed slot.
+  // Iconic POI rule: sort main visits by *proximity to start* (not by score)
+  // so a landmark like Jemaa el-Fna is systematically selected when nearby,
+  // even if its native category (e.g. "place") is absent from THEME_CATEGORIES.
   const MAIN_VISIT_CAP = 3;
   if (input.theme !== "food") {
-    const mainVisits = sorted.filter((p) => p.is_main_visit === true);
+    const mainVisits = candidates
+      .filter((p) => p.is_main_visit === true)
+      .map((p) => sorted.find((s) => s.id === p.id))
+      .filter((p): p is ScoredPOI => !!p)
+      .sort((a, b) => a.distance_from_start - b.distance_from_start);
     const cap = Math.min(MAIN_VISIT_CAP, input.max_stops, mainVisits.length);
     for (let i = 0; i < cap; i++) {
       const mv = mainVisits[i];
