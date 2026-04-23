@@ -319,10 +319,9 @@ function selectPOIs(candidates: ScoredPOI[], input: EngineInput): ScoredPOI[] {
   // even if its native category (e.g. "place") is absent from THEME_CATEGORIES.
   const MAIN_VISIT_CAP = 3;
   if (input.theme !== "food") {
-    const mainVisits = candidates
+    const mainVisits = sorted
       .filter((p) => p.is_main_visit === true)
-      .map((p) => sorted.find((s) => s.id === p.id))
-      .filter((p): p is ScoredPOI => !!p)
+      .slice()
       .sort((a, b) => a.distance_from_start - b.distance_from_start);
     const cap = Math.min(MAIN_VISIT_CAP, input.max_stops, mainVisits.length);
     for (let i = 0; i < cap; i++) {
