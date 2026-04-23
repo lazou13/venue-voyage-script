@@ -727,6 +727,9 @@ function generateTeaser(
 // ━━━━━━━━━━━━━━ MAIN ENTRY POINT ━━━━━━━━━━━━━━
 
 const EXCLUDED_CATEGORIES = ["hotel", "riad", "lodging", "hostel", "restaurant"];
+const CANONICAL_KOUTOUBIA_POI_ID = "eec26470-5202-4d52-a349-679843dae33b";
+const CANONICAL_JEMAA_EL_FNA_POI_ID = "6d7f3e3f-9dfe-4877-9682-8e544068ea3f";
+const KOUTOUBIA_START_CONTEXT_RADIUS_M = 250;
 
 // Distance threshold (meters) under which a start_hub POI is considered "the departure itself"
 // and thus excluded from candidates to avoid a duplicate first stop.
@@ -770,8 +773,19 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
     };
   });
 
+  const canonicalKoutoubia = allPOIs.find((poi) => poi.id === CANONICAL_KOUTOUBIA_POI_ID);
+  const isKoutoubiaContext = canonicalKoutoubia
+    ? haversineM(input.start_lat, input.start_lng, canonicalKoutoubia.lat, canonicalKoutoubia.lng) <= KOUTOUBIA_START_CONTEXT_RADIUS_M
+    : false;
+  const isArtisanSouksContext = input.theme === "artisan" && isKoutoubiaContext;
+  const mandatoryIconicPoi = scored.find((poi) => poi.id === CANONICAL_JEMAA_EL_FNA_POI_ID);
+  const mandatoryIconicPoiId = isArtisanSouksContext && mandatoryIconicPoi
+    ? CANONICAL_JEMAA_EL_FNA_POI_ID
+    : undefined;
+  const protectedPoiIds = new Set<string>(mandatoryIconicPoiId ? [mandatoryIconicPoiId] : []);
+
   // Step 3: Select POIs
-  const selected = selectPOIs(scored, input);
+  const selected = selectPOIs(scored, input, mandatoryIconicPoiId);
 
   // Step 4: Route optimization
   let route = nearestNeighborTSP(input.start_lat, input.start_lng, selected, input.circular);
@@ -779,7 +793,16 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
   route = enforceConsecutiveDiversity(route);
 
   // Step 5: Trim to fit duration
-  route = trimToFitDuration(input.start_lat, input.start_lng, route, input.max_duration_min, input.circular, input.mode, input.max_stops);
+  route = trimToFitDuration(
+    input.start_lat,
+    input.start_lng,
+    route,
+    input.max_duration_min,
+    input.circular,
+    input.mode,
+    input.max_stops,
+    protectedPoiIds,
+  );
 
   // Step 6: Calculate totals
   const timing = calcTotalTime(input.start_lat, input.start_lng, route, input.circular, input.mode);
