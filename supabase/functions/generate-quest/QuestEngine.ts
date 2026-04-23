@@ -553,7 +553,7 @@ function trimToFitDuration(
     // Remove lowest-scoring POI
     let minIdx = -1;
     let minScore = Infinity;
-    for (let i = 1; i < current.length; i++) {
+    for (let i = 0; i < current.length; i++) {
       if (protectedPoiIds.has(current[i].id)) continue;
       if (current[i].score < minScore) {
         minScore = current[i].score;
