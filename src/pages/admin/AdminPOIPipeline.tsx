@@ -14,7 +14,7 @@ import AgentMonitoringCard from "@/components/admin/AgentMonitoringCard";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 
-type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details" | "reclassify" | "rescore-riads" | "anecdotes" | "fun-facts" | "translate-en" | "clean-arabic" | "pull-audio";
+type StepKey = "extract" | "classify" | "enrich" | "clean" | "merge" | "proximity" | "all" | "worker" | "autopipeline" | "fetch-photos" | "backfill-details" | "reclassify" | "rescore-riads" | "anecdotes" | "fun-facts" | "translate-en" | "clean-arabic";
 
 const invokeWithRetry = async (fnName: string, body: Record<string, unknown>, maxRetries = 3): Promise<{ data: any; error: any }> => {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {

@@ -1010,7 +1010,7 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ error: `Unknown action: ${action}`, available: ["auto-agent", "list-library", "clear-library", "stats", "enrich_poi", "score_poi", "download_images", "enrich_wikidata", "translate_pois", "generate_fun_facts", "pull_audio", "sync_projects"] }), {
+    return new Response(JSON.stringify({ error: `Unknown action: ${action}`, available: ["auto-agent", "list-library", "clear-library", "stats", "enrich_poi", "score_poi", "download_images", "enrich_wikidata", "translate_pois", "generate_fun_facts", "sync_projects"] }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
