@@ -46,6 +46,7 @@ export interface POI {
   tourist_interest: string;
   instagram_spot: boolean;
   is_start_hub: boolean;
+  is_main_visit: boolean;
   is_active: boolean;
   radius_m: number;
   // Enriched fields
