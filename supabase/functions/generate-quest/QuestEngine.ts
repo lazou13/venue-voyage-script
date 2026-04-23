@@ -312,6 +312,22 @@ function selectPOIs(candidates: ScoredPOI[], input: EngineInput): ScoredPOI[] {
 
   const themeCats = THEME_CATEGORIES[input.theme] ?? [];
 
+  // Phase 0: prioritize main visits (is_main_visit=true) — max 3, skip food theme
+  // Main POIs (Jemaa el-Fna, Koutoubia, Bahia, etc.) must have a guaranteed slot
+  // before category-based scoring takes over.
+  const MAIN_VISIT_CAP = 3;
+  if (input.theme !== "food") {
+    const mainVisits = sorted.filter((p) => p.is_main_visit === true);
+    const cap = Math.min(MAIN_VISIT_CAP, input.max_stops, mainVisits.length);
+    for (let i = 0; i < cap; i++) {
+      const mv = mainVisits[i];
+      if (usedIds.has(mv.id)) continue;
+      selected.push(mv);
+      usedIds.add(mv.id);
+      catCount[mv.category_ai] = (catCount[mv.category_ai] ?? 0) + 1;
+    }
+  }
+
   // Phase 1: pick best POI from top 4 priority categories
   for (let i = 0; i < Math.min(4, themeCats.length); i++) {
     const cat = themeCats[i];
