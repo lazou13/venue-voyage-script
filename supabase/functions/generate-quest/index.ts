@@ -93,6 +93,7 @@ serve(async (req) => {
       tourist_interest: (p.tourist_interest ?? "") as string,
       instagram_spot: (p.instagram_spot ?? false) as boolean,
       is_start_hub: (p.is_start_hub ?? false) as boolean,
+      is_main_visit: (p.is_main_visit ?? false) as boolean,
       is_active: (p.is_active ?? true) as boolean,
       radius_m: (p.radius_m as number) ?? 30,
       price_info: (p.price_info ?? "") as string,
