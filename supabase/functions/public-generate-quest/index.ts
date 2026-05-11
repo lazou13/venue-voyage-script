@@ -537,8 +537,12 @@ Deno.serve(async (req) => {
       "pharmacy", "bank", "atm", "parking", "gas_station", "supermarket",
       "gym", "spa", "laundry", "equestrian", "horseback",
     ];
+    // P0.1 hotfix 2026-05-11: aligned with generate-quest GUIDED_TOUR list to
+    // prevent HPP from returning POIs that Questrides/QRP filter out downstream.
+    // Keep substrings highly specific — DO NOT add generic words (souk, bazar, boutique, shop, artisan, tapis).
     const NAME_BLACKLIST_PUBLIC = [
-      "morocco travel", "morocco trekking", "truly morocco", "zoco marrakech",
+      "morocco travel", "morocco trekking", "truly morocco",
+      "matich", "maison culturelle du tapis", "zoco", "souk el bahja",
     ];
 
     let poiQuery = db

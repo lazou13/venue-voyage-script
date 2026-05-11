@@ -748,6 +748,21 @@ const NAME_BLACKLIST_SUBSTRINGS = [
   "zoco marrakech",
 ];
 
+// P0.1 hotfix 2026-05-11: extra parasites blocked downstream by Questrides/QRP.
+// Applied ONLY in guided_tour mode to avoid HPP returning stops that the player
+// will silently filter out (which collapses the visible step count).
+// Keep substrings highly specific — DO NOT add generic words like "souk",
+// "bazar", "boutique", "shop", "artisan", "tapis".
+const GUIDED_TOUR_NAME_BLACKLIST_SUBSTRINGS = [
+  "matich",
+  "maison culturelle du tapis",
+  "zoco",
+  "souk el bahja",
+  "morocco travel",
+  "morocco trekking",
+  "truly morocco",
+];
+
 // P0 hotfix 2026-05-11: contextual block — these POIs may be valid culturally
 // but are NEVER usable as a guided_tour stop when the tour starts from the
 // referenced hub (or from <CONTEXT_HUB_BAN_RADIUS_M of it).
@@ -771,6 +786,12 @@ function isNameBlacklisted(name: string | undefined | null): boolean {
   if (!name) return false;
   const lower = name.toLowerCase();
   return NAME_BLACKLIST_SUBSTRINGS.some((needle) => lower.includes(needle));
+}
+
+function isGuidedTourNameBlacklisted(name: string | undefined | null): boolean {
+  if (!name) return false;
+  const lower = name.toLowerCase();
+  return GUIDED_TOUR_NAME_BLACKLIST_SUBSTRINGS.some((needle) => lower.includes(needle));
 }
 
 function isContextBanned(
@@ -802,6 +823,8 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
     if (EXCLUDED_CATEGORIES.includes((p.category_google || "").toLowerCase())) return false;
     // P0: nominal blacklist (Morocco Travel*, Zoco, ...)
     if (isNameBlacklisted(p.name)) return false;
+    // P0.1: extra blacklist applied only in guided_tour mode (alignment with Questrides/QRP)
+    if (input.mode === "guided_tour" && isGuidedTourNameBlacklisted(p.name)) return false;
     // P0: contextual block when starting from a specific hub
     if (input.mode === "guided_tour" && isContextBanned(p, input.start_lat, input.start_lng, allPOIs)) return false;
     const dist = haversineM(input.start_lat, input.start_lng, p.lat, p.lng);
