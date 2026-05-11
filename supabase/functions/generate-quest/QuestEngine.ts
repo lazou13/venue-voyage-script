@@ -575,6 +575,7 @@ function trimToFitDuration(
   mode: EngineMode,
   maxStops: number,
   protectedPoiIds: Set<string> = new Set(),
+  minStopsFloor: number = 3,
 ): ScoredPOI[] {
   let current = [...pois];
   const removed: ScoredPOI[] = [];
