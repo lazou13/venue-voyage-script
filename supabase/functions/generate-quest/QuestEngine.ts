@@ -580,8 +580,9 @@ function trimToFitDuration(
   let current = [...pois];
   const removed: ScoredPOI[] = [];
 
-  // Phase 1: trim POIs that push us over budget
-  while (current.length > 3) {
+  // Phase 1: trim POIs that push us over budget — but never below minStopsFloor.
+  const floor = Math.max(3, minStopsFloor);
+  while (current.length > floor) {
     const { totalMin } = calcTotalTime(startLat, startLng, current, circular, mode);
     if (totalMin <= maxDurationMin - 5) break;
 
