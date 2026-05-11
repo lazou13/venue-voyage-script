@@ -748,6 +748,21 @@ const NAME_BLACKLIST_SUBSTRINGS = [
   "zoco marrakech",
 ];
 
+// P0.1 hotfix 2026-05-11: extra parasites blocked downstream by Questrides/QRP.
+// Applied ONLY in guided_tour mode to avoid HPP returning stops that the player
+// will silently filter out (which collapses the visible step count).
+// Keep substrings highly specific — DO NOT add generic words like "souk",
+// "bazar", "boutique", "shop", "artisan", "tapis".
+const GUIDED_TOUR_NAME_BLACKLIST_SUBSTRINGS = [
+  "matich",
+  "maison culturelle du tapis",
+  "zoco",
+  "souk el bahja",
+  "morocco travel",
+  "morocco trekking",
+  "truly morocco",
+];
+
 // P0 hotfix 2026-05-11: contextual block — these POIs may be valid culturally
 // but are NEVER usable as a guided_tour stop when the tour starts from the
 // referenced hub (or from <CONTEXT_HUB_BAN_RADIUS_M of it).
