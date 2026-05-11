@@ -823,6 +823,8 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
     if (EXCLUDED_CATEGORIES.includes((p.category_google || "").toLowerCase())) return false;
     // P0: nominal blacklist (Morocco Travel*, Zoco, ...)
     if (isNameBlacklisted(p.name)) return false;
+    // P0.1: extra blacklist applied only in guided_tour mode (alignment with Questrides/QRP)
+    if (input.mode === "guided_tour" && isGuidedTourNameBlacklisted(p.name)) return false;
     // P0: contextual block when starting from a specific hub
     if (input.mode === "guided_tour" && isContextBanned(p, input.start_lat, input.start_lng, allPOIs)) return false;
     const dist = haversineM(input.start_lat, input.start_lng, p.lat, p.lng);
