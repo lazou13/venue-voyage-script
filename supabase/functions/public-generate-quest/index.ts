@@ -528,6 +528,19 @@ Deno.serve(async (req) => {
     // ── 6. Select POIs server-side ──
     const count = DURATION_TO_COUNT[duration_minutes] ?? 6;
 
+    // P0 hotfix 2026-05-11: align exclusion rules with generate-quest/QuestEngine.ts
+    const EXCLUDED_CATEGORIES_PUBLIC = [
+      "hotel", "riad", "lodging", "hostel",
+      "restaurant", "cafe",
+      "boutique", "craft_shop", "shop", "store", "souvenir_shop",
+      "agency", "travel_agency", "tour_operator", "excursion",
+      "pharmacy", "bank", "atm", "parking", "gas_station", "supermarket",
+      "gym", "spa", "laundry", "equestrian", "horseback",
+    ];
+    const NAME_BLACKLIST_PUBLIC = [
+      "morocco travel", "morocco trekking", "truly morocco", "zoco marrakech",
+    ];
+
     let poiQuery = db
       .from("medina_pois")
       .select("*")
@@ -538,19 +551,35 @@ Deno.serve(async (req) => {
     if (categories.length > 0) {
       poiQuery = poiQuery.in("category", categories);
     }
-    const { data: allPois, error: poiErr } = await poiQuery;
+    const { data: rawPois, error: poiErr } = await poiQuery;
     if (poiErr) throw poiErr;
-    if (!allPois || allPois.length === 0) {
+    // Apply exclusions in JS (category_ai/category_google/name) — Supabase
+    // .not().in() chains can be brittle; explicit JS pass is clearer.
+    const allPois = (rawPois ?? []).filter((p: any) => {
+      const cat = String(p.category_ai ?? p.category ?? "").toLowerCase();
+      const catG = String(p.category_google ?? "").toLowerCase();
+      if (EXCLUDED_CATEGORIES_PUBLIC.includes(cat)) return false;
+      if (EXCLUDED_CATEGORIES_PUBLIC.includes(catG)) return false;
+      const lname = String(p.name ?? "").toLowerCase();
+      if (NAME_BLACKLIST_PUBLIC.some((n) => lname.includes(n))) return false;
+      return true;
+    });
+    if (allPois.length === 0) {
       return json({ error: "Aucun POI validé disponible pour ce thème." }, 404);
     }
 
     const rng = seededRandom(seed);
 
-    const foodDrink = allPois.filter((p: any) => p.category === "food_drink");
-    const nonFood = allPois.filter((p: any) => p.category !== "food_drink");
+    // P0 hotfix: filter food using real categories (restaurant/cafe), not the
+    // legacy "food_drink" tag which doesn't exist in the catalog.
+    const foodDrink = allPois.filter((p: any) => {
+      const c = String(p.category ?? "").toLowerCase();
+      return c === "food_drink" || c === "restaurant" || c === "cafe";
+    });
+    const nonFood = allPois.filter((p: any) => !foodDrink.includes(p));
     const shuffled = shuffle(nonFood, rng);
 
-    const hasPause = pause || selected_addons.includes("pause");
+    const hasPause = (pause || selected_addons.includes("pause")) && experience_mode !== "guided_tour";
     const targetCount = hasPause && foodDrink.length > 0 ? count - 1 : count;
     const selected: any[] = [];
     const remaining = [...shuffled];

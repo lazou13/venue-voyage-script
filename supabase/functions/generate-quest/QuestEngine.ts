@@ -726,14 +726,71 @@ function generateTeaser(
 
 // ━━━━━━━━━━━━━━ MAIN ENTRY POINT ━━━━━━━━━━━━━━
 
-const EXCLUDED_CATEGORIES = ["hotel", "riad", "lodging", "hostel", "restaurant"];
+// P0 hotfix 2026-05-11: extended exclusion list (boutique/agency/services).
+// Cultural categories like souk/museum/garden/palace/mosque/historic_site/place/
+// fondouk/monument/artisan are NEVER excluded here.
+const EXCLUDED_CATEGORIES = [
+  "hotel", "riad", "lodging", "hostel",
+  "restaurant", "cafe",
+  "boutique", "craft_shop", "shop", "store", "souvenir_shop",
+  "agency", "travel_agency", "tour_operator", "excursion",
+  "pharmacy", "bank", "atm", "parking", "gas_station", "supermarket",
+  "gym", "spa", "laundry", "equestrian", "horseback",
+];
+
+// P0 hotfix 2026-05-11: nominal blacklist (server-side parasites).
+// Lowercased substring match on POI name. Add new entries here when QRP
+// reports persistent parasites that slip through category filtering.
+const NAME_BLACKLIST_SUBSTRINGS = [
+  "morocco travel",
+  "morocco trekking",
+  "truly morocco",
+  "zoco marrakech",
+];
+
+// P0 hotfix 2026-05-11: contextual block — these POIs may be valid culturally
+// but are NEVER usable as a guided_tour stop when the tour starts from the
+// referenced hub (or from <CONTEXT_HUB_BAN_RADIUS_M of it).
+const CONTEXT_HUB_BAN_RADIUS_M = 250;
+const HUB_CONTEXT_BANNED_NAMES: Record<string, string[]> = {
+  // departing from Jemaa el-Fna → Souk El Bahja (83m) is too close + commercial
+  jemaa_el_fna: ["souk el bahja"],
+};
+
 const CANONICAL_KOUTOUBIA_POI_ID = "eec26470-5202-4d52-a349-679843dae33b";
 const CANONICAL_JEMAA_EL_FNA_POI_ID = "6d7f3e3f-9dfe-4877-9682-8e544068ea3f";
 const KOUTOUBIA_START_CONTEXT_RADIUS_M = 250;
 
 // Distance threshold (meters) under which a start_hub POI is considered "the departure itself"
 // and thus excluded from candidates to avoid a duplicate first stop.
-const START_HUB_SELF_DISTANCE_M = 80;
+// P0 hotfix 2026-05-11: bumped from 80 → 150 to keep Souk El Bahja (83m from
+// Jemaa el-Fna) out of guided tours starting from Jemaa.
+const START_HUB_SELF_DISTANCE_M = 150;
+
+function isNameBlacklisted(name: string | undefined | null): boolean {
+  if (!name) return false;
+  const lower = name.toLowerCase();
+  return NAME_BLACKLIST_SUBSTRINGS.some((needle) => lower.includes(needle));
+}
+
+function isContextBanned(
+  poi: POI,
+  startLat: number,
+  startLng: number,
+  allPOIs: POI[],
+): boolean {
+  const lowerName = (poi.name || "").toLowerCase();
+  // Build a list of nearby canonical hubs to evaluate context bans
+  const jemaa = allPOIs.find((x) => x.id === CANONICAL_JEMAA_EL_FNA_POI_ID);
+  if (jemaa) {
+    const d = haversineM(startLat, startLng, jemaa.lat, jemaa.lng);
+    if (d <= CONTEXT_HUB_BAN_RADIUS_M) {
+      const banned = HUB_CONTEXT_BANNED_NAMES.jemaa_el_fna ?? [];
+      if (banned.some((needle) => lowerName.includes(needle))) return true;
+    }
+  }
+  return false;
+}
 
 export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput {
   // Step 1: Filter candidates
@@ -742,6 +799,11 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
     if (!p.is_active) return false;
     if (excludeSet.has(p.id)) return false;
     if (EXCLUDED_CATEGORIES.includes((p.category_ai || "").toLowerCase())) return false;
+    if (EXCLUDED_CATEGORIES.includes((p.category_google || "").toLowerCase())) return false;
+    // P0: nominal blacklist (Morocco Travel*, Zoco, ...)
+    if (isNameBlacklisted(p.name)) return false;
+    // P0: contextual block when starting from a specific hub
+    if (input.mode === "guided_tour" && isContextBanned(p, input.start_lat, input.start_lng, allPOIs)) return false;
     const dist = haversineM(input.start_lat, input.start_lng, p.lat, p.lng);
     if (dist > input.radius_m) return false;
 

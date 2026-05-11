@@ -40,18 +40,23 @@ serve(async (req) => {
     }
 
     // Build input with defaults
+    // P0 hotfix 2026-05-11: include_food_break is now OFF by default for
+    // guided_tour to prevent automatic restaurant injection. Treasure hunts
+    // keep the previous default (true) for the snack-stop game mechanic.
+    const requestedMode = body.mode ?? "treasure_hunt";
+    const defaultFoodBreak = requestedMode === "guided_tour" ? false : true;
     const input: EngineInput = {
       start_lat: body.start_lat,
       start_lng: body.start_lng,
       start_name: body.start_name,
-      mode: body.mode ?? "treasure_hunt",
+      mode: requestedMode,
       theme: body.theme ?? "complete",
       audience: body.audience ?? "tourist",
       difficulty: body.difficulty ?? "easy",
       max_duration_min: clamp(body.max_duration_min ?? 90, 30, 240),
       radius_m: clamp(body.radius_m ?? 800, 200, 1500),
       max_stops: clamp(body.max_stops ?? 6, 3, 12),
-      include_food_break: body.include_food_break ?? true,
+      include_food_break: body.include_food_break ?? defaultFoodBreak,
       circular: body.circular ?? false,
       language: body.language ?? "fr",
       exclude_place_ids: body.exclude_place_ids ?? [],
