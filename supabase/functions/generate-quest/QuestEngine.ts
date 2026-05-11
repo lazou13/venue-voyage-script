@@ -393,12 +393,13 @@ function selectPOIs(
     }
   }
 
-  // Phase 2: fill up to max_stops with max 2 per category
-  // If include_food_break, limit food POIs to 1 total (restaurant or cafe)
+  // Phase 2: fill up to max_stops with per-category cap
+  // P1: cap is 3 for guided_tour (souk diversity OK), 2 for treasure_hunt.
+  const PER_CAT_CAP = input.mode === "guided_tour" ? 3 : 2;
   for (const poi of sorted) {
     if (selected.length >= input.max_stops) break;
     if (usedIds.has(poi.id)) continue;
-    if ((catCount[poi.category_ai] ?? 0) >= 2) continue;
+    if ((catCount[poi.category_ai] ?? 0) >= PER_CAT_CAP) continue;
 
     // Limit food POIs to max 1 when food_break is on
     if (input.include_food_break && (poi.category_ai === "restaurant" || poi.category_ai === "cafe")) {
