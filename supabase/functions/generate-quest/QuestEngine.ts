@@ -788,6 +788,12 @@ function isNameBlacklisted(name: string | undefined | null): boolean {
   return NAME_BLACKLIST_SUBSTRINGS.some((needle) => lower.includes(needle));
 }
 
+function isGuidedTourNameBlacklisted(name: string | undefined | null): boolean {
+  if (!name) return false;
+  const lower = name.toLowerCase();
+  return GUIDED_TOUR_NAME_BLACKLIST_SUBSTRINGS.some((needle) => lower.includes(needle));
+}
+
 function isContextBanned(
   poi: POI,
   startLat: number,
