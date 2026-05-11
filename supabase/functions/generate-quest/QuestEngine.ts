@@ -849,27 +849,67 @@ function isContextBanned(
   return false;
 }
 
+// P1 hotfix 2026-05-11: minimum stop floors for guided_tour by duration.
+function guidedMinStops(durationMin: number): number {
+  if (durationMin >= 240) return 7;
+  if (durationMin >= 180) return 6;
+  if (durationMin >= 120) return 5;
+  if (durationMin >= 90) return 4;
+  return 3;
+}
+
+// P1 hotfix: extended search radius (cultural complement) when initial pool is short.
+function extendedRadiusFor(durationMin: number, baseRadius: number): number {
+  if (durationMin >= 180) return Math.max(baseRadius, 1500);
+  if (durationMin >= 120) return Math.max(baseRadius, 1200);
+  return Math.max(baseRadius, 1000);
+}
+
+interface GenerationDebug {
+  candidates_initial_count: number;
+  candidates_after_blacklist_count: number;
+  candidates_within_radius_count: number;
+  cultural_within_radius_count: number;
+  selected_after_select_count: number;
+  selected_after_complement_count: number;
+  selected_after_trim_count: number;
+  min_stops_target: number;
+  cultural_complement_added: number;
+  cultural_complement_names: string[];
+  rejected_top_cultural: { name: string; reason: string; dist_m: number }[];
+}
+
 export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput {
-  // Step 1: Filter candidates
+  // Step 1: Filter candidates (with reason tracking for debug)
   const excludeSet = new Set(input.exclude_place_ids ?? []);
+  let countAfterBlacklist = 0;
+  let countWithinRadius = 0;
+  let countCulturalWithinRadius = 0;
+  const rejectedTopCultural: { name: string; reason: string; dist_m: number }[] = [];
+
   const candidates = allPOIs.filter((p) => {
     if (!p.is_active) return false;
     if (excludeSet.has(p.id)) return false;
     if (EXCLUDED_CATEGORIES.includes((p.category_ai || "").toLowerCase())) return false;
     if (EXCLUDED_CATEGORIES.includes((p.category_google || "").toLowerCase())) return false;
-    // P0: nominal blacklist (Morocco Travel*, Zoco, ...)
-    if (isNameBlacklisted(p.name)) return false;
-    // P0.1: extra blacklist applied only in guided_tour mode (alignment with Questrides/QRP)
-    if (input.mode === "guided_tour" && isGuidedTourNameBlacklisted(p.name)) return false;
-    // P0: contextual block when starting from a specific hub
-    if (input.mode === "guided_tour" && isContextBanned(p, input.start_lat, input.start_lng, allPOIs)) return false;
+    if (isNameBlacklisted(p.name)) {
+      if (isCulturalGuided(p)) rejectedTopCultural.push({ name: p.name, reason: "name_blacklist", dist_m: Math.round(haversineM(input.start_lat, input.start_lng, p.lat, p.lng)) });
+      return false;
+    }
+    if (input.mode === "guided_tour" && isGuidedTourNameBlacklisted(p.name)) {
+      if (isCulturalGuided(p)) rejectedTopCultural.push({ name: p.name, reason: "guided_tour_name_blacklist", dist_m: Math.round(haversineM(input.start_lat, input.start_lng, p.lat, p.lng)) });
+      return false;
+    }
+    if (input.mode === "guided_tour" && isContextBanned(p, input.start_lat, input.start_lng, allPOIs)) {
+      if (isCulturalGuided(p)) rejectedTopCultural.push({ name: p.name, reason: "context_banned", dist_m: Math.round(haversineM(input.start_lat, input.start_lng, p.lat, p.lng)) });
+      return false;
+    }
+    countAfterBlacklist++;
     const dist = haversineM(input.start_lat, input.start_lng, p.lat, p.lng);
     if (dist > input.radius_m) return false;
+    countWithinRadius++;
+    if (isCulturalGuided(p)) countCulturalWithinRadius++;
 
-    // Iconic POI override: a POI flagged is_start_hub is normally excluded
-    // (it represents a departure point), BUT if it is also is_main_visit=true
-    // (Jemaa el-Fna, Koutoubia, Bahia...), it remains a legitimate visit
-    // candidate — UNLESS the tour actually starts from it (within ~80m).
     if (p.is_start_hub) {
       if (!p.is_main_visit) return false;
       if (dist < START_HUB_SELF_DISTANCE_M) return false;
@@ -887,11 +927,7 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
   // Step 2: Score each candidate
   const scored: ScoredPOI[] = candidates.map((poi) => {
     const dist = haversineM(input.start_lat, input.start_lng, poi.lat, poi.lng);
-    return {
-      ...poi,
-      score: scorePOI(poi, input, dist),
-      distance_from_start: dist,
-    };
+    return { ...poi, score: scorePOI(poi, input, dist), distance_from_start: dist };
   });
 
   const canonicalKoutoubia = allPOIs.find((poi) => poi.id === CANONICAL_KOUTOUBIA_POI_ID);
@@ -906,14 +942,64 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
   const protectedPoiIds = new Set<string>(mandatoryIconicPoiId ? [mandatoryIconicPoiId] : []);
 
   // Step 3: Select POIs
-  const selected = selectPOIs(scored, input, mandatoryIconicPoiId);
+  let selected = selectPOIs(scored, input, mandatoryIconicPoiId);
+  const selectedAfterSelectCount = selected.length;
+
+  // Step 3.5 (P1): Cultural complement.
+  // If guided_tour and selected < min target, scan extended radius for the
+  // best validated cultural POIs not yet selected and inject them. This bypasses
+  // the initial radius_m cap but NEVER bypasses category/name/context blacklists.
+  const minStopsTarget = input.mode === "guided_tour"
+    ? Math.min(guidedMinStops(input.max_duration_min), input.max_stops)
+    : 3;
+  const complementAdded: ScoredPOI[] = [];
+
+  if (input.mode === "guided_tour" && selected.length < minStopsTarget) {
+    const extRadius = extendedRadiusFor(input.max_duration_min, input.radius_m);
+    const usedIds = new Set(selected.map((s) => s.id));
+
+    const extPool = allPOIs
+      .filter((p) => {
+        if (!p.is_active) return false;
+        if (usedIds.has(p.id)) return false;
+        if (excludeSet.has(p.id)) return false;
+        if (EXCLUDED_CATEGORIES.includes((p.category_ai || "").toLowerCase())) return false;
+        if (EXCLUDED_CATEGORIES.includes((p.category_google || "").toLowerCase())) return false;
+        if (isNameBlacklisted(p.name)) return false;
+        if (isGuidedTourNameBlacklisted(p.name)) return false;
+        if (isContextBanned(p, input.start_lat, input.start_lng, allPOIs)) return false;
+        if (!isCulturalGuided(p)) return false;
+        const dist = haversineM(input.start_lat, input.start_lng, p.lat, p.lng);
+        if (dist > extRadius) return false;
+        if (p.is_start_hub) {
+          if (!p.is_main_visit) return false;
+          if (dist < START_HUB_SELF_DISTANCE_M) return false;
+        }
+        // Quality floor: validated cultural with content
+        if ((p.poi_quality_score ?? 0) < 5) return false;
+        if (!p.history_context && !p.local_anecdote_fr && !p.wikipedia_summary) return false;
+        return true;
+      })
+      .map((p) => {
+        const dist = haversineM(input.start_lat, input.start_lng, p.lat, p.lng);
+        return { ...p, score: scorePOI(p, input, dist), distance_from_start: dist } as ScoredPOI;
+      })
+      .sort((a, b) => b.score - a.score);
+
+    while (selected.length < minStopsTarget && extPool.length > 0) {
+      const next = extPool.shift()!;
+      selected.push(next);
+      complementAdded.push(next);
+    }
+  }
+  const selectedAfterComplementCount = selected.length;
 
   // Step 4: Route optimization
   let route = nearestNeighborTSP(input.start_lat, input.start_lng, selected, input.circular);
   route = twoOptImprove(input.start_lat, input.start_lng, route, input.circular);
   route = enforceConsecutiveDiversity(route);
 
-  // Step 5: Trim to fit duration
+  // Step 5: Trim to fit duration — but never below minStopsTarget for guided_tour
   route = trimToFitDuration(
     input.start_lat,
     input.start_lng,
@@ -923,6 +1009,7 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
     input.mode,
     input.max_stops,
     protectedPoiIds,
+    input.mode === "guided_tour" ? minStopsTarget : 3,
   );
 
   // Step 6: Calculate totals
@@ -932,7 +1019,21 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
   const stops = buildStops(input.start_lat, input.start_lng, route, input);
   const totalPoints = stops.reduce((s, st) => s + (st.points ?? 0), 0);
 
-  // Step 8: Build output
+  const debug: GenerationDebug = {
+    candidates_initial_count: allPOIs.length,
+    candidates_after_blacklist_count: countAfterBlacklist,
+    candidates_within_radius_count: countWithinRadius,
+    cultural_within_radius_count: countCulturalWithinRadius,
+    selected_after_select_count: selectedAfterSelectCount,
+    selected_after_complement_count: selectedAfterComplementCount,
+    selected_after_trim_count: route.length,
+    min_stops_target: minStopsTarget,
+    cultural_complement_added: complementAdded.length,
+    cultural_complement_names: complementAdded.map((p) => p.name),
+    rejected_top_cultural: rejectedTopCultural.slice(0, 10),
+  };
+  console.log("[generation_debug]", JSON.stringify(debug));
+
   return {
     id: generateId(),
     mode: input.mode,
@@ -953,7 +1054,8 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
     stops,
     title: generateTitle(input),
     teaser: generateTeaser(input, stops, timing.totalMin),
-    algorithm_version: "3.0.0",
+    algorithm_version: "3.1.0-p1",
     generated_at: new Date().toISOString(),
-  };
+    ...({ generation_debug: debug } as Record<string, unknown>),
+  } as EngineOutput;
 }
