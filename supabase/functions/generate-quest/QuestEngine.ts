@@ -237,6 +237,23 @@ function generateId(): string {
 
 // ━━━━━━━━━━━━━━ SCORING ━━━━━━━━━━━━━━
 
+// P1 hotfix 2026-05-11: cultural anchor categories.
+// In guided_tour mode, any POI matching one of these categories receives a
+// strong fixed bonus — this prevents proximity/Google-rating from pushing
+// commercial neighbours above genuine cultural anchors (museum, palace…)
+// located 400-700m away.
+const CULTURAL_CATEGORIES_GUIDED = new Set([
+  "museum", "palace", "garden", "historic_site", "mosque", "medersa",
+  "monument", "fondouk", "gate_bab", "tomb", "shrine_zaouia",
+  "fountain", "place", "plaza", "souk", "market", "gallery",
+]);
+
+function isCulturalGuided(poi: POI): boolean {
+  const c = (poi.category_ai || "").toLowerCase();
+  const g = (poi.category_google || "").toLowerCase();
+  return CULTURAL_CATEGORIES_GUIDED.has(c) || CULTURAL_CATEGORIES_GUIDED.has(g);
+}
+
 function scorePOI(poi: POI, input: EngineInput, distanceFromStart: number): number {
   let score = 0;
 
@@ -273,12 +290,28 @@ function scorePOI(poi: POI, input: EngineInput, distanceFromStart: number): numb
   }
   score += Math.min(Math.max(featureScore, 0), 25);
 
-  // Proximity penalty (0 to -10)
-  score -= (distanceFromStart / input.radius_m) * 10;
+  // P1: in guided_tour, soften proximity penalty and CAP it.
+  // The previous formula penalised distant POIs heavily (up to -10 within
+  // a 800m radius), which crushed museums at 400-700m vs commerces at <100m.
+  if (input.mode === "guided_tour") {
+    score -= Math.min((distanceFromStart / input.radius_m) * 4, 4);
+  } else {
+    score -= (distanceFromStart / input.radius_m) * 10;
+  }
 
   // Proximity boost: POI within 100m of start gets ×3 score
-  if (distanceFromStart < 100) {
+  // P1: disabled in guided_tour to stop commercial neighbours from
+  // crushing real cultural anchors located 300-700m away.
+  if (distanceFromStart < 100 && input.mode !== "guided_tour") {
     score *= 3;
+  }
+
+  // P1 cultural anchor bonus (guided_tour only): +25 for true cultural POIs.
+  // Extra +10 if quality_score >= 7 (museum/palace/garden/historic).
+  if (input.mode === "guided_tour" && isCulturalGuided(poi)) {
+    score += 25;
+    if ((poi.poi_quality_score ?? 0) >= 7) score += 10;
+    if (poi.is_main_visit) score += 8;
   }
 
   // Bonus: instagram_spot for guided_tour + photography
