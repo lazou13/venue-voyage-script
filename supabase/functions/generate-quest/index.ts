@@ -40,11 +40,24 @@ serve(async (req) => {
     }
 
     // Build input with defaults
-    // P0 hotfix 2026-05-11: include_food_break is now OFF by default for
-    // guided_tour to prevent automatic restaurant injection. Treasure hunts
-    // keep the previous default (true) for the snack-stop game mechanic.
+    // P0 hotfix: include_food_break OFF by default for guided_tour.
+    // P1 hotfix 2026-05-11: accept legacy alias `duration_minutes`; auto-scale
+    // max_stops and radius_m for guided_tour based on requested duration so the
+    // engine has enough budget to surface 5-7 cultural stops.
     const requestedMode = body.mode ?? "treasure_hunt";
     const defaultFoodBreak = requestedMode === "guided_tour" ? false : true;
+    const rawDuration = body.max_duration_min ?? body.duration_minutes ?? 90;
+    const duration = clamp(rawDuration, 30, 240);
+
+    const guidedDefaults = (d: number) => {
+      if (d >= 240) return { max_stops: 10, radius: 1500 };
+      if (d >= 180) return { max_stops: 9, radius: 1300 };
+      if (d >= 120) return { max_stops: 8, radius: 1100 };
+      if (d >= 90)  return { max_stops: 6, radius: 900 };
+      return { max_stops: 4, radius: 700 };
+    };
+    const gd = requestedMode === "guided_tour" ? guidedDefaults(duration) : { max_stops: 6, radius: 800 };
+
     const input: EngineInput = {
       start_lat: body.start_lat,
       start_lng: body.start_lng,
@@ -53,9 +66,9 @@ serve(async (req) => {
       theme: body.theme ?? "complete",
       audience: body.audience ?? "tourist",
       difficulty: body.difficulty ?? "easy",
-      max_duration_min: clamp(body.max_duration_min ?? 90, 30, 240),
-      radius_m: clamp(body.radius_m ?? 800, 200, 1500),
-      max_stops: clamp(body.max_stops ?? 6, 3, 12),
+      max_duration_min: duration,
+      radius_m: clamp(body.radius_m ?? gd.radius, 200, 1500),
+      max_stops: clamp(body.max_stops ?? gd.max_stops, 3, 12),
       include_food_break: body.include_food_break ?? defaultFoodBreak,
       circular: body.circular ?? false,
       language: body.language ?? "fr",
