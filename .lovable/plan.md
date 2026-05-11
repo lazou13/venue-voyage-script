@@ -1,88 +1,105 @@
+# Forcer le hub de départ + filtrer les commerces parasites (player only)
 
+## Problème confirmé
+- `MN765V` : `options.start_address = "Place Jemaa el-Fna"` mais `route[0] = "Matich Artisanat"` (boutique).
+- Étapes 5 (Maison culturelle du tapis = magasin de tapis) et 6 (Zoco Marrakech = centre commercial) n'ont rien à faire dans une visite culturelle.
+- `P8HFVT` : démarre sur "Musée du Patrimoine Immatériel" au lieu de la place.
+- Cause : le générateur externe `/generate-route` ne réinjecte pas le hub demandé en étape 1, et ne filtre pas les commerces non-culturels.
 
-# Exécution génération audios FR+EN — 11 POIs principaux
+## Objectif
+Sans toucher au backend de génération externe :
+1. Forcer le hub demandé comme étape 1.
+2. Retirer les commerces parasites de la route avant affichage.
 
-## Périmètre figé (validé)
-- 11 POIs autorisés (liste exacte fournie)
-- 2 POIs exclus : Souk MARKET, The Moroccan Doors
-- Bypass programmatique du verrou UI (aucune écriture de `premium_main_text_validated_at`)
-- Strip regex `/\[\d+\](\[\d+\])*/g` avant envoi TTS
-- Aucune génération AR
+## Scope
+**Fichier unique modifié** : `src/lib/medinaApi.ts`. Aucune migration DB, aucun impact LYRA / review gate. Cache offline OK (transformation appliquée avant mise en cache des nouveaux tours ; pour les tours déjà cachés, le post-traitement s'applique aussi à la lecture).
 
-## Charge attendue
-- 10 audios FR (Palais Bahia déjà OK en FR)
-- 11 audios EN
-- **Total : 21 fichiers** × ~30s ElevenLabs ≈ **10–12 min séquentiel**
+## Hubs prioritaires (limités à 3)
 
-## Plan d'exécution (mode EDIT)
+| key | regex sur start_address normalisé | lat / lng | label FR / EN |
+|---|---|---|---|
+| `jemaa_el_fna` | `/(j\|dj)(e\|a)m[aâ]+a?\b.*\bel\s*fna\b/` | 31.6258 / -7.9891 | Place Jemaa el-Fna / Jemaa el-Fna Square |
+| `koutoubia` | `/\bkoutoubia\b/` | 31.6242 / -7.9933 | Mosquée Koutoubia / Koutoubia Mosque |
+| `place_ferblantiers` | `/\b(place\s+des\s+)?ferblantiers\b/` | 31.6206 / -7.9824 | Place des Ferblantiers / Ferblantiers Square |
 
-### 1. Script one-shot (sans modification de code applicatif)
-Créer `/tmp/gen-main-audios.mjs` (fichier temporaire, hors repo) :
-- Whitelist en dur des 11 IDs autorisés
-- Blacklist en dur des 2 IDs exclus (double garde-fou)
-- Pour chaque POI :
-  - Re-SELECT live `audio_url_fr, audio_url_en, history_context, history_context_en` juste avant action
-  - Skip si champ déjà rempli (anti-écrasement)
-  - Strip regex sur le texte source
-  - Invoke `generate-poi-audio` avec `storage_path = medina/<id>/history_<lang>_v<ts>.mp3`
-  - FR puis EN, séquentiel
-- Logs structurés par POI (succès / skip / échec)
+Patterns d'exclusion (variantes qui NE sont PAS le hub) : `musée`, `museum`, `hotel`, `riad`, `restaurant`, `café`, `centre commercial`, `caleches`.
 
-### 2. Invocation
-- `node /tmp/gen-main-audios.mjs` via `code--exec` avec `SUPABASE_SERVICE_ROLE_KEY` (récupérée via secrets)
-- Edge function `generate-poi-audio` déjà déployée → aucun deploy
+## Implémentation
 
-### 3. Preuves post-exécution
-Requêtes DB pour produire le rapport obligatoire :
+### 1. `START_HUBS` (dictionnaire local)
+Constante `Record<string, { regex; lat; lng; name_fr; name_en; photo_url?; excludeNamePatterns: RegExp[] }>` avec les 3 entrées ci-dessus. Extensible plus tard sans changement de code applicatif.
 
-```sql
--- FINAL_POIS_TARGETED + état audio après
-SELECT id, name, audio_url_fr IS NOT NULL AS fr, audio_url_en IS NOT NULL AS en, updated_at
-FROM medina_pois WHERE id IN (<11 IDs>);
+### 2. `forceStartHubAsFirstStep(raw, steps)`
+1. Lire `raw.options?.start_address` (fallback `start_lat/lng`, ou `raw.summary?.start_name` côté live).
+2. `matchStartHub(...)` → si aucun hub matché : no-op.
+3. Si `steps[0]` est déjà le hub (nom OU distance < 80 m) : no-op.
+4. Sinon :
+   - Chercher le hub ailleurs dans `steps` (nom strict OU coord < 80 m), en excluant les noms qui matchent `excludeNamePatterns`.
+   - Trouvé → `splice` puis `unshift` à l'index 0.
+   - Non trouvé → injecter step synthétique (`name`, `lat`, `lng`, `walk_minutes=0`, `distance_m=0`, `visit_min=10`, `category="place"`, `photo_url`).
+5. Recalculer `distance_m` + `walk_minutes` du nouveau step à l'index 1 (haversine vs hub, vitesse marche réutilisée de `normalizePOI`).
+6. Log : `console.log("[START-HUB]", hubKey, action)` où action ∈ `moved | injected | noop`.
 
--- PROOF_NO_NON_MAIN_POI_TOUCHED
-SELECT count(*) FROM medina_pois
-WHERE is_main_visit = false AND updated_at > '<run_start_iso>';
--- attendu : 0
-
--- PROOF_NO_EXCLUDED_POI_TOUCHED
-SELECT id, updated_at FROM medina_pois
-WHERE id IN ('bd449e2e-...','5e0549bd-...') AND updated_at > '<run_start_iso>';
--- attendu : 0 ligne
-
--- PROOF_NO_ALREADY_COMPLETE_AUDIO_REPROCESSED
-SELECT id, updated_at FROM medina_pois
-WHERE id IN (<6 POIs déjà complets>) AND updated_at > '<run_start_iso>';
--- attendu : 0 ligne
-
--- PROOF_NO_FLAG_PREMIUM_MAIN_TEXT_VALIDATED_AT_WRITTEN
-SELECT id, metadata->>'premium_main_text_validated_at' AS flag
-FROM medina_pois WHERE id IN (<11 IDs>);
--- attendu : tous NULL
+### 3. `filterCommerceParasites(steps)` — nouveau
+Liste noire (regex insensibles à la casse, sur `name`) :
+```text
+matich
+maison\s+culturelle\s+du\s+tapis
+zoco
+souk\s+el\s+bahja          # boutique commerciale, pas un site culturel
+\bbazar\b
+magasin\s+de\s+tapis
+centre\s+commercial
+\bshop\b
+\bboutique\b
+caleches?
 ```
+Règle : on retire le step si son `name` matche **ET** que ce n'est pas un hub canonique de `START_HUBS` (garde-fou). Logger chaque retrait : `[FILTER-COMMERCE] removed: <name>`.
 
-### 4. Rapport final livré
-Tous les champs obligatoires :
-- EXECUTION_PATH_USED (script `/tmp/gen-main-audios.mjs` → `supabase.functions.invoke('generate-poi-audio')`)
-- FINAL_POIS_TARGETED (11 IDs)
-- FR_AUDIO_GENERATED_COUNT / EN_AUDIO_GENERATED_COUNT
-- POIS_PROCESSED_IDS (avec succès/skip/échec par POI)
-- FAILURES_IF_ANY (avec message ElevenLabs si applicable)
-- PROOF_NO_NON_MAIN_POI_TOUCHED (résultat SQL)
-- PROOF_NO_EXCLUDED_POI_TOUCHED (résultat SQL)
-- PROOF_NO_ALREADY_COMPLETE_AUDIO_REPROCESSED (résultat SQL)
-- PROOF_NO_FLAG_PREMIUM_MAIN_TEXT_VALIDATED_AT_WRITTEN (résultat SQL)
-- FILES_CHANGED_IF_ANY → **aucun fichier projet modifié** (script en `/tmp/`, hors repo)
-- EXACT_DB_PROOF (snapshot avant/après des 11 POIs)
-- CONFIRMATION_NO_OUT_OF_SCOPE_ACTION
+⚠️ Pour rester safe sur les visites déjà payées, la blacklist est volontairement minimaliste et ciblée sur ce qu'on a observé. Toute extension future passera par revue.
 
-## Hors scope strict (jamais touché)
-- Code app (`AudioGuideBlock.tsx`, hooks, edge function)
-- Verrou UI (laissé en l'état)
-- Métadonnée `premium_main_text_validated_at`
-- Audio AR
-- Toute table autre que `medina_pois` (et seulement les 11 lignes ciblées)
-- Les 2 POIs exclus + les 6 POIs déjà complets + tous POIs `is_main_visit=false`
+### 4. Garde sur `applyKoutoubiaSnapshotRule`
+Early-return de la branche "réinsérer Jemaa après Koutoubia" si `_isJemaaElFna(out[0])` est vrai (le hub forcé ne doit jamais être déplacé).
 
-**Approuvez ce plan pour basculer en mode EDIT et lancer l'exécution.**
+### 5. Branchement (ordre exact)
+Dans `buildTourFromMedina` :
+```text
+filtered  = filterCommerceParasites(filteredRaw)
+ordered   = applyKoutoubiaSnapshotRule(filtered)
+final     = forceStartHubAsFirstStep(raw, ordered)
+```
+Dans `normalizeResponse` (réponse live `/generate-route`) : même séquence si `summary.start_name` ou `params.start_name` est défini.
 
+## Tests à exécuter
+
+| Test | Attendu |
+|------|---------|
+| `/tour/MN765V` | Étape 1 = Place Jemaa el-Fna ; Matich, Maison culturelle du tapis, Zoco retirés ; route restante cohérente |
+| `/tour/P8HFVT` | Étape 1 = Place Jemaa el-Fna ; le musée passe en étape 2+ |
+| Visite avec `start_address = "Mosquée Koutoubia"` | Étape 1 = Koutoubia, LOT-K ne crée pas de doublon |
+| Visite avec `start_address = "Place des Ferblantiers"` | Étape 1 = Ferblantiers |
+| `start_address` non listé (ex. "Riad Yasmine") | Comportement inchangé (pas de hub forcé) |
+| Visite sans aucun POI blacklisté | Aucun filtrage, route inchangée |
+| `npx tsc --noEmit -p tsconfig.app.json` | Exit 0 |
+| Console | Logs `[START-HUB] ... moved` et `[FILTER-COMMERCE] removed: ...` visibles |
+
+## Détails techniques (récap)
+
+**Ajouts dans `src/lib/medinaApi.ts`** :
+- `START_HUBS` (3 entrées : jemaa_el_fna, koutoubia, place_ferblantiers).
+- `COMMERCE_BLACKLIST: RegExp[]`.
+- `matchStartHub(startAddress?, startLat?, startLng?)`.
+- `filterCommerceParasites(steps): RoutePOI[]`.
+- `forceStartHubAsFirstStep(raw, steps): RoutePOI[]`.
+- `recomputeWalkFromPrev(step, prevLat, prevLng)`.
+
+**Modifications** :
+- `buildTourFromMedina` — chaîner filter → koutoubia rule → force hub.
+- `applyKoutoubiaSnapshotRule` — early-return si Jemaa déjà en tête.
+- `normalizeResponse` — même chaîne quand `summary.start_name` est défini.
+
+## Hors scope (non fait dans ce patch)
+- Recatégorisation/désactivation des POIs commerce dans HPP (`is_active=false`, recat).
+- Création d'un POI canonique `Place Jemaa el-Fna` / `Place des Ferblantiers` dans `medina_pois` si absent.
+- Modification du générateur externe `/generate-route`.
+- Hub configurable depuis l'admin partenaire (extension future via `START_HUBS`).
