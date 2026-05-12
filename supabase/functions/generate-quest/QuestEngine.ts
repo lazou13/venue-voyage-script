@@ -64,6 +64,8 @@ export interface POI {
   fun_fact_fr: string;
   fun_fact_en: string;
   wikipedia_summary: string;
+  wikipedia_summary_en?: string;
+  history_context_en?: string;
   crowd_level: string;
   accessibility_notes: string;
   metadata: {
