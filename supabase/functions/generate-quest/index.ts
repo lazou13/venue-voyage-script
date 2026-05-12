@@ -81,7 +81,7 @@ serve(async (req) => {
     const { data: rawPois, error: dbError } = await supabase
       .from("medina_pois")
       .select(
-        "id, name, lat, lng, category_ai, category_google, rating, reviews_count, poi_quality_score, address, description_short, history_context, local_anecdote, riddle_easy, riddle_medium, riddle_hard, challenge, tourist_interest, instagram_spot, is_start_hub, is_main_visit, is_active, radius_m, metadata, price_info, opening_hours, must_see_details, must_try, must_visit_nearby, is_photo_spot, photo_tip, ruelle_etroite, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, wikipedia_summary, crowd_level, accessibility_notes, visit_route"
+        "id, name, lat, lng, category_ai, category_google, rating, reviews_count, poi_quality_score, address, description_short, history_context, history_context_en, local_anecdote, riddle_easy, riddle_medium, riddle_hard, challenge, tourist_interest, instagram_spot, is_start_hub, is_main_visit, is_active, radius_m, metadata, price_info, opening_hours, must_see_details, must_try, must_visit_nearby, is_photo_spot, photo_tip, ruelle_etroite, local_anecdote_fr, local_anecdote_en, fun_fact_fr, fun_fact_en, wikipedia_summary, wikipedia_summary_en, crowd_level, accessibility_notes, visit_route"
       )
       .eq("is_active", true)
       .not("lat", "is", null)
@@ -127,6 +127,8 @@ serve(async (req) => {
       fun_fact_fr: (p.fun_fact_fr ?? "") as string,
       fun_fact_en: (p.fun_fact_en ?? "") as string,
       wikipedia_summary: (p.wikipedia_summary ?? "") as string,
+      wikipedia_summary_en: (p.wikipedia_summary_en ?? "") as string,
+      history_context_en: (p.history_context_en ?? "") as string,
       crowd_level: (p.crowd_level ?? "") as string,
       accessibility_notes: (p.accessibility_notes ?? "") as string,
       metadata: (p.metadata ?? {}) as POI["metadata"],

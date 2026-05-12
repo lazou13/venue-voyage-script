@@ -64,6 +64,8 @@ export interface POI {
   fun_fact_fr: string;
   fun_fact_en: string;
   wikipedia_summary: string;
+  wikipedia_summary_en?: string;
+  history_context_en?: string;
   crowd_level: string;
   accessibility_notes: string;
   metadata: {
@@ -115,6 +117,7 @@ export interface Stop {
   crowd_level?: string;
   accessibility_notes?: string;
   visit_route?: { exit_point?: { lat: number; lng: number }; [k: string]: unknown } | null;
+  lang_debug?: { lang: string; description_src: string; history_context_src: string };
 }
 
 export interface EngineOutput {
@@ -737,30 +740,78 @@ function buildStops(
       stop.points = points;
       stop.validation_radius_m = poi.radius_m ?? 30;
     } else {
-      // guided_tour — use enriched Perplexity content with language fallback
+      // guided_tour — FR/EN hotfix 2026-05-12
+      // CRITICAL: description_short is mostly stored in EN in DB; history_context is FR.
+      // Switch all localized fields explicitly on input.language.
+      const isEn = input.language === "en";
+
       stop.story = poi.tourist_interest || poi.description_short || undefined;
 
-      // history_context: already 200+ words from Perplexity; fallback to wikipedia_summary
-      const historyRaw = poi.history_context || "";
-      stop.history_context = historyRaw.length >= 100
-        ? historyRaw
-        : (poi.wikipedia_summary || historyRaw || undefined);
+      // ── history_context ────────────────────────────────────────────────
+      let hcVal: string | undefined;
+      let hcSrc = "none";
+      if (isEn) {
+        if (poi.history_context_en && poi.history_context_en.length >= 100) {
+          hcVal = poi.history_context_en; hcSrc = "history_context_en";
+        } else if (poi.wikipedia_summary_en && poi.wikipedia_summary_en.length >= 100) {
+          hcVal = poi.wikipedia_summary_en; hcSrc = "wikipedia_summary_en";
+        } else if (poi.history_context && poi.history_context.length >= 100) {
+          hcVal = poi.history_context; hcSrc = "history_context_fr_fallback";
+        }
+      } else {
+        if (poi.history_context && poi.history_context.length >= 100) {
+          hcVal = poi.history_context; hcSrc = "history_context";
+        } else if (poi.wikipedia_summary && poi.wikipedia_summary.length >= 100) {
+          hcVal = poi.wikipedia_summary; hcSrc = "wikipedia_summary";
+        } else if (poi.history_context_en && poi.history_context_en.length >= 100) {
+          hcVal = poi.history_context_en; hcSrc = "history_context_en_fallback";
+        }
+      }
+      stop.history_context = hcVal;
 
-      // local_anecdote: prefer localized long version (100-130 words)
-      if (input.language === "en") {
+      // ── description ────────────────────────────────────────────────────
+      // description_short is unreliable per language: in DB it's mostly EN.
+      // FR: prefer truncated history_context (FR), then wiki_summary FR; ONLY
+      // fallback to description_short if no FR source exists.
+      // EN: description_short is fine as primary source.
+      const truncate = (s: string, n = 280) => {
+        if (s.length <= n) return s;
+        const slice = s.slice(0, n);
+        const lastDot = slice.lastIndexOf(". ");
+        return (lastDot > 120 ? slice.slice(0, lastDot + 1) : slice).trim() + (lastDot > 120 ? "" : "…");
+      };
+      let descVal: string | undefined;
+      let descSrc = "none";
+      if (isEn) {
+        if (poi.description_short) { descVal = poi.description_short; descSrc = "description_short"; }
+        else if (poi.history_context_en) { descVal = truncate(poi.history_context_en); descSrc = "history_context_en_truncated"; }
+        else if (poi.wikipedia_summary_en) { descVal = truncate(poi.wikipedia_summary_en); descSrc = "wikipedia_summary_en_truncated"; }
+      } else {
+        if (poi.history_context && poi.history_context.length >= 100) {
+          descVal = truncate(poi.history_context); descSrc = "history_context_truncated";
+        } else if (poi.wikipedia_summary && poi.wikipedia_summary.length >= 100) {
+          descVal = truncate(poi.wikipedia_summary); descSrc = "wikipedia_summary_truncated";
+        } else if (poi.description_short) {
+          // Last resort — known to often be EN.
+          descVal = poi.description_short; descSrc = "description_short_fallback_likely_en";
+        }
+      }
+      stop.description = descVal;
+
+      // ── local_anecdote (already language-aware) ────────────────────────
+      if (isEn) {
         stop.local_anecdote = poi.local_anecdote_en || poi.local_anecdote || undefined;
       } else {
         stop.local_anecdote = poi.local_anecdote_fr || poi.local_anecdote || undefined;
       }
 
-      // fun_fact: new enriched field
-      const funFact = input.language === "en" ? poi.fun_fact_en : poi.fun_fact_fr;
+      // ── fun_fact (already language-aware) ──────────────────────────────
+      const funFact = isEn ? poi.fun_fact_en : poi.fun_fact_fr;
       stop.fun_fact = funFact || undefined;
 
       stop.tourist_tips = buildTouristTip(poi);
       stop.photo_spot = poi.instagram_spot || (poi.metadata?.features?.visual_impact ?? 0) >= 7;
       stop.address = poi.address || undefined;
-      stop.description = poi.description_short || undefined;
       // Enriched fields
       stop.price_info = poi.price_info || undefined;
       stop.opening_hours = poi.opening_hours || undefined;
@@ -772,6 +823,8 @@ function buildStops(
       stop.ruelle_etroite = poi.ruelle_etroite || false;
       stop.crowd_level = poi.crowd_level || undefined;
       stop.accessibility_notes = poi.accessibility_notes || undefined;
+
+      stop.lang_debug = { lang: input.language, description_src: descSrc, history_context_src: hcSrc };
     }
 
     // Attach visit_route for downstream use (pgRouting exit_point)
