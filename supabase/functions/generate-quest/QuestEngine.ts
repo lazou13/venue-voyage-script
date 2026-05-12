@@ -522,19 +522,73 @@ function twoOptImprove(
   return route;
 }
 
-function enforceConsecutiveDiversity(pois: ScoredPOI[]): ScoredPOI[] {
+// P1.1 hotfix 2026-05-12: geo-aware diversity.
+// The previous version blindly swapped same-category neighbours, which often
+// destroyed the geographic order produced by 2-opt and created backtracks
+// (e.g. Koutoubia → Bahia → back to El Badi). We now only accept a swap if
+// it does NOT inflate the total walking distance beyond `maxInflateRatio`.
+function enforceConsecutiveDiversity(
+  startLat: number,
+  startLng: number,
+  pois: ScoredPOI[],
+  circular: boolean,
+  maxInflateRatio = 1.08,
+): ScoredPOI[] {
   const result = [...pois];
+
+  const totalDist = (arr: ScoredPOI[]): number => {
+    if (arr.length === 0) return 0;
+    let d = haversineM(startLat, startLng, arr[0].lat, arr[0].lng);
+    for (let k = 1; k < arr.length; k++) {
+      d += haversineM(arr[k - 1].lat, arr[k - 1].lng, arr[k].lat, arr[k].lng);
+    }
+    if (circular) d += haversineM(arr[arr.length - 1].lat, arr[arr.length - 1].lng, startLat, startLng);
+    return d;
+  };
+
+  const baseline = totalDist(result);
+  const cap = baseline * maxInflateRatio;
+
   for (let i = 1; i < result.length; i++) {
-    if (result[i].category_ai === result[i - 1].category_ai) {
-      for (let j = i + 1; j < result.length; j++) {
-        if (result[j].category_ai !== result[i].category_ai) {
-          [result[i], result[j]] = [result[j], result[i]];
-          break;
-        }
-      }
+    if (result[i].category_ai !== result[i - 1].category_ai) continue;
+    for (let j = i + 1; j < result.length; j++) {
+      if (result[j].category_ai === result[i].category_ai) continue;
+      // tentative swap
+      [result[i], result[j]] = [result[j], result[i]];
+      if (totalDist(result) <= cap) break; // accept
+      // revert
+      [result[i], result[j]] = [result[j], result[i]];
     }
   }
   return result;
+}
+
+// Compute per-segment distances (start→s0, s0→s1, …) and find the longest one.
+function segmentStats(
+  startLat: number,
+  startLng: number,
+  pois: ScoredPOI[],
+): { segments_m: number[]; total_m: number; max_segment_m: number; max_from: string; max_to: string } {
+  const segs: number[] = [];
+  if (pois.length === 0) return { segments_m: [], total_m: 0, max_segment_m: 0, max_from: "", max_to: "" };
+  segs.push(haversineM(startLat, startLng, pois[0].lat, pois[0].lng));
+  for (let i = 1; i < pois.length; i++) {
+    segs.push(haversineM(pois[i - 1].lat, pois[i - 1].lng, pois[i].lat, pois[i].lng));
+  }
+  let max = 0;
+  let maxIdx = 0;
+  for (let i = 0; i < segs.length; i++) {
+    if (segs[i] > max) { max = segs[i]; maxIdx = i; }
+  }
+  const fromName = maxIdx === 0 ? "START" : pois[maxIdx - 1].name;
+  const toName = pois[maxIdx]?.name ?? "";
+  return {
+    segments_m: segs.map((s) => Math.round(s)),
+    total_m: Math.round(segs.reduce((a, b) => a + b, 0)),
+    max_segment_m: Math.round(max),
+    max_from: fromName,
+    max_to: toName,
+  };
 }
 
 // ━━━━━━━━━━━━━━ TIMING ━━━━━━━━━━━━━━
@@ -877,6 +931,17 @@ interface GenerationDebug {
   cultural_complement_added: number;
   cultural_complement_names: string[];
   rejected_top_cultural: { name: string; reason: string; dist_m: number }[];
+  // P1.1 — route order optimization
+  order_before_optimization: string[];
+  order_after_optimization: string[];
+  total_distance_before_m: number;
+  total_distance_after_m: number;
+  max_segment_before_m: number;
+  max_segment_after_m: number;
+  longest_segment_from: string;
+  longest_segment_to: string;
+  segments_after_m: number[];
+  long_segment_warnings: string[];
 }
 
 export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput {
@@ -994,10 +1059,15 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
   }
   const selectedAfterComplementCount = selected.length;
 
-  // Step 4: Route optimization
+  // Step 4: Route optimization (P1.1: capture order BEFORE)
+  const orderBefore = [...selected];
+  const statsBefore = segmentStats(input.start_lat, input.start_lng, orderBefore);
+
   let route = nearestNeighborTSP(input.start_lat, input.start_lng, selected, input.circular);
   route = twoOptImprove(input.start_lat, input.start_lng, route, input.circular);
-  route = enforceConsecutiveDiversity(route);
+  route = enforceConsecutiveDiversity(input.start_lat, input.start_lng, route, input.circular);
+  // P1.1: re-run 2-opt AFTER diversity (diversity may have introduced micro-zigzags)
+  route = twoOptImprove(input.start_lat, input.start_lng, route, input.circular);
 
   // Step 5: Trim to fit duration — but never below minStopsTarget for guided_tour
   route = trimToFitDuration(
@@ -1011,6 +1081,8 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
     protectedPoiIds,
     input.mode === "guided_tour" ? minStopsTarget : 3,
   );
+  // P1.1: final 2-opt pass after trim re-injection
+  route = twoOptImprove(input.start_lat, input.start_lng, route, input.circular);
 
   // Step 6: Calculate totals
   const timing = calcTotalTime(input.start_lat, input.start_lng, route, input.circular, input.mode);
@@ -1018,6 +1090,18 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
   // Step 7: Build stops
   const stops = buildStops(input.start_lat, input.start_lng, route, input);
   const totalPoints = stops.reduce((s, st) => s + (st.points ?? 0), 0);
+
+  // P1.1: segment analysis + warnings
+  const statsAfter = segmentStats(input.start_lat, input.start_lng, route);
+  const warnThreshold = input.max_duration_min >= 180 ? 1200 : 900;
+  const longSegmentWarnings: string[] = [];
+  for (let i = 0; i < statsAfter.segments_m.length; i++) {
+    if (statsAfter.segments_m[i] > warnThreshold) {
+      const fromN = i === 0 ? "START" : route[i - 1].name;
+      const toN = route[i]?.name ?? "?";
+      longSegmentWarnings.push(`segment#${i} ${statsAfter.segments_m[i]}m (${fromN} → ${toN}) > ${warnThreshold}m`);
+    }
+  }
 
   const debug: GenerationDebug = {
     candidates_initial_count: allPOIs.length,
@@ -1031,8 +1115,21 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
     cultural_complement_added: complementAdded.length,
     cultural_complement_names: complementAdded.map((p) => p.name),
     rejected_top_cultural: rejectedTopCultural.slice(0, 10),
+    order_before_optimization: orderBefore.map((p) => p.name),
+    order_after_optimization: route.map((p) => p.name),
+    total_distance_before_m: statsBefore.total_m,
+    total_distance_after_m: statsAfter.total_m,
+    max_segment_before_m: statsBefore.max_segment_m,
+    max_segment_after_m: statsAfter.max_segment_m,
+    longest_segment_from: statsAfter.max_from,
+    longest_segment_to: statsAfter.max_to,
+    segments_after_m: statsAfter.segments_m,
+    long_segment_warnings: longSegmentWarnings,
   };
   console.log("[generation_debug]", JSON.stringify(debug));
+  if (longSegmentWarnings.length > 0) {
+    console.warn("[long_segment_warnings]", longSegmentWarnings.join(" | "));
+  }
 
   return {
     id: generateId(),
@@ -1054,7 +1151,7 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
     stops,
     title: generateTitle(input),
     teaser: generateTeaser(input, stops, timing.totalMin),
-    algorithm_version: "3.1.0-p1",
+    algorithm_version: "3.2.0-p1.1",
     generated_at: new Date().toISOString(),
     ...({ generation_debug: debug } as Record<string, unknown>),
   } as EngineOutput;
