@@ -522,19 +522,73 @@ function twoOptImprove(
   return route;
 }
 
-function enforceConsecutiveDiversity(pois: ScoredPOI[]): ScoredPOI[] {
+// P1.1 hotfix 2026-05-12: geo-aware diversity.
+// The previous version blindly swapped same-category neighbours, which often
+// destroyed the geographic order produced by 2-opt and created backtracks
+// (e.g. Koutoubia → Bahia → back to El Badi). We now only accept a swap if
+// it does NOT inflate the total walking distance beyond `maxInflateRatio`.
+function enforceConsecutiveDiversity(
+  startLat: number,
+  startLng: number,
+  pois: ScoredPOI[],
+  circular: boolean,
+  maxInflateRatio = 1.08,
+): ScoredPOI[] {
   const result = [...pois];
+
+  const totalDist = (arr: ScoredPOI[]): number => {
+    if (arr.length === 0) return 0;
+    let d = haversineM(startLat, startLng, arr[0].lat, arr[0].lng);
+    for (let k = 1; k < arr.length; k++) {
+      d += haversineM(arr[k - 1].lat, arr[k - 1].lng, arr[k].lat, arr[k].lng);
+    }
+    if (circular) d += haversineM(arr[arr.length - 1].lat, arr[arr.length - 1].lng, startLat, startLng);
+    return d;
+  };
+
+  const baseline = totalDist(result);
+  const cap = baseline * maxInflateRatio;
+
   for (let i = 1; i < result.length; i++) {
-    if (result[i].category_ai === result[i - 1].category_ai) {
-      for (let j = i + 1; j < result.length; j++) {
-        if (result[j].category_ai !== result[i].category_ai) {
-          [result[i], result[j]] = [result[j], result[i]];
-          break;
-        }
-      }
+    if (result[i].category_ai !== result[i - 1].category_ai) continue;
+    for (let j = i + 1; j < result.length; j++) {
+      if (result[j].category_ai === result[i].category_ai) continue;
+      // tentative swap
+      [result[i], result[j]] = [result[j], result[i]];
+      if (totalDist(result) <= cap) break; // accept
+      // revert
+      [result[i], result[j]] = [result[j], result[i]];
     }
   }
   return result;
+}
+
+// Compute per-segment distances (start→s0, s0→s1, …) and find the longest one.
+function segmentStats(
+  startLat: number,
+  startLng: number,
+  pois: ScoredPOI[],
+): { segments_m: number[]; total_m: number; max_segment_m: number; max_from: string; max_to: string } {
+  const segs: number[] = [];
+  if (pois.length === 0) return { segments_m: [], total_m: 0, max_segment_m: 0, max_from: "", max_to: "" };
+  segs.push(haversineM(startLat, startLng, pois[0].lat, pois[0].lng));
+  for (let i = 1; i < pois.length; i++) {
+    segs.push(haversineM(pois[i - 1].lat, pois[i - 1].lng, pois[i].lat, pois[i].lng));
+  }
+  let max = 0;
+  let maxIdx = 0;
+  for (let i = 0; i < segs.length; i++) {
+    if (segs[i] > max) { max = segs[i]; maxIdx = i; }
+  }
+  const fromName = maxIdx === 0 ? "START" : pois[maxIdx - 1].name;
+  const toName = pois[maxIdx]?.name ?? "";
+  return {
+    segments_m: segs.map((s) => Math.round(s)),
+    total_m: Math.round(segs.reduce((a, b) => a + b, 0)),
+    max_segment_m: Math.round(max),
+    max_from: fromName,
+    max_to: toName,
+  };
 }
 
 // ━━━━━━━━━━━━━━ TIMING ━━━━━━━━━━━━━━
