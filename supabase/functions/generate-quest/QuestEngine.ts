@@ -931,6 +931,17 @@ interface GenerationDebug {
   cultural_complement_added: number;
   cultural_complement_names: string[];
   rejected_top_cultural: { name: string; reason: string; dist_m: number }[];
+  // P1.1 — route order optimization
+  order_before_optimization: string[];
+  order_after_optimization: string[];
+  total_distance_before_m: number;
+  total_distance_after_m: number;
+  max_segment_before_m: number;
+  max_segment_after_m: number;
+  longest_segment_from: string;
+  longest_segment_to: string;
+  segments_after_m: number[];
+  long_segment_warnings: string[];
 }
 
 export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput {
