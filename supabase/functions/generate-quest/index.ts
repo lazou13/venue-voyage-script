@@ -127,6 +127,8 @@ serve(async (req) => {
       fun_fact_fr: (p.fun_fact_fr ?? "") as string,
       fun_fact_en: (p.fun_fact_en ?? "") as string,
       wikipedia_summary: (p.wikipedia_summary ?? "") as string,
+      wikipedia_summary_en: (p.wikipedia_summary_en ?? "") as string,
+      history_context_en: (p.history_context_en ?? "") as string,
       crowd_level: (p.crowd_level ?? "") as string,
       accessibility_notes: (p.accessibility_notes ?? "") as string,
       metadata: (p.metadata ?? {}) as POI["metadata"],
