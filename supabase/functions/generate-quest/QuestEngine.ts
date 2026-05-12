@@ -1151,7 +1151,7 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
     stops,
     title: generateTitle(input),
     teaser: generateTeaser(input, stops, timing.totalMin),
-    algorithm_version: "3.1.0-p1",
+    algorithm_version: "3.2.0-p1.1",
     generated_at: new Date().toISOString(),
     ...({ generation_debug: debug } as Record<string, unknown>),
   } as EngineOutput;
