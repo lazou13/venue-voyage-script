@@ -117,6 +117,7 @@ export interface Stop {
   crowd_level?: string;
   accessibility_notes?: string;
   visit_route?: { exit_point?: { lat: number; lng: number }; [k: string]: unknown } | null;
+  lang_debug?: { lang: string; description_src: string; history_context_src: string };
 }
 
 export interface EngineOutput {
