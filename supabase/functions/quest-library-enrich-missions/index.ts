@@ -313,6 +313,12 @@ serve(async (req) => {
     const tourId: string | undefined = body.tour_id;
     const batchSize: number = Math.max(1, Math.min(Number(body.batch_size ?? 1), 10));
     const dryRun: boolean = body.dry_run === false ? false : true; // default true
+    const forceRegenerate: boolean = body.force_regenerate === true;
+
+    // Sécurité : force_regenerate massif interdit
+    if (forceRegenerate && !tourId) {
+      return json({ error: "force_regenerate requires tour_id" }, 400);
+    }
 
     const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
