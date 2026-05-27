@@ -720,9 +720,10 @@ async function callAIWithRetry(
     const n = expectedCount ?? 0;
     note += `\nRetourne EXACTEMENT ${n} stops, avec les orders 0 à ${n - 1}, aucun manquant, aucun doublon, aucun stop inventé.`;
   }
-
+  if (previousViolations && previousViolations.length) {
     note += `\n\nCORRECTION MOTS INTERDITS — corrige ces violations sans en introduire d'autres :\n${JSON.stringify(previousViolations, null, 2)}\nReformule chaque champ fautif en évitant strictement le terme banni, même sous forme idiomatique.`;
   }
+
   return await callAI(payloadStops, note);
 }
 
