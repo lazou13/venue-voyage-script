@@ -186,7 +186,7 @@ const TOOL_SCHEMA = {
                   enabled: { type: "boolean" },
                   type: {
                     type: "string",
-                    enum: ["none", "observation", "mcq", "true_false", "short_answer", "code", "counting"],
+                    enum: ["none", "observation", "mcq", "true_false", "short_answer", "code", "counting", "photo", "timed_action"],
                   },
                   title: { type: "string" },
                   instruction: { type: "string" },
@@ -194,6 +194,7 @@ const TOOL_SCHEMA = {
                   choices: { type: "array", items: { type: "string" } },
                   correct_answer: { type: "string" },
                   expected_count: { type: "integer" },
+                  timer_seconds: { type: "integer", description: "Requis si type=timed_action. Valeurs recommandées: 15, 20, 30." },
                   hint: { type: "string" },
                   success_message: { type: "string" },
                   failure_message: { type: "string" },
