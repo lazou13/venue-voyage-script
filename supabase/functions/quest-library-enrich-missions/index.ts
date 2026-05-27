@@ -383,7 +383,7 @@ serve(async (req) => {
         const payloadStops: any[] = [];
         for (let i = 0; i < stops.length; i++) {
           const s = stops[i];
-          if (!stopNeedsEnrichment(s)) { skipped++; continue; }
+          if (!forceRegenerate && !stopNeedsEnrichment(s)) { skipped++; continue; }
           targets.push(i);
           payloadStops.push(buildStopContext(s, poiById.get(s.poi_id), i));
         }
