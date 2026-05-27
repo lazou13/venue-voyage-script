@@ -415,14 +415,93 @@ function collectBannedTermsInStop(
   return out;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Completeness validation (post-LLM)
+// ─────────────────────────────────────────────────────────────
+type CompletenessViolation = {
+  type: "missing_order" | "duplicate_order" | "out_of_range_order" | "name_mismatch" | "missing_payload";
+  order: number;
+  expected_name?: string | null;
+  received_name?: string | null;
+  details?: string;
+};
+
+function normalizeName(s: unknown): string {
+  return typeof s === "string" ? s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim() : "";
+}
+
+function collectCompletenessViolations(
+  expectedStops: Array<{ order: number; name: string | null }>,
+  generatedStops: Array<{ order?: unknown; mission?: unknown; mini_challenge?: unknown; name?: unknown }>,
+): CompletenessViolation[] {
+  const out: CompletenessViolation[] = [];
+  const expectedOrders = new Set(expectedStops.map((s) => s.order));
+  const expectedByOrder = new Map(expectedStops.map((s) => [s.order, s] as const));
+
+  // Duplicates + out_of_range
+  const seen = new Map<number, number>();
+  for (const g of generatedStops) {
+    const o = typeof g?.order === "number" ? g.order : Number(g?.order);
+    if (!Number.isInteger(o)) continue;
+    seen.set(o, (seen.get(o) ?? 0) + 1);
+    if (!expectedOrders.has(o)) {
+      out.push({ type: "out_of_range_order", order: o, details: `order ${o} not in expected set` });
+    }
+  }
+  for (const [o, count] of seen) {
+    if (count > 1) out.push({ type: "duplicate_order", order: o, details: `order ${o} appears ${count}x` });
+  }
+
+  // Missing orders + missing payloads + name mismatch
+  const genByOrder = new Map<number, any>();
+  for (const g of generatedStops) {
+    const o = typeof g?.order === "number" ? g.order : Number(g?.order);
+    if (Number.isInteger(o) && !genByOrder.has(o)) genByOrder.set(o, g);
+  }
+  for (const exp of expectedStops) {
+    const g = genByOrder.get(exp.order);
+    if (!g) {
+      out.push({ type: "missing_order", order: exp.order, expected_name: exp.name });
+      continue;
+    }
+    if (!g.mission || !g.mini_challenge) {
+      out.push({ type: "missing_payload", order: exp.order, expected_name: exp.name, details: "mission or mini_challenge missing" });
+    }
+    if (typeof g.name === "string" && exp.name) {
+      const a = normalizeName(g.name);
+      const b = normalizeName(exp.name);
+      if (a && b && !a.includes(b) && !b.includes(a)) {
+        out.push({ type: "name_mismatch", order: exp.order, expected_name: exp.name, received_name: g.name });
+      }
+    }
+  }
+  return out;
+}
+
 async function callAIWithRetry(
   payloadStops: unknown[],
   previousViolations?: Violation[],
+  completenessViolations?: CompletenessViolation[],
+  expectedCount?: number,
 ): Promise<Array<{ order: number; mission: Mission; mini_challenge: MiniChallenge }>> {
-  const correctionNote = previousViolations && previousViolations.length
-    ? `\n\nCORRECTION REQUISE — la génération précédente contenait ces violations de mots interdits, à corriger absolument SANS introduire d'autres mots bannis :\n${JSON.stringify(previousViolations, null, 2)}\nReformule chaque champ fautif en évitant strictement le terme banni, même sous forme idiomatique.`
-    : "";
-  return await callAI(payloadStops, correctionNote);
+  let note = "";
+  if (completenessViolations && completenessViolations.length) {
+    const missing = completenessViolations.filter((v) => v.type === "missing_order").map((v) => `${v.order} (${v.expected_name ?? "?"})`);
+    const dups = completenessViolations.filter((v) => v.type === "duplicate_order").map((v) => v.order);
+    const oor = completenessViolations.filter((v) => v.type === "out_of_range_order").map((v) => v.order);
+    const mism = completenessViolations.filter((v) => v.type === "name_mismatch").map((v) => `${v.order}: attendu "${v.expected_name}" reçu "${v.received_name}"`);
+    note += `\n\nCORRECTION COMPLÉTUDE — la génération précédente était incomplète/désordonnée :`;
+    if (missing.length) note += `\n- orders MANQUANTS : ${missing.join(", ")}`;
+    if (dups.length) note += `\n- orders DUPLIQUÉS : ${dups.join(", ")}`;
+    if (oor.length) note += `\n- orders HORS PLAGE : ${oor.join(", ")}`;
+    if (mism.length) note += `\n- NOMS incohérents : ${mism.join(" ; ")}`;
+    const n = expectedCount ?? 0;
+    note += `\nRetourne EXACTEMENT ${n} stops, avec les orders 0 à ${n - 1}, aucun manquant, aucun doublon, aucun stop inventé.`;
+  }
+  if (previousViolations && previousViolations.length) {
+    note += `\n\nCORRECTION MOTS INTERDITS — corrige ces violations sans en introduire d'autres :\n${JSON.stringify(previousViolations, null, 2)}\nReformule chaque champ fautif en évitant strictement le terme banni, même sous forme idiomatique.`;
+  }
+  return await callAI(payloadStops, note);
 }
 
 async function callAI(payloadStops: unknown[], correctionNote = ""): Promise<Array<{ order: number; mission: Mission; mini_challenge: MiniChallenge }>> {
