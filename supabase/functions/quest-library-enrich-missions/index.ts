@@ -631,7 +631,9 @@ serve(async (req) => {
         logs.push(`[${tour.id}] AI call for ${payloadStops.length} stops`);
         let aiStops = await callAI(payloadStops);
 
-        // Réindexer par "order"
+        const expectedStops = targets.map((i) => ({ order: i, name: (stops[i]?.name as string | null) ?? null }));
+        const expectedCount = expectedStops.length;
+
         const buildByOrder = (arr: typeof aiStops) => {
           const m = new Map<number, { mission: Mission; mini_challenge: MiniChallenge }>();
           for (const r of arr) {
@@ -643,7 +645,30 @@ serve(async (req) => {
         };
         let byOrder = buildByOrder(aiStops);
 
-        // ── Post-LLM validation : scan mots interdits ──
+        // ── A. Completeness ──
+        let compViolations = collectCompletenessViolations(expectedStops, aiStops as any[]);
+        if (compViolations.length > 0) {
+          logs.push(`[${tour.id}] completeness violation(s) — retry 1x: ${JSON.stringify(compViolations.map((v) => ({ t: v.type, o: v.order })))}`);
+          aiStops = await callAIWithRetry(payloadStops, undefined, compViolations, expectedCount);
+          byOrder = buildByOrder(aiStops);
+          compViolations = collectCompletenessViolations(expectedStops, aiStops as any[]);
+        }
+        if (compViolations.length > 0) {
+          errors++;
+          logs.push(`[${tour.id}] BLOCKED — incomplete generation after retry, no write`);
+          previews.push({
+            tour_id: tour.id,
+            title_fr: tour.title_fr,
+            enriched_count: 0,
+            blocked: true,
+            reason: "incomplete_generation",
+            completeness_violations: compViolations,
+            stops: [],
+          });
+          continue;
+        }
+
+        // ── B. Banned terms ──
         const scanAll = () => {
           const v: Violation[] = [];
           for (const i of targets) {
@@ -657,8 +682,23 @@ serve(async (req) => {
 
         if (violations.length > 0) {
           logs.push(`[${tour.id}] ${violations.length} banned-term violation(s) — retry 1x`);
-          aiStops = await callAIWithRetry(payloadStops, violations);
+          aiStops = await callAIWithRetry(payloadStops, violations, undefined, expectedCount);
           byOrder = buildByOrder(aiStops);
+          const recheckComp = collectCompletenessViolations(expectedStops, aiStops as any[]);
+          if (recheckComp.length > 0) {
+            errors++;
+            logs.push(`[${tour.id}] BLOCKED — incomplete after banned-terms retry, no write`);
+            previews.push({
+              tour_id: tour.id,
+              title_fr: tour.title_fr,
+              enriched_count: 0,
+              blocked: true,
+              reason: "incomplete_generation",
+              completeness_violations: recheckComp,
+              stops: [],
+            });
+            continue;
+          }
           violations = scanAll();
         }
 
@@ -670,10 +710,11 @@ serve(async (req) => {
             title_fr: tour.title_fr,
             enriched_count: 0,
             blocked: true,
+            reason: "banned_terms",
             violations,
             stops: [],
           });
-          continue; // skip merge/persist for this tour
+          continue;
         }
 
 
