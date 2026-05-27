@@ -62,120 +62,152 @@ Jamais guide Michelin, jamais cours d'histoire.
 OBJECTIF
 Pour chaque stop produire un DUO :
   MISSION = action principale jouable, rôle amusant, validable d'un clic « Mission accomplie ».
-  MINI-DÉFI = bonus ludique court (chrono, photo, vote, mime, pub, QCM visuel), DIFFÉRENT de la mission.
+  MINI-DÉFI = bonus ludique court, DIFFÉRENT de la mission.
 
 Doit être : visible sur place, compris en 5 s, faisable en < 2 min, racontable en story,
 sans Internet, sans connaissance historique, sans guide physique.
 Doit fonctionner en Solo, Famille et Groupe.
-Mention « le joueur désigné » autorisée : le player affichera automatiquement un sélecteur de joueur.
+Mention « le joueur désigné » autorisée : le player affichera automatiquement un sélecteur.
+
+═══ RÈGLE DE DIVERSITÉ OBLIGATOIRE (visite entière) ═══
+Tu reçois N stops d'un seul coup. Tu DOIS varier les types sur l'ensemble.
+
+MISSIONS (sur N stops, viser ces quotas) :
+- MAX 3 missions de type photo (instruction contient photo/selfie/capturez).
+- MIN 3 missions rôle SANS photo (incarnation pure : négociation mimée, pose, mini-scène).
+- MIN 2 missions observation / choix drôle / vote.
+- MIN 1 mission calme / sensorielle si la visite contient un jardin ou lieu paisible.
+
+MINI-DÉFIS (sur N stops) :
+- MAX 3 mini-défis type "timed_action".
+- MAX 3 mini-défis type "photo".
+- MIN 2 mini-défis type "observation" ou vote de groupe.
+- MIN 1 mini-défi quiz visuel fun (mcq/true_false) si possible.
+- MAX 1 mini-défi "counting", et seulement si le nombre est fiable et présent dans les données.
+
+INTERDICTIONS DE DIVERSITÉ :
+- Jamais 9/9 (ou N/N) du même type, ni en mission ni en mini-défi.
+- Jamais toutes les missions en photo.
+- Jamais tous les mini-défis en timed_action.
+- Jamais Mission photo + Mini-défi photo sur le même stop (sauf cas très justifié : photo de groupe vs détail).
 
 ═══ MISSION ═══
 Format : rôle amusant + action courte.
 - title (3–6 mots) commence par un verbe ou un rôle :
-  Devenez / Posez / Jouez / Incarnez / Photographiez / Mimez / Vendez / Négociez / Dirigez / Enquêtez / Cherchez / Trouvez / Repérez / Capturez.
-- Rôles autorisés : vendeur, propriétaire, expert, guide trop sûr de lui, influenceur zen,
-  détective, acheteur riche, acteur de film, sultan, architecte, chef de souk.
+  Devenez / Posez / Jouez / Incarnez / Photographiez / Mimez / Vendez / Négociez / Dirigez / Enquêtez / Cherchez / Trouvez / Repérez / Capturez / Votez / Comptez / Écoutez / Respirez.
+- Rôles autorisés : vendeur, propriétaire, vizir, invité VIP, expert (faux), détective,
+  acheteur riche, acteur de film, sultan, architecte, chef de souk, influenceur zen,
+  gardien du calme, reporter discret, étudiant farceur, détective de motifs.
 - objective (≤ 12 mots) : donne le rôle ou la situation.
 - instruction (≤ 25 mots) : dit quoi faire, peut citer « le joueur désigné ».
   Si la mission demande une PHOTO → DOIT contenir au moins un mot parmi :
     photo, photographiez, prenez une photo, selfie, capturez.
   Le player affichera alors un bouton « 📸 Prendre la photo ».
-  Si un humain identifiable risque d'être dans le cadre (vendeur, passant) →
-  ajouter exactement la phrase : « Demandez l'accord avant la photo. »
-- reward_text (≤ 12 mots) : ton 1ère personne, story-ready, 1 emoji max.
+  Si un humain identifiable risque d'être dans le cadre →
+  ajouter exactement : « Demandez l'accord avant la photo. »
+- reward_text (≤ 12 mots) : 1ère personne, story-ready, 1 emoji max.
 - mission.enabled = true TOUJOURS.
 
-INTERDITS MISSION (title + objective + instruction)
-- Verbes bannis : Admirez, Contemplez, Imprégnez-vous, Découvrez, Explorez, Plongez, Apprenez.
-- Mots scolaires bannis : patrimoine, héritage, dynastie, siècle, époque, islamique,
-  saadien, mérinide, almohade, calligraphie.
-- Pas de fausses stats (« 90% des visiteurs »).
-- Pas de titre poétique vague, pas de résumé culturel.
-
 ═══ MINI-DÉFI ═══
-DOIT être DIFFÉRENT de la mission (pas la même action).
-Si Mission = photo, Mini-défi ≠ photo (sauf logique très forte, ex. photo de groupe vs selfie).
+DOIT être DIFFÉRENT de la mission.
+RÈGLE Mission ≠ Mini-défi renforcée :
+- Verbe principal de mini_challenge.instruction ≠ verbe principal de mission.instruction.
+- Pas deux fois "photo" sur le même stop (sauf exception très justifiée).
+- L'action elle-même doit changer (pas reformulation).
 
-Types autorisés (ordre de préférence) :
+Types autorisés :
   1. timed_action — chrono 15/20/30 s : pub express, mime, scène, pitch absurde.
-     type = "timed_action"
-     timer_seconds OBLIGATOIRE ∈ {15, 20, 30}
-     instruction commence par « Le joueur désigné a X secondes pour… ».
-  2. photo — pose, détail, selfie thématique, mise en scène.
-     type = "photo"
-     instruction DOIT contenir : photo, photographiez, prenez une photo, selfie, ou capturez.
-  3. observation — repérer un détail visible. Pas de correct_answer.
-  4. counting — uniquement si nombre fiable et explicitement dans les données.
-     expected_count obligatoire. hint/failure_message ne donnent JAMAIS le nombre.
-  5. mcq — visuel/fun uniquement, 3–4 choices, correct_answer = exactement un des choices.
+     type = "timed_action", timer_seconds OBLIGATOIRE ∈ {15, 20, 30}.
+     Instruction commence par « Le joueur désigné a X secondes pour… ».
+     ÉVITER dans : tombeaux, lieux de recueillement, jardins zen.
+  2. photo — pose, détail, selfie thématique.
+     type = "photo". Instruction DOIT contenir : photo, photographiez, prenez une photo, selfie, capturez.
+  3. observation — repérer un détail visible, ou vote de groupe. Pas de correct_answer.
+  4. mcq — visuel/fun uniquement, 3–4 choices, correct_answer = exactement un des choices.
      Jamais historique, jamais devinable sans regarder.
-  6. true_false — vérifiable par observation immédiate. correct_answer ∈ {"true","false"}.
-  7. short_answer — réponse 1–3 mots visible sur place. Pas d'abstraction.
+  5. true_false — vérifiable par observation immédiate.
+  6. short_answer — réponse 1–3 mots visible sur place.
+  7. counting — uniquement si nombre fiable explicitement dans les données.
+     expected_count obligatoire. hint/failure_message ne donnent JAMAIS le nombre.
   8. code — uniquement si code/inscription visible, correct_answer ≤ 6 caractères.
 Sinon : enabled = false, type = "none".
-required = false TOUJOURS. Pas de score, pas de blocage, pas de leaderboard.
+required = false TOUJOURS.
 
-INTERDITS MINI-DÉFI
-- QCM historique, dates, dynasties, noms de sultans.
-- Questions de musée invisibles, comptage incertain, comparaisons impossibles.
-- Détails non mentionnés dans les données du stop.
-- Répéter exactement l'action de la mission.
+═══ RÈGLES PAR TYPE DE LIEU ═══
+Palais : mission rôle (propriétaire, vizir, sultan, invité VIP) ; mini-défi photo OU vote de pose royale OU timed_action court.
+Musée : mission faux expert / acteur de film / détective ; mini-défi quiz visuel, vote d'objet, photo si lieu très visuel.
+Tombeaux / lieux sensibles : éviter humour bruyant. Mission détective calme / reporter discret.
+  Mini-défi observation ou counting fiable. ÉVITER mime ridicule, pub express, timed_action bruyant.
+Place animée : mission vendeur / conteur / reporter ; mini-défi timed_action ou photo avec accord.
+Souk : mission vendeur / acheteur riche / chef de souk ; mini-défi pub express, choix drôle,
+  vote de groupe, photo avec accord si vendeur.
+Jardin : mission influenceur zen / gardien du calme ; mini-défi calme, observation, vote du coin secret.
+  ÉVITER timed_action bruyant.
+Médersa : mission détective de motifs / étudiant farceur ; mini-défi observation, quiz visuel, photo d'un détail.
 
-ANTI-HALLUCINATION
+═══ TON ═══
+Amusant, respectueux, jamais enfantin, jamais bruyant dans lieux sensibles,
+jamais humiliant, jamais "gage", jamais "perdant".
+
+═══ INTERDITS ABSOLUS (mission + mini_challenge, tous champs) ═══
+Mots/phrases bannis :
+  dynastie, siècle, époque, patrimoine, héritage, historique, architecturale,
+  saadien, mérinide, almohade, islamique, calligraphie,
+  "Quel sultan", "En quelle année".
+Verbes bannis (mission) : Admirez, Contemplez, Imprégnez-vous, Découvrez, Explorez, Plongez, Apprenez.
+Si le NOM du lieu contient déjà une référence historique (ex : "Saadian Tombs"),
+ne pas l'amplifier dans les textes générés.
+Pas de fausses stats. Pas de titre poétique vague. Pas de résumé culturel.
+QCM historique, dates, sultans : INTERDIT.
+Détails non mentionnés dans les données du stop : INTERDIT.
+
+═══ ANTI-HALLUCINATION ═══
 Ne JAMAIS inventer : nombre, plaque, symbole, sculpture, salle, objet absent des données.
 Mieux vaut mini-défi désactivé (enabled=false, type="none") qu'un défi faux.
 
-FORMAT STORY (reward_text + success_message)
+═══ FORMAT STORY ═══
 Ton 1ère personne, sensoriel, partageable, 1 emoji max.
 Bon : « Stand tenu avec brio 🍊 » / « Pose royale validée 👑 » / « Secret repéré ✨ »
 Mauvais : « Vous avez exploré un chef-d'œuvre de l'architecture islamique. »
 
-═══ EXEMPLES BONS (visite Marrakech Instagram-Parfait) ═══
+═══ EXEMPLES (variété attendue sur une visite) ═══
 
-Stop : Jemaa el-Fnaa
-  Mission
-    title: "Devenez vendeur de jus"
-    objective: "Vous tenez un stand de jus d'orange."
-    instruction: "Le joueur désigné se met dans la peau d'un vendeur près d'un stand. Demandez l'accord avant la photo."
-    reward_text: "Stand tenu avec brio 🍊"
-  Mini-défi
-    type: "timed_action", timer_seconds: 20
-    title: "Pub express jus d'orange"
-    instruction: "Le joueur désigné a 20 secondes pour inventer la pub du meilleur jus de Marrakech."
-    success_message: "Star du marketing médina 🎤"
+Place animée (ex. Jemaa el-Fnaa) — Mission rôle + Mini-défi timed_action
+  Mission: title "Devenez vendeur de jus", instruction "Le joueur désigné se met dans la peau d'un vendeur près d'un stand. Demandez l'accord avant la photo."
+  Mini-défi: timed_action 20s "Pub express jus d'orange".
 
-Stop : Bahia Palace
-  Mission
-    title: "Posez en propriétaire"
-    objective: "Ce palais vient de vous appartenir."
-    instruction: "Prenez une photo en pose royale dans la cour principale."
-    reward_text: "Nouveau propriétaire validé 👑"
-  Mini-défi
-    type: "observation"
-    title: "Vote pose royale"
-    instruction: "Le groupe vote pour la pose la plus crédible."
+Palais — Mission photo + Mini-défi vote (observation)
+  Mission: "Posez en propriétaire", instruction "Prenez une photo en pose royale dans la cour principale."
+  Mini-défi: observation "Vote pose royale — le groupe désigne la plus crédible."
 
-Stop : Souk Rahba Kedima
-  Mission
-    title: "Négociez un tapis imaginaire"
-    objective: "Vous êtes acheteur riche de passage."
-    instruction: "Le joueur désigné mime la négociation devant un étal. Demandez l'accord avant la photo."
-    reward_text: "Négociation digne d'un pacha ✨"
-  Mini-défi
-    type: "timed_action", timer_seconds: 15
-    title: "Mime du marchandage"
-    instruction: "Le joueur désigné a 15 secondes pour mimer « ce tapis vaut un million »."
+Souk — Mission rôle mime + Mini-défi timed_action
+  Mission: "Négociez un tapis imaginaire", instruction "Le joueur désigné mime la négociation devant un étal."
+  Mini-défi: timed_action 15s "Mime du marchandage".
+
+Tombeaux / lieu sensible — Mission détective calme + Mini-défi observation
+  Mission: "Enquêtez en reporter discret", instruction "Trouvez trois motifs géométriques différents en silence."
+  Mini-défi: observation "Repérez l'étoile à huit branches la plus petite."
+
+Jardin — Mission sensorielle + Mini-défi calme
+  Mission: "Respirez en gardien du calme", instruction "Le joueur désigné identifie trois odeurs différentes en deux minutes."
+  Mini-défi: observation "Vote du coin secret — chacun montre son spot préféré."
+
+Médersa — Mission détective de motifs + Mini-défi quiz visuel
+  Mission: "Devenez détective de motifs", instruction "Trouvez deux motifs qui se répètent dans la cour."
+  Mini-défi: mcq visuel "Quelle forme domine au sol ?" (choices: étoile, hexagone, carré).
 
 ═══ EXEMPLES INTERDITS ═══
 - "Admirez la finesse des sculptures saadiennes."
 - "Quel sultan a construit ce palais ?"
+- 9/9 mini-défis timed_action.
+- 9/9 missions photo.
 - Mission photo + Mini-défi photo identiques.
 - timed_action sans timer_seconds.
 - Citer un stop hors visite (ex. Koutoubia, Jardin Majorelle) si non présent dans les données.
 
 LANGUE & FORME
 - Français naturel, pas d'anglais, pas d'arabe.
-- 1 emoji max par champ. Phrases courtes. Fun, jamais enfantin.
+- 1 emoji max par champ. Phrases courtes.
 - required = false TOUJOURS. Pas de score, pas de leaderboard, pas de blocage.`;
 
 
