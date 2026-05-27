@@ -525,6 +525,181 @@ function collectCompletenessViolations(
   return out;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Product sanitization (deterministic, post-LLM)
+// ─────────────────────────────────────────────────────────────
+type Sanitization = {
+  order: number;
+  name: string | null;
+  field: string;
+  issue:
+    | "invalid_counting"
+    | "false_photo_trigger"
+    | "unstable_true_false"
+    | "double_photo";
+  action:
+    | "converted_to_observation"
+    | "stripped_photo_terms"
+    | "converted_mini_photo_to_observation";
+  before: unknown;
+  after: unknown;
+};
+
+const PHOTO_VERBS_RE = /\b(photographiez|prenez une photo|selfie|capturez)\b/i;
+const VARIABLE_PLACE_RE = /\b(magasin|boutique|souk|étal|etal|stand|march[ée]|vendeur|restaurant|terrasse|foule|personnes?)\b/i;
+const VARIABLE_OBJECT_RE = /\b(tapis|stands?|vendeurs?|personnes?|vitrines?|étals?|etals?|épices|epices|objets? expos[ée]s?)\b/i;
+const UNSTABLE_TF_RE = /\b(vendeur|passant|personne|foule|groupe pr[ée]sent|v[êe]tement|djellaba|burnous|kaftan|portent?|porte\b|stand ouvert|stand ferm[ée]|temporaire)\b/i;
+
+function missionTriggersPhoto(mission?: Mission | null): boolean {
+  if (!mission) return false;
+  const txt = `${mission.title ?? ""} ${mission.instruction ?? ""} ${mission.objective ?? ""}`;
+  return PHOTO_VERBS_RE.test(txt);
+}
+
+function countingNumberInSource(src: { name?: unknown; description_short?: unknown; history_context?: unknown; local_anecdote_fr?: unknown; must_see_details?: unknown }): boolean {
+  const blob = [src.name, src.description_short, src.history_context, src.local_anecdote_fr, src.must_see_details]
+    .filter((v) => typeof v === "string")
+    .join(" ")
+    .toLowerCase();
+  // Either an Arabic numeral ≥ 2, or a French textual number (deux..vingt)
+  if (/\b([2-9]|[1-9]\d+)\b/.test(blob)) return true;
+  return /\b(deux|trois|quatre|cinq|six|sept|huit|neuf|dix|onze|douze|treize|quatorze|quinze|seize|vingt)\b/.test(blob);
+}
+
+function stripPhotoTermsFromInstruction(instr: string): string {
+  let out = instr;
+  // Remove the explicit consent sentence (with surrounding spaces/punct)
+  out = out.replace(/\s*Demandez l['’]accord avant la photo\.?/giu, "");
+  // Replace "photogénique" with neutral term
+  out = out.replace(/photog[ée]nique/giu, "marquant");
+  // Strip light photo-trigger fragments
+  out = out.replace(/\s*pour la photo\b/giu, "");
+  out = out.replace(/\s*photo souvenir\b/giu, "");
+  out = out.replace(/\s*accord photo\b/giu, "");
+  // Strip lonely standalone "photo" word fragments like "une photo" if no verb
+  out = out.replace(/\s+une photo\b/giu, "");
+  return out.replace(/\s{2,}/g, " ").trim();
+}
+
+function sanitizeProductIssues(
+  order: number,
+  name: string | null,
+  mission: Mission,
+  mc: MiniChallenge,
+  source: { name?: unknown; description_short?: unknown; history_context?: unknown; local_anecdote_fr?: unknown; must_see_details?: unknown },
+): { mission: Mission; mini_challenge: MiniChallenge; sanitizations: Sanitization[] } {
+  const sanitizations: Sanitization[] = [];
+  let outMission: Mission = { ...mission };
+  let outMC: MiniChallenge = { ...mc };
+
+  // ── Case B — false photo trigger on mission ──
+  const instr = outMission.instruction ?? "";
+  const hasPhotoVerb = PHOTO_VERBS_RE.test(instr);
+  const hasPhotoArtifact = /(Demandez l['’]accord avant la photo|photog[ée]nique|pour la photo|photo souvenir|accord photo)/iu.test(instr);
+  if (!hasPhotoVerb && hasPhotoArtifact) {
+    const before = instr;
+    const after = stripPhotoTermsFromInstruction(instr);
+    outMission = { ...outMission, instruction: after };
+    sanitizations.push({
+      order, name, field: "mission.instruction",
+      issue: "false_photo_trigger", action: "stripped_photo_terms",
+      before, after,
+    });
+  }
+
+  // Recompute photo-trigger after mission strip
+  const missionPhoto = missionTriggersPhoto(outMission);
+
+  // ── Case D — double photo (mission photo + mini photo) ──
+  if (missionPhoto && outMC.type === "photo") {
+    const before = { type: outMC.type, title: outMC.title, instruction: outMC.instruction };
+    outMC = {
+      ...outMC,
+      type: "observation",
+      title: "Vote du meilleur détail",
+      instruction: "Le groupe choisit le détail le plus marquant autour de vous.",
+      question: undefined,
+      choices: undefined,
+      correct_answer: undefined,
+      expected_count: undefined,
+      timer_seconds: undefined,
+      required: false,
+      success_message: "Vote validé !",
+    };
+    sanitizations.push({
+      order, name, field: "mini_challenge",
+      issue: "double_photo", action: "converted_mini_photo_to_observation",
+      before, after: { type: outMC.type, title: outMC.title, instruction: outMC.instruction },
+    });
+  }
+
+  // ── Case A — counting invalid ──
+  if (outMC.type === "counting") {
+    const mcInstr = (outMC.instruction ?? "").trim();
+    const mcQuestion = ((outMC as any).question ?? "").toString().trim();
+    const probe = `${mcInstr} ${mcQuestion} ${outMC.title ?? ""}`;
+    const noInstruction = !mcInstr;
+    const noExpected = typeof outMC.expected_count !== "number" || !Number.isFinite(outMC.expected_count);
+    const variablePlace =
+      VARIABLE_PLACE_RE.test(typeof source.name === "string" ? source.name : "") ||
+      VARIABLE_PLACE_RE.test(probe);
+    const variableObject = VARIABLE_OBJECT_RE.test(probe);
+    const numberFiable = countingNumberInSource(source);
+
+    if (noInstruction || noExpected || variablePlace || variableObject || !numberFiable) {
+      const before = { type: outMC.type, instruction: outMC.instruction, expected_count: outMC.expected_count, title: outMC.title };
+      outMC = {
+        ...outMC,
+        type: "observation",
+        title: outMC.title || "Détail à repérer",
+        instruction: "Repérez le détail le plus intéressant autour de vous et partagez votre choix avec le groupe.",
+        question: undefined,
+        choices: undefined,
+        correct_answer: undefined,
+        expected_count: undefined,
+        timer_seconds: undefined,
+        required: false,
+        success_message: outMC.success_message || "Choix validé !",
+      };
+      sanitizations.push({
+        order, name, field: "mini_challenge",
+        issue: "invalid_counting", action: "converted_to_observation",
+        before, after: { type: outMC.type, title: outMC.title, instruction: outMC.instruction },
+      });
+    }
+  }
+
+  // ── Case C — unstable true_false ──
+  if (outMC.type === "true_false") {
+    const probe = `${(outMC as any).question ?? ""} ${outMC.instruction ?? ""}`;
+    if (UNSTABLE_TF_RE.test(probe)) {
+      const before = { type: outMC.type, question: (outMC as any).question, correct_answer: (outMC as any).correct_answer };
+      outMC = {
+        ...outMC,
+        type: "observation",
+        title: outMC.title || "Observation rapide",
+        instruction: "Repérez un détail visible immédiatement et choisissez celui qui marque le plus le groupe.",
+        question: undefined,
+        choices: undefined,
+        correct_answer: undefined,
+        expected_count: undefined,
+        timer_seconds: undefined,
+        required: false,
+        success_message: outMC.success_message || "Observation validée !",
+      };
+      sanitizations.push({
+        order, name, field: "mini_challenge",
+        issue: "unstable_true_false", action: "converted_to_observation",
+        before, after: { type: outMC.type, title: outMC.title, instruction: outMC.instruction },
+      });
+    }
+  }
+
+  return { mission: outMission, mini_challenge: outMC, sanitizations };
+}
+
+
+
 async function callAIWithRetry(
   payloadStops: unknown[],
   previousViolations?: Violation[],
@@ -548,6 +723,7 @@ async function callAIWithRetry(
   if (previousViolations && previousViolations.length) {
     note += `\n\nCORRECTION MOTS INTERDITS — corrige ces violations sans en introduire d'autres :\n${JSON.stringify(previousViolations, null, 2)}\nReformule chaque champ fautif en évitant strictement le terme banni, même sous forme idiomatique.`;
   }
+
   return await callAI(payloadStops, note);
 }
 
@@ -715,7 +891,28 @@ serve(async (req) => {
           continue;
         }
 
-        // ── B. Banned terms ──
+        // ── B. Product sanitization (deterministic, post-LLM, no AI call) ──
+        const sanitizationsForTour: Sanitization[] = [];
+        const sourceCtxByOrder = new Map<number, any>();
+        for (let k = 0; k < targets.length; k++) {
+          sourceCtxByOrder.set(targets[k], payloadStops[k]);
+        }
+        for (const i of targets) {
+          const r = byOrder.get(i);
+          if (!r) continue;
+          const src = sourceCtxByOrder.get(i) ?? {};
+          const out = sanitizeProductIssues(i, stops[i]?.name ?? null, r.mission, r.mini_challenge, src);
+          if (out.sanitizations.length > 0) {
+            byOrder.set(i, { mission: out.mission, mini_challenge: out.mini_challenge });
+            for (const s of out.sanitizations) {
+              sanitizationsForTour.push(s);
+              logs.push(`[${tour.id}] product sanitization: ${s.issue} on order ${s.order} ${s.action}`);
+            }
+          }
+        }
+
+        // ── C. Banned terms (re-scan after sanitization) ──
+
         const scanAll = () => {
           const v: Violation[] = [];
           for (const i of targets) {
@@ -790,8 +987,11 @@ serve(async (req) => {
           tour_id: tour.id,
           title_fr: tour.title_fr,
           enriched_count: enrichedCount,
+          sanitizations: sanitizationsForTour,
+          sanitizations_count: sanitizationsForTour.length,
           stops: stopsPreview,
         });
+
 
         if (!dryRun) {
           const { error: upErr } = await sb
