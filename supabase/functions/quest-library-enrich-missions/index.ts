@@ -550,15 +550,53 @@ serve(async (req) => {
         if (payloadStops.length === 0) { skipped++; continue; }
 
         logs.push(`[${tour.id}] AI call for ${payloadStops.length} stops`);
-        const aiStops = await callAI(payloadStops);
+        let aiStops = await callAI(payloadStops);
 
-        // Réindexer par "order" (= index passé au modèle)
-        const byOrder = new Map<number, { mission: Mission; mini_challenge: MiniChallenge }>();
-        for (const r of aiStops) {
-          if (r && typeof r.order === "number") {
-            byOrder.set(r.order, { mission: r.mission, mini_challenge: r.mini_challenge });
+        // Réindexer par "order"
+        const buildByOrder = (arr: typeof aiStops) => {
+          const m = new Map<number, { mission: Mission; mini_challenge: MiniChallenge }>();
+          for (const r of arr) {
+            if (r && typeof r.order === "number") {
+              m.set(r.order, { mission: r.mission, mini_challenge: r.mini_challenge });
+            }
           }
+          return m;
+        };
+        let byOrder = buildByOrder(aiStops);
+
+        // ── Post-LLM validation : scan mots interdits ──
+        const scanAll = () => {
+          const v: Violation[] = [];
+          for (const i of targets) {
+            const r = byOrder.get(i);
+            if (!r) continue;
+            v.push(...collectBannedTermsInStop(i, stops[i]?.name ?? null, r.mission, r.mini_challenge));
+          }
+          return v;
+        };
+        let violations = scanAll();
+
+        if (violations.length > 0) {
+          logs.push(`[${tour.id}] ${violations.length} banned-term violation(s) — retry 1x`);
+          aiStops = await callAIWithRetry(payloadStops, violations);
+          byOrder = buildByOrder(aiStops);
+          violations = scanAll();
         }
+
+        if (violations.length > 0) {
+          errors++;
+          logs.push(`[${tour.id}] BLOCKED — banned terms persist after retry, no write`);
+          previews.push({
+            tour_id: tour.id,
+            title_fr: tour.title_fr,
+            enriched_count: 0,
+            blocked: true,
+            violations,
+            stops: [],
+          });
+          continue; // skip merge/persist for this tour
+        }
+
 
         const newStops = stops.map((s: any, i: number) => {
           const r = byOrder.get(i);
