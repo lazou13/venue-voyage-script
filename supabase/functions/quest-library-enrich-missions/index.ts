@@ -105,6 +105,17 @@ Format : rôle amusant + action courte.
   Le player affichera alors un bouton « 📸 Prendre la photo ».
   Si un humain identifiable risque d'être dans le cadre →
   ajouter exactement : « Demandez l'accord avant la photo. »
+
+  ═══ ANTI DOUBLE-PHOTO STRICT ═══
+  La phrase « Demandez l'accord avant la photo. » est AUTORISÉE UNIQUEMENT
+  si mission.instruction contient DÉJÀ un verbe photo clair :
+    photographiez | prenez une photo | selfie | capturez.
+  Si la mission ne porte PAS explicitement sur une photo (mime, rôle, vote, observation,
+  négociation, écoute, sensoriel) → INTERDICTION ABSOLUE d'inclure cette phrase :
+  elle déclencherait à tort le bouton 📸 dans le player QRP.
+  Aucune autre formulation type « pour la photo », « photo souvenir », « accord photo »
+  ne doit apparaître dans une mission non-photo.
+
 - reward_text (≤ 12 mots) : 1ère personne, story-ready, 1 emoji max.
 - mission.enabled = true TOUJOURS.
 
@@ -115,6 +126,12 @@ RÈGLE Mission ≠ Mini-défi renforcée :
 - Pas deux fois "photo" sur le même stop (sauf exception très justifiée).
 - L'action elle-même doit changer (pas reformulation).
 
+RÈGLE ANTI DOUBLE-PHOTO (mini-défi) :
+Si la Mission déclenche déjà une photo (verbe photo présent dans mission.instruction),
+le mini_challenge ne doit PAS être type="photo". Préférer dans l'ordre :
+observation → vote → mcq visuel → timed_action court (hors lieu sensible).
+Une seule étape photo par stop, jamais deux.
+
 Types autorisés :
   1. timed_action — chrono 15/20/30 s : pub express, mime, scène, pitch absurde.
      type = "timed_action", timer_seconds OBLIGATOIRE ∈ {15, 20, 30}.
@@ -122,16 +139,46 @@ Types autorisés :
      ÉVITER dans : tombeaux, lieux de recueillement, jardins zen.
   2. photo — pose, détail, selfie thématique.
      type = "photo". Instruction DOIT contenir : photo, photographiez, prenez une photo, selfie, capturez.
+     INTERDIT si la Mission déclenche déjà une photo (voir règle anti double-photo ci-dessus).
   3. observation — repérer un détail visible, ou vote de groupe. Pas de correct_answer.
   4. mcq — visuel/fun uniquement, 3–4 choices, correct_answer = exactement un des choices.
      Jamais historique, jamais devinable sans regarder.
-  5. true_false — vérifiable par observation immédiate.
+  5. true_false — vérifiable par observation immédiate EN MOINS DE 5 SECONDES.
+     ═══ RÈGLE TRUE_FALSE STRICT ═══
+     Autorisé UNIQUEMENT si la réponse est tranchable d'un seul coup d'œil
+     par n'importe quel visiteur, sans inspection minutieuse.
+     INTERDIT si la réponse demande :
+       - inspection minutieuse ou recherche d'un détail discret
+       - connaissance historique, date, dynastie, attribution
+       - comparaison de hauteur, d'âge, d'ancienneté
+       - inscription difficile à lire ou peu visible
+       - élément « près de l'entrée » / « dans la salle X » dont l'accès n'est pas garanti
+       - tout détail non garanti présent au moment de la visite.
+     Exemples INTERDITS :
+       - « Y a-t-il une inscription non-géométrique près de l'entrée ? »
+       - « Cette tour est-elle plus haute qu'un minaret ? »
+       - « Ce motif est-il plus ancien que… ? »
+     Si la réponse n'est pas évidente en < 5 s → basculer sur observation (sans correct_answer).
   6. short_answer — réponse 1–3 mots visible sur place.
   7. counting — uniquement si nombre fiable explicitement dans les données.
      expected_count obligatoire. hint/failure_message ne donnent JAMAIS le nombre.
+     ═══ RÈGLE COUNTING STRICT ═══
+     counting est INTERDIT si le nombre n'apparaît pas explicitement dans :
+       must_see_details | description_short | history_context | local_anecdote
+       | ou dans le NAME du lieu si le nombre est évident (ex. « Salle des Douze Colonnes »).
+     counting est TOUJOURS INTERDIT pour un lieu à contenu variable :
+       magasin, boutique, souk, étal, stand, marché, vitrine commerciale,
+       collection mouvante, vendeur, restaurant, terrasse, foule, personnes.
+     Exemples INTERDITS :
+       - compter les tapis rouges dans un magasin
+       - compter les stands d'épices
+       - compter les objets exposés en boutique
+       - compter les personnes / vendeurs / clients
+     Si le nombre est incertain → utiliser observation, vote ou mcq visuel.
   8. code — uniquement si code/inscription visible, correct_answer ≤ 6 caractères.
 Sinon : enabled = false, type = "none".
 required = false TOUJOURS.
+
 
 ═══ RÈGLES PAR TYPE DE LIEU ═══
 Palais : mission rôle (propriétaire, vizir, sultan, invité VIP) ; mini-défi photo OU vote de pose royale OU timed_action court.
