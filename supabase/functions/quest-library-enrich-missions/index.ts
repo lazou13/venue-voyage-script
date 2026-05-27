@@ -890,7 +890,28 @@ serve(async (req) => {
           continue;
         }
 
-        // ── B. Banned terms ──
+        // ── B. Product sanitization (deterministic, post-LLM, no AI call) ──
+        const sanitizationsForTour: Sanitization[] = [];
+        const sourceCtxByOrder = new Map<number, any>();
+        for (let k = 0; k < targets.length; k++) {
+          sourceCtxByOrder.set(targets[k], payloadStops[k]);
+        }
+        for (const i of targets) {
+          const r = byOrder.get(i);
+          if (!r) continue;
+          const src = sourceCtxByOrder.get(i) ?? {};
+          const out = sanitizeProductIssues(i, stops[i]?.name ?? null, r.mission, r.mini_challenge, src);
+          if (out.sanitizations.length > 0) {
+            byOrder.set(i, { mission: out.mission, mini_challenge: out.mini_challenge });
+            for (const s of out.sanitizations) {
+              sanitizationsForTour.push(s);
+              logs.push(`[${tour.id}] product sanitization: ${s.issue} on order ${s.order} ${s.action}`);
+            }
+          }
+        }
+
+        // ── C. Banned terms (re-scan after sanitization) ──
+
         const scanAll = () => {
           const v: Violation[] = [];
           for (const i of targets) {
