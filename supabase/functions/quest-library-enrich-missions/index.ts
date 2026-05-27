@@ -149,17 +149,38 @@ Médersa : mission détective de motifs / étudiant farceur ; mini-défi observa
 Amusant, respectueux, jamais enfantin, jamais bruyant dans lieux sensibles,
 jamais humiliant, jamais "gage", jamais "perdant".
 
-═══ INTERDITS ABSOLUS (mission + mini_challenge, tous champs) ═══
-Mots/phrases bannis :
+═══ INTERDITS ABSOLUS (TOUS champs : mission.title, mission.objective, mission.instruction, mission.reward_text, mini_challenge.title, mini_challenge.instruction, mini_challenge.question, hint, success_message, failure_message) ═══
+Mots/phrases STRICTEMENT bannis (zéro occurrence, MÊME dans une expression idiomatique) :
   dynastie, siècle, époque, patrimoine, héritage, historique, architecturale,
   saadien, mérinide, almohade, islamique, calligraphie,
   "Quel sultan", "En quelle année".
+Le mot "sultan" est interdit s'il sert de question historique (qui, quand, lequel).
+Il reste autorisé UNIQUEMENT comme rôle joué ("Incarnez un sultan").
+
+RÈGLE IDIOMES : les mots bannis sont interdits MÊME dans les expressions courantes.
+Exemples INTERDITS :
+  - "affaire du siècle"
+  - "trésor historique"
+  - "héritage vivant"
+  - "décor d'époque"
+  - "beauté architecturale"
+  - "œuvre architecturale"
+  - "lieu chargé d'histoire"
+REMPLACEMENTS autorisés :
+  - au lieu de "affaire du siècle" → "meilleure affaire conclue" / "deal du jour validé" / "négociation réussie" / "marché conclu"
+  - au lieu de "trésor historique" → "trésor caché" / "pépite repérée"
+  - au lieu de "beauté architecturale" → "beau décor" / "ambiance unique"
+  - au lieu de "décor d'époque" → "décor de cinéma" / "décor royal"
+
 Verbes bannis (mission) : Admirez, Contemplez, Imprégnez-vous, Découvrez, Explorez, Plongez, Apprenez.
 Si le NOM du lieu contient déjà une référence historique (ex : "Saadian Tombs"),
 ne pas l'amplifier dans les textes générés.
 Pas de fausses stats. Pas de titre poétique vague. Pas de résumé culturel.
 QCM historique, dates, sultans : INTERDIT.
 Détails non mentionnés dans les données du stop : INTERDIT.
+
+AVANT DE RENVOYER : relis chaque champ texte de chaque stop et vérifie que AUCUN mot banni
+ci-dessus n'apparaît, même partiellement, même dans un idiome. Si oui, reformule.
 
 ═══ ANTI-HALLUCINATION ═══
 Ne JAMAIS inventer : nombre, plaque, symbole, sculpture, salle, objet absent des données.
