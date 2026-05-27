@@ -345,6 +345,86 @@ function buildStopContext(
   };
 }
 
+// ─────────────────────────────────────────────────────────────
+// Banned terms filter (post-LLM)
+// ─────────────────────────────────────────────────────────────
+const BANNED_WORDS = [
+  "dynastie", "dynasties",
+  "siècle", "siècles",
+  "époque", "époques",
+  "patrimoine",
+  "héritage",
+  "historique", "historiques",
+  "architecturale", "architecturales",
+  "islamique", "islamiques",
+  "saadien", "saadienne", "saadiens", "saadiennes",
+  "mérinide", "mérinides",
+  "almohade", "almohades",
+  "calligraphie", "calligraphies",
+];
+const BANNED_PHRASES = ["quel sultan", "en quelle année"];
+
+function findBannedInString(value: string): string[] {
+  if (!value) return [];
+  const v = value.toLowerCase();
+  const hits: string[] = [];
+  for (const w of BANNED_WORDS) {
+    const re = new RegExp(`(^|[^\\p{L}])${w}([^\\p{L}]|$)`, "iu");
+    if (re.test(v)) hits.push(w);
+  }
+  for (const p of BANNED_PHRASES) {
+    if (v.includes(p)) hits.push(p);
+  }
+  return hits;
+}
+
+type Violation = { order: number; name: string | null; field: string; term: string; value: string };
+
+function collectBannedTermsInStop(
+  index: number,
+  name: string | null,
+  mission: Mission | undefined,
+  mc: MiniChallenge | undefined,
+): Violation[] {
+  const out: Violation[] = [];
+  const scan = (field: string, value: unknown) => {
+    if (typeof value !== "string" || !value) return;
+    for (const term of findBannedInString(value)) {
+      out.push({ order: index, name, field, term, value });
+    }
+  };
+  if (mission) {
+    scan("mission.title", mission.title);
+    scan("mission.objective", mission.objective);
+    scan("mission.instruction", mission.instruction);
+    scan("mission.reward_text", mission.reward_text);
+  }
+  if (mc) {
+    scan("mini_challenge.title", mc.title);
+    scan("mini_challenge.instruction", mc.instruction);
+    scan("mini_challenge.question", (mc as any).question);
+    scan("mini_challenge.hint", (mc as any).hint);
+    scan("mini_challenge.success_message", (mc as any).success_message);
+    scan("mini_challenge.failure_message", (mc as any).failure_message);
+    scan("mini_challenge.correct_answer", (mc as any).correct_answer);
+    const choices = (mc as any).choices;
+    if (Array.isArray(choices)) {
+      choices.forEach((c, i) => scan(`mini_challenge.choices[${i}]`, c));
+    }
+  }
+  return out;
+}
+
+async function callAIWithRetry(
+  payloadStops: unknown[],
+  previousViolations?: Violation[],
+): Promise<Array<{ order: number; mission: Mission; mini_challenge: MiniChallenge }>> {
+  const correctionNote = previousViolations && previousViolations.length
+    ? `\n\nCORRECTION REQUISE — la génération précédente contenait ces violations de mots interdits, à corriger absolument SANS introduire d'autres mots bannis :\n${JSON.stringify(previousViolations, null, 2)}\nReformule chaque champ fautif en évitant strictement le terme banni, même sous forme idiomatique.`
+    : "";
+  return await callAI(payloadStops, correctionNote);
+}
+
 async function callAI(payloadStops: unknown[]): Promise<Array<{ order: number; mission: Mission; mini_challenge: MiniChallenge }>> {
   const userPrompt = `Génère mission + mini_challenge pour CHAQUE stop ci-dessous, en respectant scrupuleusement les règles. Si un stop ne se prête PAS à un mini-défi vérifiable sur place, mets mini_challenge.enabled=false / type="none".
 
