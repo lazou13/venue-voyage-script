@@ -986,8 +986,11 @@ serve(async (req) => {
           tour_id: tour.id,
           title_fr: tour.title_fr,
           enriched_count: enrichedCount,
+          sanitizations: sanitizationsForTour,
+          sanitizations_count: sanitizationsForTour.length,
           stops: stopsPreview,
         });
+
 
         if (!dryRun) {
           const { error: upErr } = await sb
