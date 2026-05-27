@@ -121,3 +121,6 @@ verify_jwt = false
 
 [functions.regen-irrecoverable-audios]
 verify_jwt = false
+
+[functions.quest-library-enrich-missions]
+verify_jwt = false
