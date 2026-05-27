@@ -425,11 +425,11 @@ async function callAIWithRetry(
   return await callAI(payloadStops, correctionNote);
 }
 
-async function callAI(payloadStops: unknown[]): Promise<Array<{ order: number; mission: Mission; mini_challenge: MiniChallenge }>> {
+async function callAI(payloadStops: unknown[], correctionNote = ""): Promise<Array<{ order: number; mission: Mission; mini_challenge: MiniChallenge }>> {
   const userPrompt = `Génère mission + mini_challenge pour CHAQUE stop ci-dessous, en respectant scrupuleusement les règles. Si un stop ne se prête PAS à un mini-défi vérifiable sur place, mets mini_challenge.enabled=false / type="none".
 
 STOPS (JSON):
-${JSON.stringify(payloadStops, null, 2)}`;
+${JSON.stringify(payloadStops, null, 2)}${correctionNote}`;
 
   const res = await fetch(AI_URL, {
     method: "POST",
