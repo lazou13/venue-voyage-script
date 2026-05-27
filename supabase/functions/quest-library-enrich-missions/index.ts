@@ -336,8 +336,8 @@ serve(async (req) => {
     for (const t of rawTours ?? []) {
       const stops = Array.isArray(t.stops_data) ? t.stops_data : [];
       if (stops.length === 0) continue;
-      // V1: skip si TOUS les stops ont déjà mission ou mini_challenge.
-      const needsAny = stops.some(stopNeedsEnrichment);
+      // force_regenerate (uniquement avec tour_id) bypass le skip d'idempotence.
+      const needsAny = forceRegenerate ? true : stops.some(stopNeedsEnrichment);
       if (!needsAny) continue;
       candidates.push({ id: t.id as string, title_fr: t.title_fr as string | null, stops_data: stops });
       if (!tourId && candidates.length >= batchSize) break;
