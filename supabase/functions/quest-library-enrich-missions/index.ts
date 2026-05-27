@@ -36,13 +36,14 @@ interface Mission {
 }
 interface MiniChallenge {
   enabled: boolean;
-  type: "none" | "observation" | "mcq" | "true_false" | "short_answer" | "code" | "counting";
+  type: "none" | "observation" | "mcq" | "true_false" | "short_answer" | "code" | "counting" | "photo" | "timed_action";
   title?: string;
   instruction?: string;
   question?: string;
   choices?: string[];
   correct_answer?: string;
   expected_count?: number;
+  timer_seconds?: number;
   hint?: string;
   hints?: string[];
   success_message?: string;
