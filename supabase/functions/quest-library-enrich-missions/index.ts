@@ -410,6 +410,70 @@ function collectBannedTermsInStop(
 }
 
 // ─────────────────────────────────────────────────────────────
+// V4.1 — Vague-observation & unsourced-historical guards
+// ─────────────────────────────────────────────────────────────
+const RICH_SOURCE_KEYS = ["riddle_easy", "riddle_medium", "riddle_hard", "must_see_details", "challenge"] as const;
+
+function sourceHasRichData(source: Record<string, unknown> | undefined | null): boolean {
+  if (!source) return false;
+  return RICH_SOURCE_KEYS.some((k) => {
+    const v = source[k];
+    return typeof v === "string" && v.trim().length > 0;
+  });
+}
+
+function collectObservationViolations(
+  index: number,
+  name: string | null,
+  mc: MiniChallenge | undefined,
+  source: Record<string, unknown> | undefined | null,
+): Violation[] {
+  if (!mc || mc.type !== "observation") return [];
+  if (!sourceHasRichData(source)) return [];
+  const value = `type=observation interdit : riddle_*/must_see_details/challenge non vide. Produis short_answer (correct_answer issue de riddle_easy/medium/hard) ou mcq avec choices+correct_answer.`;
+  return [{
+    order: index, name,
+    field: "mini_challenge.type",
+    term: "vague_observation_when_validable",
+    value,
+  }];
+}
+
+const HISTORICAL_PATTERNS = [
+  "quelle était", "quelles étaient", "quel était", "quels étaient",
+  "en quelle année", "à quelle époque", "quel sultan", "quelle dynastie",
+  "quel siècle", "à quelle date",
+];
+
+function collectUnsourcedHistoricalViolations(
+  index: number,
+  name: string | null,
+  mc: MiniChallenge | undefined,
+  source: Record<string, unknown> | undefined | null,
+): Violation[] {
+  if (!mc) return [];
+  const blob = `${mc.question ?? ""} ${mc.instruction ?? ""} ${mc.title ?? ""}`.toLowerCase();
+  const hits = HISTORICAL_PATTERNS.filter((p) => blob.includes(p));
+  if (hits.length === 0) return [];
+  // Tolérance : si la correct_answer est littéralement présente dans une source rich, on accepte.
+  const answer = (mc.correct_answer ?? "").toString().toLowerCase().trim();
+  if (answer && source) {
+    const sourceBlob = RICH_SOURCE_KEYS
+      .map((k) => (typeof source[k] === "string" ? (source[k] as string).toLowerCase() : ""))
+      .join(" ");
+    if (sourceBlob.includes(answer)) return [];
+  }
+  return hits.map((h) => ({
+    order: index, name,
+    field: "mini_challenge.question",
+    term: `unsourced_historical:${h}`,
+    value: blob,
+  }));
+}
+
+
+
+// ─────────────────────────────────────────────────────────────
 // Completeness validation (post-LLM)
 // ─────────────────────────────────────────────────────────────
 type CompletenessViolation = {
