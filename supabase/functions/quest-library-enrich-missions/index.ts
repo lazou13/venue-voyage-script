@@ -955,6 +955,298 @@ function sanitizeProductIssues(
     }
   }
 
+
+// ─────────────────────────────────────────────────────────────
+// V2 — Missions terrain canoniques (déterministe, pré-IA)
+// ─────────────────────────────────────────────────────────────
+const LEGACY_MISSION_STUB_V2: Mission = {
+  enabled: false, title: "", objective: "", instruction: "", reward_text: "",
+};
+
+type CanonicalMission = {
+  key: string;
+  matchers: RegExp[]; // matched against POI name (lowercased, accents stripped)
+  mc: MiniChallenge;
+};
+
+function nameKey(s: unknown): string {
+  return typeof s === "string"
+    ? s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    : "";
+}
+
+const CANONICAL_MISSIONS_V2: CanonicalMission[] = [
+  {
+    key: "jemaa_el_fna",
+    matchers: [/jemaa\s*el[\s\-]?fna/i, /jamaa\s*el[\s\-]?fna/i, /place\s+jemaa/i],
+    mc: {
+      enabled: true,
+      type: "photo",
+      title: "Mission : stand vitaminé",
+      instruction:
+        "Vous avez 3 minutes. Trouvez un stand de jus d'orange. Demandez poliment si vous pouvez prendre une photo du stand. Bonus si un membre du groupe apparaît avec un pouce levé devant les oranges. Si le vendeur refuse, prenez seulement les oranges ou choisissez un autre stand.",
+      time_limit_sec: 180,
+      requires_photo: true,
+      consent_required: true,
+      hints: [
+        "Les stands jaunes alignés sur la place sont les plus visibles.",
+        "Un sourire et 'salam' suffisent souvent pour obtenir l'accord.",
+      ],
+      success_message: "Mission validée — vitamine C en poche !",
+      failure_message: "Pas grave, gardez l'énergie pour le prochain stop.",
+      required: false,
+    },
+  },
+  {
+    key: "souk_semmarine",
+    matchers: [/souk\s+semmarine/i, /semmarine/i],
+    mc: {
+      enabled: true,
+      type: "photo",
+      title: "Mission : couleur cachée du souk",
+      instruction:
+        "Vous avez 3 minutes. Choisissez une couleur avant de regarder autour de vous : rouge, bleu, vert ou doré. Trouvez un objet typique du souk dans cette couleur : babouche, tissu, cuir, métal, poterie ou épices. Photo obligatoire avec un membre du groupe qui pointe l'objet. Pas d'achat obligatoire.",
+      time_limit_sec: 180,
+      requires_photo: true,
+      consent_required: true,
+      hints: [
+        "Annoncez la couleur à voix haute avant de lever les yeux.",
+        "Les babouches et les tissus offrent les couleurs les plus pures.",
+      ],
+      success_message: "Couleur capturée — œil de chineur validé !",
+      failure_message: "Pas trouvée ? Retentez avec une autre couleur au prochain stop.",
+      required: false,
+    },
+  },
+  {
+    key: "rahba_kedima",
+    matchers: [/rahba\s+kedima/i, /place\s+des\s+[ée]pices/i, /rahba/i],
+    mc: {
+      enabled: true,
+      type: "photo",
+      title: "Mission : rouge Aker Fassi",
+      instruction:
+        "Vous avez 3 minutes. Cherchez un objet rouge traditionnel : poudre, épice, poterie, textile ou Aker Fassi si vous en voyez. Prenez une photo ou écrivez le nom de l'objet trouvé. Demandez l'accord avant de photographier un stand.",
+      time_limit_sec: 180,
+      requires_photo: false,
+      consent_required: true,
+      hints: [
+        "L'Aker Fassi est une poudre rouge naturelle utilisée comme cosmétique.",
+        "Les coopératives de femmes en exposent souvent en pots ouverts.",
+      ],
+      success_message: "Rouge repéré — bien vu !",
+      failure_message: "Pas vu de rouge ? Repassez plus tard, la place change toute la journée.",
+      required: false,
+    },
+  },
+  {
+    key: "koutoubia",
+    matchers: [/koutoubia/i, /kutubiyya/i],
+    mc: {
+      enabled: true,
+      type: "photo",
+      title: "Mission : minaret géant",
+      instruction:
+        "Vous avez 2 minutes. Faites une photo où un membre du groupe essaie de \"toucher\" le sommet du minaret avec son doigt par effet de perspective. Restez à l'extérieur, aucune entrée nécessaire.",
+      time_limit_sec: 120,
+      requires_photo: true,
+      consent_required: false,
+      hints: [
+        "Reculez de quelques mètres pour cadrer le sommet et la main dans le même axe.",
+        "Le photographe se baisse légèrement pour aligner la perspective.",
+      ],
+      success_message: "Perspective réussie — Koutoubia en main !",
+      failure_message: "Pas d'angle ? Faites le tour, le minaret se laisse photographier depuis tous les côtés.",
+      required: false,
+    },
+  },
+  {
+    key: "jardin_secret",
+    matchers: [/jardin\s+secret/i],
+    mc: {
+      enabled: true,
+      type: "self_check",
+      title: "Mission : détail secret",
+      instruction:
+        "Vous avez 2 minutes. Sans entrer si l'entrée n'est pas prévue, trouvez un détail discret autour du lieu : porte, motif, ombre, plante, couleur ou carreau. Chaque membre propose un détail, puis le groupe choisit le plus \"secret\".",
+      time_limit_sec: 120,
+      requires_photo: false,
+      consent_required: false,
+      hints: [
+        "Regardez les détails que personne d'autre ne photographie.",
+        "Une ombre ou un reflet compte autant qu'un motif sculpté.",
+      ],
+      success_message: "Détail élu — l'œil du groupe est aiguisé.",
+      failure_message: "Pas de consensus ? Choisissez à la majorité.",
+      required: false,
+    },
+  },
+  {
+    key: "dar_el_bacha",
+    matchers: [/dar\s+el[\s\-]?bacha/i, /dar\s+bacha/i],
+    mc: {
+      enabled: true,
+      type: "photo",
+      title: "Mission : porte de palais",
+      instruction:
+        "Vous avez 2 minutes. Trouvez le plus beau détail de porte ou de façade. Un membre du groupe doit poser comme s'il était le gardien du palais. Restez dehors, aucune entrée payante nécessaire.",
+      time_limit_sec: 120,
+      requires_photo: true,
+      consent_required: false,
+      hints: [
+        "Cherchez les clous de bronze ou les motifs sculptés dans le bois.",
+        "Posez bras croisés, sérieux, comme un vrai gardien.",
+      ],
+      success_message: "Pose royale validée !",
+      failure_message: "Trop timide ? Un autre membre du groupe peut reprendre la pose.",
+      required: false,
+    },
+  },
+];
+
+const DARIJA_MISSION: MiniChallenge = {
+  enabled: true,
+  type: "text",
+  title: "Mission : première traduction darija",
+  instruction:
+    "Vous avez 2 minutes. Essayez de comprendre cette phrase : « فين كاين جامع الفنا؟ ». Le premier qui trouve la traduction gagne la mission. Vous pouvez demander à quelqu'un poliment, utiliser Google Traduction ou deviner en groupe. Écrivez la traduction en français.",
+  expected_answer_hint: "La phrase demande où se trouve Jemaa el-Fna.",
+  time_limit_sec: 120,
+  requires_photo: false,
+  consent_required: false,
+  hints: [
+    "« فين » veut dire « où ».",
+    "« كاين » veut dire « se trouve / il y a ».",
+  ],
+  success_message: "Bravo — première phrase darija décodée !",
+  failure_message: "Pas grave, vous retiendrez « fin kayn » pour la suite du voyage.",
+  required: false,
+};
+
+const FALLBACK_MISSION_SELF_CHECK: MiniChallenge = {
+  enabled: true,
+  type: "self_check",
+  title: "Mission : preuve locale",
+  instruction:
+    "Vous avez 2 minutes. Trouvez un détail qui prouve que vous êtes à Marrakech : couleur ocre, motif, porte, enseigne, artisanat, plante, carreau ou ombre. Le groupe choisit le détail le plus original.",
+  time_limit_sec: 120,
+  requires_photo: false,
+  consent_required: false,
+  hints: [
+    "L'ocre est partout, mais les nuances changent selon l'heure.",
+    "Une enseigne manuscrite vaut mieux qu'une enseigne imprimée.",
+  ],
+  success_message: "Preuve locale validée !",
+  failure_message: "Le groupe vote : le détail le plus original gagne.",
+  required: false,
+};
+
+const FALLBACK_MISSION_TEXT: MiniChallenge = {
+  enabled: true,
+  type: "text",
+  title: "Mission : mot du lieu",
+  instruction:
+    "Vous avez 2 minutes. Chacun propose un mot qui décrit l'ambiance autour de vous : odeur, couleur, son, matière. Le groupe choisit le mot le plus juste et l'écrit ici.",
+  expected_answer_hint: "Un mot court qui décrit l'ambiance du lieu (ex. ocre, cuir, menthe, brouhaha).",
+  time_limit_sec: 120,
+  requires_photo: false,
+  consent_required: false,
+  hints: [
+    "Fermez les yeux 5 secondes avant de proposer.",
+    "Un mot sensoriel vaut mieux qu'un mot abstrait.",
+  ],
+  success_message: "Mot retenu — ambiance capturée !",
+  failure_message: "Pas d'accord ? Notez les deux mots favoris.",
+  required: false,
+};
+
+function matchCanonicalMission(poiName: unknown, stopName: unknown): MiniChallenge | null {
+  const blob = `${nameKey(poiName)} ${nameKey(stopName)}`;
+  for (const c of CANONICAL_MISSIONS_V2) {
+    if (c.matchers.some((re) => re.test(blob))) {
+      return JSON.parse(JSON.stringify(c.mc)) as MiniChallenge;
+    }
+  }
+  return null;
+}
+
+/**
+ * V2 — Enforce variation rules across the whole tour:
+ *  - max 3 photo missions on 6 stops
+ *  - at least 1 text and 1 self_check when targets >= 4
+ *  - no two identical titles
+ * Converts excess photo missions (fallback or generic only) to self_check / text.
+ */
+function enforceVariationV2(
+  targets: number[],
+  byOrder: Map<number, { mission: Mission; mini_challenge: MiniChallenge }>,
+  canonicalOrders: Set<number>,
+): { changes: Array<{ order: number; from: string; to: string; reason: string }> } {
+  const changes: Array<{ order: number; from: string; to: string; reason: string }> = [];
+  const total = targets.length;
+  const photoBudget = Math.min(3, Math.max(1, Math.floor(total / 2)));
+
+  // Pass 1 — anti-duplicate titles (only adjust non-canonical entries)
+  const seenTitles = new Map<string, number>();
+  for (const i of targets) {
+    const r = byOrder.get(i);
+    if (!r) continue;
+    const t = (r.mini_challenge.title ?? "").trim().toLowerCase();
+    if (!t) continue;
+    if (seenTitles.has(t) && !canonicalOrders.has(i)) {
+      const before = r.mini_challenge.title ?? "";
+      r.mini_challenge.title = `${before} (variante ${seenTitles.get(t)! + 1})`;
+      changes.push({ order: i, from: before, to: r.mini_challenge.title, reason: "duplicate_title" });
+      seenTitles.set(t, (seenTitles.get(t) ?? 1) + 1);
+    } else {
+      seenTitles.set(t, 1);
+    }
+  }
+
+  // Pass 2 — photo budget
+  const photoOrders = targets.filter((i) => byOrder.get(i)?.mini_challenge?.type === "photo");
+  let excess = photoOrders.length - photoBudget;
+  if (excess > 0) {
+    // Convert from the end, skipping canonical photo stops (canonical wins).
+    for (let k = photoOrders.length - 1; k >= 0 && excess > 0; k--) {
+      const i = photoOrders[k];
+      if (canonicalOrders.has(i)) continue;
+      const r = byOrder.get(i)!;
+      const beforeType = r.mini_challenge.type;
+      // Alternate target: prefer self_check, then text
+      const hasText = targets.some((j) => byOrder.get(j)?.mini_challenge?.type === "text");
+      const replacement = hasText ? FALLBACK_MISSION_SELF_CHECK : FALLBACK_MISSION_TEXT;
+      r.mini_challenge = JSON.parse(JSON.stringify(replacement));
+      changes.push({ order: i, from: beforeType, to: r.mini_challenge.type, reason: "photo_budget_exceeded" });
+      excess--;
+    }
+  }
+
+  // Pass 3 — ensure at least 1 text and 1 self_check when total >= 4
+  if (total >= 4) {
+    const ensureType = (wanted: "text" | "self_check", template: MiniChallenge) => {
+      const has = targets.some((i) => byOrder.get(i)?.mini_challenge?.type === wanted);
+      if (has) return;
+      // Pick the last non-canonical photo or short_answer stop to convert
+      const candidate = [...targets].reverse().find((i) => {
+        if (canonicalOrders.has(i)) return false;
+        const t = byOrder.get(i)?.mini_challenge?.type;
+        return t === "photo" || t === "short_answer" || t === "observation" || t === "mcq";
+      });
+      if (candidate == null) return;
+      const r = byOrder.get(candidate)!;
+      const beforeType = r.mini_challenge.type;
+      r.mini_challenge = JSON.parse(JSON.stringify(template));
+      changes.push({ order: candidate, from: beforeType, to: wanted, reason: `ensure_${wanted}` });
+    };
+    ensureType("self_check", FALLBACK_MISSION_SELF_CHECK);
+    ensureType("text", FALLBACK_MISSION_TEXT);
+  }
+
+  return { changes };
+}
+
+
   return { mission: outMission, mini_challenge: outMC, sanitizations };
 }
 
