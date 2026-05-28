@@ -1417,8 +1417,11 @@ serve(async (req) => {
           payloadStops.length > 0 ? await callAI(payloadStops) : [];
 
 
-        const expectedStops = targets.map((i) => ({ order: i, name: (stops[i]?.name as string | null) ?? null }));
+        // expectedStops = uniquement les stops envoyés à l'IA (les canoniques sont gérés en aval)
+        const aiTargets = targets.filter((i) => !canonicalByOrder.has(i));
+        const expectedStops = aiTargets.map((i) => ({ order: i, name: (stops[i]?.name as string | null) ?? null }));
         const expectedCount = expectedStops.length;
+
 
         const buildByOrder = (arr: typeof aiStops) => {
           const m = new Map<number, { mission: Mission; mini_challenge: MiniChallenge }>();
