@@ -192,6 +192,51 @@ mini_challenge de type "photo" dont l'instruction contient un verbe photo explic
 Mieux vaut short_answer/mcq simple basé sur un détail nommé que correct_answer faux.
 En dernier recours absolu : enabled=false, type="none".
 
+═══ V4.2 — VÉRIFIABILITÉ SUR PLACE (RÈGLE DURE) ═══
+Un mini_challenge n'est valide QUE si le joueur peut le vérifier sur place via
+AU MOINS UN de ces moyens concrets :
+  - détail visible et stable (objet, forme, couleur, matériau, motif)
+  - panneau/cartel/plaque/inscription lisible sur place
+  - objet exposé identifiable
+  - produit vendu visible à l'étal/en vitrine
+  - élément architectural directement observable
+  - information littéralement présente dans must_see_details ou riddle_*
+
+INTERDITS ABSOLUS V4.2 :
+  - Mesure exacte (hauteur, longueur, largeur, profondeur, superficie, "X mètres",
+    "combien mesure", "quelle est la taille") SAUF si la valeur exacte apparaît
+    LITTÉRALEMENT dans must_see_details ou riddle_*.
+  - Question historique scolaire ("Quel sultan", "Quelle dynastie", "ancien sultan",
+    "almoravide/almohade/mérinide/saadien", "fondé/fondée/fondateur", "construit",
+    "donna son nom", "porte le nom", "en quelle année", "à quelle époque",
+    "quel siècle") SAUF DOUBLE CONDITION : (a) la réponse exacte est littéralement
+    dans riddle_*/must_see_details, ET (b) la question dit explicitement de LIRE
+    un panneau/cartel/plaque/inscription visible sur place.
+  - Anecdote sans preuve terrain.
+  - Réponse plausible mais non trouvable sur place.
+
+═══ V4.2 — COHÉRENCE INTERNE QUESTION / HINT / FAILURE ═══
+Si la question contient "donna son nom" ou "porte le nom" :
+  → hint et failure_message NE DOIVENT PAS contenir "a fondé", "a construit",
+    "fondateur", "fondation". Le sens doit rester strictement nominal.
+Si la question contient "fondé", "fondée", "construit" :
+  → correct_answer DOIT être explicitement sourcée dans riddle_*/must_see_details.
+
+═══ V4.2 — ANTI-RÉPONSE GÉNÉRIQUE ═══
+Si la question demande "le nom de l'endroit/lieu/espace/salle/cour/terrasse/jardin",
+la correct_answer NE PEUT PAS être un mot générique (rooftop, terrasse, cour, salle,
+jardin, musée, palais) seul. Elle DOIT être un nom propre identifiable
+(ex. "Cour d'Honneur", "Palais Mnebhi", "Salle des Douze Colonnes", "Riad Mokri").
+
+═══ V4.2 — SOUKS / BOUTIQUES / MARCHÉS — ANCRAGE OBLIGATOIRE ═══
+Pour un POI de type souk, boutique, étal, marché, atelier artisanal :
+le défi DOIT porter sur un élément DIRECTEMENT VISIBLE dans l'environnement
+immédiat : produit vendu, couleur dominante, forme, matériau, motif, type de
+panier, type d'épice identifiable visuellement, type de tapis identifiable, etc.
+INTERDIT : détails botaniques/factuels douteux non observables — "reflets bleutés",
+"parfum anisé", "propriété médicinale", "usage rituel supposé" — SAUF si
+LITTÉRALEMENT présents dans riddle_*/must_see_details.
+
 ═══ FORMAT DE SORTIE ═══
 Pour chaque stop, retourne :
   order               : int (fourni en entrée)
