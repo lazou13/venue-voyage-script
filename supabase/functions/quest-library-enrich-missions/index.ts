@@ -1585,6 +1585,7 @@ serve(async (req) => {
             order: i,
             poi_id: stops[i]?.poi_id,
             name: stops[i]?.name,
+            source: canonicalByOrder.has(i) ? "canonical_v2" : "ai",
             mission: byOrder.get(i)!.mission,
             mini_challenge: byOrder.get(i)!.mini_challenge,
           }));
@@ -1593,10 +1594,14 @@ serve(async (req) => {
           tour_id: tour.id,
           title_fr: tour.title_fr,
           enriched_count: enrichedCount,
+          canonical_count: canonicalByOrder.size,
+          ai_count: targets.length - canonicalByOrder.size,
+          variation_changes: variationReport.changes,
           sanitizations: sanitizationsForTour,
           sanitizations_count: sanitizationsForTour.length,
           stops: stopsPreview,
         });
+
 
 
         if (!dryRun) {
