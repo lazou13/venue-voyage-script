@@ -714,7 +714,7 @@ serve(async (req) => {
     const { data: poisRaw, error: poiErr } = await sb
       .from("medina_pois")
       .select(
-        "id, name, name_en, category, category_ai, description_short, history_context, history_context_en, local_anecdote, local_anecdote_fr, local_anecdote_en, fun_fact_fr, must_see_details, must_try, must_visit_nearby, photo_tip, riddle_easy, opening_hours, price_info, poi_quality_score"
+        "id, name, name_en, category, category_ai, description_short, history_context, history_context_en, local_anecdote, local_anecdote_fr, local_anecdote_en, fun_fact_fr, must_see_details, must_try, must_visit_nearby, photo_tip, riddle_easy, riddle_medium, riddle_hard, challenge, opening_hours, price_info, poi_quality_score"
       )
       .in("id", Array.from(poiIds));
     if (poiErr) throw poiErr;
