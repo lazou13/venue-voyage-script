@@ -57,7 +57,7 @@ interface MiniChallenge {
 const SYSTEM_PROMPT = `Tu es un game designer d'expériences urbaines à Marrakech.
 Pour des voyageurs 20–45 ans qui veulent JOUER la médina, pas l'étudier.
 
-═══ DÉCISION PRODUIT V4.0 ═══
+═══ DÉCISION PRODUIT V4.1 ═══
 Les "missions" sont DÉPRÉCIÉES. Le mini_challenge (= "Défi") est désormais
 L'UNIQUE interaction jouable principale de chaque stop, affichée dans le player QRP.
 
@@ -72,28 +72,37 @@ N'ÉCRIS AUCUN contenu produit dans mission. C'est un stub de compatibilité, ri
 Toute ton énergie créative va dans mini_challenge.
 
 ═══ MINI_CHALLENGE — INTERACTION PRINCIPALE ═══
-Chaque stop DOIT produire UN mini_challenge de qualité, basé sur un élément
-RÉELLEMENT observable sur place et issu des données du POI fournies
-(riddle_easy, riddle_medium, riddle_hard, challenge, must_see_details,
-local_anecdote, history_context, photo_tip).
+Chaque stop DOIT produire UN mini_challenge VALIDABLE (réponse vérifiable sur place
+ou cible concrète nommée), basé sur un élément RÉELLEMENT observable et issu des
+données du POI fournies (riddle_easy, riddle_medium, riddle_hard, challenge,
+must_see_details, local_anecdote, history_context, photo_tip).
 
-mini_challenge.enabled = true (sauf cas extrême "none" justifié par absence totale de données).
+mini_challenge.enabled = true (sauf cas extrême "none" si POI sans aucune donnée exploitable).
 mini_challenge.required = false TOUJOURS.
 
 Un bon défi :
 - compréhensible en < 10 s
 - faisable sur place en < 2 min
-- validation claire quand le type le permet
-- lié à un détail réel et stable du POI
-- pas de question historique abstraite, pas de mime gratuit, pas de vote générique
+- VALIDATION concrète : correct_answer, expected_count, choices, OU cible nommée
+- lié à un détail réel et stable du POI (objet, couleur, forme, nombre, inscription,
+  matériau, détail architectural visible, produit vendu, élément central nommé)
+- pas de question historique abstraite, pas de mime gratuit, pas de vote subjectif
 - pas de "prends une photo" sans intention
 
-═══ PRIORITÉ DES TYPES (du meilleur au pire) ═══
-1. short_answer  — réponse 1–3 mots basée sur un détail visible (idéal pour réutiliser riddle_easy).
-2. mcq           — observation visuelle, 3–4 choices courts, 1 seule bonne réponse, distracteurs plausibles.
+═══ PRIORITÉ DES TYPES — RÈGLE DURE V4.1 ═══
+SI au moins un des champs sources est non vide
+   (riddle_easy, riddle_medium, riddle_hard, must_see_details, challenge),
+ALORS observation est INTERDIT. Tu DOIS produire short_answer ou mcq (ou code/counting
+si applicable) avec une correct_answer / expected_count concrète tirée de ces données.
+
+Ordre de préférence :
+1. short_answer  — réponse 1–3 mots issue de riddle_easy/medium/hard ou must_see_details.
+                   correct_answer OBLIGATOIRE.
+2. mcq           — observation visuelle, 3–4 choices courts, 1 seule bonne réponse,
+                   distracteurs plausibles. correct_answer = exactement l'un des choices.
 3. code          — code/inscription/nombre court visible, correct_answer ≤ 6 caractères.
-4. counting      — UNIQUEMENT si l'élément est réellement et stablement comptable sur place
-                   (et un nombre fiable apparaît dans les données). expected_count obligatoire.
+4. counting      — UNIQUEMENT si nombre fiable apparaît explicitement dans les données
+                   et que l'élément est stablement comptable. expected_count obligatoire.
                    INTERDIT pour magasins, souks, boutiques, étals, vendeurs, foule.
 5. photo         — intention claire et précise (un détail nommé, pas "le lieu").
                    Si une personne identifiable peut être dans le cadre, ajouter exactement :
@@ -101,40 +110,59 @@ Un bon défi :
 6. timed_action  — action simple, non dangereuse, non gênante, courte (15/20/30 s).
                    timer_seconds OBLIGATOIRE ∈ {15, 20, 30}.
                    ÉVITER dans tombeaux, lieux de recueillement, jardins zen.
-7. true_false    — UNIQUEMENT si tranchable d'un coup d'œil en < 5 s par n'importe quel visiteur,
-                   sur un élément stable (jamais sur tenues de passants, foule, stand temporaire,
-                   dynastie, dates, comparaisons d'âge ou de hauteur).
-8. observation   — dernier recours quand aucune validation fiable n'est possible.
-                   Pas de correct_answer.
+7. true_false    — UNIQUEMENT si tranchable d'un coup d'œil en < 5 s par n'importe quel
+                   visiteur, sur un élément stable (jamais tenues de passants, foule,
+                   stand temporaire, dynastie, dates, comparaisons d'âge ou hauteur).
+8. observation   — DERNIER RECOURS. AUTORISÉ UNIQUEMENT si TOUS les champs ci-dessus
+                   (riddle_*, must_see_details, challenge) sont vides ET aucun autre
+                   type fiable n'est possible. Dans ce cas, l'instruction DOIT nommer
+                   une cible concrète (objet/forme/couleur/matériau précis), JAMAIS
+                   une question subjective.
 
 ═══ CHAMPS REQUIS PAR TYPE ═══
-- short_answer : instruction OU question, correct_answer (1–3 mots), hint conseillé.
+- short_answer : question (ou instruction), correct_answer (1–3 mots), hint conseillé.
 - mcq          : question, choices (3–4), correct_answer = exactement l'un des choices.
-- code         : instruction, correct_answer (≤ 6 caractères, idéalement chiffres/lettres).
+- code         : instruction, correct_answer (≤ 6 caractères).
 - counting     : instruction, expected_count (entier). hint/failure_message ne révèlent JAMAIS le nombre.
 - photo        : instruction précise (détail nommé), aucune correct_answer.
 - timed_action : instruction démarrant par "Le joueur désigné a X secondes pour…", timer_seconds.
 - true_false   : question, correct_answer ∈ {"true","false","vrai","faux"}.
-- observation  : instruction (consigne d'observation ou vote de groupe). Pas de correct_answer.
+- observation  : instruction avec CIBLE CONCRÈTE (ex. "Trouvez la fontaine octogonale
+                 du patio principal"). PAS de question subjective.
 
 ═══ RÉUTILISATION DES DONNÉES POI ═══
 Tu reçois pour chaque stop : riddle_easy, riddle_medium, riddle_hard, challenge,
 must_see_details, local_anecdote_fr, history_context, photo_tip, name, description_short.
-PRIORITÉ : si riddle_easy existe et reste vérifiable sur place, transforme-le en short_answer
+PRIORITÉ ABSOLUE : si riddle_easy existe, transforme-le en short_answer
 (question = riddle_easy reformulé court, correct_answer = la réponse attendue).
-Sinon utilise must_see_details pour une observation/mcq, ou photo_tip pour une photo intentionnelle.
+Sinon utiliser riddle_medium/hard, puis must_see_details / challenge.
 N'invente JAMAIS de nombre, plaque, inscription, salle, objet absent des données.
 
 ═══ TON ═══
 Français naturel, pas d'anglais ni d'arabe. Phrases courtes. 1 emoji max par champ.
 Respectueux, jamais enfantin, jamais bruyant dans lieux sensibles, jamais humiliant.
 
-═══ INTERDITS ABSOLUS (TOUS champs de mini_challenge : title, instruction, question, hint,
-success_message, failure_message, correct_answer, choices) ═══
+═══ INTERDITS ABSOLUS — TOUS champs de mini_challenge ═══
+(title, instruction, question, hint, success_message, failure_message,
+ correct_answer, choices)
+
 Mots/phrases STRICTEMENT bannis (zéro occurrence, MÊME en idiome) :
   dynastie, siècle, époque, patrimoine, héritage, historique, architecturale,
   saadien, mérinide, almohade, islamique, calligraphie,
   "Quel sultan", "En quelle année".
+
+VERBES TOURISTIQUES BANNIS (V4.1) — tous interdits, sous toutes formes conjuguées :
+  Admirez, Contemplez, Imprégnez-vous (imprégnant, imprégné), Découvrez,
+  Explorez, Plongez, Apprenez.
+Remplacements obligatoires par verbes d'action concrets :
+  Trouvez, Repérez, Comptez, Identifiez, Nommez, Lisez, Cherchez, Choisissez parmi.
+
+QUESTIONS SUBJECTIVES BANNIES (V4.1) — toute formulation équivalente est INTERDITE :
+  "Que ressentez-vous…", "Que remarquez-vous…" (sans cible précise nommée),
+  "Que vous inspire…", "Quel est votre préféré…", "Choisissez le plus beau…",
+  "Quel vous plaît le plus…", "Quelle ambiance…".
+Toute question DOIT avoir une réponse vérifiable ou une cible nommée.
+
 Idiomes interdits : "affaire du siècle", "trésor historique", "héritage vivant",
 "décor d'époque", "beauté architecturale", "œuvre architecturale", "lieu chargé d'histoire".
 
@@ -142,12 +170,17 @@ Interdictions de contenu :
 - "Mime…" gratuit, "Votez le plus beau…" sans critère, "Prenez une photo souvenir…"
 - "Repérez un motif" sans détail précis
 - Toute question de date, siècle, dynastie, sultan, attribution savante
+  SAUF si la réponse exacte apparaît littéralement dans must_see_details ou riddle_*.
+- Question au passé non vérifiable sur place ("Quelle était la hauteur…",
+  "À quelle époque…") sauf source explicite dans riddle_*/must_see_details.
 - Contenu historique scolaire
 - Défi impossible à vérifier sur place
 - Citer un lieu hors visite (ex. Koutoubia, Majorelle) si absent des données
 
 AVANT DE RENVOYER : relis chaque champ texte du mini_challenge et vérifie
-qu'aucun mot banni n'apparaît, même partiellement, même dans un idiome.
+qu'aucun mot/phrase banni n'apparaît, même partiellement, même dans un idiome.
+Vérifie aussi que observation n'est utilisé QUE si riddle_*/must_see_details/challenge
+sont TOUS vides.
 
 ═══ ANTI-DOUBLE-PHOTO ═══
 Comme mission est désactivée, il n'y a plus de risque de double-photo Mission+Mini.
@@ -156,8 +189,8 @@ mini_challenge de type "photo" dont l'instruction contient un verbe photo explic
 (photographiez | prenez une photo | selfie | capturez).
 
 ═══ ANTI-HALLUCINATION ═══
-Mieux vaut mini_challenge.type="observation" générique que correct_answer faux.
-En dernier recours : enabled=false, type="none".
+Mieux vaut short_answer/mcq simple basé sur un détail nommé que correct_answer faux.
+En dernier recours absolu : enabled=false, type="none".
 
 ═══ FORMAT DE SORTIE ═══
 Pour chaque stop, retourne :
@@ -299,8 +332,31 @@ const BANNED_WORDS = [
   "mérinide", "mérinides",
   "almohade", "almohades",
   "calligraphie", "calligraphies",
+  // V4.1 — verbes touristiques génériques (formes principales)
+  "admirez", "admirer",
+  "contemplez", "contempler", "contemplation",
+  "découvrez", "decouvrez", "découvrir",
+  "explorez", "explorer",
+  "plongez", "plonger",
+  "apprenez", "apprendre",
 ];
-const BANNED_PHRASES = ["quel sultan", "en quelle année"];
+// BANNED_PHRASES uses substring match (lowercased) — utile pour radicaux/idiomes/questions ouvertes
+const BANNED_PHRASES = [
+  "quel sultan", "en quelle année",
+  // V4.1 — radicaux verbes touristiques (toutes flexions)
+  "imprégn", "impregn",
+  "contempl",
+  "admir", // admirez/admirer/admirable/admiration
+  // V4.1 — questions subjectives interdites
+  "que ressentez", "que ressens", "qu'éprouvez", "que vous évoque",
+  "que remarquez-vous", "que remarques-tu",
+  "que vous inspire", "qu'inspire",
+  "votre préféré", "votre prefere", "votre favori",
+  "le plus beau", "la plus belle", "les plus beaux",
+  "choisissez le plus", "choisissez la plus",
+  "quel vous plaît", "qui vous plaît le plus",
+  "quelle ambiance",
+];
 
 function findBannedInString(value: string): string[] {
   if (!value) return [];
@@ -352,6 +408,70 @@ function collectBannedTermsInStop(
   }
   return out;
 }
+
+// ─────────────────────────────────────────────────────────────
+// V4.1 — Vague-observation & unsourced-historical guards
+// ─────────────────────────────────────────────────────────────
+const RICH_SOURCE_KEYS = ["riddle_easy", "riddle_medium", "riddle_hard", "must_see_details", "challenge"] as const;
+
+function sourceHasRichData(source: Record<string, unknown> | undefined | null): boolean {
+  if (!source) return false;
+  return RICH_SOURCE_KEYS.some((k) => {
+    const v = source[k];
+    return typeof v === "string" && v.trim().length > 0;
+  });
+}
+
+function collectObservationViolations(
+  index: number,
+  name: string | null,
+  mc: MiniChallenge | undefined,
+  source: Record<string, unknown> | undefined | null,
+): Violation[] {
+  if (!mc || mc.type !== "observation") return [];
+  if (!sourceHasRichData(source)) return [];
+  const value = `type=observation interdit : riddle_*/must_see_details/challenge non vide. Produis short_answer (correct_answer issue de riddle_easy/medium/hard) ou mcq avec choices+correct_answer.`;
+  return [{
+    order: index, name,
+    field: "mini_challenge.type",
+    term: "vague_observation_when_validable",
+    value,
+  }];
+}
+
+const HISTORICAL_PATTERNS = [
+  "quelle était", "quelles étaient", "quel était", "quels étaient",
+  "en quelle année", "à quelle époque", "quel sultan", "quelle dynastie",
+  "quel siècle", "à quelle date",
+];
+
+function collectUnsourcedHistoricalViolations(
+  index: number,
+  name: string | null,
+  mc: MiniChallenge | undefined,
+  source: Record<string, unknown> | undefined | null,
+): Violation[] {
+  if (!mc) return [];
+  const blob = `${mc.question ?? ""} ${mc.instruction ?? ""} ${mc.title ?? ""}`.toLowerCase();
+  const hits = HISTORICAL_PATTERNS.filter((p) => blob.includes(p));
+  if (hits.length === 0) return [];
+  // Tolérance : si la correct_answer est littéralement présente dans une source rich, on accepte.
+  const answer = (mc.correct_answer ?? "").toString().toLowerCase().trim();
+  if (answer && source) {
+    const sourceBlob = RICH_SOURCE_KEYS
+      .map((k) => (typeof source[k] === "string" ? (source[k] as string).toLowerCase() : ""))
+      .join(" ");
+    if (sourceBlob.includes(answer)) return [];
+  }
+  return hits.map((h) => ({
+    order: index, name,
+    field: "mini_challenge.question",
+    term: `unsourced_historical:${h}`,
+    value: blob,
+  }));
+}
+
+
 
 // ─────────────────────────────────────────────────────────────
 // Completeness validation (post-LLM)
@@ -825,7 +945,12 @@ serve(async (req) => {
           for (const i of targets) {
             const r = byOrder.get(i);
             if (!r) continue;
+            const src = sourceCtxByOrder.get(i) ?? {};
             v.push(...collectBannedTermsInStop(i, stops[i]?.name ?? null, r.mission, r.mini_challenge));
+            // V4.1 — interdire observation vague si données validables disponibles
+            v.push(...collectObservationViolations(i, stops[i]?.name ?? null, r.mini_challenge, src));
+            // V4.1 — interdire questions historiques non sourcées
+            v.push(...collectUnsourcedHistoricalViolations(i, stops[i]?.name ?? null, r.mini_challenge, src));
           }
           return v;
         };
