@@ -1195,6 +1195,14 @@ serve(async (req) => {
             v.push(...collectObservationViolations(i, stops[i]?.name ?? null, r.mini_challenge, src));
             // V4.1 — interdire questions historiques non sourcées
             v.push(...collectUnsourcedHistoricalViolations(i, stops[i]?.name ?? null, r.mini_challenge, src));
+            // V4.2 — mesures exactes non sourcées (hauteur/mètres/longueur)
+            v.push(...collectUnverifiableMeasureViolations(i, stops[i]?.name ?? null, r.mini_challenge, src));
+            // V4.2 — questions historiques risquées (sultan/dynastie/fondé/donna son nom)
+            v.push(...collectRiskyHistoricalViolations(i, stops[i]?.name ?? null, r.mini_challenge, src));
+            // V4.2 — cohérence interne question / hint / failure
+            v.push(...collectInternalConsistencyViolations(i, stops[i]?.name ?? null, r.mini_challenge, src));
+            // V4.2 — réponse générique sur "nom de l'endroit/lieu"
+            v.push(...collectGenericAnswerViolations(i, stops[i]?.name ?? null, r.mini_challenge));
           }
           return v;
         };
