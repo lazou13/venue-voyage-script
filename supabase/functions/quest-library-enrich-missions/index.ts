@@ -945,7 +945,12 @@ serve(async (req) => {
           for (const i of targets) {
             const r = byOrder.get(i);
             if (!r) continue;
+            const src = sourceCtxByOrder.get(i) ?? {};
             v.push(...collectBannedTermsInStop(i, stops[i]?.name ?? null, r.mission, r.mini_challenge));
+            // V4.1 — interdire observation vague si données validables disponibles
+            v.push(...collectObservationViolations(i, stops[i]?.name ?? null, r.mini_challenge, src));
+            // V4.1 — interdire questions historiques non sourcées
+            v.push(...collectUnsourcedHistoricalViolations(i, stops[i]?.name ?? null, r.mini_challenge, src));
           }
           return v;
         };
