@@ -802,6 +802,22 @@ serve(async (req) => {
           }
         }
 
+        // ── B.bis V4.0 — Force mission en stub legacy désactivé (déterministe) ──
+        // Les "missions" sont dépréciées côté produit : QRP n'affiche plus MissionActionBlock.
+        // On garantit ici qu'aucun contenu mission n'est persisté, quoi que le LLM ait renvoyé.
+        const LEGACY_MISSION_STUB: Mission = {
+          enabled: false,
+          title: "",
+          objective: "",
+          instruction: "",
+          reward_text: "",
+        };
+        for (const i of targets) {
+          const r = byOrder.get(i);
+          if (!r) continue;
+          byOrder.set(i, { mission: { ...LEGACY_MISSION_STUB }, mini_challenge: r.mini_challenge });
+        }
+
         // ── C. Banned terms (re-scan after sanitization) ──
 
         const scanAll = () => {
