@@ -467,6 +467,205 @@ function sourceHasRichData(source: Record<string, unknown> | undefined | null): 
   });
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// V4.2 — Verifiability / consistency / generic-answer guards
+// ─────────────────────────────────────────────────────────────
+
+function sourceBlobLower(source: Record<string, unknown> | undefined | null): string {
+  if (!source) return "";
+  return RICH_SOURCE_KEYS
+    .map((k) => (typeof source[k] === "string" ? (source[k] as string).toLowerCase() : ""))
+    .join(" ");
+}
+
+// V4.2 — Mesures exactes non sourcées (hauteur, mètres, longueur, etc.)
+const MEASURE_PATTERNS = [
+  "hauteur", "longueur", "largeur", "profondeur", "superficie",
+  "combien mesure", "quelle est la taille", "quelle est la hauteur",
+  "quelle est la longueur", "quelle est la largeur", "quelle est la profondeur",
+];
+// Détection numérique de "X mètres / m / mètre" dans la question
+const METER_VALUE_RE = /(\b\d{1,4}([.,]\d+)?\s*(m\b|m\.|mètre|metres|mètres))/iu;
+
+function collectUnverifiableMeasureViolations(
+  index: number,
+  name: string | null,
+  mc: MiniChallenge | undefined,
+  source: Record<string, unknown> | undefined | null,
+): Violation[] {
+  if (!mc) return [];
+  const q = `${mc.question ?? ""} ${mc.instruction ?? ""} ${mc.title ?? ""}`;
+  const qLower = q.toLowerCase();
+  const ans = (mc.correct_answer ?? "").toString();
+  const ansLower = ans.toLowerCase().trim();
+
+  const hits: string[] = [];
+  for (const p of MEASURE_PATTERNS) {
+    if (qLower.includes(p)) hits.push(p);
+  }
+  const meterMatch = q.match(METER_VALUE_RE) || ans.match(METER_VALUE_RE);
+  if (meterMatch) hits.push(`meter_value:${meterMatch[0].trim()}`);
+
+  if (hits.length === 0) return [];
+
+  // Tolérance : la valeur exacte (réponse) doit apparaître littéralement dans une source rich.
+  const blob = sourceBlobLower(source);
+  if (ansLower && blob.includes(ansLower)) return [];
+  // Tolérance : la valeur numérique exacte (ex. "17 mètres") apparaît littéralement dans la source.
+  if (meterMatch) {
+    const numToken = meterMatch[0].toLowerCase().replace(/\s+/g, " ").trim();
+    if (blob.includes(numToken)) return [];
+    // Test plus permissif : juste le nombre + "m"/"mètre" séparés
+    const numOnly = (numToken.match(/\d+([.,]\d+)?/) || [""])[0];
+    if (numOnly && blob.includes(numOnly) && (blob.includes("mètre") || blob.includes(" m "))) return [];
+  }
+
+  return hits.map((h) => ({
+    order: index, name,
+    field: "mini_challenge.question",
+    term: `unverifiable_exact_measure:${h}`,
+    value: q.slice(0, 200),
+  }));
+}
+
+// V4.2 — Questions historiques "risquées" élargies
+const RISKY_HISTORICAL_PATTERNS = [
+  "sultan", "dynastie",
+  "almoravide", "almoravides",
+  "almohade", "almohades",
+  "mérinide", "merinide", "mérinides", "merinides",
+  "saadien", "saadienne", "saadiens", "saadiennes",
+  "fondé", "fondée", "fonde ", "fondateur", "fondation",
+  "construit", "construite",
+  "donna son nom", "porte le nom", "qui a donné son nom",
+  "ancien sultan",
+  "en quelle année", "à quelle époque", "quel siècle",
+];
+// Marqueurs indiquant que la question demande de LIRE une plaque/cartel visible
+const PLAQUE_MARKERS = [
+  "panneau", "cartel", "plaque", "inscription", "lisez", "lire",
+  "écrit sur", "ecrit sur", "indiqué sur", "indique sur",
+];
+
+function collectRiskyHistoricalViolations(
+  index: number,
+  name: string | null,
+  mc: MiniChallenge | undefined,
+  source: Record<string, unknown> | undefined | null,
+): Violation[] {
+  if (!mc) return [];
+  const blob = `${mc.question ?? ""} ${mc.instruction ?? ""} ${mc.title ?? ""} ${(mc as any).hint ?? ""} ${(mc as any).failure_message ?? ""}`.toLowerCase();
+  const hits = RISKY_HISTORICAL_PATTERNS.filter((p) => blob.includes(p));
+  if (hits.length === 0) return [];
+
+  // Double condition pour tolérer :
+  // (a) la réponse exacte est littéralement dans riddle_*/must_see_details
+  // (b) la question dit explicitement de lire un panneau/cartel/inscription
+  const answer = (mc.correct_answer ?? "").toString().toLowerCase().trim();
+  const sBlob = sourceBlobLower(source);
+  const answerSourced = !!(answer && sBlob.includes(answer));
+  const hasPlaqueMarker = PLAQUE_MARKERS.some((m) => blob.includes(m));
+
+  if (answerSourced && hasPlaqueMarker) return [];
+
+  return hits.map((h) => ({
+    order: index, name,
+    field: "mini_challenge.question",
+    term: `risky_historical_question:${h}`,
+    value: blob.slice(0, 200),
+  }));
+}
+
+// V4.2 — Cohérence interne question / hint / failure
+function collectInternalConsistencyViolations(
+  index: number,
+  name: string | null,
+  mc: MiniChallenge | undefined,
+  source: Record<string, unknown> | undefined | null,
+): Violation[] {
+  if (!mc) return [];
+  const out: Violation[] = [];
+  const q = (mc.question ?? mc.instruction ?? "").toString().toLowerCase();
+  const hint = ((mc as any).hint ?? "").toString().toLowerCase();
+  const failure = ((mc as any).failure_message ?? "").toString().toLowerCase();
+  const aux = `${hint} ${failure}`;
+
+  const nameOnlyTriggers = ["donna son nom", "porte le nom", "porte son nom"];
+  const foundationTerms = ["a fondé", "a fondée", "a construit", "fondateur", "fondation", "a édifié", "a bâti"];
+
+  if (nameOnlyTriggers.some((t) => q.includes(t))) {
+    for (const ft of foundationTerms) {
+      if (aux.includes(ft)) {
+        out.push({
+          order: index, name,
+          field: "mini_challenge.hint_failure",
+          term: `inconsistency_name_vs_foundation:${ft}`,
+          value: aux.slice(0, 200),
+        });
+      }
+    }
+  }
+
+  // Si la question dit "fondé/fondée/construit", correct_answer doit être sourcée littéralement
+  const foundationQuestionTriggers = ["fondé", "fondée", "construit", "construite", "fondateur"];
+  if (foundationQuestionTriggers.some((t) => q.includes(t))) {
+    const answer = (mc.correct_answer ?? "").toString().toLowerCase().trim();
+    const sBlob = sourceBlobLower(source);
+    if (!answer || !sBlob.includes(answer)) {
+      out.push({
+        order: index, name,
+        field: "mini_challenge.correct_answer",
+        term: "unsourced_foundation_claim",
+        value: q.slice(0, 200),
+      });
+    }
+  }
+
+  return out;
+}
+
+// V4.2 — Réponse générique quand la question demande un "nom"
+const GENERIC_NAME_QUESTION_PATTERNS = [
+  "nom de l'endroit", "nom de l endroit",
+  "nom du lieu", "nom de la place",
+  "nom de l'espace", "nom de l espace",
+  "nom de la salle", "nom de la cour",
+  "nom de la terrasse", "nom du jardin",
+  "nom du musée", "nom du palais", "nom du riad",
+  "comment s'appelle", "comment appelle-t-on", "comment appelle t on",
+];
+const GENERIC_ANSWERS = new Set([
+  "rooftop", "terrasse", "cour", "salle", "jardin", "musée", "musee",
+  "palais", "riad", "place", "souk", "patio", "fontaine",
+]);
+
+function collectGenericAnswerViolations(
+  index: number,
+  name: string | null,
+  mc: MiniChallenge | undefined,
+): Violation[] {
+  if (!mc) return [];
+  if (mc.type !== "short_answer" && mc.type !== "code") return [];
+  const q = `${mc.question ?? ""} ${mc.instruction ?? ""}`.toLowerCase();
+  if (!GENERIC_NAME_QUESTION_PATTERNS.some((p) => q.includes(p))) return [];
+  const ans = (mc.correct_answer ?? "").toString().toLowerCase().trim();
+  if (!ans) return [];
+  // Si la réponse est un mot générique seul (pas de nom propre composé)
+  const tokens = ans.split(/[\s\-']+/).filter(Boolean);
+  if (tokens.length === 1 && GENERIC_ANSWERS.has(tokens[0])) {
+    return [{
+      order: index, name,
+      field: "mini_challenge.correct_answer",
+      term: `generic_answer:${tokens[0]}`,
+      value: `question="${q.slice(0, 120)}" answer="${ans}"`,
+    }];
+  }
+  return [];
+}
+
+
+
 function collectObservationViolations(
   index: number,
   name: string | null,
