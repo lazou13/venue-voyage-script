@@ -1395,16 +1395,27 @@ serve(async (req) => {
         const stops = tour.stops_data;
         const targets: number[] = []; // indices à enrichir
         const payloadStops: any[] = [];
+        // V2 — précalcul des missions canoniques déterministes par POI reconnu
+        const canonicalByOrder = new Map<number, MiniChallenge>();
         for (let i = 0; i < stops.length; i++) {
           const s = stops[i];
           if (!forceRegenerate && !stopNeedsEnrichment(s)) { skipped++; continue; }
           targets.push(i);
-          payloadStops.push(buildStopContext(s, poiById.get(s.poi_id), i));
+          const poi = poiById.get(s?.poi_id);
+          const canonical = matchCanonicalMission(poi?.name, s?.name);
+          if (canonical) {
+            canonicalByOrder.set(i, canonical);
+            // pas d'appel IA pour ce stop : économie + cohérence garantie
+          } else {
+            payloadStops.push(buildStopContext(s, poi, i));
+          }
         }
-        if (payloadStops.length === 0) { skipped++; continue; }
+        if (targets.length === 0) { skipped++; continue; }
 
-        logs.push(`[${tour.id}] AI call for ${payloadStops.length} stops`);
-        let aiStops = await callAI(payloadStops);
+        logs.push(`[${tour.id}] canonical=${canonicalByOrder.size}, AI call for ${payloadStops.length} stops`);
+        let aiStops: Array<{ order: number; mission: Mission; mini_challenge: MiniChallenge }> =
+          payloadStops.length > 0 ? await callAI(payloadStops) : [];
+
 
         const expectedStops = targets.map((i) => ({ order: i, name: (stops[i]?.name as string | null) ?? null }));
         const expectedCount = expectedStops.length;
