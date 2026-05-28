@@ -332,8 +332,31 @@ const BANNED_WORDS = [
   "mérinide", "mérinides",
   "almohade", "almohades",
   "calligraphie", "calligraphies",
+  // V4.1 — verbes touristiques génériques (formes principales)
+  "admirez", "admirer",
+  "contemplez", "contempler", "contemplation",
+  "découvrez", "decouvrez", "découvrir",
+  "explorez", "explorer",
+  "plongez", "plonger",
+  "apprenez", "apprendre",
 ];
-const BANNED_PHRASES = ["quel sultan", "en quelle année"];
+// BANNED_PHRASES uses substring match (lowercased) — utile pour radicaux/idiomes/questions ouvertes
+const BANNED_PHRASES = [
+  "quel sultan", "en quelle année",
+  // V4.1 — radicaux verbes touristiques (toutes flexions)
+  "imprégn", "impregn",
+  "contempl",
+  "admir", // admirez/admirer/admirable/admiration
+  // V4.1 — questions subjectives interdites
+  "que ressentez", "que ressens", "qu'éprouvez", "que vous évoque",
+  "que remarquez-vous", "que remarques-tu",
+  "que vous inspire", "qu'inspire",
+  "votre préféré", "votre prefere", "votre favori",
+  "le plus beau", "la plus belle", "les plus beaux",
+  "choisissez le plus", "choisissez la plus",
+  "quel vous plaît", "qui vous plaît le plus",
+  "quelle ambiance",
+];
 
 function findBannedInString(value: string): string[] {
   if (!value) return [];
