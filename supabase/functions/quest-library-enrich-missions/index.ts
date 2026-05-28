@@ -1557,7 +1557,18 @@ serve(async (req) => {
         }
 
 
+        // ── D. V2 — Injection missions canoniques + variation enforcement ──
+        // Les missions canoniques contournent banned-terms (textes pré-validés).
+        for (const [i, mc] of canonicalByOrder) {
+          byOrder.set(i, { mission: { ...LEGACY_MISSION_STUB_V2 }, mini_challenge: mc });
+        }
+        const variationReport = enforceVariationV2(targets, byOrder, new Set(canonicalByOrder.keys()));
+        if (variationReport.changes.length > 0) {
+          logs.push(`[${tour.id}] V2 variation changes: ${JSON.stringify(variationReport.changes)}`);
+        }
+
         const newStops = stops.map((s: any, i: number) => {
+
           const r = byOrder.get(i);
           if (!r) return s;
           // Merge non destructif: ne touche QUE mission / mini_challenge
