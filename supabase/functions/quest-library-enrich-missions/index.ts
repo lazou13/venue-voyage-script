@@ -36,7 +36,7 @@ interface Mission {
 }
 interface MiniChallenge {
   enabled: boolean;
-  type: "none" | "observation" | "mcq" | "true_false" | "short_answer" | "code" | "counting" | "photo" | "timed_action";
+  type: "none" | "observation" | "mcq" | "true_false" | "short_answer" | "code" | "counting" | "photo" | "timed_action" | "text" | "self_check";
   title?: string;
   instruction?: string;
   question?: string;
@@ -49,6 +49,11 @@ interface MiniChallenge {
   success_message?: string;
   failure_message?: string;
   required?: boolean;
+  // V2 — Missions terrain Questrides
+  time_limit_sec?: number;
+  requires_photo?: boolean;
+  consent_required?: boolean;
+  expected_answer_hint?: string;
 }
 
 // ─────────────────────────────────────────────────────────────
