@@ -1251,8 +1251,10 @@ function enforceVariationV2(
 }
 
 
-  return { mission: outMission, mini_challenge: outMC, sanitizations };
-}
+
+
+
+
 
 
 
