@@ -955,11 +955,15 @@ function sanitizeProductIssues(
     }
   }
 
+  return { mission: outMission, mini_challenge: outMC, sanitizations };
+}
+
 
 // ─────────────────────────────────────────────────────────────
 // V2 — Missions terrain canoniques (déterministe, pré-IA)
 // ─────────────────────────────────────────────────────────────
 const LEGACY_MISSION_STUB_V2: Mission = {
+
   enabled: false, title: "", objective: "", instruction: "", reward_text: "",
 };
 
