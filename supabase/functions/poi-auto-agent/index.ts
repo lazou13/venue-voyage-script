@@ -617,7 +617,7 @@ Génère en une seule réponse :
             const prevPoi = i > 0 ? selectedPois[i - 1] : null;
             const prevDist = !prevPoi ? 0 : Math.round(Math.sqrt(Math.pow((p.lat - prevPoi.lat) * 111320, 2) + Math.pow((p.lng - prevPoi.lng) * 111320 * Math.cos(p.lat * Math.PI / 180), 2)));
             const cat = p.category || 'other';
-            return { order: i + 1, poi_id: p.id, name: p.name, lat: p.lat, lng: p.lng, category: cat, distance_from_prev_m: prevDist, walk_time_min: i === 0 ? 0 : Math.round(prevDist / 50), visit_time_min: VISIT_TIMES[cat] || 12, story: original?.history_context || original?.local_anecdote || undefined, description: original?.description_short || undefined, photo_tip: original?.photo_tip || undefined };
+            return { order: i + 1, poi_id: p.id, name: p.name, lat: p.lat, lng: p.lng, category: cat, distance_from_prev_m: prevDist, walk_time_min: i === 0 ? 0 : Math.round(prevDist / 50), visit_time_min: VISIT_TIMES[cat] || 12, story: original?.history_context || original?.local_anecdote || undefined, story_en: original?.history_context_en || original?.local_anecdote_en || undefined, history_context: original?.history_context || undefined, history_context_en: original?.history_context_en || undefined, description: original?.description_short || undefined, photo_tip: original?.photo_tip || undefined };
           });
 
           const theme = { foodies: "food", instagrammers: "photography", family: "complete", accessible: "complete", young_adults: "hidden_gems" }[audience] || "complete";
