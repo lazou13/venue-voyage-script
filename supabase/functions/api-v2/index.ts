@@ -335,6 +335,25 @@ async function handleMainVisits(url: URL) {
   return { pois: enriched, total, limit, offset, has_more: offset + limit < total };
 }
 
+// ── Route: tour (single quest_library row with stops_data passthrough) ──
+async function handleGetTour(id: string) {
+  if (!id || typeof id !== "string" || id.length > 64) {
+    return { error: "Missing or invalid id parameter", status: 400 };
+  }
+
+  const { data: tour, error } = await supabaseAdmin
+    .from("quest_library")
+    .select("id, title_fr, title_en, description_fr, description_en, duration_min, distance_m, start_lat, start_lng, start_hub, highlights, updated_at, stops_data")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) return { error: error.message, status: 500 };
+  if (!tour) return { error: "Tour not found", code: "NOT_FOUND", status: 404 };
+
+  // Passthrough: do NOT transform stops_data. mini_challenge & all nested fields preserved as-is.
+  return { tour };
+}
+
 // ── Haversine ────────────────────────────────────────────────────
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
@@ -402,5 +421,17 @@ Deno.serve(async (req) => {
     return jsonResponse(result, 200, allHeaders);
   }
 
-  return jsonResponse({ error: "Unknown route. Use ?route=pois | poi&id=... | sync | main-visits" }, 400, allHeaders);
+  if (route === "tour") {
+    const id = url.searchParams.get("id") || "";
+    const result = await handleGetTour(id);
+    if (result.error) {
+      const status = result.status ?? 500;
+      const body: Record<string, unknown> = { error: result.error };
+      if (result.code) body.code = result.code;
+      return jsonResponse(body, status, allHeaders);
+    }
+    return jsonResponse(result, 200, allHeaders);
+  }
+
+  return jsonResponse({ error: "Unknown route. Use ?route=pois | poi&id=... | sync | main-visits | tour&id=..." }, 400, allHeaders);
 });
