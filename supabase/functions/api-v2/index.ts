@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { hydrateStopsFromPois } from "../_shared/hydrateStops.ts";
 
 const ALLOWED_ORIGINS = [
   "https://questrides.com",
@@ -350,7 +351,16 @@ async function handleGetTour(id: string) {
   if (error) return { error: error.message, status: 500 };
   if (!tour) return { error: "Tour not found", code: "NOT_FOUND", status: 404 };
 
-  // Passthrough: do NOT transform stops_data. mini_challenge & all nested fields preserved as-is.
+  // Read-only safety net: hydrate stops_data inline (anecdote + audios FR/EN)
+  // from medina_pois. Never writes to DB, never overrides existing inline
+  // fields, never touches mini_challenge / order / other fields.
+  if (Array.isArray((tour as { stops_data?: unknown }).stops_data)) {
+    (tour as { stops_data: unknown }).stops_data = await hydrateStopsFromPois(
+      supabaseAdmin,
+      (tour as { stops_data: unknown[] }).stops_data,
+    );
+  }
+
   return { tour };
 }
 
