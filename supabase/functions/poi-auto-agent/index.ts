@@ -629,6 +629,9 @@ Génère en une seule réponse :
           // Hydrate stops_data inline (anecdote + audios FR/EN) from medina_pois.
           // Garantit que les futures visites soient autosuffisantes côté player.
           const stopsDataHydrated = await hydrateStopsFromPois(supabase, stopsData);
+          // Missions terrain V2 : attache un mini_challenge canonique ou fallback
+          // (chrono, requires_photo, consent_required) sur chaque stop sans en écraser.
+          const stopsDataWithMissions = attachMissionsV2(stopsDataHydrated);
 
           const { error: insertErr } = await supabase.from("quest_library").insert({
             start_hub: hub.id, start_lat: hub.lat, start_lng: hub.lng,
