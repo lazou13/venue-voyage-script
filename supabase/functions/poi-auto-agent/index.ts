@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { hydrateStopsFromPois } from "../_shared/hydrateStops.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -621,6 +622,10 @@ Génère en une seule réponse :
 
           const theme = { foodies: "food", instagrammers: "photography", family: "complete", accessible: "complete", young_adults: "hidden_gems" }[audience] || "complete";
 
+          // Hydrate stops_data inline (anecdote + audios FR/EN) from medina_pois.
+          // Garantit que les futures visites soient autosuffisantes côté player.
+          const stopsDataHydrated = await hydrateStopsFromPois(supabase, stopsData);
+
           const { error: insertErr } = await supabase.from("quest_library").insert({
             start_hub: hub.id, start_lat: hub.lat, start_lng: hub.lng,
             audience, mode, theme,
@@ -628,7 +633,7 @@ Génère en une seule réponse :
             title_fr: visit.title_fr, title_en: visit.title_en,
             description_fr: visit.description_fr, description_en: visit.description_en,
             duration_min: totalTime, distance_m: Math.round(totalDist),
-            stops_count: selectedPois.length, stops_data: stopsData,
+            stops_count: selectedPois.length, stops_data: stopsDataHydrated,
             highlights: visit.highlights || [], best_time: visit.best_time,
             quality_score: visit.quality_score, agent_version: "v3.0",
           });
