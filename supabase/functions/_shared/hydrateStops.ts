@@ -45,7 +45,7 @@ export async function hydrateStopsFromPois(
   const { data: pois, error } = await supabase
     .from("medina_pois")
     .select(
-      "id, local_anecdote_fr, local_anecdote_en, audio_url_fr, audio_url_en, anecdote_audio_url_fr, anecdote_audio_url_en",
+      "id, local_anecdote_fr, local_anecdote_en, audio_url_fr, audio_url_en, anecdote_audio_url_fr, anecdote_audio_url_en, history_context, history_context_en",
     )
     .in("id", ids);
 
@@ -84,6 +84,18 @@ export async function hydrateStopsFromPois(
       !isBlank(poi.anecdote_audio_url_en)
     ) {
       next.anecdote_audio_url_en = poi.anecdote_audio_url_en;
+    }
+    if (isBlank(next.story) && !isBlank(poi.history_context)) {
+      next.story = poi.history_context;
+    }
+    if (isBlank(next.story_en) && !isBlank(poi.history_context_en)) {
+      next.story_en = poi.history_context_en;
+    }
+    if (isBlank(next.history_context) && !isBlank(poi.history_context)) {
+      next.history_context = poi.history_context;
+    }
+    if (isBlank(next.history_context_en) && !isBlank(poi.history_context_en)) {
+      next.history_context_en = poi.history_context_en;
     }
 
     return next;
