@@ -45,7 +45,7 @@ export async function hydrateStopsFromPois(
   const { data: pois, error } = await supabase
     .from("medina_pois")
     .select(
-      "id, local_anecdote_fr, local_anecdote_en, audio_url_fr, audio_url_en, anecdote_audio_url_fr, anecdote_audio_url_en",
+      "id, local_anecdote_fr, local_anecdote_en, audio_url_fr, audio_url_en, anecdote_audio_url_fr, anecdote_audio_url_en, history_context, history_context_en",
     )
     .in("id", ids);
 
