@@ -421,5 +421,17 @@ Deno.serve(async (req) => {
     return jsonResponse(result, 200, allHeaders);
   }
 
-  return jsonResponse({ error: "Unknown route. Use ?route=pois | poi&id=... | sync | main-visits" }, 400, allHeaders);
+  if (route === "tour") {
+    const id = url.searchParams.get("id") || "";
+    const result = await handleGetTour(id);
+    if (result.error) {
+      const status = result.status ?? 500;
+      const body: Record<string, unknown> = { error: result.error };
+      if (result.code) body.code = result.code;
+      return jsonResponse(body, status, allHeaders);
+    }
+    return jsonResponse(result, 200, allHeaders);
+  }
+
+  return jsonResponse({ error: "Unknown route. Use ?route=pois | poi&id=... | sync | main-visits | tour&id=..." }, 400, allHeaders);
 });
