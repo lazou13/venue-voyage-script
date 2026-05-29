@@ -476,7 +476,10 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
 
     const culturalPois = (allPois || []).filter((p: any) => {
       const cat = (p.category_ai || "").toLowerCase();
-      return !EXCLUDED_CATEGORIES.has(cat);
+      if (EXCLUDED_CATEGORIES.has(cat)) return false;
+      // Blacklist boutiques privées génériques (rugs/carpets/tapis) hors shopping explicite
+      if (isPrivateBoutiqueBlacklisted(p.name_fr || p.name)) return false;
+      return true;
     });
 
     let generated = false;
