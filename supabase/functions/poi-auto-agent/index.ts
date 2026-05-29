@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { hydrateStopsFromPois } from "../_shared/hydrateStops.ts";
+import { attachMissionsV2, isPrivateBoutiqueBlacklisted } from "../_shared/missionsV2.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -475,7 +476,10 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
 
     const culturalPois = (allPois || []).filter((p: any) => {
       const cat = (p.category_ai || "").toLowerCase();
-      return !EXCLUDED_CATEGORIES.has(cat);
+      if (EXCLUDED_CATEGORIES.has(cat)) return false;
+      // Blacklist boutiques privées génériques (rugs/carpets/tapis) hors shopping explicite
+      if (isPrivateBoutiqueBlacklisted(p.name_fr || p.name)) return false;
+      return true;
     });
 
     let generated = false;
@@ -625,6 +629,9 @@ Génère en une seule réponse :
           // Hydrate stops_data inline (anecdote + audios FR/EN) from medina_pois.
           // Garantit que les futures visites soient autosuffisantes côté player.
           const stopsDataHydrated = await hydrateStopsFromPois(supabase, stopsData);
+          // Missions terrain V2 : attache un mini_challenge canonique ou fallback
+          // (chrono, requires_photo, consent_required) sur chaque stop sans en écraser.
+          const stopsDataWithMissions = attachMissionsV2(stopsDataHydrated);
 
           const { error: insertErr } = await supabase.from("quest_library").insert({
             start_hub: hub.id, start_lat: hub.lat, start_lng: hub.lng,
@@ -633,7 +640,7 @@ Génère en une seule réponse :
             title_fr: visit.title_fr, title_en: visit.title_en,
             description_fr: visit.description_fr, description_en: visit.description_en,
             duration_min: totalTime, distance_m: Math.round(totalDist),
-            stops_count: selectedPois.length, stops_data: stopsDataHydrated,
+            stops_count: selectedPois.length, stops_data: stopsDataWithMissions,
             highlights: visit.highlights || [], best_time: visit.best_time,
             quality_score: visit.quality_score, agent_version: "v3.0",
           });
