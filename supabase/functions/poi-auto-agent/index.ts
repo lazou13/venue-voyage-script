@@ -463,7 +463,7 @@ IMPORTANT: Sois précis et contextuel. Une ruelle étroite = pas accessible PMR.
 
     const { data: allPois } = await supabase
       .from("medina_pois")
-      .select("id, name, name_fr, lat, lng, category_ai, description_short, audience_tags, route_tags, instagram_score, street_food_spot, accessibility_notes, riddle_easy, history_context, local_anecdote, photo_tip, rating, poi_quality_score, ruelle_etroite, best_time_visit")
+      .select("id, name, name_fr, lat, lng, category_ai, description_short, audience_tags, route_tags, instagram_score, street_food_spot, accessibility_notes, riddle_easy, history_context, history_context_en, local_anecdote, local_anecdote_en, photo_tip, rating, poi_quality_score, ruelle_etroite, best_time_visit")
       .not("status", "in", '("filtered","merged")')
       .not("category_ai", "is", null)
       .gte("poi_quality_score", 5)
