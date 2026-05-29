@@ -640,7 +640,7 @@ Génère en une seule réponse :
             title_fr: visit.title_fr, title_en: visit.title_en,
             description_fr: visit.description_fr, description_en: visit.description_en,
             duration_min: totalTime, distance_m: Math.round(totalDist),
-            stops_count: selectedPois.length, stops_data: stopsDataHydrated,
+            stops_count: selectedPois.length, stops_data: stopsDataWithMissions,
             highlights: visit.highlights || [], best_time: visit.best_time,
             quality_score: visit.quality_score, agent_version: "v3.0",
           });
