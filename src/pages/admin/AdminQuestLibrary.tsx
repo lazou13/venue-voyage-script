@@ -93,6 +93,29 @@ export default function AdminQuestLibrary() {
               {audiences.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
             </SelectContent>
           </Select>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={rebuilding}>
+                {rebuilding ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                Reconstruire la bibliothèque
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reconstruire entièrement la bibliothèque ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Cette action <strong>supprime toutes les visites existantes</strong> puis génère 9 nouvelles visites :
+                  3 par hub (Koutoubia, Jemaa el-Fna, Ferblantiers/Mellah), thèmes complet / trésors cachés / photographie.
+                  Uniquement avec des POIs validés disposant d'un audio FR. Aucun parcours culinaire.
+                  L'opération prend 1 à 2 minutes.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogAction onClick={handleRebuild}>Confirmer la reconstruction</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
