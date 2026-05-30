@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { MapPin, Clock, Route, Users, Star, ChevronRight, Play } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { MapPin, Clock, Route, Users, Star, ChevronRight, Play, RefreshCw, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 const HUB_LABELS: Record<string, string> = {
   koutoubia: "Mosquée Koutoubia",
@@ -17,6 +19,25 @@ const HUB_LABELS: Record<string, string> = {
 export default function AdminQuestLibrary() {
   const [hubFilter, setHubFilter] = useState<string>('all');
   const [audienceFilter, setAudienceFilter] = useState<string>('all');
+  const [rebuilding, setRebuilding] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const handleRebuild = async () => {
+    setRebuilding(true);
+    toast({ title: 'Reconstruction en cours…', description: 'Purge + génération de 9 visites (3 hubs × 3 thèmes). Cela peut prendre 1-2 minutes.' });
+    try {
+      const { data, error } = await supabase.functions.invoke('quest-library-rebuild');
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error || 'Échec inconnu');
+      toast({ title: `✅ ${data.created_count} visites créées`, description: 'Bibliothèque reconstruite avec succès.' });
+      queryClient.invalidateQueries({ queryKey: ['quest-library'] });
+    } catch (err) {
+      toast({ title: 'Erreur reconstruction', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setRebuilding(false);
+    }
+  };
 
   const { data: quests, isLoading } = useQuery({
     queryKey: ['quest-library'],
@@ -72,6 +93,29 @@ export default function AdminQuestLibrary() {
               {audiences.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
             </SelectContent>
           </Select>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={rebuilding}>
+                {rebuilding ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                Reconstruire la bibliothèque
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Reconstruire entièrement la bibliothèque ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Cette action <strong>supprime toutes les visites existantes</strong> puis génère 9 nouvelles visites :
+                  3 par hub (Koutoubia, Jemaa el-Fna, Ferblantiers/Mellah), thèmes complet / trésors cachés / photographie.
+                  Uniquement avec des POIs validés disposant d'un audio FR. Aucun parcours culinaire.
+                  L'opération prend 1 à 2 minutes.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogAction onClick={handleRebuild}>Confirmer la reconstruction</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
 
