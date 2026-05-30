@@ -566,6 +566,9 @@ Deno.serve(async (req) => {
       if (EXCLUDED_CATEGORIES_PUBLIC.includes(catG)) return false;
       const lname = String(p.name ?? "").toLowerCase();
       if (NAME_BLACKLIST_PUBLIC.some((n) => lname.includes(n))) return false;
+      // Joueur : on n'accepte que les POIs avec un audio FR exploitable.
+      const audio = String(p.audio_url_fr ?? "").trim();
+      if (audio.length < 10) return false;
       return true;
     });
     if (allPois.length === 0) {

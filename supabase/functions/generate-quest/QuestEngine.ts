@@ -23,6 +23,8 @@ export interface EngineInput {
   circular: boolean;
   language: "fr" | "en" | "ar";
   exclude_place_ids?: string[];
+  /** When true, POIs without a non-empty audio_url_fr are excluded. */
+  require_audio_fr?: boolean;
 }
 
 export interface POI {
@@ -80,6 +82,7 @@ export interface POI {
     };
   };
   visit_route?: { exit_point?: { lat: number; lng: number }; [k: string]: unknown } | null;
+  audio_url_fr?: string | null;
 }
 
 export interface Stop {
@@ -1008,6 +1011,7 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
   const candidates = allPOIs.filter((p) => {
     if (!p.is_active) return false;
     if (excludeSet.has(p.id)) return false;
+    if (input.require_audio_fr && (!p.audio_url_fr || String(p.audio_url_fr).trim().length < 10)) return false;
     if (EXCLUDED_CATEGORIES.includes((p.category_ai || "").toLowerCase())) return false;
     if (EXCLUDED_CATEGORIES.includes((p.category_google || "").toLowerCase())) return false;
     if (isNameBlacklisted(p.name)) {
@@ -1081,6 +1085,7 @@ export function generateQuest(input: EngineInput, allPOIs: POI[]): EngineOutput 
         if (!p.is_active) return false;
         if (usedIds.has(p.id)) return false;
         if (excludeSet.has(p.id)) return false;
+        if (input.require_audio_fr && (!p.audio_url_fr || String(p.audio_url_fr).trim().length < 10)) return false;
         if (EXCLUDED_CATEGORIES.includes((p.category_ai || "").toLowerCase())) return false;
         if (EXCLUDED_CATEGORIES.includes((p.category_google || "").toLowerCase())) return false;
         if (isNameBlacklisted(p.name)) return false;

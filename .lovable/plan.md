@@ -1,69 +1,67 @@
-# Reconstruction Bibliothèque de Visites
+# Unifier la génération de visites + filtre audio global
 
-## Objectif
+## Problème de fond
+Deux moteurs coexistent :
 
-Vider entièrement `quest_library` et la régénérer avec **9 visites** :
-- **3 hubs** : Koutoubia, Jemaa el-Fna, Place des Ferblantiers (Mellah)
-- **3 visites par hub**, thèmes : `complete`, `hidden_gems`, `photography`
-- **Aucune visite food / culinaire**
-- POIs utilisés uniquement s'ils sont **enrichis ET ont un audio FR** (`audio_url_fr` non nul)
+| Moteur | Fichier | Géo | Audio | Utilisé par |
+|---|---|---|---|---|
+| **Sur-mesure** (sérieux) | `generate-quest/QuestEngine.ts` (1211 l.) | NN + 2-opt + diversité ✓ | **absent** ✗ | joueurs via `public-generate-quest` |
+| **Rebuild** (ad-hoc, créé hier) | `quest-library-rebuild/index.ts` | LLM libre ✗ | filtre cassé ✗ | bouton admin |
 
-## État constaté
+→ Patcher seulement `rebuild` laisse la génération sur-mesure casser dès qu'un joueur tombe sur un POI sans audio. C'est ce que tu pointes.
 
-- `quest_library` contient 17 entrées actuelles (mix complete/food/photo/hidden_gems sur Koutoubia, Jemaa, Mellah + autres) → toutes supprimées.
-- POIs validés avec audio FR dans un rayon de 800 m :
-  - Koutoubia : 18
-  - Jemaa el-Fna : 23
-  - Ferblantiers/Mellah : 9
-  → assez pour 6–10 stops par visite.
+## Stratégie : un seul moteur, deux entrées
 
-## Implémentation
+### 1. Ajouter `require_audio_fr` à QuestEngine
+Dans `QuestEngine.ts`, étape « Filter candidates » :
 
-### 1. Nouvelle edge function `quest-library-rebuild` (one-shot, admin only)
-
-Logique :
-
-1. `DELETE FROM quest_library` (purge totale).
-2. Charger les POIs candidats en une requête :
-   - `status='validated'`, `is_active=true`
-   - `audio_url_fr IS NOT NULL AND audio_url_fr <> ''`
-   - `history_context` non vide (enrichi)
-   - `category_ai` non nulle, exclusion catégories non culturelles existantes (`EXCLUDED_CATEGORIES`)
-   - Exclusion explicite des catégories food (`restaurant`, `cafe`, `street_food`, `market` alimentaire) pour respecter "pas de parcours culinaire"
-   - Bbox médina (déjà utilisé)
-3. Pour chacun des 3 hubs (coords figées identiques à la mémoire `start-hubs`) :
-   - Filtrer POIs à ≤ 1500 m du hub
-   - Pour chacun des 3 thèmes (`complete`, `hidden_gems`, `photography`) :
-     - Appel IA Gemini 2.5 Pro (tool calling) avec le même schéma `create_visit` que `poi-auto-agent` Phase 2, prompt adapté :
-       - 6–10 stops, durée cible ~150 min
-       - Audience implicite par thème (pas de `foodies`)
-       - Diversité de catégories, parcours géographiquement logique
-       - Privilégier qualité + audio déjà disponible
-     - Hydrater stops via `hydrateStopsFromPois` (anecdote + audios FR/EN inline)
-     - Attacher missions V2 via `attachMissionsV2` (mêmes règles que pipeline existant)
-     - INSERT dans `quest_library` avec `agent_version='v3.1-rebuild'`, `mode='guided_tour'`, `theme` = thème courant
-
-### 2. Déclenchement
-
-- Bouton "Reconstruire la bibliothèque" dans `src/pages/admin/AdminQuestLibrary.tsx`, visible admin uniquement, confirmation dialog (action destructive).
-- Appel `supabase.functions.invoke('quest-library-rebuild')`, toast progressif, refresh de la liste à la fin.
-
-### 3. Hors-scope (confirmation)
-
-- Aucune migration DB
-- Aucun changement de schéma sur `quest_library` ou `medina_pois`
-- Aucun changement au pipeline `poi-auto-agent` (la génération auto continue côté Phase 2 existante — on n'y touche pas)
-- Aucun changement au player / QRP / quest-proxy
-- Aucun changement à la génération de quêtes publiques
-- Aucun secret, aucun prix, aucun Vapi
-
-## QA dry-run après exécution
-
-Vérifier en base :
-
-```sql
-SELECT start_hub, theme, stops_count, duration_min, title_fr
-FROM quest_library ORDER BY start_hub, theme;
+```ts
+if (input.require_audio_fr) {
+  if (!p.audio_url_fr || p.audio_url_fr.trim().length < 10) return false;
+}
 ```
 
-Attendu : 9 lignes, 3 par hub (`koutoubia`, `jemaa_el_fna`, `mellah`), thèmes ∈ {complete, hidden_gems, photography}, aucun `theme='food'`, chaque visite ≥ 6 stops, tous les `poi_id` des stops ont un `audio_url_fr` non nul.
+et même check dans le bloc « complément culturel ».
+
+Ajouter le champ à `EngineInput` (`require_audio_fr?: boolean`).
+
+### 2. `public-generate-quest` passe systématiquement `require_audio_fr: true`
+Toute visite jouée doit avoir des audios. Si pas assez de POIs avec audio dans le rayon → message clair plutôt qu'un POI muet.
+
+### 3. Remplacer `quest-library-rebuild` par un wrapper qui appelle `QuestEngine`
+Le bouton « Reconstruire » devient un orchestrateur : pour chaque (hub × thème), il appelle directement `generateQuest()` (import depuis `_shared` ou via le edge `generate-quest`), avec :
+- `start_lat/lng` = hub
+- `theme` = complete | hidden_gems | photography
+- `mode = "guided_tour"`
+- `require_audio_fr = true`
+- `radius_m = 1200`
+- `max_stops = 8`
+- `max_duration_min = 180`
+- exclusion food déjà gérée par `EXCLUDED_CATEGORIES` du moteur
+
+Le LLM n'est **plus consulté** pour choisir les POIs ni leur ordre. Il sert uniquement à générer **titre + description + highlights** une fois la route déterminée (étape narrative existante de `public-generate-quest`).
+
+### 4. Supprimer la logique IA-libre dupliquée
+On supprime de `quest-library-rebuild/index.ts` : le prompt Gemini de sélection, le tool `create_visit`, la boucle `usedAcrossThemes`. Garde uniquement : purge + boucle `for hub for theme → generateQuest()` + appel narratif court + insert.
+
+### 5. Migration douce
+- `QuestEngine` reste rétrocompatible (`require_audio_fr` default `false`).
+- Activé `true` dans `public-generate-quest` (joueurs) ET dans le nouveau rebuild.
+- Si on veut un mode admin permissif un jour, il suffit de passer `false`.
+
+## QA après
+- `SELECT count(*) FROM quest_library ql, jsonb_array_elements(stops_data) s LEFT JOIN medina_pois mp ON mp.id = (s->>'poi_id')::uuid WHERE coalesce(mp.audio_url_fr,'') = '';` → doit retourner 0.
+- Pour chaque visite : segment max ≤ 2× médiane (déjà géré par 2-opt).
+- Test manuel : générer une visite sur mesure depuis le player → vérifier qu'aucun POI muet n'apparaît.
+
+## Périmètre fichiers
+- **Modif** `supabase/functions/generate-quest/QuestEngine.ts` : ajouter champ + 2 filtres audio (~10 lignes).
+- **Modif** `supabase/functions/public-generate-quest/index.ts` : passer `require_audio_fr: true` à l'engine.
+- **Réécriture courte** `supabase/functions/quest-library-rebuild/index.ts` : ~150 lignes au lieu de 350, appelle `generateQuest()`.
+- **Aucun** changement DB, UI, schema, player, API publique.
+
+## Hors-scope
+- Pas de modif des POIs ni des audios.
+- Pas de TTS, pas de pipeline d'enrichissement.
+- Pas de nouvelle table, pas de migration.
+- Pas de changement de modèle IA.
