@@ -23,6 +23,8 @@ export interface EngineInput {
   circular: boolean;
   language: "fr" | "en" | "ar";
   exclude_place_ids?: string[];
+  /** When true, POIs without a non-empty audio_url_fr are excluded. */
+  require_audio_fr?: boolean;
 }
 
 export interface POI {
@@ -80,6 +82,7 @@ export interface POI {
     };
   };
   visit_route?: { exit_point?: { lat: number; lng: number }; [k: string]: unknown } | null;
+  audio_url_fr?: string | null;
 }
 
 export interface Stop {
