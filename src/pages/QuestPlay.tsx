@@ -579,7 +579,7 @@ function POIDetail({
       {isVisit && !visitText && !hasNarrativeContent && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">📍 À voir ici</CardTitle>
+            <CardTitle className="text-sm">🕵 L'enquête</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground italic">
