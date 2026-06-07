@@ -318,9 +318,9 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
     const token = authHeader.replace("Bearer ", "");
-    const { data: claims, error: authErr } = await userClient.auth.getClaims(token);
-    if (authErr || !claims?.claims?.sub) return jsonResponse({ error: "Unauthorized" }, 401);
-    const userId = claims.claims.sub as string;
+    const { data: userData, error: authErr } = await userClient.auth.getUser(token);
+    if (authErr || !userData?.user?.id) return jsonResponse({ error: "Unauthorized" }, 401);
+    const userId = userData.user.id;
 
     const admin = createClient(SUPABASE_URL, SERVICE);
 
