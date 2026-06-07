@@ -13,6 +13,18 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
 import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ━━━━━━━━━━━━━━ PROPS ━━━━━━━━━━━━━━
 
@@ -21,7 +33,17 @@ interface QuestBuilderProps {
   startLng: number;
   startName?: string;
   onQuestGenerated: (result: QuestResult) => void;
+  /** Optionnel : ID du projet courant (requis pour générer une série geo_series). */
+  projectId?: string;
+  /**
+   * Optionnel : liste ordonnée des POI du projet (id + sort_order).
+   * Requise pour générer une série geo_series. Sans elle, le bouton reste désactivé
+   * et un message explicatif est affiché à l'utilisateur.
+   */
+  projectPois?: Array<{ id: string; sort_order?: number }>;
 }
+
+const MAX_SERIES_POIS = 8;
 
 // ━━━━━━━━━━━━━━ DATA ━━━━━━━━━━━━━━
 
