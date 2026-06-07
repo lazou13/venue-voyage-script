@@ -484,11 +484,11 @@ function POIDetail({
         />
       )}
 
-      {/* Visit mode: "À voir ici" (original text) */}
+      {/* Visit mode: "L'enquête" (original text) */}
       {isVisit && visitText && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">📍 À voir ici</CardTitle>
+            <CardTitle className="text-sm">🕵 L'enquête</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm whitespace-pre-wrap">{visitText}</p>
