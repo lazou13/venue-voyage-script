@@ -316,7 +316,7 @@ function GuidedContent({ stop }: { stop: Stop }) {
             )}
             {stop.must_see_details && (
               <p className="text-sm">
-                <span className="font-medium">À ne pas manquer :</span> {stop.must_see_details}
+                <span className="font-medium">L'enquête :</span> {stop.must_see_details}
               </p>
             )}
           </CollapsibleContent>
