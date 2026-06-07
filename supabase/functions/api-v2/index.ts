@@ -329,11 +329,18 @@ async function handleMainVisits(url: URL) {
     }
   }
 
-  const enriched = (pois ?? []).map((p: any) => ({
-    ...p,
-    display_name: p.name_fr || p.name || p.name_en || '',
-    images: mediaByPoi[p.id] ?? [],
-  }));
+  const enriched = (pois ?? []).map((p: any) => {
+    const meta = (p.metadata && typeof p.metadata === "object") ? p.metadata : {};
+    const story_layer = (meta.story_layer && typeof meta.story_layer === "object" && !Array.isArray(meta.story_layer))
+      ? meta.story_layer
+      : null;
+    return {
+      ...p,
+      display_name: p.name_fr || p.name || p.name_en || '',
+      images: mediaByPoi[p.id] ?? [],
+      story_layer,
+    };
+  });
 
   const total = count || 0;
   return { pois: enriched, total, limit, offset, has_more: offset + limit < total };
