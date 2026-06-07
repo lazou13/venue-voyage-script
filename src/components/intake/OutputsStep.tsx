@@ -44,6 +44,15 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
   const [showReport, setShowReport] = useState(false);
   const [roadBookContent, setRoadBookContent] = useState<string | null>(null);
 
+  // ============= Story Architect (geo_series) state =============
+  const [seriesFormat, setSeriesFormat] = useState<'marrakech_secrets' | 'dossier_secret' | 'chronicles' | 'insolent_guide'>('marrakech_secrets');
+  const [seriesTone, setSeriesTone] = useState<'mysterious' | 'insolent' | 'family' | 'premium'>('mysterious');
+  const [seriesGoal, setSeriesGoal] = useState<'fun_share' | 'cultural_immersive' | 'light_investigation'>('cultural_immersive');
+  const [seriesLoading, setSeriesLoading] = useState(false);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
+  const [seriesResult, setSeriesResult] = useState<{ generated?: number; cached?: number; skipped?: number; error?: number } | null>(null);
+  const [seriesConfirmOpen, setSeriesConfirmOpen] = useState(false);
+
   // Compute projectType early for useEffect dependency
   const projectType = project?.quest_config?.project_type || 'establishment';
   const isRouteRecon = projectType === 'route_recon';
