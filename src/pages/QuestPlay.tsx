@@ -499,11 +499,11 @@ function POIDetail({
       {/* ── Narrative enrichment blocks ── */}
       {hasNarrativeContent && (
         <>
-          {/* Histoire du lieu */}
+          {/* Épisode */}
           {historyContext && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">🏛️ Histoire du lieu</CardTitle>
+                <CardTitle className="text-sm">🎬 Épisode</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm whitespace-pre-wrap leading-relaxed">{historyContext}</p>
@@ -511,11 +511,11 @@ function POIDetail({
             </Card>
           )}
 
-          {/* Anecdote locale */}
+          {/* Le secret */}
           {anecdote && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">💬 Anecdote locale</CardTitle>
+                <CardTitle className="text-sm">🤫 Le secret</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm whitespace-pre-wrap leading-relaxed">{anecdote}</p>
@@ -523,11 +523,23 @@ function POIDetail({
             </Card>
           )}
 
-          {/* Le saviez-vous ? */}
+          {/* L'enquête — ce qu'il faut observer */}
+          {libMustSee && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">🕵 L'enquête</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm whitespace-pre-wrap">{libMustSee}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Révélation */}
           {funFact && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">💡 Le saviez-vous ?</CardTitle>
+                <CardTitle className="text-sm">💥 Révélation</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm whitespace-pre-wrap">{funFact}</p>
@@ -535,29 +547,28 @@ function POIDetail({
             </Card>
           )}
 
+          {/* Continuer l'aventure */}
+          {(libMustTry || libNearby) && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">➡ Continuer l'aventure</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                {libMustTry && <p>⭐ {libMustTry}</p>}
+                {libNearby && <p>📍 {libNearby}</p>}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Infos pratiques */}
-          {(libPriceInfo || libMustSee || accessibilityNotes) && (
+          {(libPriceInfo || accessibilityNotes) && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">ℹ️ Infos pratiques</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 {libPriceInfo && <p>💰 {libPriceInfo}</p>}
-                {libMustSee && <p>👁️ {libMustSee}</p>}
                 {accessibilityNotes && <p>♿ {accessibilityNotes}</p>}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* À ne pas manquer / À proximité */}
-          {(libMustTry || libNearby) && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">🗺️ À proximité</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {libMustTry && <p>⭐ {libMustTry}</p>}
-                {libNearby && <p>📍 {libNearby}</p>}
               </CardContent>
             </Card>
           )}
