@@ -338,12 +338,77 @@ export default function QuestBuilder({
             </div>
           </div>
 
-          <Button size="lg" className="w-full" disabled>
-            Générer la série (bientôt disponible)
+          {!hasProjectContext && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                Aucune liste de POI projet n'est fournie à ce composant. Story Architect
+                a besoin d'un <code>projectId</code> et de la liste ordonnée des POI du
+                projet (table <code>pois</code>). Branchez <code>QuestBuilder</code> dans
+                la page projet (ex. via <code>useProject</code> / <code>usePOIs</code>)
+                en passant <code>projectId</code> et <code>projectPois</code>.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {hasProjectContext && (
+            <p className="text-xs text-muted-foreground text-center">
+              {seriesPoiIds.length} POI utilisé(s) (max {MAX_SERIES_POIS}, ordre préservé).
+            </p>
+          )}
+
+          <Button
+            size="lg"
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            disabled={!canGenerateSeries}
+            onClick={() => setConfirmOpen(true)}
+          >
+            {seriesLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Génération de la série...
+              </>
+            ) : (
+              "Générer la série"
+            )}
           </Button>
-          <p className="text-xs text-muted-foreground text-center">
-            Story Architect sera branché en Phase 2-C.
-          </p>
+
+          {seriesResult && (
+            <Alert>
+              <AlertDescription>
+                Série générée — {seriesResult.generated} généré(s), {seriesResult.cached}{" "}
+                en cache, {seriesResult.skipped} ignoré(s), {seriesResult.error} en erreur.
+                Ouvrez le player pour vérifier EpisodeView.
+              </AlertDescription>
+            </Alert>
+          )}
+          {seriesError && (
+            <Alert variant="destructive">
+              <AlertDescription>{seriesError}</AlertDescription>
+            </Alert>
+          )}
+
+          <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Générer la série narrative ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Cette action va écrire une couche narrative dans les POI de ce projet.
+                  Les visites classiques ne seront pas modifiées.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setConfirmOpen(false);
+                    void handleGenerateSeries();
+                  }}
+                >
+                  Confirmer et générer
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
 
