@@ -148,7 +148,7 @@ export default function QuestBuilder({
   const canGenerateSeries = !isClassic && hasProjectContext && !seriesLoading;
 
   const handleGenerate = async () => {
-    // Guard : ne jamais appeler le backend actuel avec geo_series
+    // Guard : ne jamais appeler le backend classique avec geo_series
     if (!isClassic) return;
     const result = await generate({
       start_lat: startLat,
@@ -166,6 +166,55 @@ export default function QuestBuilder({
       language: "fr",
     });
     if (result) onQuestGenerated(result);
+  };
+
+  const handleGenerateSeries = async () => {
+    if (isClassic) return; // garde-fou : jamais en mode classique
+    if (!projectId) {
+      toast.error("Aucun project_id : impossible de générer la série.");
+      return;
+    }
+    if (seriesPoiIds.length === 0) {
+      toast.error("Aucun POI projet disponible : impossible de générer la série.");
+      return;
+    }
+    setSeriesError(null);
+    setSeriesResult(null);
+    setSeriesLoading(true);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        "story-architect",
+        {
+          body: {
+            project_id: projectId,
+            poi_ids: seriesPoiIds,
+            format: seriesFormat,
+            tone: seriesTone,
+            goal: seriesGoal,
+            language: "fr",
+            dry_run: false,
+          },
+        }
+      );
+      if (invokeError) throw invokeError;
+      const summary = (data && (data as any).summary) || null;
+      const stats = {
+        generated: summary?.generated ?? 0,
+        cached: summary?.cached ?? 0,
+        skipped: summary?.skipped ?? 0,
+        error: summary?.error ?? 0,
+      };
+      setSeriesResult(stats);
+      toast.success(
+        `Série générée : ${stats.generated} épisode(s). Ouvrez le player pour vérifier EpisodeView.`
+      );
+    } catch (e: any) {
+      const msg = e?.message || "Erreur lors de la génération de la série.";
+      setSeriesError(msg);
+      toast.error(msg);
+    } finally {
+      setSeriesLoading(false);
+    }
   };
 
   const SERIES_FORMATS: { value: SeriesFormat; label: string }[] = [
