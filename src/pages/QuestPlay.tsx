@@ -726,13 +726,17 @@ function POIDetail({
         </Card>
       )}
 
-      {/* Ask the guide — placeholder */}
-      <Button disabled className="w-full">
-        🎙 Demander au guide
-      </Button>
-      <p className="text-xs text-muted-foreground text-center">
-        Bientôt disponible
-      </p>
+      {/* Ask the guide — placeholder (caché en mode geo_series : EpisodeView l'inclut déjà) */}
+      {!narrative && (
+        <>
+          <Button disabled className="w-full">
+            🎙 Demander au guide
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Bientôt disponible
+          </p>
+        </>
+      )}
 
       {/* Client feedback: photo capture + recommendation */}
       <ClientFeedbackSection
