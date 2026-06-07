@@ -462,7 +462,7 @@ function POIDetail({
     || (typeof metadataNote?.note === 'string' ? metadataNote.note : null);
 
   // Check if we have any narrative content
-  const hasNarrativeContent = !!(historyContext || anecdote || funFact || libMustSee || libMustTry || libNearby || libPriceInfo);
+  const hasNarrativeContent = !!(historyContext || anecdote || funFact || libMustSee || libMustTry || libNearby || libPriceInfo || (isVisit && visitText));
 
   return (
     <div className="max-w-2xl space-y-4">
