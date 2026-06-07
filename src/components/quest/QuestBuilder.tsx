@@ -70,6 +70,11 @@ function formatRadius(m: number): string {
 
 // ━━━━━━━━━━━━━━ COMPONENT ━━━━━━━━━━━━━━
 
+type ProductType = "classic_visit" | "geo_series";
+type SeriesFormat = "secrets" | "dossier" | "chroniques" | "insolent";
+type SeriesTone = "mysterieux" | "insolent" | "familial" | "premium";
+type SeriesGoal = "fun" | "culturel" | "enquete";
+
 export default function QuestBuilder({
   startLat,
   startLng,
@@ -79,6 +84,7 @@ export default function QuestBuilder({
   const { generate, isLoading, error } = useQuestEngine();
 
   // State
+  const [productType, setProductType] = useState<ProductType>("classic_visit");
   const [mode, setMode] = useState<EngineMode>("treasure_hunt");
   const [theme, setTheme] = useState<Theme>("complete");
   const [audience, setAudience] = useState<Audience>("tourist");
@@ -90,10 +96,18 @@ export default function QuestBuilder({
   const [circular, setCircular] = useState(false);
   const [photoSpotsPriority, setPhotoSpotsPriority] = useState(false);
 
+  // Série interactive géolocalisée (préparatoire, sans backend)
+  const [seriesFormat, setSeriesFormat] = useState<SeriesFormat>("secrets");
+  const [seriesTone, setSeriesTone] = useState<SeriesTone>("mysterieux");
+  const [seriesGoal, setSeriesGoal] = useState<SeriesGoal>("culturel");
+
+  const isClassic = productType === "classic_visit";
   const isTreasure = mode === "treasure_hunt";
-  const canGenerate = !(startLat === 0 && startLng === 0);
+  const canGenerate = isClassic && !(startLat === 0 && startLng === 0);
 
   const handleGenerate = async () => {
+    // Guard : ne jamais appeler le backend actuel avec geo_series
+    if (!isClassic) return;
     const result = await generate({
       start_lat: startLat,
       start_lng: startLng,
@@ -112,8 +126,137 @@ export default function QuestBuilder({
     if (result) onQuestGenerated(result);
   };
 
+  const SERIES_FORMATS: { value: SeriesFormat; label: string }[] = [
+    { value: "secrets", label: "Les Secrets de Marrakech" },
+    { value: "dossier", label: "Le Dossier Secret" },
+    { value: "chroniques", label: "Les Chroniques de Marrakech" },
+    { value: "insolent", label: "Guide Insolent" },
+  ];
+  const SERIES_TONES: { value: SeriesTone; label: string }[] = [
+    { value: "mysterieux", label: "Mystérieux" },
+    { value: "insolent", label: "Insolent" },
+    { value: "familial", label: "Familial" },
+    { value: "premium", label: "Premium" },
+  ];
+  const SERIES_GOALS: { value: SeriesGoal; label: string }[] = [
+    { value: "fun", label: "Fun & partage" },
+    { value: "culturel", label: "Culturel immersif" },
+    { value: "enquete", label: "Enquête légère" },
+  ];
+
   return (
     <div className="flex flex-col gap-6">
+      {/* BLOC 0 — Produit */}
+      <div className="flex flex-col gap-2">
+        <span className="text-sm font-medium">Produit</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Card
+            className={`cursor-pointer transition-all ${
+              isClassic ? "border-2 border-primary" : "border border-border"
+            }`}
+            onClick={() => setProductType("classic_visit")}
+          >
+            <CardContent className="flex flex-col items-center gap-1 py-4">
+              <span className="text-2xl">🧭</span>
+              <span className="font-semibold text-sm">Visite guidée interactive</span>
+              <span className="text-xs text-muted-foreground text-center">
+                Chasse au trésor ou visite guidée
+              </span>
+            </CardContent>
+          </Card>
+          <Card
+            className={`cursor-pointer transition-all ${
+              !isClassic ? "border-2 border-primary" : "border border-border"
+            }`}
+            onClick={() => setProductType("geo_series")}
+          >
+            <CardContent className="flex flex-col items-center gap-1 py-4">
+              <span className="text-2xl">🎬</span>
+              <span className="font-semibold text-sm">Série interactive géolocalisée</span>
+              <span className="text-xs text-muted-foreground text-center">
+                Épisodes narratifs · Story Architect
+              </span>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {!isClassic && (
+        <div className="flex flex-col gap-5">
+          <Alert>
+            <AlertDescription>
+              Ce mode générera bientôt une série narrative à partir des mêmes POI :
+              épisodes, hook, scène, mission, révélation, cliffhanger.
+            </AlertDescription>
+          </Alert>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium">Format</span>
+            <div className="grid grid-cols-2 gap-2">
+              {SERIES_FORMATS.map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setSeriesFormat(f.value)}
+                  className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                    seriesFormat === f.value
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium">Ton</span>
+            <div className="flex flex-wrap gap-2">
+              {SERIES_TONES.map((t) => (
+                <button
+                  key={t.value}
+                  onClick={() => setSeriesTone(t.value)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    seriesTone === t.value
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-border hover:bg-secondary"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium">Objectif</span>
+            <div className="flex flex-wrap gap-2">
+              {SERIES_GOALS.map((g) => (
+                <button
+                  key={g.value}
+                  onClick={() => setSeriesGoal(g.value)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    seriesGoal === g.value
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-border hover:bg-secondary"
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Button size="lg" className="w-full" disabled>
+            Générer la série (bientôt disponible)
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Story Architect sera branché en Phase 2-C.
+          </p>
+        </div>
+      )}
+
+      {isClassic && <>
       {/* BLOC 1 — Mode */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Card
@@ -315,6 +458,7 @@ export default function QuestBuilder({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+      </>}
     </div>
   );
 }
