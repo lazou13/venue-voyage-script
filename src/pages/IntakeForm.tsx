@@ -85,7 +85,10 @@ export default function IntakeForm() {
 
   // Build dynamic steps based on project type
   const steps = useMemo(() => {
-    const typeSteps = TYPE_STEPS[projectType];
+    const typeSteps = TYPE_STEPS[projectType] ?? [];
+    if (!TYPE_STEPS[projectType]) {
+      console.warn(`[IntakeForm] Unknown project_type: ${projectType}. Falling back to common steps.`);
+    }
     if (projectType === 'library') {
       return typeSteps;
     }
