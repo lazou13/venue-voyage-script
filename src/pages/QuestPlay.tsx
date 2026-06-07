@@ -11,6 +11,52 @@ import { extractNarrativeLayer } from '@/types/narrative';
 
 const QuestMap = lazy(() => import('@/components/quest/QuestMap'));
 
+/** Mock narrative_layer pour test visuel ?mockSeries=1. Désactivé par défaut. Aucun impact DB. */
+const MOCK_NARRATIVE_LAYER = {
+  version: "1.0",
+  product_type: "geo_series",
+  series: {
+    title: "Les Secrets de Marrakech",
+    format: "secrets",
+    red_thread: "Marrakech transforme tout.",
+    visitor_transformation: "Touriste → observateur",
+    guide_tone_arc: ["sarcastique", "provocateur", "complice", "grave"],
+  },
+  episode: {
+    number: 1,
+    total: 4,
+    title: "L'erreur qui a coûté une mosquée",
+    emotion: "curiosité",
+    hook: "Il y a deux mosquées ici. Vous n'en voyez qu'une.",
+    scene: [
+      "Le minaret est devant vous.",
+      "Tout le monde le photographie.",
+      "Mais presque personne ne regarde à côté.",
+      "C'est là que l'histoire commence.",
+    ],
+    secret: "La tradition raconte qu'une première mosquée aurait été mal orientée.",
+    mission: {
+      title: "La mauvaise direction",
+      instruction: "Une personne pointe fièrement dans une direction. Les autres regardent ailleurs, comme si personne n'était d'accord. Prenez la photo.",
+      caption: "On a vérifié l'orientation. Presque.",
+      photo_required: true,
+      respect_rules: "Ne photographiez pas de fidèles ni de personnes identifiables sans consentement.",
+    },
+    revelation: "Vous venez de rejouer l'idée centrale du lieu : une erreur peut devenir un symbole.",
+    cliffhanger: "Certaines erreurs restent visibles. D'autres sont recouvertes par le bruit.",
+    transition_to_next: "Vous venez de voir une erreur vieille de neuf siècles. La place que vous rejoignez maintenant a une mémoire encore plus longue. Et beaucoup moins pittoresque. Suivez la carte.",
+  },
+  guide: {
+    persona: "guide sarcastique mais utile",
+    arrival_script: "Bienvenue devant le monument que tout le monde photographie sans regarder ce qu'il y a à côté.",
+    faq_context: [],
+  },
+  audio: {
+    series_audio_fr: null,
+    series_audio_en: null,
+  },
+} as const;
+
 function formatTime(seconds: number): string {
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
@@ -391,6 +437,8 @@ function POIDetail({
   instanceId: string;
 }) {
   const config = poi.step_config || {};
+  const [detailParams] = useSearchParams();
+  const isMockSeries = detailParams.get('mockSeries') === '1';
   const geo = config.geo as Record<string, unknown> | undefined;
   const media = config.media as Record<string, unknown> | undefined;
   const contentI18n = config.contentI18n as Record<string, string> | undefined;
@@ -467,7 +515,9 @@ function POIDetail({
   const hasNarrativeContent = !!(historyContext || anecdote || funFact || libMustSee || libMustTry || libNearby || libPriceInfo || (isVisit && visitText));
 
   // Phase 2 — couche "Série interactive géolocalisée" (additive, fallback PR1 si absente)
-  const narrative = extractNarrativeLayer(config);
+  const narrative = isMockSeries
+    ? extractNarrativeLayer({ narrative_layer: MOCK_NARRATIVE_LAYER })
+    : extractNarrativeLayer(config);
 
 
   return (
