@@ -490,113 +490,120 @@ function POIDetail({
         />
       )}
 
-      {/* Visit mode: "Le récit du guide" (original text) */}
-      {isVisit && visitText && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">🎙 Le récit du guide</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm whitespace-pre-wrap">{visitText}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ── Narrative enrichment blocks ── */}
-      {hasNarrativeContent && (
+      {/* ── Phase 2 : si narrative_layer (geo_series) → EpisodeView, sinon rendu PR1 ── */}
+      {narrative ? (
+        <EpisodeView narrative={narrative} />
+      ) : (
         <>
-          {/* Épisode */}
-          {historyContext && (
+          {/* Visit mode: "Le récit du guide" (original text) */}
+          {isVisit && visitText && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">🎬 Épisode</CardTitle>
+                <CardTitle className="text-sm">🎙 Le récit du guide</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm whitespace-pre-wrap leading-relaxed">{historyContext}</p>
+                <p className="text-sm whitespace-pre-wrap">{visitText}</p>
               </CardContent>
             </Card>
           )}
 
-          {/* Le secret */}
-          {anecdote && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">🤫 Le secret</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm whitespace-pre-wrap leading-relaxed">{anecdote}</p>
-              </CardContent>
-            </Card>
+          {/* ── Narrative enrichment blocks ── */}
+          {hasNarrativeContent && (
+            <>
+              {/* Épisode */}
+              {historyContext && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">🎬 Épisode</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{historyContext}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Le secret */}
+              {anecdote && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">🤫 Le secret</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{anecdote}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* L'enquête — ce qu'il faut observer */}
+              {libMustSee && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">🕵 L'enquête</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm whitespace-pre-wrap">{libMustSee}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Révélation */}
+              {funFact && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">💥 Révélation</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm whitespace-pre-wrap">{funFact}</p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* À explorer ensuite */}
+              {(libMustTry || libNearby) && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">🗺️ À explorer ensuite</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    {libMustTry && <p>⭐ {libMustTry}</p>}
+                    {libNearby && <p>📍 {libNearby}</p>}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Infos pratiques */}
+              {(libPriceInfo || accessibilityNotes) && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">ℹ️ Infos pratiques</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2 text-sm">
+                    {libPriceInfo && <p>💰 {libPriceInfo}</p>}
+                    {accessibilityNotes && <p>♿ {accessibilityNotes}</p>}
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
 
-          {/* L'enquête — ce qu'il faut observer */}
-          {libMustSee && (
+          {/* Fallback: no visit text AND no narrative → prompt */}
+          {isVisit && !visitText && !hasNarrativeContent && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">🕵 L'enquête</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm whitespace-pre-wrap">{libMustSee}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Révélation */}
-          {funFact && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">💥 Révélation</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm whitespace-pre-wrap">{funFact}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* À explorer ensuite */}
-          {(libMustTry || libNearby) && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">🗺️ À explorer ensuite</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {libMustTry && <p>⭐ {libMustTry}</p>}
-                {libNearby && <p>📍 {libNearby}</p>}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Infos pratiques */}
-          {(libPriceInfo || accessibilityNotes) && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">ℹ️ Infos pratiques</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {libPriceInfo && <p>💰 {libPriceInfo}</p>}
-                {accessibilityNotes && <p>♿ {accessibilityNotes}</p>}
+                <p className="text-sm text-muted-foreground italic">
+                  Aucun texte, ajoute une note dans la bibliothèque.
+                </p>
               </CardContent>
             </Card>
           )}
         </>
       )}
 
-      {/* Fallback: no visit text AND no narrative → prompt */}
-      {isVisit && !visitText && !hasNarrativeContent && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">🕵 L'enquête</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground italic">
-              Aucun texte, ajoute une note dans la bibliothèque.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Content / story (non-visit or additional) */}
-      {!isVisit && contentI18n && Object.keys(contentI18n).length > 0 && (
+      {!narrative && !isVisit && contentI18n && Object.keys(contentI18n).length > 0 && (
         <Card>
           <CardContent className="p-4">
             <p className="text-sm whitespace-pre-wrap">
