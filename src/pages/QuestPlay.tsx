@@ -466,6 +466,10 @@ function POIDetail({
   // Check if we have any narrative content
   const hasNarrativeContent = !!(historyContext || anecdote || funFact || libMustSee || libMustTry || libNearby || libPriceInfo || (isVisit && visitText));
 
+  // Phase 2 — couche "Série interactive géolocalisée" (additive, fallback PR1 si absente)
+  const narrative = extractNarrativeLayer(config);
+
+
   return (
     <div className="max-w-2xl space-y-4">
       <div>
