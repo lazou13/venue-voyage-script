@@ -339,7 +339,131 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
         </div>
       )}
 
+      {/* ============= Story Architect (geo_series) block ============= */}
+      <Card className="border-primary/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-primary" />
+            Série interactive géolocalisée
+          </CardTitle>
+          <CardDescription>
+            Générez une couche narrative Story Architect pour transformer les POI de ce projet en épisodes :
+            hook, scène, mission, révélation, cliffhanger.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {orderedPoiIds.length === 0 ? (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Ajoutez d'abord des étapes dans l'onglet Étapes.
+              </AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              {orderedPoiIds.length > 8 && (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    Seuls les 8 premiers POI seront utilisés pour cette première génération.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <EnumSelect
+                  label="Format"
+                  value={seriesFormat}
+                  onChange={(v) => setSeriesFormat(v)}
+                  options={{
+                    marrakech_secrets: 'Les Secrets de Marrakech',
+                    dossier_secret: 'Le Dossier Secret',
+                    chronicles: 'Les Chroniques de Marrakech',
+                    insolent_guide: 'Guide Insolent',
+                  }}
+                />
+                <EnumSelect
+                  label="Ton"
+                  value={seriesTone}
+                  onChange={(v) => setSeriesTone(v)}
+                  options={{
+                    mysterious: 'Mystérieux',
+                    insolent: 'Insolent',
+                    family: 'Familial',
+                    premium: 'Premium',
+                  }}
+                />
+                <EnumSelect
+                  label="Objectif"
+                  value={seriesGoal}
+                  onChange={(v) => setSeriesGoal(v)}
+                  options={{
+                    fun_share: 'Fun & partage',
+                    cultural_immersive: 'Culturel immersif',
+                    light_investigation: 'Enquête légère',
+                  }}
+                />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={() => setSeriesConfirmOpen(true)}
+                  disabled={seriesLoading || seriesPoiIds.length === 0}
+                  className="gap-2"
+                >
+                  {seriesLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  Générer la série
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {seriesPoiIds.length} POI sélectionnés (sur {orderedPoiIds.length})
+                </span>
+              </div>
+
+              {seriesResult && (
+                <Alert>
+                  <Check className="h-4 w-4" />
+                  <AlertTitle>Série générée. Ouvrez le player pour vérifier les épisodes.</AlertTitle>
+                  <AlertDescription className="mt-2 text-xs">
+                    generated: {seriesResult.generated ?? 0} · cached: {seriesResult.cached ?? 0} · skipped:{' '}
+                    {seriesResult.skipped ?? 0} · error: {seriesResult.error ?? 0}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {seriesError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Erreur</AlertTitle>
+                  <AlertDescription>{seriesError}</AlertDescription>
+                </Alert>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={seriesConfirmOpen} onOpenChange={setSeriesConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la génération</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action va écrire une couche narrative dans les POI de ce projet.
+              Les visites classiques ne seront pas modifiées.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleGenerateSeries}>Confirmer</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Tabs defaultValue="checklist">
+
         <TabsList className={`grid w-full mb-4`} style={{ gridTemplateColumns: `repeat(${tabCount}, minmax(0, 1fr))` }}>
           {outputs.map((output) => (
             <TabsTrigger key={output.id} value={output.id} className="text-xs sm:text-sm">
