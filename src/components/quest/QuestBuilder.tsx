@@ -70,6 +70,11 @@ function formatRadius(m: number): string {
 
 // ━━━━━━━━━━━━━━ COMPONENT ━━━━━━━━━━━━━━
 
+type ProductType = "classic_visit" | "geo_series";
+type SeriesFormat = "secrets" | "dossier" | "chroniques" | "insolent";
+type SeriesTone = "mysterieux" | "insolent" | "familial" | "premium";
+type SeriesGoal = "fun" | "culturel" | "enquete";
+
 export default function QuestBuilder({
   startLat,
   startLng,
@@ -79,6 +84,7 @@ export default function QuestBuilder({
   const { generate, isLoading, error } = useQuestEngine();
 
   // State
+  const [productType, setProductType] = useState<ProductType>("classic_visit");
   const [mode, setMode] = useState<EngineMode>("treasure_hunt");
   const [theme, setTheme] = useState<Theme>("complete");
   const [audience, setAudience] = useState<Audience>("tourist");
@@ -90,8 +96,14 @@ export default function QuestBuilder({
   const [circular, setCircular] = useState(false);
   const [photoSpotsPriority, setPhotoSpotsPriority] = useState(false);
 
+  // Série interactive géolocalisée (préparatoire, sans backend)
+  const [seriesFormat, setSeriesFormat] = useState<SeriesFormat>("secrets");
+  const [seriesTone, setSeriesTone] = useState<SeriesTone>("mysterieux");
+  const [seriesGoal, setSeriesGoal] = useState<SeriesGoal>("culturel");
+
+  const isClassic = productType === "classic_visit";
   const isTreasure = mode === "treasure_hunt";
-  const canGenerate = !(startLat === 0 && startLng === 0);
+  const canGenerate = isClassic && !(startLat === 0 && startLng === 0);
 
   const handleGenerate = async () => {
     const result = await generate({
