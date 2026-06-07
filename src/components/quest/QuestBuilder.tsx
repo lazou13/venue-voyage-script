@@ -120,14 +120,32 @@ export default function QuestBuilder({
   const [circular, setCircular] = useState(false);
   const [photoSpotsPriority, setPhotoSpotsPriority] = useState(false);
 
-  // Série interactive géolocalisée (préparatoire, sans backend)
+  // Série interactive géolocalisée (Story Architect — PR2-D)
   const [seriesFormat, setSeriesFormat] = useState<SeriesFormat>("secrets");
   const [seriesTone, setSeriesTone] = useState<SeriesTone>("mysterieux");
   const [seriesGoal, setSeriesGoal] = useState<SeriesGoal>("culturel");
+  const [seriesLoading, setSeriesLoading] = useState(false);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
+  const [seriesResult, setSeriesResult] = useState<{
+    generated: number;
+    cached: number;
+    skipped: number;
+    error: number;
+  } | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const isClassic = productType === "classic_visit";
   const isTreasure = mode === "treasure_hunt";
   const canGenerate = isClassic && !(startLat === 0 && startLng === 0);
+
+  // Ordre stable des POI projet (sort_order croissant, max 8)
+  const orderedPoiIds = (projectPois ?? [])
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map((p) => p.id);
+  const seriesPoiIds = orderedPoiIds.slice(0, MAX_SERIES_POIS);
+  const hasProjectContext = Boolean(projectId) && seriesPoiIds.length > 0;
+  const canGenerateSeries = !isClassic && hasProjectContext && !seriesLoading;
 
   const handleGenerate = async () => {
     // Guard : ne jamais appeler le backend actuel avec geo_series
