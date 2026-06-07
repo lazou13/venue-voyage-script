@@ -713,6 +713,14 @@ function POIDetail({
         </Card>
       )}
 
+      {/* Ask the guide — placeholder */}
+      <Button disabled className="w-full">
+        🎙 Demander au guide
+      </Button>
+      <p className="text-xs text-muted-foreground text-center">
+        Bientôt disponible
+      </p>
+
       {/* Client feedback: photo capture + recommendation */}
       <ClientFeedbackSection
         accessToken={accessToken}
