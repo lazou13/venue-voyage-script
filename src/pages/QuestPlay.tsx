@@ -484,11 +484,11 @@ function POIDetail({
         />
       )}
 
-      {/* Visit mode: "L'enquête" (original text) */}
+      {/* Visit mode: "Le récit du guide" (original text) */}
       {isVisit && visitText && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm">🕵 L'enquête</CardTitle>
+            <CardTitle className="text-sm">🎙 Le récit du guide</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm whitespace-pre-wrap">{visitText}</p>
@@ -547,11 +547,11 @@ function POIDetail({
             </Card>
           )}
 
-          {/* Continuer l'aventure */}
+          {/* À explorer ensuite */}
           {(libMustTry || libNearby) && (
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">➡ Continuer l'aventure</CardTitle>
+                <CardTitle className="text-sm">🗺️ À explorer ensuite</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 {libMustTry && <p>⭐ {libMustTry}</p>}
