@@ -283,8 +283,11 @@ async function handleSyncPois(url: URL) {
     const tier_by_family = (meta.tier_by_family && typeof meta.tier_by_family === "object" && !Array.isArray(meta.tier_by_family))
       ? meta.tier_by_family
       : {};
+    const story_layer = (meta.story_layer && typeof meta.story_layer === "object" && !Array.isArray(meta.story_layer))
+      ? meta.story_layer
+      : null;
     const { metadata: _drop, ...rest } = p;
-    return { ...rest, visit_families, tier_by_family };
+    return { ...rest, visit_families, tier_by_family, story_layer };
   });
 
   const total = count || 0;
