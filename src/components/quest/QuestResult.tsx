@@ -268,7 +268,7 @@ function GuidedContent({ stop }: { stop: Stop }) {
       {stop.history_context && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <span className="text-xs font-medium text-blue-700 mb-1 block">
-            🏛️ Histoire du lieu
+            🎬 Épisode
           </span>
           <p className="text-sm">{stop.history_context}</p>
         </div>
@@ -283,7 +283,7 @@ function GuidedContent({ stop }: { stop: Stop }) {
       {stop.fun_fact && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
           <span className="text-xs font-medium text-amber-700 mb-1 block">
-            💡 Le saviez-vous ?
+            💥 Révélation
           </span>
           <p className="text-sm">{stop.fun_fact}</p>
         </div>
@@ -316,7 +316,7 @@ function GuidedContent({ stop }: { stop: Stop }) {
             )}
             {stop.must_see_details && (
               <p className="text-sm">
-                <span className="font-medium">À ne pas manquer :</span> {stop.must_see_details}
+                <span className="font-medium">L'enquête :</span> {stop.must_see_details}
               </p>
             )}
           </CollapsibleContent>
@@ -326,7 +326,7 @@ function GuidedContent({ stop }: { stop: Stop }) {
       {(stop.must_see_details || mustSeeFallback) && !stop.price_info && !stop.opening_hours && (
         <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
           <span className="text-xs font-medium text-teal-700 mb-1 block">
-            👁️ À voir
+            🕵 L'enquête
           </span>
           {stop.must_see_details ? (
             <p className="text-sm">{stop.must_see_details}</p>
