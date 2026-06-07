@@ -102,6 +102,8 @@ export default function QuestBuilder({
   startLng,
   startName,
   onQuestGenerated,
+  projectId,
+  projectPois,
 }: QuestBuilderProps) {
   const { generate, isLoading, error } = useQuestEngine();
 
