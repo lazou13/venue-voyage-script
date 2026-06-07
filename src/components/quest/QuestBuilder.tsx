@@ -458,6 +458,7 @@ export default function QuestBuilder({
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+      </>}
     </div>
   );
 }
