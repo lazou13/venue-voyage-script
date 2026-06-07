@@ -13,6 +13,18 @@ import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Slider } from "@/components/ui/slider";
 import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ━━━━━━━━━━━━━━ PROPS ━━━━━━━━━━━━━━
 
@@ -21,7 +33,17 @@ interface QuestBuilderProps {
   startLng: number;
   startName?: string;
   onQuestGenerated: (result: QuestResult) => void;
+  /** Optionnel : ID du projet courant (requis pour générer une série geo_series). */
+  projectId?: string;
+  /**
+   * Optionnel : liste ordonnée des POI du projet (id + sort_order).
+   * Requise pour générer une série geo_series. Sans elle, le bouton reste désactivé
+   * et un message explicatif est affiché à l'utilisateur.
+   */
+  projectPois?: Array<{ id: string; sort_order?: number }>;
 }
+
+const MAX_SERIES_POIS = 8;
 
 // ━━━━━━━━━━━━━━ DATA ━━━━━━━━━━━━━━
 
@@ -80,6 +102,8 @@ export default function QuestBuilder({
   startLng,
   startName,
   onQuestGenerated,
+  projectId,
+  projectPois,
 }: QuestBuilderProps) {
   const { generate, isLoading, error } = useQuestEngine();
 
@@ -96,17 +120,35 @@ export default function QuestBuilder({
   const [circular, setCircular] = useState(false);
   const [photoSpotsPriority, setPhotoSpotsPriority] = useState(false);
 
-  // Série interactive géolocalisée (préparatoire, sans backend)
+  // Série interactive géolocalisée (Story Architect — PR2-D)
   const [seriesFormat, setSeriesFormat] = useState<SeriesFormat>("secrets");
   const [seriesTone, setSeriesTone] = useState<SeriesTone>("mysterieux");
   const [seriesGoal, setSeriesGoal] = useState<SeriesGoal>("culturel");
+  const [seriesLoading, setSeriesLoading] = useState(false);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
+  const [seriesResult, setSeriesResult] = useState<{
+    generated: number;
+    cached: number;
+    skipped: number;
+    error: number;
+  } | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const isClassic = productType === "classic_visit";
   const isTreasure = mode === "treasure_hunt";
   const canGenerate = isClassic && !(startLat === 0 && startLng === 0);
 
+  // Ordre stable des POI projet (sort_order croissant, max 8)
+  const orderedPoiIds = (projectPois ?? [])
+    .slice()
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map((p) => p.id);
+  const seriesPoiIds = orderedPoiIds.slice(0, MAX_SERIES_POIS);
+  const hasProjectContext = Boolean(projectId) && seriesPoiIds.length > 0;
+  const canGenerateSeries = !isClassic && hasProjectContext && !seriesLoading;
+
   const handleGenerate = async () => {
-    // Guard : ne jamais appeler le backend actuel avec geo_series
+    // Guard : ne jamais appeler le backend classique avec geo_series
     if (!isClassic) return;
     const result = await generate({
       start_lat: startLat,
@@ -124,6 +166,55 @@ export default function QuestBuilder({
       language: "fr",
     });
     if (result) onQuestGenerated(result);
+  };
+
+  const handleGenerateSeries = async () => {
+    if (isClassic) return; // garde-fou : jamais en mode classique
+    if (!projectId) {
+      toast.error("Aucun project_id : impossible de générer la série.");
+      return;
+    }
+    if (seriesPoiIds.length === 0) {
+      toast.error("Aucun POI projet disponible : impossible de générer la série.");
+      return;
+    }
+    setSeriesError(null);
+    setSeriesResult(null);
+    setSeriesLoading(true);
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke(
+        "story-architect",
+        {
+          body: {
+            project_id: projectId,
+            poi_ids: seriesPoiIds,
+            format: seriesFormat,
+            tone: seriesTone,
+            goal: seriesGoal,
+            language: "fr",
+            dry_run: false,
+          },
+        }
+      );
+      if (invokeError) throw invokeError;
+      const summary = (data && (data as any).summary) || null;
+      const stats = {
+        generated: summary?.generated ?? 0,
+        cached: summary?.cached ?? 0,
+        skipped: summary?.skipped ?? 0,
+        error: summary?.error ?? 0,
+      };
+      setSeriesResult(stats);
+      toast.success(
+        `Série générée : ${stats.generated} épisode(s). Ouvrez le player pour vérifier EpisodeView.`
+      );
+    } catch (e: any) {
+      const msg = e?.message || "Erreur lors de la génération de la série.";
+      setSeriesError(msg);
+      toast.error(msg);
+    } finally {
+      setSeriesLoading(false);
+    }
   };
 
   const SERIES_FORMATS: { value: SeriesFormat; label: string }[] = [
@@ -247,12 +338,77 @@ export default function QuestBuilder({
             </div>
           </div>
 
-          <Button size="lg" className="w-full" disabled>
-            Générer la série (bientôt disponible)
+          {!hasProjectContext && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                Aucune liste de POI projet n'est fournie à ce composant. Story Architect
+                a besoin d'un <code>projectId</code> et de la liste ordonnée des POI du
+                projet (table <code>pois</code>). Branchez <code>QuestBuilder</code> dans
+                la page projet (ex. via <code>useProject</code> / <code>usePOIs</code>)
+                en passant <code>projectId</code> et <code>projectPois</code>.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {hasProjectContext && (
+            <p className="text-xs text-muted-foreground text-center">
+              {seriesPoiIds.length} POI utilisé(s) (max {MAX_SERIES_POIS}, ordre préservé).
+            </p>
+          )}
+
+          <Button
+            size="lg"
+            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+            disabled={!canGenerateSeries}
+            onClick={() => setConfirmOpen(true)}
+          >
+            {seriesLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Génération de la série...
+              </>
+            ) : (
+              "Générer la série"
+            )}
           </Button>
-          <p className="text-xs text-muted-foreground text-center">
-            Story Architect sera branché en Phase 2-C.
-          </p>
+
+          {seriesResult && (
+            <Alert>
+              <AlertDescription>
+                Série générée — {seriesResult.generated} généré(s), {seriesResult.cached}{" "}
+                en cache, {seriesResult.skipped} ignoré(s), {seriesResult.error} en erreur.
+                Ouvrez le player pour vérifier EpisodeView.
+              </AlertDescription>
+            </Alert>
+          )}
+          {seriesError && (
+            <Alert variant="destructive">
+              <AlertDescription>{seriesError}</AlertDescription>
+            </Alert>
+          )}
+
+          <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Générer la série narrative ?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Cette action va écrire une couche narrative dans les POI de ce projet.
+                  Les visites classiques ne seront pas modifiées.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setConfirmOpen(false);
+                    void handleGenerateSeries();
+                  }}
+                >
+                  Confirmer et générer
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
 
