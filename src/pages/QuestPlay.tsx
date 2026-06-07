@@ -515,7 +515,9 @@ function POIDetail({
   const hasNarrativeContent = !!(historyContext || anecdote || funFact || libMustSee || libMustTry || libNearby || libPriceInfo || (isVisit && visitText));
 
   // Phase 2 — couche "Série interactive géolocalisée" (additive, fallback PR1 si absente)
-  const narrative = extractNarrativeLayer(config);
+  const narrative = isMockSeries
+    ? extractNarrativeLayer({ narrative_layer: MOCK_NARRATIVE_LAYER })
+    : extractNarrativeLayer(config);
 
 
   return (
