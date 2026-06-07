@@ -326,7 +326,7 @@ function GuidedContent({ stop }: { stop: Stop }) {
       {(stop.must_see_details || mustSeeFallback) && !stop.price_info && !stop.opening_hours && (
         <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
           <span className="text-xs font-medium text-teal-700 mb-1 block">
-            👁️ À voir
+            🕵 L'enquête
           </span>
           {stop.must_see_details ? (
             <p className="text-sm">{stop.must_see_details}</p>
