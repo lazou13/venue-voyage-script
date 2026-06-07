@@ -225,6 +225,7 @@ Deno.serve(async (req) => {
           tier_by_family: r?.tier_by_family ?? ((meta as any).tier_by_family ?? {}),
           ready_by_family: r?.ready_by_family ?? {},
           enrichment_gaps_by_family: r?.enrichment_gaps_by_family ?? {},
+          story_layer: (meta as any).story_layer ?? null,
         };
       });
       return json({ pois: result }, 200, cors);
