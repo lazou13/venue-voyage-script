@@ -6,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Play, Clock, MapPin, AlertTriangle, Eye, ChevronRight, ArrowLeft, CheckCircle2, Smartphone, MessageCircle, Map as MapIcon, List } from 'lucide-react';
 import { ClientFeedbackSection } from '@/components/quest/ClientFeedbackSection';
+import { EpisodeView } from '@/components/quest/EpisodeView';
+import { extractNarrativeLayer } from '@/types/narrative';
 
 const QuestMap = lazy(() => import('@/components/quest/QuestMap'));
 
