@@ -1,13 +1,25 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Copy, Download, Check, AlertCircle, AlertTriangle, BarChart3, Loader2, RotateCcw, Pencil } from 'lucide-react';
+import { Copy, Download, Check, AlertCircle, AlertTriangle, BarChart3, Loader2, RotateCcw, Pencil, Sparkles } from 'lucide-react';
 import { useProject } from '@/hooks/useProject';
 import { useAvatars } from '@/hooks/useAvatars';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { EnumSelect } from './shared/EnumSelect';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { generateChecklist, generatePRD, generatePrompt, generateVisitReportMD, generateRoadBook } from '@/lib/outputGenerators';
 import { supabase } from '@/integrations/supabase/client';
 import { InteractiveReportViewer } from './InteractiveReportViewer';
