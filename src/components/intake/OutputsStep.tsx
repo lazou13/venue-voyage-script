@@ -197,6 +197,52 @@ export function OutputsStep({ projectId }: OutputsStepProps) {
     URL.revokeObjectURL(url);
   };
 
+  // ============= Story Architect handler =============
+  const orderedPoiIds = useMemo(
+    () => [...pois].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((p) => p.id),
+    [pois]
+  );
+  const seriesPoiIds = orderedPoiIds.slice(0, 8);
+
+  const handleGenerateSeries = async () => {
+    setSeriesConfirmOpen(false);
+    if (!projectId || seriesPoiIds.length === 0) return;
+    setSeriesLoading(true);
+    setSeriesError(null);
+    setSeriesResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('story-architect', {
+        body: {
+          project_id: projectId,
+          poi_ids: seriesPoiIds,
+          format: seriesFormat,
+          tone: seriesTone,
+          goal: seriesGoal,
+          language: 'fr',
+          dry_run: false,
+        },
+      });
+      if (error) throw error;
+      const summary = (data as { summary?: { generated?: number; cached?: number; skipped?: number; error?: number } })?.summary ?? {};
+      setSeriesResult(summary);
+      toast({
+        title: 'Série générée',
+        description: 'Ouvrez le player pour vérifier les épisodes.',
+      });
+    } catch (err) {
+      const msg = (err as Error).message || 'Erreur inconnue';
+      setSeriesError(msg);
+      toast({
+        title: 'Erreur de génération',
+        description: msg,
+        variant: 'destructive',
+      });
+    } finally {
+      setSeriesLoading(false);
+    }
+  };
+
+
   if (!project) {
     return (
       <Card>
