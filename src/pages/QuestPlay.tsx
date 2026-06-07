@@ -437,6 +437,8 @@ function POIDetail({
   instanceId: string;
 }) {
   const config = poi.step_config || {};
+  const [detailParams] = useSearchParams();
+  const isMockSeries = detailParams.get('mockSeries') === '1';
   const geo = config.geo as Record<string, unknown> | undefined;
   const media = config.media as Record<string, unknown> | undefined;
   const contentI18n = config.contentI18n as Record<string, string> | undefined;
