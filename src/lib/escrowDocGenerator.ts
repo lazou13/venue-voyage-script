@@ -502,12 +502,18 @@ Documentation technique descriptive de l'application Hunt Planner Pro (HPP).
 | \`DATABASE_SCHEMA.md\` | Tables, vues, relations, sécurité RLS |
 | \`API_AND_EDGE_FUNCTIONS.md\` | Edge Functions, API publiques, authentification |
 | \`DEPLOYMENT.md\` | Environnement, build, workflow d'exploitation |
+| \`SOURCE_CODE/\` | Code source complet (frontend, Edge Functions, migrations, configuration) |
 
-## Note
+## Code source
 
-Ce dossier est fourni à titre de documentation descriptive dans le cadre d'un processus d'escrow.
-Il ne contient aucun fichier source (.ts, .tsx, .css, etc.).
-Le code source complet sera transmis à la finalisation de la transaction.
+Le dossier \`SOURCE_CODE/\` contient l'intégralité du code source de l'application au moment de la génération (${sourceCount} fichiers) :
+
+- \`src/\` : frontend React/TypeScript complet
+- \`supabase/functions/\` : Edge Functions Deno
+- \`supabase/migrations/\` : migrations SQL
+- \`supabase/config.toml\` et fichiers de configuration du build (Vite, Tailwind, TypeScript)
+
+Les fichiers binaires (images, médias) et les secrets d'environnement ne sont pas inclus.
 
 ---
 Généré le ${new Date().toLocaleDateString('fr-FR')} par Hunt Planner Pro Admin.
