@@ -42,7 +42,8 @@ export default function AdminDocs() {
           </CardTitle>
           <CardDescription>
             Téléchargez un ZIP contenant la documentation technique complète de l'application
-            (architecture, types, schéma BDD, hooks). Aucun code source n'est inclus.
+            (architecture, types, schéma BDD, hooks) ainsi que le code source intégral
+            (frontend, fonctions serveur, migrations).
           </CardDescription>
         </CardHeader>
         <CardContent>

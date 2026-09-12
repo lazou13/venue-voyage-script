@@ -440,11 +440,45 @@ Le back-office \`/admin\` utilise un workflow brouillon/publication :
 - Notifications e-mail transactionnelles via domaine dédié.
 `;
 
+// Code source embarqué en texte brut au build (Vite raw imports).
+// Frontend + backend Deno + configuration, hors binaires et secrets (.env jamais globés).
+const sourceFiles = import.meta.glob(
+  [
+    '/src/**/*.{ts,tsx,css}',
+    '/supabase/functions/**/*.ts',
+    '/supabase/config.toml',
+    '/supabase/migrations/*.sql',
+    '/package.json',
+    '/index.html',
+    '/vite.config.ts',
+    '/tailwind.config.ts',
+    '/tsconfig.json',
+    '/tsconfig.app.json',
+    '/tsconfig.node.json',
+    '/components.json',
+    '/vitest.config.ts',
+    '/postcss.config.js',
+    '/eslint.config.js',
+  ],
+  { query: '?raw', import: 'default', eager: true },
+) as Record<string, string>;
+
 export async function generateEscrowZip(): Promise<void> {
   const zip = new JSZip();
 
   const folder = zip.folder('HuntPlannerPro_Technical_Documentation');
   if (!folder) throw new Error('Failed to create ZIP folder');
+
+  const srcFolder = folder.folder('SOURCE_CODE');
+  if (!srcFolder) throw new Error('Failed to create ZIP source folder');
+
+  let sourceCount = 0;
+  for (const [path, content] of Object.entries(sourceFiles)) {
+    // path absolu type "/src/..." → chemin relatif dans le ZIP
+    const relative = path.replace(/^\//, '');
+    srcFolder.file(relative, content);
+    sourceCount++;
+  }
 
   folder.file('ECOSYSTEM.md', ECOSYSTEM_MD);
   folder.file('ARCHITECTURE.md', ARCHITECTURE_MD);
@@ -468,12 +502,18 @@ Documentation technique descriptive de l'application Hunt Planner Pro (HPP).
 | \`DATABASE_SCHEMA.md\` | Tables, vues, relations, sécurité RLS |
 | \`API_AND_EDGE_FUNCTIONS.md\` | Edge Functions, API publiques, authentification |
 | \`DEPLOYMENT.md\` | Environnement, build, workflow d'exploitation |
+| \`SOURCE_CODE/\` | Code source complet (frontend, Edge Functions, migrations, configuration) |
 
-## Note
+## Code source
 
-Ce dossier est fourni à titre de documentation descriptive dans le cadre d'un processus d'escrow.
-Il ne contient aucun fichier source (.ts, .tsx, .css, etc.).
-Le code source complet sera transmis à la finalisation de la transaction.
+Le dossier \`SOURCE_CODE/\` contient l'intégralité du code source de l'application au moment de la génération (${sourceCount} fichiers) :
+
+- \`src/\` : frontend React/TypeScript complet
+- \`supabase/functions/\` : Edge Functions Deno
+- \`supabase/migrations/\` : migrations SQL
+- \`supabase/config.toml\` et fichiers de configuration du build (Vite, Tailwind, TypeScript)
+
+Les fichiers binaires (images, médias) et les secrets d'environnement ne sont pas inclus.
 
 ---
 Généré le ${new Date().toLocaleDateString('fr-FR')} par Hunt Planner Pro Admin.
