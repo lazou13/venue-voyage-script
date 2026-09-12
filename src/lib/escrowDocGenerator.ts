@@ -1,21 +1,57 @@
 import JSZip from 'jszip';
 
-const ARCHITECTURE_MD = `# Architecture Technique — QuestRides
+const ECOSYSTEM_MD = `# Écosystème Produit — Hunt Planner Pro (HPP)
+
+## Les trois applications
+
+| Application | Rôle |
+|---|---|
+| **Hunt Planner Pro (HPP)** | Back-office "source de vérité" : bibliothèque de POI médina, enrichissements IA, audios, configurateur de chasses au trésor B2B, catalogue et commandes |
+| **QUEST RIDES PRO (QRP)** | Assemblage et restitution des visites/séries finales à partir des contenus produits par HPP |
+| **Questride (B2C/B2B)** | Diffusion et vente des expériences aux clients finaux |
+
+## Frontière fonctionnelle
+
+- HPP **ne fabrique pas** les visites finales. Il produit et qualifie des contenus sources (POI, textes, audios, couches narratives).
+- QRP consomme ces contenus via des endpoints publics en lecture seule (\`api-v2\`, \`public-project-data\`).
+- Le flux \`/intake/:projectId\` de HPP est strictement réservé aux chasses au trésor / quêtes sur mesure B2B. Il ne contient aucune logique de série narrative.
+
+## Deux sources de données
+
+| Source | Usage |
+|---|---|
+| Backend interne (Lovable Cloud / PostgreSQL) | Projets B2B, POI médina, enrichissements, quêtes générées, commandes |
+| Backend externe Supabase (PMS partenaires) | Données publiques partenaires / PMS, consommées en lecture |
+
+## Périmètre géographique
+
+Bibliothèque POI strictement bornée à la médina de Marrakech :
+latitude 31.60 → 31.67, longitude -8.02 → -7.97. Tout POI hors bornes est rejeté par le watchdog.
+
+## Politique éditoriale
+
+- Contenu natif en français, parité anglaise obligatoire (\`history_context_en\`, etc.).
+- Noms de POI en alphabet latin uniquement (l'original arabe est conservé dans \`name_ar\`).
+- Anti-hallucination stricte : en l'absence de fait vérifiable, le contenu généré indique explicitement "Données insuffisantes".
+`;
+
+const ARCHITECTURE_MD = `# Architecture Technique — Hunt Planner Pro
 
 ## Stack Technologique
 
 | Couche | Technologie |
 |---|---|
 | Frontend | React 18 + TypeScript |
-| Build | Vite |
+| Build | Vite 5 |
 | Styling | Tailwind CSS + shadcn/ui |
 | Routing | React Router DOM v6 |
 | State serveur | TanStack React Query |
-| Backend | Lovable Cloud (Supabase) |
-| Auth | Supabase Auth (email/password) |
-| Base de données | PostgreSQL (hébergé Supabase) |
-| Edge Functions | Deno (Supabase Edge Functions) |
+| Backend | Lovable Cloud (PostgreSQL managé) |
+| Auth | Auth email/password + rôles applicatifs |
+| Edge Functions | Deno (~48 fonctions) |
 | Cartes | Leaflet + React-Leaflet |
+| Géospatial | PostGIS (\`geometry_columns\`, \`streets\`, \`street_nodes\`) |
+| IA | Passerelle IA (Gemini Pro/Flash, GPT-4o-mini), Perplexity (sonar), ElevenLabs (TTS) |
 | ZIP client | JSZip |
 | Graphiques | Recharts |
 
@@ -25,174 +61,134 @@ const ARCHITECTURE_MD = `# Architecture Technique — QuestRides
 src/
 ├── assets/              # Images et fichiers statiques importés
 ├── components/
-│   ├── admin/           # Composants du panneau admin (sidebar, enum editor)
-│   ├── intake/          # Composants du formulaire Intake (6 onglets + sous-composants)
-│   │   └── shared/      # Composants réutilisables (I18nInput, EnumSelect, OptionMatrix, etc.)
-│   └── ui/              # Composants shadcn/ui (button, dialog, tabs, etc.)
-├── contexts/            # React Contexts (AppConfigContext)
-├── hooks/               # Custom hooks (useProject, usePOIs, useAppConfig, etc.)
-├── integrations/
-│   └── supabase/        # Client Supabase auto-généré + types
-├── lib/                 # Fonctions utilitaires et générateurs
+│   ├── admin/           # Composants du back-office
+│   ├── docs/            # Onglets de documentation interne
+│   ├── intake/          # Configurateur B2B (onglets + sous-composants)
+│   │   └── shared/      # I18nInput, EnumSelect, OptionMatrix, etc.
+│   ├── medina/          # Bibliothèque POI médina, fiches, enrichissement
+│   ├── play/            # Interface de jeu / lecteur
+│   └── ui/              # Composants shadcn/ui
+├── contexts/            # AppConfigContext
+├── hooks/               # Hooks métier (voir HOOKS_AND_CONTEXT.md)
+├── integrations/        # Client backend auto-généré + types
+├── lib/                 # Utilitaires et générateurs (exports, road book, escrow)
 ├── pages/
-│   ├── admin/           # Pages du panneau admin (Enums, Presets, Fields, Rules, Labels, Publish, Docs)
-│   └── *.tsx            # Pages principales (Dashboard, IntakeForm, Auth, etc.)
-├── test/                # Configuration et fichiers de test
+│   ├── admin/           # 16 pages back-office
+│   └── *.tsx            # HomePage, Dashboard, IntakeForm, QuestPlay, Auth…
+├── test/                # Configuration Vitest
 └── types/               # Types TypeScript (intake.ts)
 
 supabase/
-├── config.toml          # Configuration Supabase
-├── functions/           # Edge Functions (admin-signup, create-first-admin)
+├── config.toml          # Configuration des fonctions (verify_jwt)
+├── functions/           # ~48 Edge Functions Deno
 └── migrations/          # Migrations SQL
 \`\`\`
 
-## Flux de Données Principal
+## Routes de l'application
 
-1. **Dashboard** → L'utilisateur crée ou sélectionne un projet
-2. **IntakeForm** → Formulaire à 6 onglets qui persiste les données dans \`projects\`, \`pois\`, \`wifi_zones\`, \`forbidden_zones\`
-3. **AppConfigContext** → Fournit la configuration admin (capabilities) à l'ensemble du panneau admin
-4. **Exports** → Génération côté client de checklist, PRD, prompt IA, rapport interactif HTML
+| Route | Écran |
+|---|---|
+| \`/\` | HomePage (vitrine / démo) |
+| \`/dashboard\` | Liste et création de projets B2B |
+| \`/intake/:projectId\` | Configurateur chasse au trésor / quête sur mesure |
+| \`/play\` | Lecteur de quête (test terrain) |
+| \`/auth\`, \`/reset-password\` | Authentification |
+| \`/admin/dashboard\` | Pilotage global (métriques FR/EN) |
+| \`/admin/medina-pois\` | Bibliothèque POI médina |
+| \`/admin/poi-pipeline\` | Pipeline d'extraction/enrichissement |
+| \`/admin/watchdog\` | Audit qualité et intégrité géographique |
+| \`/admin/media-library\` | Médias et audios |
+| \`/admin/quest-library\` | Bibliothèque de quêtes culturelles |
+| \`/admin/client-feedback\` | Modération des retours joueurs |
+| \`/admin/orders\`, \`/admin/catalog\` | Commandes et catalogue commercial |
+| \`/admin/health\` | Santé technique de la plateforme |
+| \`/admin/experience-page\` | Configuration de l'expérience publique |
+| \`/admin/agent-chat\` | Agent IA expert médina |
+| \`/admin/api-keys\` | Clés API partenaires (API v2) |
+| \`/admin/enums\`, \`/admin/docs\` | Configuration et documentation |
+
+## Flux de Données Principaux
+
+### 1. Pipeline POI médina (cœur de HPP)
+Extraction géographique (grille 100 m, rayon 150 m) → hygiène des données (dédoublonnage 15 m, filtrage) → classification IA et scoring → enrichissement narratif (7 champs) → traduction anglaise → génération audio TTS → auto-validation (score ≥ 3) → exposition API.
+
+### 2. Configurateur B2B
+Dashboard → \`/intake/:projectId\` (validation mode de jeu, carte, zones interdites, types d'étapes) → exports client : checklist, PRD, prompt IA, road book éditable, rapport interactif HTML.
+
+### 3. Couche narrative (story_layer)
+\`story-architect\` enrichit un POI médina et écrit \`medina_pois.metadata.story_layer\`. HPP ne produit **pas** la série finale ; QRP l'assemble à partir de ce champ exposé en top-level par les API publiques.
 
 ## Architecture Admin (Back-office)
 
-Le panneau admin utilise un pattern centralisé :
-- \`AppConfigContext\` encapsule un hook \`useAppConfig\` unique
-- Toutes les sous-pages admin (Enums, Fields, Rules, etc.) lisent et écrivent dans ce contexte partagé
-- Les boutons globaux "Sauvegarder" et "Publier" dans le header détectent automatiquement les changements locaux
-- Le système utilise un workflow brouillon/publication avec versioning dans la table \`app_configs\`
+- \`AppConfigContext\` encapsule un hook \`useAppConfig\` unique.
+- Toutes les sous-pages admin lisent et écrivent dans ce contexte partagé.
+- Workflow brouillon / publication avec versioning dans \`app_configs\`.
+- Les tâches longues (pipeline, enrichissement) utilisent un auto-bouclage par lots côté client avec persistance d'état en base, pour résister aux délais d'exécution des fonctions serveur.
 `;
 
-const HOOKS_AND_CONTEXT_MD = `# Hooks et Contextes — QuestRides
+const HOOKS_AND_CONTEXT_MD = `# Hooks et Contextes — Hunt Planner Pro
 
-## Hooks Principaux
+## Hooks Projet B2B
 
-### \`useProject(projectId: string)\`
-**Fichier :** \`src/hooks/useProject.ts\`
+### \`useProject(projectId)\` — \`src/hooks/useProject.ts\`
+CRUD d'un projet unique. Retourne \`project\`, \`isLoading\`, \`updateProject()\`, \`refetch()\`.
 
-Gère le CRUD complet d'un projet unique.
+### \`usePOIs(projectId)\` — \`src/hooks/usePOIs.ts\`
+Étapes du jeu d'un projet B2B (table \`pois\`). \`addPOI\`, \`updatePOI\`, \`deletePOI\`, \`reorderPOIs\`.
 
-**Retourne :**
-- \`project: Project | null\` — Données du projet courant
-- \`isLoading: boolean\` — État de chargement
-- \`updateProject(updates: Partial<Project>): Promise<void>\` — Met à jour les champs du projet
-- \`refetch(): void\` — Recharge les données
+### \`useZones(projectId)\` — zones Wi-Fi et zones interdites.
 
-**Utilisation :** Page IntakeForm pour lire/écrire les données projet.
+### \`useAvatars(projectId?)\` — avatars/narrateurs (projet ou globaux).
 
----
+## Hooks Bibliothèque médina
 
-### \`usePOIs(projectId: string)\`
-**Fichier :** \`src/hooks/usePOIs.ts\`
+### \`useMedinaPOIs()\` — \`src/hooks/useMedinaPOIs.ts\`
+Lecture, filtrage et mise à jour des POI de la bibliothèque médina (table \`medina_pois\`, 131 colonnes). Gère les statuts d'enrichissement, les scores qualité, les familles de visite.
 
-Gère les Points d'Intérêt (étapes du jeu) d'un projet.
+### \`usePOIMedia()\` — médias associés à un POI (\`poi_media\`), photos et audios.
 
-**Retourne :**
-- \`pois: POI[]\` — Liste triée par \`sort_order\`
-- \`isLoading: boolean\`
-- \`addPOI(poi: Partial<POI>): Promise<void>\`
-- \`updatePOI(id: string, updates: Partial<POI>): Promise<void>\`
-- \`deletePOI(id: string): Promise<void>\`
-- \`reorderPOIs(ids: string[]): Promise<void>\`
+## Hooks Jeu & terrain
 
----
+### \`useQuestEngine()\` — moteur de déroulé d'une quête (étapes, validation, scoring).
+### \`useQuestInstances()\` — instances de parties (\`quest_instances\`).
+### \`usePlayInstance()\` — état d'une session de jeu en cours.
+### \`useQuestPhoto()\` — capture et validation photo d'étape.
+### \`useRouteRecorder(projectId)\` — enregistrement GPS (filtrage du bruit, échantillonnage, autosauvegarde 15 s, marqueurs manuels ou géolocalisés).
+### \`useVoiceRecorder()\` — notes vocales terrain.
+### \`useWakeLock()\` — maintien de l'écran allumé pendant le terrain.
 
-### \`useAppConfig(key: string)\`
-**Fichier :** \`src/hooks/useAppConfig.ts\`
+## Hooks Commerce & configuration
 
-Gère la configuration admin (capabilities) avec workflow brouillon/publication.
+### \`useOrders()\` — commandes clients (\`orders\`).
+### \`useAppConfig(key)\` — configuration admin avec workflow brouillon/publication.
+### \`useCapabilities()\` — lecture de la config publiée (visibilité/obligation des champs Intake).
+### \`useCrossTabStats()\` — métriques agrégées du tableau de bord.
 
-**Retourne :**
-- \`config: Json\` — Payload de configuration courante
-- \`hasUnsavedChanges: boolean\`
-- \`isSaving / isPublishing: boolean\`
-- \`publishedVersion: number\`
-- \`draftId: string | null\`
-- \`updateConfig(path: string, value: any): void\` — Met à jour un champ dans le brouillon local
-- \`saveDraft(): Promise<boolean>\` — Persiste le brouillon en base
-- \`publish(): Promise<boolean>\` — Publie le brouillon comme version active
+## Hooks transverses
 
----
-
-### \`useCapabilities()\`
-**Fichier :** \`src/hooks/useCapabilities.ts\`
-
-Lit la configuration publiée (version active) pour déterminer les capacités disponibles dans l'Intake.
-
-**Retourne :**
-- \`capabilities: Record<string, any>\` — Registre des capacités actives
-- \`isFieldVisible(section: string, field: string): boolean\`
-- \`isFieldRequired(section: string, field: string): boolean\`
-
----
-
-### \`useRouteRecorder(projectId: string)\`
-**Fichier :** \`src/hooks/useRouteRecorder.ts\`
-
-Gère l'enregistrement GPS pour le mode Reconnaissance Parcours.
-
-**Retourne :**
-- \`status: 'idle' | 'recording' | 'paused' | 'error'\`
-- \`currentPosition: { lat, lng } | null\`
-- \`distance: number\` — Distance parcourue en mètres
-- \`duration: number\` — Durée en secondes
-- \`startRecording(): void\`
-- \`stopRecording(): Promise<void>\`
-- \`addMarker(note?: string): void\` — Ajoute un marqueur à la position courante
-
----
-
-### \`useZones(projectId: string)\`
-**Fichier :** \`src/hooks/useZones.ts\`
-
-Gère les zones Wi-Fi et zones interdites d'un projet.
-
----
-
-### \`useAvatars(projectId?: string)\`
-**Fichier :** \`src/hooks/useAvatars.ts\`
-
-Gère les avatars/narrateurs disponibles pour un projet.
-
----
-
-### \`useAuth()\`
-**Fichier :** \`src/hooks/useAuth.ts\`
-
-Gère l'authentification utilisateur (login, signup, logout, session).
-
----
-
-### \`useAdminRole()\`
-**Fichier :** \`src/hooks/useAdminRole.ts\`
-
-Vérifie si l'utilisateur connecté a le rôle admin via la table \`user_roles\`.
-
----
+\`useAuth()\` (session), \`useAdminRole()\` (rôle via \`user_roles\`), \`useFileUpload()\`, \`useDebounce()\`, \`use-mobile\`, \`use-toast\`.
 
 ## Contextes
 
-### \`AppConfigContext\`
-**Fichier :** \`src/contexts/AppConfigContext.tsx\`
-
-Encapsule \`useAppConfig('capabilities')\` et expose ses valeurs à tout le panneau admin via \`useAppConfigContext()\`.
-
-**Rôle :** Source unique de vérité pour l'état admin. Permet aux boutons globaux Save/Publish du header de réagir aux modifications faites dans n'importe quel sous-module.
+### \`AppConfigContext\` — \`src/contexts/AppConfigContext.tsx\`
+Source unique de vérité pour l'état admin. Permet aux boutons globaux Sauvegarder/Publier du header de réagir aux modifications faites dans n'importe quel sous-module.
 `;
 
-const TYPES_REFERENCE_MD = `# Référence des Types — QuestRides
+const TYPES_REFERENCE_MD = `# Référence des Types — Hunt Planner Pro
 
-Tous les types sont définis dans \`src/types/intake.ts\`.
+Types principaux dans \`src/types/intake.ts\`.
 
 ## Enums
 
 | Type | Valeurs |
 |---|---|
-| \`ProjectType\` | \`establishment\`, \`tourist_spot\`, \`route_recon\` |
+| \`ProjectType\` | \`establishment\`, \`tourist_spot\`, \`route_recon\`, \`library\` |
 | \`QuestType\` | \`exploration\`, \`sequential\`, \`timed_race\`, \`collaborative\`, \`team_competition\` |
 | \`PlayMode\` | \`solo\`, \`team\`, \`one_vs_one\`, \`multi_solo\` |
-| \`StepType\` | \`story\`, \`information\`, \`mcq\`, \`enigme\`, \`code\`, \`hangman\`, \`memory\`, \`photo\`, \`terrain\`, \`defi\` |
-| \`ValidationMode\` | \`qr_code\`, \`photo\`, \`code\`, \`manual\`, \`free\` |
-| \`InteractionType\` | \`puzzle\`, \`qr_scan\`, \`photo\`, \`hidden_object\`, \`npc\`, \`audio\` |
+| \`StepType\` | \`story\`, \`information\`, \`mcq\`, \`enigme\`, \`code\`, \`hangman\`, \`memory\`, \`photo\`, \`terrain\`, \`defi\`, \`transition\`, \`qr_code\`, \`info_qr\`, \`countdown\` |
+| \`ValidationMode\` | \`qr_code\`, \`photo\`, \`code\`, \`manual\`, \`free\`, \`validation_chain\` |
+| \`InteractionType\` | \`puzzle\`, \`qr_scan\`, \`photo\`, \`hidden_object\`, \`npc\`, \`audio\`, \`storytelling\`, \`video\` |
+| \`TransportMode\` | \`walking\`, \`cycling\`, \`bus\`, \`car\`, \`boat\`, \`mixed\` |
 | \`DifficultyLevel\` | \`easy\`, \`medium\`, \`hard\` |
 | \`RiskLevel\` | \`low\`, \`medium\`, \`high\` |
 | \`WifiStrength\` | \`ok\`, \`weak\`, \`dead\` |
@@ -207,361 +203,271 @@ Tous les types sont définis dans \`src/types/intake.ts\`.
 
 ## Interfaces Principales
 
-### \`Project\`
-Représente un projet de quête. Stocké dans la table \`projects\`.
+### \`Project\` (table \`projects\`)
 
 | Champ | Type | Description |
 |---|---|---|
-| \`id\` | \`string (UUID)\` | Identifiant unique |
-| \`hotel_name\` | \`string\` | Nom du lieu |
-| \`city\` | \`string\` | Ville |
-| \`floors\` | \`number\` | Nombre d'étages |
-| \`quest_config\` | \`QuestConfig\` | Configuration complète de la quête (JSONB) |
-| \`title_i18n\` | \`I18nText\` | Titre multilingue |
-| \`story_i18n\` | \`I18nText\` | Histoire/synopsis multilingue |
-| \`difficulty\` | \`DifficultyLevel\` | Difficulté globale |
-| \`theme\` | \`string\` | Thème narratif |
-| \`is_complete\` | \`boolean\` | Projet marqué comme complet |
-| \`visit_date\` | \`string\` | Date de visite terrain |
-| \`map_url\` | \`string\` | URL du plan uploadé |
+| \`id\` | UUID | Identifiant |
+| \`hotel_name\` | string | Nom du lieu |
+| \`city\` | string | Ville |
+| \`floors\` | number | Nombre d'étages |
+| \`quest_config\` | QuestConfig | Configuration complète (JSONB) |
+| \`title_i18n\` / \`story_i18n\` | I18nText | Titre et histoire multilingues |
+| \`difficulty\` | DifficultyLevel | Difficulté globale |
+| \`theme\` | string | Thème narratif |
+| \`is_complete\` | boolean | Projet complet |
+| \`visit_date\` | string | Date de visite terrain |
+| \`map_url\` | string | Plan uploadé |
 
-### \`QuestConfig\`
-Configuration détaillée d'une quête. Stocké dans \`projects.quest_config\` (JSONB).
+### \`QuestConfig\` (\`projects.quest_config\`)
+\`project_type\`, \`play_mode\`, \`questType\`, \`core\` (langues, audience, durée, transport), \`establishment_details\`, \`tourist_spot_details\`, \`route_recon_details\`, \`teamConfig\`, \`multiSoloConfig\`, \`scoring\`, \`storytelling\`, \`gps\`, \`decisions_validated\`.
 
-| Champ | Type | Description |
-|---|---|---|
-| \`project_type\` | \`ProjectType\` | Type de projet |
-| \`play_mode\` | \`PlayMode\` | Mode de jeu |
-| \`questType\` | \`QuestType\` | Type de quête |
-| \`core\` | \`CoreDetails\` | Détails communs (langues, audience, durée, etc.) |
-| \`establishment_details\` | \`EstablishmentDetails\` | Détails spécifiques établissement |
-| \`tourist_spot_details\` | \`TouristSpotDetails\` | Détails spécifiques site touristique |
-| \`route_recon_details\` | \`RouteReconDetails\` | Détails spécifiques reconnaissance |
-| \`teamConfig\` | \`TeamConfig\` | Config équipes (si play_mode=team) |
-| \`multiSoloConfig\` | \`MultiSoloConfig\` | Config multi-solo |
-| \`scoring\` | \`ScoringConfig\` | Config scoring globale |
-| \`storytelling\` | \`StorytellingConfig\` | Narrateur/avatar |
-| \`decisions_validated\` | \`DecisionsValidated\` | Checklist de validation client |
+### \`POI\` (table \`pois\`) — étape de quête B2B
+\`id\`, \`project_id\`, \`name\`, \`zone\`, \`sort_order\`, \`interaction\`, \`risk\`, \`photo_url\`, \`minutes_from_prev\`, \`notes\`, \`step_config\` (JSONB).
 
-### \`POI\` (Point of Interest)
-Représente une étape du jeu. Stocké dans la table \`pois\`.
-
-| Champ | Type | Description |
-|---|---|---|
-| \`id\` | \`string (UUID)\` | Identifiant unique |
-| \`project_id\` | \`string\` | FK vers projects |
-| \`name\` | \`string\` | Nom de l'étape |
-| \`zone\` | \`string\` | Zone/lieu dans l'établissement |
-| \`sort_order\` | \`number\` | Ordre d'affichage |
-| \`interaction\` | \`InteractionType\` | Type d'interaction |
-| \`risk\` | \`RiskLevel\` | Niveau de risque |
-| \`step_config\` | \`StepConfig\` | Configuration détaillée de l'étape (JSONB) |
-
-### \`StepConfig\`
-Configuration d'une étape individuelle. Stocké dans \`pois.step_config\` (JSONB).
-
-| Champ | Type | Description |
-|---|---|---|
-| \`possible_step_types\` | \`StepType[]\` | Types d'étapes possibles (multi-select) |
-| \`possible_validation_modes\` | \`ValidationMode[]\` | Modes de validation possibles |
-| \`final_step_type\` | \`StepType\` | Type final choisi |
-| \`final_validation_mode\` | \`ValidationMode\` | Mode de validation final |
-| \`scoring\` | \`ScoringConfig\` | Points, pénalités, bonus temps |
-| \`hints\` | \`string[]\` | Indices disponibles |
-| \`branching\` | \`BranchingLogic\` | Logique de branchement conditionnel |
-| \`contentI18n\` | \`I18nText\` | Contenu multilingue |
-| \`photoValidation\` | \`PhotoValidationConfig\` | Config validation photo |
+### \`StepConfig\` (\`pois.step_config\`)
+\`possible_step_types\`, \`possible_validation_modes\`, \`final_step_type\`, \`final_validation_mode\`, \`scoring\`, \`hints\`, \`branching\`, \`contentI18n\`, \`photoValidation\`, \`media\` (liste blanche \`media_ids\` pour le contrôle d'accès).
 
 ### \`BranchingLogic\`
-Logique de branchement entre étapes.
+\`onSuccess\` (UUID | \`next\` | \`intermediate\` | \`end\`), \`onFailure\` (UUID | \`retry\` | \`end\`), \`scoreAbove\`, \`scoreAboveTarget\`, \`scoreBelowTarget\`.
 
-| Champ | Type | Description |
-|---|---|---|
-| \`onSuccess\` | \`string\` | UUID de l'étape suivante, \`'next'\`, \`'intermediate'\`, ou \`'end'\` |
-| \`onFailure\` | \`string\` | UUID, \`'retry'\`, ou \`'end'\` |
-| \`scoreAbove\` | \`number\` | Seuil de score pour le branchement conditionnel |
-| \`scoreAboveTarget\` | \`string\` | Destination si score > seuil |
-| \`scoreBelowTarget\` | \`string\` | Destination si score < seuil |
+## Modèle \`story_layer\` (couche narrative POI médina)
+
+Stocké dans \`medina_pois.metadata.story_layer\`, généré par \`story-architect\`, consommé par QRP.
+
+\`\`\`json
+{
+  "version": "1.0",
+  "hook": "accroche courte",
+  "scene": ["éléments de scène observables"],
+  "secret": "détail peu connu et vérifiable",
+  "mission": {
+    "instruction": "mission terrain 3-5 min",
+    "respect_rules": ["règles de respect et sécurité"]
+  },
+  "audio": { "url_fr": null, "url_en": null }
+}
+\`\`\`
+
+HPP ne produit aucune notion d'épisode, de numéro d'épisode ni de transition entre POI : l'assemblage en série relève exclusivement de QRP.
 `;
 
-const DATABASE_SCHEMA_MD = `# Schéma de Base de Données — QuestRides
+const DATABASE_SCHEMA_MD = `# Schéma de Base de Données — Hunt Planner Pro
 
-## Tables
+Base PostgreSQL managée (Lovable Cloud), extension PostGIS activée.
+Row Level Security activée sur toutes les tables applicatives, avec GRANT explicites par rôle.
 
-### \`projects\`
-Table principale des projets de quête.
+## Bibliothèque médina (cœur métier)
 
-| Colonne | Type | Nullable | Défaut | Description |
-|---|---|---|---|---|
-| \`id\` | UUID | Non | gen_random_uuid() | PK |
-| \`hotel_name\` | TEXT | Non | | Nom du lieu |
-| \`city\` | TEXT | Non | | Ville |
-| \`floors\` | INTEGER | Non | 0 | Nombre d'étages |
-| \`visit_date\` | DATE | Oui | | Date de visite |
-| \`map_url\` | TEXT | Oui | | URL du plan |
-| \`map_uploaded_at\` | TIMESTAMPTZ | Oui | | Date d'upload du plan |
-| \`staff_available\` | BOOLEAN | Oui | | Staff disponible |
-| \`reset_time_mins\` | INTEGER | Oui | | Temps de reset en minutes |
-| \`props_allowed\` | BOOLEAN | Oui | | Accessoires autorisés |
-| \`target_duration_mins\` | INTEGER | Oui | | Durée cible en minutes |
-| \`difficulty\` | ENUM(difficulty_level) | Oui | | easy/medium/hard |
-| \`theme\` | TEXT | Oui | | Thème narratif |
-| \`is_complete\` | BOOLEAN | Oui | false | Projet complet |
-| \`quest_config\` | JSONB | Non | '{}' | Configuration de quête (voir QuestConfig) |
-| \`title_i18n\` | JSONB | Non | '{}' | Titre multilingue |
-| \`story_i18n\` | JSONB | Non | '{}' | Histoire multilingue |
-| \`created_at\` | TIMESTAMPTZ | Non | now() | |
-| \`updated_at\` | TIMESTAMPTZ | Non | now() | |
+### \`medina_pois\` (131 colonnes)
+Table de référence des points d'intérêt de la médina de Marrakech.
 
-### \`pois\` (Points of Interest)
-Étapes du jeu liées à un projet.
-
-| Colonne | Type | Nullable | Défaut | Description |
-|---|---|---|---|---|
-| \`id\` | UUID | Non | gen_random_uuid() | PK |
-| \`project_id\` | UUID | Non | | FK → projects.id |
-| \`name\` | TEXT | Non | | Nom de l'étape |
-| \`zone\` | TEXT | Non | | Zone/lieu |
-| \`photo_url\` | TEXT | Oui | | Photo du lieu |
-| \`interaction\` | ENUM(interaction_type) | Non | 'puzzle' | Type d'interaction |
-| \`risk\` | ENUM(risk_level) | Non | 'low' | Niveau de risque |
-| \`minutes_from_prev\` | INTEGER | Oui | | Minutes depuis l'étape précédente |
-| \`notes\` | TEXT | Oui | | Notes libres |
-| \`sort_order\` | INTEGER | Non | 0 | Ordre de tri |
-| \`step_config\` | JSONB | Non | '{}' | Configuration d'étape (voir StepConfig) |
-| \`created_at\` | TIMESTAMPTZ | Non | now() | |
-
-### \`wifi_zones\`
-Couverture Wi-Fi par zone.
-
-| Colonne | Type | Description |
-|---|---|---|
-| \`id\` | UUID | PK |
-| \`project_id\` | UUID | FK → projects.id |
-| \`zone\` | TEXT | Nom de la zone |
-| \`strength\` | ENUM(wifi_strength) | ok / weak / dead |
-
-### \`forbidden_zones\`
-Zones interdites avec raison.
-
-| Colonne | Type | Description |
-|---|---|---|
-| \`id\` | UUID | PK |
-| \`project_id\` | UUID | FK → projects.id |
-| \`zone\` | TEXT | Nom de la zone |
-| \`reason\` | TEXT | Raison de l'interdiction |
-
-### \`app_configs\`
-Registre de configuration admin avec versioning.
-
-| Colonne | Type | Description |
-|---|---|---|
-| \`id\` | UUID | PK |
-| \`key\` | TEXT | Clé de config (ex: 'capabilities') |
-| \`payload\` | JSONB | Données de configuration |
-| \`status\` | TEXT | 'draft' ou 'published' |
-| \`version\` | INTEGER | Numéro de version |
-| \`created_at\` | TIMESTAMPTZ | |
-| \`updated_at\` | TIMESTAMPTZ | |
-
-### \`avatars\`
-Avatars/narrateurs disponibles.
-
-| Colonne | Type | Description |
-|---|---|---|
-| \`id\` | UUID | PK |
-| \`project_id\` | UUID | FK → projects.id (nullable = avatar global) |
-| \`name\` | TEXT | Nom du personnage |
-| \`style\` | TEXT | Style visuel (cartoon, realistic, etc.) |
-| \`age\` | TEXT | Tranche d'âge |
-| \`persona\` | TEXT | Rôle narratif |
-| \`outfit\` | TEXT | Tenue vestimentaire |
-| \`image_url\` | TEXT | URL de l'image |
-
-### \`route_traces\`
-Traces GPS enregistrées en mode reconnaissance.
-
-| Colonne | Type | Description |
-|---|---|---|
-| \`id\` | UUID | PK |
-| \`project_id\` | UUID | FK → projects.id |
-| \`name\` | TEXT | Nom de la trace |
-| \`geojson\` | JSONB | Tracé GeoJSON (LineString) |
-| \`distance_meters\` | NUMERIC | Distance totale |
-| \`started_at\` | TIMESTAMPTZ | Début d'enregistrement |
-| \`ended_at\` | TIMESTAMPTZ | Fin d'enregistrement |
-
-### \`route_markers\`
-Marqueurs posés pendant l'enregistrement GPS.
-
-| Colonne | Type | Description |
-|---|---|---|
-| \`id\` | UUID | PK |
-| \`trace_id\` | UUID | FK → route_traces.id |
-| \`lat\` | DOUBLE PRECISION | Latitude |
-| \`lng\` | DOUBLE PRECISION | Longitude |
-| \`note\` | TEXT | Note associée |
-| \`photo_url\` | TEXT | Photo du marqueur |
-
-### \`user_roles\`
-Rôles utilisateurs (système RBAC).
-
-| Colonne | Type | Description |
-|---|---|---|
-| \`id\` | UUID | PK |
-| \`user_id\` | UUID | Référence auth.users |
-| \`role\` | ENUM(app_role) | 'admin' |
-
-## Enums PostgreSQL
-
-| Enum | Valeurs |
+| Groupe de colonnes | Contenu |
 |---|---|
-| \`difficulty_level\` | easy, medium, hard |
-| \`interaction_type\` | puzzle, qr_scan, photo, hidden_object, npc, audio |
-| \`risk_level\` | low, medium, high |
-| \`wifi_strength\` | ok, weak, dead |
-| \`app_role\` | admin |
+| Identité | \`id\`, \`name\`, \`name_ar\`, \`slug\`, \`category\`, \`subcategory\` |
+| Géographie | \`lat\`, \`lng\`, \`geom\` (PostGIS), \`district\`, \`address\` |
+| Enrichissement FR | \`history_context\`, \`local_anecdote\`, \`practical_info\`, \`sensory_description\`, … |
+| Enrichissement EN | \`history_context_en\`, \`local_anecdote_en\`, … (parité obligatoire) |
+| Qualité | \`poi_quality_score\`, \`enrichment_status\`, \`validation_status\`, \`is_main_visit\` |
+| Média | \`cover_image_url\`, \`audio_url_fr\`, \`audio_url_en\` |
+| Divers | \`metadata\` (JSONB : \`visit_families\`, \`tier_by_family\`, \`story_layer\`, clés de reclassement) |
 
-## Fonctions
+\`is_main_visit = true\` identifie la source unique des visites guidées exposées à QRP.
 
-### \`has_role(_role app_role, _user_id uuid)\`
-Vérifie si un utilisateur possède un rôle donné. Utilisée dans les politiques RLS.
+### \`poi_media\`, \`poi_quality_reports\`, \`watchdog_reports\`
+Médias attachés aux POI, rapports de qualité et audits quotidiens (champs manquants, GPS, bornes géographiques).
 
-## Relations
+### \`street_nodes\`, \`streets\`, \`streets_walking_cost\`
+Graphe piéton de la médina pour le calcul d'itinéraires et de distances réelles.
 
-- \`pois.project_id\` → \`projects.id\`
-- \`wifi_zones.project_id\` → \`projects.id\`
-- \`forbidden_zones.project_id\` → \`projects.id\`
-- \`avatars.project_id\` → \`projects.id\`
-- \`route_traces.project_id\` → \`projects.id\`
-- \`route_markers.trace_id\` → \`route_traces.id\`
-`;
+## Projets B2B et jeu
 
-const API_AND_EDGE_FUNCTIONS_MD = `# API et Edge Functions — QuestRides
+| Table | Rôle |
+|---|---|
+| \`projects\` | Projets de chasse au trésor / quête sur mesure |
+| \`pois\` | Étapes d'un projet B2B (37 colonnes, \`step_config\` JSONB) |
+| \`wifi_zones\`, \`forbidden_zones\` | Contraintes terrain d'un projet |
+| \`avatars\` | Narrateurs/personnages |
+| \`route_traces\`, \`route_markers\` | Traces GPS et marqueurs de reconnaissance terrain |
+| \`quest_library\` | Bibliothèque de quêtes culturelles prêtes à l'emploi |
+| \`generated_quests\` | Quêtes générées par IA |
+| \`quest_narratives_cache\` | Cache de narration (clé SHA-256) |
+| \`quest_instances\`, \`quest_instance_devices\`, \`quest_photos\` | Parties jouées, appareils autorisés, photos joueurs |
+| \`visit_types\` | Typologies de visites proposées |
 
-## Edge Functions
+## Commerce, retours et exploitation
 
-### \`admin-signup\`
-**Chemin :** \`supabase/functions/admin-signup/index.ts\`
+| Table | Rôle |
+|---|---|
+| \`orders\` | Commandes clients |
+| \`client_photos\`, \`client_recommendations\`, \`client_poi_recommendations\` | Retours joueurs et modération |
+| \`api_keys\`, \`api_usage\` | Clés partenaires API v2 et quotas |
+| \`app_configs\` | Configuration admin versionnée (draft/published) |
+| \`pipeline_runs\`, \`import_batches\` | Suivi d'exécution du pipeline POI |
+| \`audio_inventory_snapshot\`, \`audio_irrecoverable\` | Inventaire et anomalies audio |
+| \`email_send_log\`, \`email_send_state\`, \`email_unsubscribe_tokens\`, \`suppressed_emails\` | Système de notifications e-mail |
+| \`suspicious_devices\` | Détection d'abus côté lecteur |
+| \`user_roles\` | Rôles applicatifs (RBAC) |
 
-Crée un nouvel utilisateur admin. Réservé aux admins existants.
+## Vues
 
-**Méthode :** POST
-**Auth :** Requise (admin)
-**Body :**
-\`\`\`json
-{
-  "email": "string",
-  "password": "string"
-}
-\`\`\`
-
-### \`create-first-admin\`
-**Chemin :** \`supabase/functions/create-first-admin/index.ts\`
-
-Crée le tout premier compte admin (bootstrap). Ne fonctionne que si aucun admin n'existe encore.
-
-**Méthode :** POST
-**Auth :** Aucune (première installation uniquement)
-**Body :**
-\`\`\`json
-{
-  "email": "string",
-  "password": "string"
-}
-\`\`\`
-
-## Flux d'Authentification
-
-1. L'utilisateur accède à \`/auth\` → formulaire login
-2. Supabase Auth gère la session (JWT)
-3. Le hook \`useAuth()\` expose l'état de session
-4. Le hook \`useAdminRole()\` vérifie le rôle admin via \`user_roles\`
-5. Les pages admin vérifient le rôle avant d'afficher le contenu
-
-## Accès aux Données (Client)
-
-Toutes les requêtes passent par le client Supabase auto-généré :
-\`\`\`
-src/integrations/supabase/client.ts
-\`\`\`
-
-Les types sont auto-générés dans :
-\`\`\`
-src/integrations/supabase/types.ts
-\`\`\`
+| Vue | Rôle |
+|---|---|
+| \`v_poi_qrp_readiness\` | POI prêts pour consommation QRP |
+| \`v_top_pois\` | Classement qualité des POI |
 
 ## Sécurité
 
-- Row Level Security (RLS) activé sur toutes les tables
-- Les politiques RLS contrôlent l'accès en lecture/écriture
-- Les Edge Functions vérifient l'authentification et le rôle admin
-- Les clés API sensibles sont stockées comme secrets côté serveur
+### \`has_role(_user_id uuid, _role app_role)\`
+Fonction \`SECURITY DEFINER\` utilisée dans les politiques RLS pour éviter la récursion.
+Les rôles sont stockés exclusivement dans \`user_roles\` (jamais sur un profil utilisateur).
+
+Autres garde-fous : liste blanche CORS sur les endpoints publics, limitation de débit, contrôle d'accès média par \`media_ids\`, suivi des appareils autorisés par instance de jeu.
 `;
 
-const DEPLOYMENT_MD = `# Déploiement — QuestRides
+const API_AND_EDGE_FUNCTIONS_MD = `# API et Edge Functions — Hunt Planner Pro
+
+Environ 48 Edge Functions Deno, regroupées par domaine.
+
+## API publiques consommées par QRP / Questride
+
+### \`api-v2\`
+API partenaire authentifiée par en-tête \`X-API-Key\`, quotas journaliers (5 000–10 000 appels).
+
+| Route | Contenu |
+|---|---|
+| \`?route=pois\` | Liste de POI (colonnes publiques) |
+| \`?route=poi&id=\` | Fiche POI détaillée |
+| \`?route=main-visits\` | POI \`is_main_visit = true\` — source des visites guidées, inclut \`story_layer\` en top-level |
+| \`?route=sync\` | Synchronisation en masse (max 200), champs traduits, \`visit_families\`, \`tier_by_family\`, \`story_layer\` ; \`metadata\` non exposée |
+
+### \`public-project-data\`
+Endpoint public en lecture seule (cache HTTP \`max-age=300\`).
+Modes : \`health\`, \`list\`, \`project\`, \`library\`, \`tours\`.
+Le mode \`library\` expose \`story_layer\` en champ top-level (\`null\` si le POI n'est pas enrichi).
+
+### Autres endpoints publics
+\`public-generate-quest\` (génération paramétrée avec hubs de départ), \`public-buy-catalog\`, \`public-zones\`, \`submit-recommendation\`, \`collect-client-media\`, \`client-feedback\`, \`get-media-urls\`, \`start-instance\`.
+
+## Pipeline POI et enrichissement
+
+| Fonction | Rôle |
+|---|---|
+| \`poi-extract\` | Extraction par grille géographique (100 m / rayon 150 m) |
+| \`poi-worker\`, \`poi-auto-agent\` | Traitement par lots auto-bouclés |
+| \`poi-classify-worker\` | Classification et scoring IA |
+| \`poi-enricher\`, \`poi-enrich-single\`, \`anecdote-enricher\` | Enrichissement narratif (structure 80–100 mots : fait, contexte, conclusion) |
+| \`poi-backfill-details\`, \`poi-proximity\` | Complétion et calculs de proximité |
+| \`poi-quality-agent\`, \`poi-watchdog\` | Correction d'anomalies et audit quotidien |
+| \`poi-wikidata\`, \`wikidata-finder\`, \`wiki-name-enricher\` | Rapprochement Wikidata / Wikimedia |
+| \`photo-fetcher\`, \`poi-fetch-photos\` | Récupération de photos (lots de 20) |
+| \`translate\` | Traduction FR → EN |
+| \`enrichment-pipeline\` | Orchestrateur du pipeline |
+| \`story-architect\` | Génération de \`metadata.story_layer\` par POI (mode \`dry_run\`, cache, régénération explicite) |
+
+## Audio
+
+\`generate-poi-audio\` (TTS ElevenLabs : voix \`JdwJ7jL68CWmQZuo7KgG\`, vitesse 0,75 ; texte source brut, jamais réécrit), \`audio-inventory-scan\`, \`regen-irrecoverable-audios\`, \`import-audio-to-hpp\`, \`pull-audio-from-questride\`.
+
+## Quêtes
+
+\`generate-quest\`, \`quest-library-rebuild\`, \`quest-library-enrich-missions\`, \`riddle-generator\`, \`analyze-marker\`, \`promote-marker-to-library\`, \`sync-pois-export\`.
+
+## Administration et plateforme
+
+\`admin-signup\`, \`create-first-admin\`, \`admin-run-cleanup\`, \`agent-chat\` (agent IA expert médina, mode conversationnel et vision), \`n8n-proxy\` (actions asynchrones centralisées, validation JWT / X-API-Key), \`process-email-queue\`.
+
+## Authentification
+
+1. \`/auth\` → connexion e-mail/mot de passe
+2. Session JWT gérée par le backend
+3. \`useAuth()\` expose l'état de session
+4. \`useAdminRole()\` vérifie le rôle via \`user_roles\`
+5. Les pages \`/admin/*\` sont protégées par \`ProtectedRoute requireAdmin\`
+
+## Politique d'accès des fonctions
+
+Certaines fonctions de pipeline sont déclarées \`verify_jwt = false\` et protégées par clé API applicative, afin de permettre l'exécution par des orchestrateurs externes et des tâches planifiées (cron d'enrichissement autonome toutes les 15 minutes).
+
+## Accès aux données côté client
+
+Client backend auto-généré dans \`src/integrations/supabase/client.ts\`, types auto-générés dans \`src/integrations/supabase/types.ts\`. Ces deux fichiers ne sont jamais édités manuellement.
+`;
+
+const DEPLOYMENT_MD = `# Déploiement — Hunt Planner Pro
 
 ## Environnement
 
 | Variable | Description |
 |---|---|
-| \`VITE_SUPABASE_URL\` | URL du projet Supabase |
-| \`VITE_SUPABASE_PUBLISHABLE_KEY\` | Clé publique (anon key) |
-| \`VITE_SUPABASE_PROJECT_ID\` | ID du projet |
+| \`VITE_SUPABASE_URL\` | URL du backend |
+| \`VITE_SUPABASE_PUBLISHABLE_KEY\` | Clé publique |
+| \`VITE_SUPABASE_PROJECT_ID\` | Identifiant du projet |
 
 Ces variables sont gérées automatiquement par Lovable Cloud.
+Les secrets serveur (clés IA, ElevenLabs, Perplexity, clés partenaires, service role) sont stockés côté fonctions et ne sont jamais exposés au client.
 
 ## Workflow de Déploiement
 
-1. **Développement** : Les modifications de code sont appliquées en temps réel via Lovable
-2. **Preview** : Chaque modification génère une URL de preview
-3. **Publication** : Le bouton "Publish" déploie l'application en production
-4. **Base de données** : Les migrations SQL sont gérées via le système de migrations Supabase
-5. **Edge Functions** : Déployées automatiquement à chaque modification
+1. **Développement** : modifications appliquées en temps réel.
+2. **Preview** : URL de prévisualisation par version.
+3. **Publication** : déploiement en production, domaine personnalisé pris en charge.
+4. **Base de données** : migrations SQL versionnées.
+5. **Edge Functions** : déployées automatiquement à chaque modification.
 
 ## Build
 
 - **Outil :** Vite
-- **Commande :** \`npm run build\` (ou \`bun run build\`)
+- **Commande :** \`bun run build\` (ou \`npm run build\`)
 - **Sortie :** \`dist/\`
-- **Tests :** \`vitest\` (configuration dans \`vitest.config.ts\`)
+- **Tests :** \`vitest\` (\`vitest.config.ts\`)
 
 ## Configuration Admin
 
-Le panneau admin (\`/admin\`) utilise un workflow brouillon/publication :
+Le back-office \`/admin\` utilise un workflow brouillon/publication :
 
-1. Les modifications sont faites en local (state React)
-2. "Sauvegarder" persiste un brouillon dans \`app_configs\` (status='draft')
-3. "Publier" crée une nouvelle version publiée (status='published', version incrémentée)
-4. L'Intake Form lit toujours la dernière version publiée
+1. Modifications locales (state React via \`AppConfigContext\`)
+2. "Sauvegarder" → brouillon dans \`app_configs\` (\`status='draft'\`)
+3. "Publier" → nouvelle version active (\`status='published'\`, \`version\` incrémentée)
+4. Le configurateur Intake lit toujours la dernière version publiée
+
+## Exploitation courante
+
+- Pipeline POI piloté depuis \`/admin/poi-pipeline\`, état persisté en base pour reprise après interruption.
+- Agent d'enrichissement autonome planifié (toutes les 15 min, lots de traduction 20×10).
+- Watchdog quotidien : champs manquants, GPS absent, POI hors bornes médina.
+- Supervision technique via \`/admin/health\`.
+- Notifications e-mail transactionnelles via domaine dédié.
 `;
 
 export async function generateEscrowZip(): Promise<void> {
   const zip = new JSZip();
-  
-  const folder = zip.folder('QuestRides_Technical_Documentation');
+
+  const folder = zip.folder('HuntPlannerPro_Technical_Documentation');
   if (!folder) throw new Error('Failed to create ZIP folder');
-  
+
+  folder.file('ECOSYSTEM.md', ECOSYSTEM_MD);
   folder.file('ARCHITECTURE.md', ARCHITECTURE_MD);
   folder.file('HOOKS_AND_CONTEXT.md', HOOKS_AND_CONTEXT_MD);
   folder.file('TYPES_REFERENCE.md', TYPES_REFERENCE_MD);
   folder.file('DATABASE_SCHEMA.md', DATABASE_SCHEMA_MD);
   folder.file('API_AND_EDGE_FUNCTIONS.md', API_AND_EDGE_FUNCTIONS_MD);
   folder.file('DEPLOYMENT.md', DEPLOYMENT_MD);
-  folder.file('README.md', `# QuestRides — Dossier Technique Escrow
+  folder.file('README.md', `# Hunt Planner Pro — Dossier Technique Escrow
 
-Ce dossier contient la documentation technique complète de l'application QuestRides.
+Documentation technique descriptive de l'application Hunt Planner Pro (HPP).
 
 ## Contenu
 
 | Fichier | Description |
 |---|---|
-| \`ARCHITECTURE.md\` | Stack technique, structure des dossiers, flux de données |
-| \`HOOKS_AND_CONTEXT.md\` | Documentation des hooks React et contextes partagés |
-| \`TYPES_REFERENCE.md\` | Référence complète des types TypeScript |
-| \`DATABASE_SCHEMA.md\` | Schéma de base de données, tables, relations, enums |
-| \`API_AND_EDGE_FUNCTIONS.md\` | Endpoints, authentification, Edge Functions |
-| \`DEPLOYMENT.md\` | Configuration, variables d'environnement, workflow |
+| \`ECOSYSTEM.md\` | Rôles respectifs de HPP, QUEST RIDES PRO et Questride, frontières produit |
+| \`ARCHITECTURE.md\` | Stack technique, structure des dossiers, routes, flux de données |
+| \`HOOKS_AND_CONTEXT.md\` | Hooks React métier et contextes partagés |
+| \`TYPES_REFERENCE.md\` | Types TypeScript et modèle \`story_layer\` |
+| \`DATABASE_SCHEMA.md\` | Tables, vues, relations, sécurité RLS |
+| \`API_AND_EDGE_FUNCTIONS.md\` | Edge Functions, API publiques, authentification |
+| \`DEPLOYMENT.md\` | Environnement, build, workflow d'exploitation |
 
 ## Note
 
@@ -570,15 +476,15 @@ Il ne contient aucun fichier source (.ts, .tsx, .css, etc.).
 Le code source complet sera transmis à la finalisation de la transaction.
 
 ---
-Généré le ${new Date().toLocaleDateString('fr-FR')} par QuestRides Admin.
+Généré le ${new Date().toLocaleDateString('fr-FR')} par Hunt Planner Pro Admin.
 `);
 
   const blob = await zip.generateAsync({ type: 'blob' });
-  
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'QuestRides_Technical_Escrow.zip';
+  a.download = 'HuntPlannerPro_Technical_Escrow.zip';
   a.click();
   URL.revokeObjectURL(url);
 }
